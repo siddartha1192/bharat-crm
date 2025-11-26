@@ -17,19 +17,20 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 230 25% 15%;
 
-    --primary: 16 85% 58%;
+    /* Indian Flag Tricolor Theme */
+    --primary: 30 100% 60%; /* Saffron */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 184 65% 52%;
+    --secondary: 240 100% 25%; /* Navy Blue (Ashoka Chakra) */
     --secondary-foreground: 0 0% 100%;
 
     --muted: 45 20% 95%;
     --muted-foreground: 230 15% 45%;
 
-    --accent: 280 65% 60%;
+    --accent: 120 82% 28%; /* India Green */
     --accent-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;
+    --success: 120 82% 28%; /* India Green */
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
@@ -40,21 +41,22 @@ All colors MUST be HSL.
 
     --border: 45 25% 88%;
     --input: 45 25% 88%;
-    --ring: 16 85% 58%;
+    --ring: 30 100% 60%; /* Saffron */
 
     --radius: 0.75rem;
     
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(16 85% 58%), hsl(16 85% 68%));
-    --gradient-secondary: linear-gradient(135deg, hsl(184 65% 52%), hsl(184 65% 62%));
-    --gradient-accent: linear-gradient(135deg, hsl(280 65% 60%), hsl(280 65% 70%));
-    --gradient-success: linear-gradient(135deg, hsl(142 71% 45%), hsl(142 71% 55%));
+    /* Gradients - Indian Flag Tricolor Theme */
+    --gradient-primary: linear-gradient(135deg, hsl(30 100% 60%), hsl(30 100% 70%)); /* Saffron */
+    --gradient-secondary: linear-gradient(135deg, hsl(240 100% 25%), hsl(240 100% 35%)); /* Navy Blue */
+    --gradient-accent: linear-gradient(135deg, hsl(120 82% 28%), hsl(120 82% 38%)); /* Green */
+    --gradient-success: linear-gradient(135deg, hsl(120 82% 28%), hsl(120 82% 38%)); /* Green */
+    --gradient-tricolor: linear-gradient(180deg, hsl(30 100% 60%) 0%, hsl(0 0% 100%) 33%, hsl(120 82% 28%) 66%, hsl(240 100% 25%) 100%);
     
     /* Shadows */
     --shadow-soft: 0 2px 8px -2px hsl(230 25% 15% / 0.08);
     --shadow-medium: 0 4px 16px -4px hsl(230 25% 15% / 0.12);
     --shadow-large: 0 12px 32px -8px hsl(230 25% 15% / 0.16);
-    --shadow-primary: 0 8px 24px -6px hsl(16 85% 58% / 0.3);
+    --shadow-primary: 0 8px 24px -6px hsl(30 100% 60% / 0.3);
     
     /* Transitions */
     --transition-base: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -87,19 +89,20 @@ All colors MUST be HSL.
     --popover: 230 30% 12%;
     --popover-foreground: 45 25% 95%;
 
-    --primary: 16 85% 58%;
+    /* Indian Flag Tricolor Theme - Dark Mode */
+    --primary: 30 100% 60%; /* Saffron */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 184 65% 52%;
+    --secondary: 240 100% 35%; /* Navy Blue (lighter for dark mode) */
     --secondary-foreground: 0 0% 100%;
 
     --muted: 230 25% 18%;
     --muted-foreground: 45 15% 60%;
 
-    --accent: 280 65% 60%;
+    --accent: 120 82% 35%; /* India Green (lighter for dark mode) */
     --accent-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;
+    --success: 120 82% 35%; /* India Green */
     --success-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -107,7 +110,7 @@ All colors MUST be HSL.
 
     --border: 230 25% 20%;
     --input: 230 25% 20%;
-    --ring: 16 85% 58%;
+    --ring: 30 100% 60%; /* Saffron */
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
