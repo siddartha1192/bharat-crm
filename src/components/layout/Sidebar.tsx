@@ -1,20 +1,26 @@
 import { NavLink } from '@/components/NavLink';
-import { 
-  LayoutDashboard, 
-  ListTodo, 
-  Users, 
-  Target, 
+import {
+  LayoutDashboard,
+  ListTodo,
+  Users,
+  Target,
   Calendar,
   Settings,
-  CheckCircle2
+  CheckCircle2,
+  UserPlus,
+  MessageCircle,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Tasks', href: '/tasks', icon: ListTodo },
+  { name: 'Leads', href: '/leads', icon: UserPlus },
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Pipeline', href: '/pipeline', icon: Target },
+  { name: 'Tasks', href: '/tasks', icon: ListTodo },
+  { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
+  { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'Calendar', href: '/calendar', icon: Calendar },
 ];
 
@@ -26,7 +32,7 @@ export function Sidebar() {
           <CheckCircle2 className="w-5 h-5 text-primary-foreground" />
         </div>
         <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          TaskFlow CRM
+          Bharat CRM
         </span>
       </div>
       
