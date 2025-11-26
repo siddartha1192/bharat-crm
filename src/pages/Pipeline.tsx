@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { mockDeals } from '@/lib/mockData';
 import { defaultPipelineStages, PipelineStage, Deal } from '@/types/pipeline';
 import { DealCard } from '@/components/pipeline/DealCard';
+import { StageColumn } from '@/components/pipeline/StageColumn';
 import { DealDialog } from '@/components/pipeline/DealDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import {
   DndContext,
@@ -18,10 +18,8 @@ import {
   useSensors,
   closestCorners,
 } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import {
   Plus,
-  Filter,
   Download,
   IndianRupee,
   TrendingUp,
@@ -63,10 +61,6 @@ export default function Pipeline() {
     return deals.filter(deal => deal.stage === stage);
   };
 
-  const getStageValue = (stage: PipelineStage) => {
-    return getDealsByStage(stage).reduce((sum, deal) => sum + deal.value, 0);
-  };
-
   const handleDragStart = (event: DragStartEvent) => {
     const deal = deals.find(d => d.id === event.active.id);
     setActiveDeal(deal || null);
@@ -79,12 +73,24 @@ export default function Pipeline() {
     const activeDeal = deals.find(d => d.id === active.id);
     if (!activeDeal) return;
 
-    // Check if we're over a stage column
-    const overStage = over.id as PipelineStage;
-    if (defaultPipelineStages.some(s => s.id === overStage) && activeDeal.stage !== overStage) {
+    let targetStage: PipelineStage | null = null;
+
+    // Check if we're over a stage column directly
+    if (defaultPipelineStages.some(s => s.id === over.id)) {
+      targetStage = over.id as PipelineStage;
+    } else {
+      // We're over a deal, find which stage it belongs to
+      const overDeal = deals.find(d => d.id === over.id);
+      if (overDeal) {
+        targetStage = overDeal.stage;
+      }
+    }
+
+    // Update the deal's stage if it's different
+    if (targetStage && activeDeal.stage !== targetStage) {
       setDeals(prevDeals =>
         prevDeals.map(d =>
-          d.id === activeDeal.id ? { ...d, stage: overStage, updatedAt: new Date() } : d
+          d.id === activeDeal.id ? { ...d, stage: targetStage, updatedAt: new Date() } : d
         )
       );
     }
@@ -99,9 +105,22 @@ export default function Pipeline() {
     const activeDeal = deals.find(d => d.id === active.id);
     if (!activeDeal) return;
 
-    const overStage = over.id as PipelineStage;
-    if (defaultPipelineStages.some(s => s.id === overStage)) {
-      toast.success(`Deal moved to ${defaultPipelineStages.find(s => s.id === overStage)?.name}`);
+    let targetStage: PipelineStage | null = null;
+
+    // Check if we're over a stage column directly
+    if (defaultPipelineStages.some(s => s.id === over.id)) {
+      targetStage = over.id as PipelineStage;
+    } else {
+      // We're over a deal, find which stage it belongs to
+      const overDeal = deals.find(d => d.id === over.id);
+      if (overDeal) {
+        targetStage = overDeal.stage;
+      }
+    }
+
+    if (targetStage) {
+      const stageName = defaultPipelineStages.find(s => s.id === targetStage)?.name;
+      toast.success(`Deal moved to ${stageName}!`);
     }
   };
 
@@ -284,64 +303,15 @@ export default function Pipeline() {
         >
           <div className="overflow-x-auto">
             <div className="flex gap-4 min-w-max pb-4">
-              {defaultPipelineStages.map(stage => {
-                const stageDeals = getDealsByStage(stage.id);
-                const stageValue = getStageValue(stage.id);
-
-                return (
-                  <SortableContext
-                    key={stage.id}
-                    id={stage.id}
-                    items={stageDeals.map(d => d.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="flex-shrink-0 w-[320px]">
-                      <Card className="p-4">
-                        <div className="mb-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-3 h-3 rounded-full ${stage.color}`} />
-                              <h3 className="font-semibold text-foreground">{stage.name}</h3>
-                              <Badge variant="secondary" className="text-xs">
-                                {stageDeals.length}
-                              </Badge>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <IndianRupee className="w-3 h-3" />
-                            <span>₹{(stageValue / 100000).toFixed(1)}L</span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3 max-h-[calc(100vh-400px)] overflow-y-auto">
-                          {stageDeals.map(deal => (
-                            <DealCard
-                              key={deal.id}
-                              deal={deal}
-                              onClick={() => handleEditDeal(deal)}
-                            />
-                          ))}
-                          {stageDeals.length === 0 && (
-                            <div className="text-center py-8 text-muted-foreground text-sm">
-                              No deals in this stage
-                            </div>
-                          )}
-                        </div>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full mt-3 text-muted-foreground hover:text-foreground"
-                          onClick={() => handleAddDeal(stage.id)}
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add Deal
-                        </Button>
-                      </Card>
-                    </div>
-                  </SortableContext>
-                );
-              })}
+              {defaultPipelineStages.map(stage => (
+                <StageColumn
+                  key={stage.id}
+                  stage={stage}
+                  deals={getDealsByStage(stage.id)}
+                  onAddDeal={() => handleAddDeal(stage.id)}
+                  onEditDeal={handleEditDeal}
+                />
+              ))}
             </div>
           </div>
 
