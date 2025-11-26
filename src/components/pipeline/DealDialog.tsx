@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Deal, PipelineStage } from '@/types/pipeline';
 import {
   Dialog,
@@ -30,19 +30,56 @@ interface DealDialogProps {
 
 export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', deal }: DealDialogProps) {
   const [formData, setFormData] = useState<Partial<Deal>>({
-    title: deal?.title || '',
-    company: deal?.company || '',
-    contactName: deal?.contactName || '',
-    stage: deal?.stage || initialStage,
-    value: deal?.value || 0,
-    probability: deal?.probability || 50,
-    expectedCloseDate: deal?.expectedCloseDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    assignedTo: deal?.assignedTo || 'Priya Sharma',
-    notes: deal?.notes || '',
-    nextAction: deal?.nextAction || '',
-    source: deal?.source || 'website',
-    tags: deal?.tags || [],
+    title: '',
+    company: '',
+    contactName: '',
+    stage: initialStage,
+    value: 0,
+    probability: 50,
+    expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    assignedTo: 'Priya Sharma',
+    notes: '',
+    nextAction: '',
+    source: 'website',
+    tags: [],
   });
+
+  // Update form data whenever the deal prop changes
+  useEffect(() => {
+    if (deal) {
+      // Editing an existing deal
+      setFormData({
+        title: deal.title || '',
+        company: deal.company || '',
+        contactName: deal.contactName || '',
+        stage: deal.stage || initialStage,
+        value: deal.value || 0,
+        probability: deal.probability || 50,
+        expectedCloseDate: deal.expectedCloseDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        assignedTo: deal.assignedTo || 'Priya Sharma',
+        notes: deal.notes || '',
+        nextAction: deal.nextAction || '',
+        source: deal.source || 'website',
+        tags: deal.tags || [],
+      });
+    } else {
+      // Creating a new deal
+      setFormData({
+        title: '',
+        company: '',
+        contactName: '',
+        stage: initialStage,
+        value: 0,
+        probability: 50,
+        expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        assignedTo: 'Priya Sharma',
+        notes: '',
+        nextAction: '',
+        source: 'website',
+        tags: [],
+      });
+    }
+  }, [deal, initialStage]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
