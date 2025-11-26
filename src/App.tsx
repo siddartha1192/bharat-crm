@@ -12,6 +12,7 @@ import Contacts from "./pages/Contacts";
 import Pipeline from "./pages/Pipeline";
 import Reports from "./pages/Reports";
 import WhatsApp from "./pages/WhatsApp";
+import Invoices from "./pages/Invoices";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 
@@ -35,6 +36,7 @@ const App = () => (
                 <Route path="/pipeline" element={<Pipeline />} />
                 <Route path="/tasks" element={<Tasks />} />
                 <Route path="/whatsapp" element={<WhatsApp />} />
+                <Route path="/invoices" element={<Invoices />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route
                   path="/calendar"
