@@ -3,6 +3,7 @@ import { defaultPipelineStages, PipelineStage } from '@/types/pipeline';
 import { DealCard } from '@/components/pipeline/DealCard';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   Plus,
   Filter,
