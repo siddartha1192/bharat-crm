@@ -118,7 +118,13 @@ export default function Pipeline() {
       }
     }
 
-    if (targetStage) {
+    // Update the deal's stage if it changed
+    if (targetStage && activeDeal.stage !== targetStage) {
+      setDeals(prevDeals =>
+        prevDeals.map(d =>
+          d.id === activeDeal.id ? { ...d, stage: targetStage, updatedAt: new Date() } : d
+        )
+      );
       const stageName = defaultPipelineStages.find(s => s.id === targetStage)?.name;
       toast.success(`Deal moved to ${stageName}!`);
     }
