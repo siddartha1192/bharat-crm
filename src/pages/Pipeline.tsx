@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { mockDeals } from '@/lib/mockData';
+import { useState, useEffect } from 'react';
+import { dealsAPI } from '@/lib/api';
 import { defaultPipelineStages, PipelineStage, Deal } from '@/types/pipeline';
 import { DealCard } from '@/components/pipeline/DealCard';
 import { StageColumn } from '@/components/pipeline/StageColumn';
@@ -25,14 +25,34 @@ import {
   TrendingUp,
   Target,
   Trophy,
+  Loader2,
 } from 'lucide-react';
 
 export default function Pipeline() {
-  const [deals, setDeals] = useState<Deal[]>(mockDeals);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [selectedStage, setSelectedStage] = useState<PipelineStage>('lead');
+
+  // Fetch deals from API
+  useEffect(() => {
+    fetchDeals();
+  }, []);
+
+  const fetchDeals = async () => {
+    try {
+      setLoading(true);
+      const data = await dealsAPI.getAll();
+      setDeals(data);
+    } catch (error) {
+      toast.error('Failed to load deals. Please check if the backend is running.');
+      console.error('Error fetching deals:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -96,7 +116,7 @@ export default function Pipeline() {
     }
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     setActiveDeal(null);
 
     const { active, over } = event;
@@ -120,13 +140,29 @@ export default function Pipeline() {
 
     // Update the deal's stage if it changed
     if (targetStage && activeDeal.stage !== targetStage) {
+      // Optimistic update
       setDeals(prevDeals =>
         prevDeals.map(d =>
           d.id === activeDeal.id ? { ...d, stage: targetStage, updatedAt: new Date() } : d
         )
       );
+
       const stageName = defaultPipelineStages.find(s => s.id === targetStage)?.name;
-      toast.success(`Deal moved to ${stageName}!`);
+
+      try {
+        // Update in backend
+        await dealsAPI.update(activeDeal.id, { stage: targetStage });
+        toast.success(`Deal moved to ${stageName}!`);
+      } catch (error) {
+        // Revert on error
+        setDeals(prevDeals =>
+          prevDeals.map(d =>
+            d.id === activeDeal.id ? { ...d, stage: activeDeal.stage } : d
+          )
+        );
+        toast.error('Failed to update deal. Please try again.');
+        console.error('Error updating deal stage:', error);
+      }
     }
   };
 
@@ -141,38 +177,36 @@ export default function Pipeline() {
     setDialogOpen(true);
   };
 
-  const handleSaveDeal = (dealData: Partial<Deal>) => {
-    if (selectedDeal) {
-      // Update existing deal
-      setDeals(prevDeals =>
-        prevDeals.map(d =>
-          d.id === selectedDeal.id
-            ? { ...d, ...dealData, updatedAt: new Date() }
-            : d
-        )
-      );
-      toast.success('Deal updated successfully!');
-    } else {
-      // Create new deal
-      const newDeal: Deal = {
-        id: `D${(deals.length + 1).toString().padStart(3, '0')}`,
-        title: dealData.title || '',
-        company: dealData.company || '',
-        contactName: dealData.contactName || '',
-        stage: dealData.stage || selectedStage,
-        value: dealData.value || 0,
-        probability: dealData.probability || 50,
-        expectedCloseDate: dealData.expectedCloseDate || new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        assignedTo: dealData.assignedTo || 'Priya Sharma',
-        notes: dealData.notes || '',
-        tags: dealData.tags || [],
-        nextAction: dealData.nextAction || '',
-        source: dealData.source || 'website',
-      };
-      setDeals(prevDeals => [...prevDeals, newDeal]);
-      toast.success('Deal created successfully!');
+  const handleSaveDeal = async (dealData: Partial<Deal>) => {
+    try {
+      if (selectedDeal) {
+        // Update existing deal
+        await dealsAPI.update(selectedDeal.id, dealData);
+        toast.success('Deal updated successfully!');
+      } else {
+        // Create new deal
+        const newDeal: Partial<Deal> = {
+          title: dealData.title || '',
+          company: dealData.company || '',
+          contactName: dealData.contactName || '',
+          stage: dealData.stage || selectedStage,
+          value: dealData.value || 0,
+          probability: dealData.probability || 50,
+          expectedCloseDate: dealData.expectedCloseDate || new Date(),
+          assignedTo: dealData.assignedTo || 'Priya Sharma',
+          notes: dealData.notes || '',
+          tags: dealData.tags || [],
+          nextAction: dealData.nextAction || '',
+          source: dealData.source || 'website',
+        };
+        await dealsAPI.create(newDeal);
+        toast.success('Deal created successfully!');
+      }
+      // Refresh the deals list
+      fetchDeals();
+    } catch (error) {
+      toast.error('Failed to save deal. Please try again.');
+      console.error('Error saving deal:', error);
     }
   };
 
@@ -294,31 +328,41 @@ export default function Pipeline() {
         </div>
 
         {/* Pipeline Board with Drag and Drop */}
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="overflow-x-auto">
-            <div className="flex gap-4 min-w-max pb-4">
-              {defaultPipelineStages.map(stage => (
-                <StageColumn
-                  key={stage.id}
-                  stage={stage}
-                  deals={getDealsByStage(stage.id)}
-                  onAddDeal={() => handleAddDeal(stage.id)}
-                  onEditDeal={handleEditDeal}
-                />
-              ))}
+        {loading ? (
+          <Card className="p-12 text-center">
+            <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Loading pipeline...</h3>
+            <p className="text-muted-foreground">
+              Please wait while we fetch your deals
+            </p>
+          </Card>
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="overflow-x-auto">
+              <div className="flex gap-4 min-w-max pb-4">
+                {defaultPipelineStages.map(stage => (
+                  <StageColumn
+                    key={stage.id}
+                    stage={stage}
+                    deals={getDealsByStage(stage.id)}
+                    onAddDeal={() => handleAddDeal(stage.id)}
+                    onEditDeal={handleEditDeal}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
 
-          <DragOverlay>
-            {activeDeal ? <DealCard deal={activeDeal} /> : null}
-          </DragOverlay>
-        </DndContext>
+            <DragOverlay>
+              {activeDeal ? <DealCard deal={activeDeal} /> : null}
+            </DragOverlay>
+          </DndContext>
+        )}
 
         {/* Deal Dialog */}
         <DealDialog

@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { mockLeads } from '@/lib/mockData';
+import { useState, useRef, useEffect } from 'react';
+import { leadsAPI } from '@/lib/api';
 import { LeadCard } from '@/components/leads/LeadCard';
 import { LeadDetailDialog } from '@/components/leads/LeadDetailDialog';
 import { LeadDialog } from '@/components/leads/LeadDialog';
@@ -24,13 +24,15 @@ import {
   TrendingUp,
   IndianRupee,
   Target,
+  Loader2,
 } from 'lucide-react';
 import { Lead, LeadStatus } from '@/types/lead';
 import { exportLeadsToCSV, importLeadsFromCSV } from '@/lib/csvUtils';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Leads() {
-  const [leads, setLeads] = useState<Lead[]>(mockLeads);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -41,6 +43,30 @@ export default function Leads() {
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Fetch leads from API
+  useEffect(() => {
+    fetchLeads();
+  }, [statusFilter]);
+
+  const fetchLeads = async () => {
+    try {
+      setLoading(true);
+      const data = await leadsAPI.getAll({
+        status: statusFilter !== 'all' ? statusFilter : undefined
+      });
+      setLeads(data);
+    } catch (error) {
+      toast({
+        title: "Error fetching leads",
+        description: "Failed to load leads. Please check if the backend is running.",
+        variant: "destructive",
+      });
+      console.error('Error fetching leads:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleViewDetails = (lead: Lead) => {
     setSelectedLead(lead);
@@ -57,25 +83,33 @@ export default function Leads() {
     setEditDialogOpen(true);
   };
 
-  const handleSaveLead = (lead: Lead) => {
-    setLeads(prevLeads => {
-      const existingIndex = prevLeads.findIndex(l => l.id === lead.id);
-      if (existingIndex >= 0) {
-        const newLeads = [...prevLeads];
-        newLeads[existingIndex] = lead;
+  const handleSaveLead = async (lead: Lead) => {
+    try {
+      if (lead.id && editingLead) {
+        // Update existing lead
+        await leadsAPI.update(lead.id, lead);
         toast({
           title: "Lead updated",
           description: "Lead has been updated successfully.",
         });
-        return newLeads;
       } else {
+        // Create new lead
+        await leadsAPI.create(lead);
         toast({
           title: "Lead created",
           description: "New lead has been created successfully.",
         });
-        return [lead, ...prevLeads];
       }
-    });
+      // Refresh the leads list
+      fetchLeads();
+    } catch (error) {
+      toast({
+        title: "Error saving lead",
+        description: "Failed to save lead. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Error saving lead:', error);
+    }
   };
 
   const handleDelete = (lead: Lead) => {
@@ -83,14 +117,25 @@ export default function Leads() {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (leadToDelete) {
-      setLeads(prevLeads => prevLeads.filter(l => l.id !== leadToDelete.id));
-      toast({
-        title: "Lead deleted",
-        description: "Lead has been deleted successfully.",
-      });
-      setLeadToDelete(null);
+      try {
+        await leadsAPI.delete(leadToDelete.id);
+        toast({
+          title: "Lead deleted",
+          description: "Lead has been deleted successfully.",
+        });
+        setLeadToDelete(null);
+        // Refresh the leads list
+        fetchLeads();
+      } catch (error) {
+        toast({
+          title: "Error deleting lead",
+          description: "Failed to delete lead. Please try again.",
+          variant: "destructive",
+        });
+        console.error('Error deleting lead:', error);
+      }
     }
   };
 
@@ -108,11 +153,19 @@ export default function Leads() {
 
     try {
       const importedLeads = await importLeadsFromCSV(file);
-      setLeads(prev => [...importedLeads, ...prev]);
+
+      // Create all imported leads in the backend
+      for (const lead of importedLeads) {
+        await leadsAPI.create(lead);
+      }
+
       toast({
         title: "Import successful",
         description: `${importedLeads.length} leads imported successfully.`,
       });
+
+      // Refresh the leads list
+      fetchLeads();
     } catch (error) {
       toast({
         title: "Import failed",
@@ -267,26 +320,38 @@ export default function Leads() {
         </Card>
 
         {/* Leads Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredLeads.map(lead => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
-              onViewDetails={handleViewDetails}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-
-        {filteredLeads.length === 0 && (
+        {loading ? (
           <Card className="p-12 text-center">
-            <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">No leads found</h3>
+            <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Loading leads...</h3>
             <p className="text-muted-foreground">
-              Try adjusting your search or filters
+              Please wait while we fetch your data
             </p>
           </Card>
+        ) : (
+          <>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredLeads.map(lead => (
+                <LeadCard
+                  key={lead.id}
+                  lead={lead}
+                  onViewDetails={handleViewDetails}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+
+            {filteredLeads.length === 0 && (
+              <Card className="p-12 text-center">
+                <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">No leads found</h3>
+                <p className="text-muted-foreground">
+                  Try adjusting your search or filters
+                </p>
+              </Card>
+            )}
+          </>
         )}
 
         {/* Lead Detail Dialog */}

@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Invoice } from "@/types/invoice";
-import { mockInvoices, mockInvoiceStats } from "@/lib/mockData";
+import { invoicesAPI } from "@/lib/api";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
 import { InvoiceDialog } from "@/components/invoice/InvoiceDialog";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -13,14 +14,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, FileText, DollarSign, AlertCircle, CheckCircle } from "lucide-react";
+import { Plus, Search, FileText, DollarSign, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const Invoices = () => {
-  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | undefined>();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const { toast } = useToast();
+
+  // Fetch invoices from API
+  useEffect(() => {
+    fetchInvoices();
+  }, [statusFilter]);
+
+  const fetchInvoices = async () => {
+    try {
+      setLoading(true);
+      const data = await invoicesAPI.getAll({
+        status: statusFilter !== 'all' ? statusFilter : undefined
+      });
+      setInvoices(data);
+    } catch (error) {
+      toast({
+        title: "Error fetching invoices",
+        description: "Failed to load invoices. Please check if the backend is running.",
+        variant: "destructive",
+      });
+      console.error('Error fetching invoices:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredInvoices = invoices.filter((invoice) => {
     const matchesSearch =
@@ -40,21 +68,33 @@ const Invoices = () => {
     setDialogOpen(true);
   };
 
-  const handleSaveInvoice = (invoice: Invoice) => {
-    setInvoices(prevInvoices => {
-      // Check if updating existing invoice or creating new one
-      const existingIndex = prevInvoices.findIndex(inv => inv.id === invoice.id);
-
-      if (existingIndex >= 0) {
+  const handleSaveInvoice = async (invoice: Invoice) => {
+    try {
+      if (invoice.id && selectedInvoice) {
         // Update existing invoice
-        const newInvoices = [...prevInvoices];
-        newInvoices[existingIndex] = invoice;
-        return newInvoices;
+        await invoicesAPI.update(invoice.id, invoice);
+        toast({
+          title: "Invoice updated",
+          description: "Invoice has been updated successfully.",
+        });
       } else {
-        // Add new invoice
-        return [invoice, ...prevInvoices];
+        // Create new invoice
+        await invoicesAPI.create(invoice);
+        toast({
+          title: "Invoice created",
+          description: "New invoice has been created successfully.",
+        });
       }
-    });
+      // Refresh the invoices list
+      fetchInvoices();
+    } catch (error) {
+      toast({
+        title: "Error saving invoice",
+        description: "Failed to save invoice. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Error saving invoice:', error);
+    }
   };
 
   // Calculate stats from current invoices state (not static mock data)
@@ -446,22 +486,32 @@ const Invoices = () => {
         </Select>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredInvoices.map((invoice) => (
-          <InvoiceCard
-            key={invoice.id}
-            invoice={invoice}
-            onEdit={handleEditInvoice}
-            onDownload={handleDownloadPDF}
-          />
-        ))}
-      </div>
+      {loading ? (
+        <Card className="p-12 text-center">
+          <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
+          <h3 className="text-lg font-semibold text-foreground mb-2">Loading invoices...</h3>
+          <p className="text-muted-foreground">
+            Please wait while we fetch your data
+          </p>
+        </Card>
+      ) : (
+        <>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredInvoices.map((invoice) => (
+              <InvoiceCard
+                key={invoice.id}
+                invoice={invoice}
+                onEdit={handleEditInvoice}
+                onDownload={handleDownloadPDF}
+              />
+            ))}
+          </div>
 
-      {filteredInvoices.length === 0 && (
-        <div className="text-center py-12">
-          <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-foreground mb-2">
-            No invoices found
+          {filteredInvoices.length === 0 && (
+            <div className="text-center py-12">
+              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                No invoices found
           </h3>
           <p className="text-muted-foreground mb-4">
             {searchQuery || statusFilter !== "all"
@@ -475,6 +525,8 @@ const Invoices = () => {
             </Button>
           )}
         </div>
+      )}
+        </>
       )}
 
         <InvoiceDialog

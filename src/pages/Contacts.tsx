@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { mockContacts } from '@/lib/mockData';
+import { useState, useRef, useEffect } from 'react';
+import { contactsAPI } from '@/lib/api';
 import { ContactCard } from '@/components/contacts/ContactCard';
 import { ContactDetailDialog } from '@/components/contacts/ContactDetailDialog';
 import { ContactDialog } from '@/components/contacts/ContactDialog';
@@ -24,13 +24,15 @@ import {
   Building2,
   IndianRupee,
   TrendingUp,
+  Loader2,
 } from 'lucide-react';
 import { Contact, ContactType } from '@/types/contact';
 import { exportContactsToCSV, importContactsFromCSV } from '@/lib/csvUtils';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Contacts() {
-  const [contacts, setContacts] = useState<Contact[]>(mockContacts);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<ContactType | 'all'>('all');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -41,6 +43,30 @@ export default function Contacts() {
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Fetch contacts from API
+  useEffect(() => {
+    fetchContacts();
+  }, [typeFilter]);
+
+  const fetchContacts = async () => {
+    try {
+      setLoading(true);
+      const data = await contactsAPI.getAll({
+        type: typeFilter !== 'all' ? typeFilter : undefined
+      });
+      setContacts(data);
+    } catch (error) {
+      toast({
+        title: "Error fetching contacts",
+        description: "Failed to load contacts. Please check if the backend is running.",
+        variant: "destructive",
+      });
+      console.error('Error fetching contacts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleViewProfile = (contact: Contact) => {
     setSelectedContact(contact);
@@ -57,25 +83,33 @@ export default function Contacts() {
     setEditDialogOpen(true);
   };
 
-  const handleSaveContact = (contact: Contact) => {
-    setContacts(prevContacts => {
-      const existingIndex = prevContacts.findIndex(c => c.id === contact.id);
-      if (existingIndex >= 0) {
-        const newContacts = [...prevContacts];
-        newContacts[existingIndex] = contact;
+  const handleSaveContact = async (contact: Contact) => {
+    try {
+      if (contact.id && editingContact) {
+        // Update existing contact
+        await contactsAPI.update(contact.id, contact);
         toast({
           title: "Contact updated",
           description: "Contact has been updated successfully.",
         });
-        return newContacts;
       } else {
+        // Create new contact
+        await contactsAPI.create(contact);
         toast({
           title: "Contact created",
           description: "New contact has been created successfully.",
         });
-        return [contact, ...prevContacts];
       }
-    });
+      // Refresh the contacts list
+      fetchContacts();
+    } catch (error) {
+      toast({
+        title: "Error saving contact",
+        description: "Failed to save contact. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Error saving contact:', error);
+    }
   };
 
   const handleDelete = (contact: Contact) => {
@@ -83,14 +117,25 @@ export default function Contacts() {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (contactToDelete) {
-      setContacts(prevContacts => prevContacts.filter(c => c.id !== contactToDelete.id));
-      toast({
-        title: "Contact deleted",
-        description: "Contact has been deleted successfully.",
-      });
-      setContactToDelete(null);
+      try {
+        await contactsAPI.delete(contactToDelete.id);
+        toast({
+          title: "Contact deleted",
+          description: "Contact has been deleted successfully.",
+        });
+        setContactToDelete(null);
+        // Refresh the contacts list
+        fetchContacts();
+      } catch (error) {
+        toast({
+          title: "Error deleting contact",
+          description: "Failed to delete contact. Please try again.",
+          variant: "destructive",
+        });
+        console.error('Error deleting contact:', error);
+      }
     }
   };
 
@@ -108,11 +153,19 @@ export default function Contacts() {
 
     try {
       const importedContacts = await importContactsFromCSV(file);
-      setContacts(prev => [...importedContacts, ...prev]);
+
+      // Create all imported contacts in the backend
+      for (const contact of importedContacts) {
+        await contactsAPI.create(contact);
+      }
+
       toast({
         title: "Import successful",
         description: `${importedContacts.length} contacts imported successfully.`,
       });
+
+      // Refresh the contacts list
+      fetchContacts();
     } catch (error) {
       toast({
         title: "Import failed",
@@ -264,26 +317,38 @@ export default function Contacts() {
         </Card>
 
         {/* Contacts Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredContacts.map(contact => (
-            <ContactCard
-              key={contact.id}
-              contact={contact}
-              onViewProfile={handleViewProfile}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-
-        {filteredContacts.length === 0 && (
+        {loading ? (
           <Card className="p-12 text-center">
-            <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">No contacts found</h3>
+            <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Loading contacts...</h3>
             <p className="text-muted-foreground">
-              Try adjusting your search or filters
+              Please wait while we fetch your data
             </p>
           </Card>
+        ) : (
+          <>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredContacts.map(contact => (
+                <ContactCard
+                  key={contact.id}
+                  contact={contact}
+                  onViewProfile={handleViewProfile}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+
+            {filteredContacts.length === 0 && (
+              <Card className="p-12 text-center">
+                <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">No contacts found</h3>
+                <p className="text-muted-foreground">
+                  Try adjusting your search or filters
+                </p>
+              </Card>
+            )}
+          </>
         )}
 
         {/* Contact Detail Dialog */}
