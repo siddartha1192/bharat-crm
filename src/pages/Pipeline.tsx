@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { dealsAPI } from '@/lib/api';
 import { defaultPipelineStages, PipelineStage, Deal } from '@/types/pipeline';
 import { DealCard } from '@/components/pipeline/DealCard';
@@ -7,6 +7,7 @@ import { DealDialog } from '@/components/pipeline/DealDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { exportDealsToCSV, importDealsFromCSV } from '@/lib/csvUtils';
 import {
   DndContext,
   DragEndEvent,
@@ -21,6 +22,7 @@ import {
 import {
   Plus,
   Download,
+  Upload,
   IndianRupee,
   TrendingUp,
   Target,
@@ -35,6 +37,7 @@ export default function Pipeline() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [selectedStage, setSelectedStage] = useState<PipelineStage>('lead');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch deals from API
   useEffect(() => {
@@ -209,38 +212,35 @@ export default function Pipeline() {
   };
 
   const handleExport = () => {
-    // Create CSV content
-    const headers = ['ID', 'Title', 'Company', 'Contact', 'Stage', 'Value (₹)', 'Probability (%)', 'Expected Close', 'Assigned To', 'Notes'];
-    const rows = deals.map(d => [
-      d.id,
-      d.title,
-      d.company,
-      d.contactName,
-      d.stage,
-      d.value.toString(),
-      d.probability.toString(),
-      d.expectedCloseDate.toLocaleDateString('en-IN'),
-      d.assignedTo,
-      d.notes,
-    ]);
+    exportDealsToCSV(deals, `pipeline-export-${new Date().toISOString().split('T')[0]}.csv`);
+    toast.success(`${deals.length} deals exported successfully!`);
+  };
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
-    ].join('\n');
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    // Create download link
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `pipeline-export-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const importedDeals = await importDealsFromCSV(file);
 
-    toast.success('Pipeline exported successfully!');
+      // Create all imported deals in the backend
+      for (const deal of importedDeals) {
+        await dealsAPI.create(deal);
+      }
+
+      toast.success(`${importedDeals.length} deals imported successfully!`);
+
+      // Refresh the deals list
+      fetchDeals();
+    } catch (error) {
+      toast.error('Failed to import deals. Please check the file format.');
+      console.error('Import error:', error);
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -258,6 +258,17 @@ export default function Pipeline() {
               </p>
             </div>
             <div className="flex gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImport}
+                accept=".csv"
+                className="hidden"
+              />
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="w-4 h-4 mr-2" />
+                Import CSV
+              </Button>
               <Button variant="outline" onClick={handleExport}>
                 <Download className="w-4 h-4 mr-2" />
                 Export CSV
