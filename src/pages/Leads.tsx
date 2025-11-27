@@ -3,6 +3,7 @@ import { mockLeads } from '@/lib/mockData';
 import { LeadCard } from '@/components/leads/LeadCard';
 import { LeadDetailDialog } from '@/components/leads/LeadDetailDialog';
 import { LeadDialog } from '@/components/leads/LeadDialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -36,6 +37,8 @@ export default function Leads() {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -73,6 +76,22 @@ export default function Leads() {
         return [lead, ...prevLeads];
       }
     });
+  };
+
+  const handleDelete = (lead: Lead) => {
+    setLeadToDelete(lead);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (leadToDelete) {
+      setLeads(prevLeads => prevLeads.filter(l => l.id !== leadToDelete.id));
+      toast({
+        title: "Lead deleted",
+        description: "Lead has been deleted successfully.",
+      });
+      setLeadToDelete(null);
+    }
   };
 
   const handleExport = () => {
@@ -262,6 +281,7 @@ export default function Leads() {
               lead={lead}
               onViewDetails={handleViewDetails}
               onEdit={handleEdit}
+              onDelete={handleDelete}
             />
           ))}
         </div>
@@ -289,6 +309,18 @@ export default function Leads() {
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
           onSave={handleSaveLead}
+        />
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="Delete Lead"
+          description={`Are you sure you want to delete "${leadToDelete?.name}"? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          onConfirm={confirmDelete}
+          variant="destructive"
         />
       </div>
     </div>

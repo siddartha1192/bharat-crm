@@ -21,6 +21,7 @@ import {
   Sparkles,
   TrendingUp,
   Edit,
+  Trash2,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -28,6 +29,7 @@ interface LeadCardProps {
   lead: Lead;
   onViewDetails?: (lead: Lead) => void;
   onEdit?: (lead: Lead) => void;
+  onDelete?: (lead: Lead) => void;
 }
 
 const sourceIcons = {
@@ -57,7 +59,7 @@ const priorityColors = {
   'urgent': 'bg-red-500/10 text-red-600 border-red-500/20',
 };
 
-export function LeadCard({ lead, onViewDetails, onEdit }: LeadCardProps) {
+export function LeadCard({ lead, onViewDetails, onEdit, onDelete }: LeadCardProps) {
   const SourceIcon = sourceIcons[lead.source];
 
   return (
@@ -190,13 +192,19 @@ export function LeadCard({ lead, onViewDetails, onEdit }: LeadCardProps) {
           <span>{lead.assignedTo}</span>
         </div>
         <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+            onClick={() => onDelete?.(lead)}
+          >
+            <Trash2 className="w-3 h-3" />
+          </Button>
           <Button size="sm" variant="outline" className="hover:bg-primary/10" onClick={() => onEdit?.(lead)}>
-            <Edit className="w-3 h-3 mr-1" />
-            Edit
+            <Edit className="w-3 h-3" />
           </Button>
           <Button size="sm" onClick={() => onViewDetails?.(lead)} className="bg-gradient-to-r from-primary to-primary/80">
-            <ExternalLink className="w-4 h-4 mr-1" />
-            View
+            <ExternalLink className="w-4 h-4" />
           </Button>
         </div>
       </div>

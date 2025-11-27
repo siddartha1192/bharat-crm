@@ -3,6 +3,7 @@ import { mockContacts } from '@/lib/mockData';
 import { ContactCard } from '@/components/contacts/ContactCard';
 import { ContactDetailDialog } from '@/components/contacts/ContactDetailDialog';
 import { ContactDialog } from '@/components/contacts/ContactDialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -36,6 +37,8 @@ export default function Contacts() {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -73,6 +76,22 @@ export default function Contacts() {
         return [contact, ...prevContacts];
       }
     });
+  };
+
+  const handleDelete = (contact: Contact) => {
+    setContactToDelete(contact);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (contactToDelete) {
+      setContacts(prevContacts => prevContacts.filter(c => c.id !== contactToDelete.id));
+      toast({
+        title: "Contact deleted",
+        description: "Contact has been deleted successfully.",
+      });
+      setContactToDelete(null);
+    }
   };
 
   const handleExport = () => {
@@ -259,6 +278,7 @@ export default function Contacts() {
               contact={contact}
               onViewProfile={handleViewProfile}
               onEdit={handleEdit}
+              onDelete={handleDelete}
             />
           ))}
         </div>
@@ -286,6 +306,18 @@ export default function Contacts() {
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
           onSave={handleSaveContact}
+        />
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="Delete Contact"
+          description={`Are you sure you want to delete "${contactToDelete?.name}"? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          onConfirm={confirmDelete}
+          variant="destructive"
         />
       </div>
     </div>
