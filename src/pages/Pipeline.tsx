@@ -196,8 +196,6 @@ export default function Pipeline() {
           assignedTo: dealData.assignedTo || 'Priya Sharma',
           notes: dealData.notes || '',
           tags: dealData.tags || [],
-          nextAction: dealData.nextAction || '',
-          source: dealData.source || 'website',
         };
         await dealsAPI.create(newDeal);
         toast.success('Deal created successfully!');
@@ -212,7 +210,7 @@ export default function Pipeline() {
 
   const handleExport = () => {
     // Create CSV content
-    const headers = ['ID', 'Title', 'Company', 'Contact', 'Stage', 'Value (₹)', 'Probability (%)', 'Expected Close', 'Assigned To', 'Next Action'];
+    const headers = ['ID', 'Title', 'Company', 'Contact', 'Stage', 'Value (₹)', 'Probability (%)', 'Expected Close', 'Assigned To', 'Notes'];
     const rows = deals.map(d => [
       d.id,
       d.title,
@@ -223,7 +221,7 @@ export default function Pipeline() {
       d.probability.toString(),
       d.expectedCloseDate.toLocaleDateString('en-IN'),
       d.assignedTo,
-      d.nextAction,
+      d.notes,
     ]);
 
     const csvContent = [

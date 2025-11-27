@@ -19,22 +19,20 @@ export interface Invoice {
   invoiceNumber: string;
 
   // Customer details
-  customerId: string;
   customerName: string;
   customerEmail: string;
   customerAddress: string;
   customerState: string; // Required for inter-state/intra-state GST
-  customerPincode?: string;
   customerGSTIN?: string;
+  customerPhone?: string;
 
   // Company details (seller)
   companyName?: string;
   companyGSTIN?: string;
   companyAddress?: string;
   companyState: string; // Required for GST calculation
-  companyPincode?: string;
+  companyPAN?: string;
 
-  issueDate: string;
   dueDate: string;
   status: InvoiceStatus;
 
@@ -55,7 +53,6 @@ export interface Invoice {
   total: number;
 
   notes?: string;
-  termsAndConditions?: string;
 }
 
 export interface InvoiceStats {

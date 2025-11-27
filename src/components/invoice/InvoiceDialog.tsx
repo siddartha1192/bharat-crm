@@ -31,18 +31,16 @@ export const InvoiceDialog = ({ invoice, open, onOpenChange, onSave }: InvoiceDi
   const [formData, setFormData] = useState({
     customerName: "",
     customerEmail: "",
+    customerPhone: "",
     customerAddress: "",
     customerState: "Karnataka",
-    customerPincode: "",
     customerGSTIN: "",
     companyState: "Karnataka",
-    issueDate: new Date().toISOString().split('T')[0],
     dueDate: "",
     status: "draft" as InvoiceStatus,
     paymentMethod: "" as PaymentMethod | "",
     paymentDate: "",
     notes: "",
-    termsAndConditions: "",
   });
 
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([
@@ -65,18 +63,16 @@ export const InvoiceDialog = ({ invoice, open, onOpenChange, onSave }: InvoiceDi
       setFormData({
         customerName: invoice.customerName || "",
         customerEmail: invoice.customerEmail || "",
+        customerPhone: invoice.customerPhone || "",
         customerAddress: invoice.customerAddress || "",
         customerState: invoice.customerState || "Karnataka",
-        customerPincode: invoice.customerPincode || "",
         customerGSTIN: invoice.customerGSTIN || "",
         companyState: invoice.companyState || "Karnataka",
-        issueDate: invoice.issueDate || new Date().toISOString().split('T')[0],
         dueDate: invoice.dueDate || "",
         status: invoice.status || "draft",
         paymentMethod: invoice.paymentMethod || "",
         paymentDate: invoice.paymentDate || "",
         notes: invoice.notes || "",
-        termsAndConditions: invoice.termsAndConditions || "",
       });
       setLineItems(invoice.lineItems || []);
     } else {
@@ -84,18 +80,16 @@ export const InvoiceDialog = ({ invoice, open, onOpenChange, onSave }: InvoiceDi
       setFormData({
         customerName: "",
         customerEmail: "",
+        customerPhone: "",
         customerAddress: "",
         customerState: "Karnataka",
-        customerPincode: "",
         customerGSTIN: "",
         companyState: "Karnataka",
-        issueDate: new Date().toISOString().split('T')[0],
         dueDate: "",
         status: "draft",
         paymentMethod: "",
         paymentDate: "",
         notes: "",
-        termsAndConditions: "",
       });
       setLineItems([{
         id: "1",
@@ -153,22 +147,19 @@ export const InvoiceDialog = ({ invoice, open, onOpenChange, onSave }: InvoiceDi
     // Calculate GST totals
     const totals = calculateInvoiceTotal(lineItems, formData.companyState, formData.customerState);
 
-    const newInvoice: Invoice = {
-      id: invoice?.id || `inv-${Date.now()}`,
+    const invoiceData: any = {
       invoiceNumber: invoice?.invoiceNumber || `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`,
-      customerId: invoice?.customerId || "NEW",
       customerName: formData.customerName,
       customerEmail: formData.customerEmail,
+      customerPhone: formData.customerPhone || "",
       customerAddress: formData.customerAddress,
       customerState: formData.customerState,
-      customerPincode: formData.customerPincode,
       customerGSTIN: formData.customerGSTIN,
       companyName: "Bharat CRM Solutions Pvt Ltd",
       companyGSTIN: "29XYZAB5678C1D2",
       companyAddress: "456, MG Road, Bangalore",
       companyState: formData.companyState,
-      companyPincode: "560001",
-      issueDate: formData.issueDate,
+      companyPAN: "AABCU9603R",
       dueDate: formData.dueDate,
       status: formData.status,
       paymentMethod: formData.paymentMethod || undefined,
@@ -176,10 +167,14 @@ export const InvoiceDialog = ({ invoice, open, onOpenChange, onSave }: InvoiceDi
       lineItems: lineItems,
       ...totals,
       notes: formData.notes,
-      termsAndConditions: formData.termsAndConditions,
     };
 
-    onSave(newInvoice);
+    // Only include id when editing existing invoice
+    if (invoice?.id) {
+      invoiceData.id = invoice.id;
+    }
+
+    onSave(invoiceData);
     toast.success(invoice ? "Invoice updated successfully!" : "Invoice created successfully!");
     onOpenChange(false);
   };
@@ -224,6 +219,16 @@ export const InvoiceDialog = ({ invoice, open, onOpenChange, onSave }: InvoiceDi
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
+                <Label>Customer Phone *</Label>
+                <Input
+                  type="tel"
+                  value={formData.customerPhone}
+                  onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                  placeholder="+91 98765 43210"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
                 <Label>Customer State *</Label>
                 <Select value={formData.customerState} onValueChange={(value) => setFormData({ ...formData, customerState: value })}>
                   <SelectTrigger>
@@ -235,14 +240,6 @@ export const InvoiceDialog = ({ invoice, open, onOpenChange, onSave }: InvoiceDi
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Pincode</Label>
-                <Input
-                  value={formData.customerPincode}
-                  onChange={(e) => setFormData({ ...formData, customerPincode: e.target.value })}
-                  placeholder="560100"
-                />
               </div>
               <div className="space-y-2">
                 <Label>GSTIN (Optional)</Label>
@@ -269,16 +266,7 @@ export const InvoiceDialog = ({ invoice, open, onOpenChange, onSave }: InvoiceDi
           {/* Invoice Details */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Invoice Details</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Issue Date *</Label>
-                <Input
-                  type="date"
-                  value={formData.issueDate}
-                  onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })}
-                  required
-                />
-              </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Due Date *</Label>
                 <Input
@@ -534,15 +522,6 @@ export const InvoiceDialog = ({ invoice, open, onOpenChange, onSave }: InvoiceDi
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 placeholder="Any additional notes for the customer"
-                rows={2}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Terms and Conditions</Label>
-              <Textarea
-                value={formData.termsAndConditions}
-                onChange={(e) => setFormData({ ...formData, termsAndConditions: e.target.value })}
-                placeholder="Payment terms, late fee policy, etc."
                 rows={2}
               />
             </div>

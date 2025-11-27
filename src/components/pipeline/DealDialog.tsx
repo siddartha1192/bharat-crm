@@ -39,8 +39,6 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
     expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     assignedTo: 'Priya Sharma',
     notes: '',
-    nextAction: '',
-    source: 'website',
     tags: [],
   });
 
@@ -58,8 +56,6 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
         expectedCloseDate: deal.expectedCloseDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         assignedTo: deal.assignedTo || 'Priya Sharma',
         notes: deal.notes || '',
-        nextAction: deal.nextAction || '',
-        source: deal.source || 'website',
         tags: deal.tags || [],
       });
     } else {
@@ -74,8 +70,6 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
         expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         assignedTo: 'Priya Sharma',
         notes: '',
-        nextAction: '',
-        source: 'website',
         tags: [],
       });
     }
@@ -210,36 +204,6 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
                 }
                 onChange={(e) => updateField('expectedCloseDate', new Date(e.target.value))}
                 required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="source">Source</Label>
-              <Select
-                value={formData.source}
-                onValueChange={(value) => updateField('source', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="website">Website</SelectItem>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  <SelectItem value="referral">Referral</SelectItem>
-                  <SelectItem value="inbound">Inbound</SelectItem>
-                  <SelectItem value="outbound">Outbound</SelectItem>
-                  <SelectItem value="missed-call">Missed Call</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="col-span-2">
-              <Label htmlFor="nextAction">Next Action</Label>
-              <Input
-                id="nextAction"
-                value={formData.nextAction}
-                onChange={(e) => updateField('nextAction', e.target.value)}
-                placeholder="e.g., Schedule demo call"
               />
             </div>
 
