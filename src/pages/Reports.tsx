@@ -4,6 +4,7 @@ import { Lead } from '@/types/lead';
 import { Deal } from '@/types/pipeline';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { exportLeadsToCSV, exportDealsToCSV } from '@/lib/csvUtils';
 import {
   Select,
   SelectContent,
@@ -152,6 +153,22 @@ export default function Reports() {
     totalRevenue: (deals.filter(d => d.stage === 'closed-won').reduce((sum, d) => sum + d.value, 0) / 100000).toFixed(1),
   };
 
+  const handleExportLeads = () => {
+    exportLeadsToCSV(leads, `leads-report-${new Date().toISOString().split('T')[0]}.csv`);
+    toast.success(`${leads.length} leads exported successfully!`);
+  };
+
+  const handleExportDeals = () => {
+    exportDealsToCSV(deals, `deals-report-${new Date().toISOString().split('T')[0]}.csv`);
+    toast.success(`${deals.length} deals exported successfully!`);
+  };
+
+  const handleExportAll = () => {
+    handleExportLeads();
+    handleExportDeals();
+    toast.success('All reports exported successfully!');
+  };
+
   return (
     <div className="min-h-screen bg-background">
 
@@ -179,9 +196,13 @@ export default function Reports() {
                   <SelectItem value="year">This Year</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleExportLeads}>
                 <Download className="w-4 h-4 mr-2" />
-                Export Report
+                Export Leads
+              </Button>
+              <Button variant="outline" onClick={handleExportDeals}>
+                <Download className="w-4 h-4 mr-2" />
+                Export Deals
               </Button>
             </div>
           </div>

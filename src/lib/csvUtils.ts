@@ -1,5 +1,6 @@
 import { Lead } from '@/types/lead';
 import { Contact } from '@/types/contact';
+import { Deal } from '@/types/pipeline';
 
 // Export leads to CSV
 export function exportLeadsToCSV(leads: Lead[], filename: string = 'leads.csv') {
@@ -266,4 +267,71 @@ export async function importContactsFromCSV(file: File): Promise<Contact[]> {
   });
 
   return contacts;
+}
+
+// Export deals to CSV
+export function exportDealsToCSV(deals: Deal[], filename: string = 'deals.csv') {
+  const headers = [
+    'Title',
+    'Company',
+    'Contact Name',
+    'Stage',
+    'Value',
+    'Probability (%)',
+    'Expected Close Date',
+    'Assigned To',
+    'Notes',
+    'Tags',
+    'Created At',
+  ];
+
+  const rows = deals.map(deal => [
+    deal.title,
+    deal.company,
+    deal.contactName,
+    deal.stage,
+    deal.value.toString(),
+    deal.probability.toString(),
+    deal.expectedCloseDate.toISOString().split('T')[0],
+    deal.assignedTo,
+    deal.notes,
+    deal.tags.join('; '),
+    deal.createdAt.toISOString(),
+  ]);
+
+  downloadCSV([headers, ...rows], filename);
+}
+
+// Import deals from CSV
+export async function importDealsFromCSV(file: File): Promise<Deal[]> {
+  const data = await parseCSV(file);
+  const [headers, ...rows] = data;
+
+  // Map headers to indices
+  const headerMap = new Map(headers.map((h, i) => [h.toLowerCase().trim(), i]));
+
+  const deals: Deal[] = rows.map((row, index) => {
+    const getValue = (key: string) => {
+      const idx = headerMap.get(key.toLowerCase());
+      return idx !== undefined ? row[idx]?.trim() : '';
+    };
+
+    return {
+      id: `D${Date.now()}-${index}`,
+      title: getValue('title') || 'Untitled Deal',
+      company: getValue('company') || 'Unknown',
+      contactName: getValue('contact name') || '',
+      stage: (getValue('stage') || 'lead') as any,
+      value: parseFloat(getValue('value')) || 0,
+      probability: parseInt(getValue('probability (%)')) || 50,
+      expectedCloseDate: getValue('expected close date') ? new Date(getValue('expected close date')) : new Date(),
+      assignedTo: getValue('assigned to') || '',
+      notes: getValue('notes') || '',
+      tags: getValue('tags').split(';').map(t => t.trim()).filter(t => t),
+      createdAt: getValue('created at') ? new Date(getValue('created at')) : new Date(),
+      updatedAt: new Date(),
+    };
+  });
+
+  return deals;
 }
