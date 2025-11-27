@@ -140,19 +140,35 @@ export default function Leads() {
   };
 
   const handleExport = () => {
-    exportLeadsToCSV(filteredLeads, `leads-${new Date().toISOString().split('T')[0]}.csv`);
-    toast({
-      title: "Export successful",
-      description: `${filteredLeads.length} leads exported to CSV.`,
-    });
+    try {
+      console.log('Exporting leads:', filteredLeads.length);
+      exportLeadsToCSV(filteredLeads, `leads-${new Date().toISOString().split('T')[0]}.csv`);
+      toast({
+        title: "Export successful",
+        description: `${filteredLeads.length} leads exported to CSV.`,
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to export leads. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log('No file selected');
+      return;
+    }
+
+    console.log('Importing file:', file.name);
 
     try {
       const importedLeads = await importLeadsFromCSV(file);
+      console.log('Imported leads:', importedLeads.length);
 
       // Create all imported leads in the backend
       for (const lead of importedLeads) {
@@ -167,6 +183,7 @@ export default function Leads() {
       // Refresh the leads list
       fetchLeads();
     } catch (error) {
+      console.error('Import error:', error);
       toast({
         title: "Import failed",
         description: "Failed to import leads. Please check the file format.",

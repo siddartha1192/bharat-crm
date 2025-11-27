@@ -140,19 +140,35 @@ export default function Contacts() {
   };
 
   const handleExport = () => {
-    exportContactsToCSV(filteredContacts, `contacts-${new Date().toISOString().split('T')[0]}.csv`);
-    toast({
-      title: "Export successful",
-      description: `${filteredContacts.length} contacts exported to CSV.`,
-    });
+    try {
+      console.log('Exporting contacts:', filteredContacts.length);
+      exportContactsToCSV(filteredContacts, `contacts-${new Date().toISOString().split('T')[0]}.csv`);
+      toast({
+        title: "Export successful",
+        description: `${filteredContacts.length} contacts exported to CSV.`,
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to export contacts. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log('No file selected');
+      return;
+    }
+
+    console.log('Importing file:', file.name);
 
     try {
       const importedContacts = await importContactsFromCSV(file);
+      console.log('Imported contacts:', importedContacts.length);
 
       // Create all imported contacts in the backend
       for (const contact of importedContacts) {
@@ -167,6 +183,7 @@ export default function Contacts() {
       // Refresh the contacts list
       fetchContacts();
     } catch (error) {
+      console.error('Import error:', error);
       toast({
         title: "Import failed",
         description: "Failed to import contacts. Please check the file format.",
