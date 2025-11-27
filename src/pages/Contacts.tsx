@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { mockContacts } from '@/lib/mockData';
 import { ContactCard } from '@/components/contacts/ContactCard';
 import { ContactDetailDialog } from '@/components/contacts/ContactDetailDialog';
+import { ContactDialog } from '@/components/contacts/ContactDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -17,25 +18,97 @@ import {
   Search,
   Filter,
   Download,
+  Upload,
   Users,
   Building2,
   IndianRupee,
   TrendingUp,
 } from 'lucide-react';
 import { Contact, ContactType } from '@/types/contact';
+import { exportContactsToCSV, importContactsFromCSV } from '@/lib/csvUtils';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Contacts() {
+  const [contacts, setContacts] = useState<Contact[]>(mockContacts);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<ContactType | 'all'>('all');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const handleViewProfile = (contact: Contact) => {
     setSelectedContact(contact);
     setDetailDialogOpen(true);
   };
 
-  const filteredContacts = mockContacts.filter(contact => {
+  const handleEdit = (contact: Contact) => {
+    setEditingContact(contact);
+    setEditDialogOpen(true);
+  };
+
+  const handleAddNew = () => {
+    setEditingContact(null);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveContact = (contact: Contact) => {
+    setContacts(prevContacts => {
+      const existingIndex = prevContacts.findIndex(c => c.id === contact.id);
+      if (existingIndex >= 0) {
+        const newContacts = [...prevContacts];
+        newContacts[existingIndex] = contact;
+        toast({
+          title: "Contact updated",
+          description: "Contact has been updated successfully.",
+        });
+        return newContacts;
+      } else {
+        toast({
+          title: "Contact created",
+          description: "New contact has been created successfully.",
+        });
+        return [contact, ...prevContacts];
+      }
+    });
+  };
+
+  const handleExport = () => {
+    exportContactsToCSV(filteredContacts, `contacts-${new Date().toISOString().split('T')[0]}.csv`);
+    toast({
+      title: "Export successful",
+      description: `${filteredContacts.length} contacts exported to CSV.`,
+    });
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const importedContacts = await importContactsFromCSV(file);
+      setContacts(prev => [...importedContacts, ...prev]);
+      toast({
+        title: "Import successful",
+        description: `${importedContacts.length} contacts imported successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Import failed",
+        description: "Failed to import contacts. Please check the file format.",
+        variant: "destructive",
+      });
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const filteredContacts = contacts.filter(contact => {
     const matchesSearch =
       contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -47,10 +120,10 @@ export default function Contacts() {
   });
 
   const stats = {
-    total: mockContacts.length,
-    customers: mockContacts.filter(c => c.type === 'customer').length,
-    prospects: mockContacts.filter(c => c.type === 'prospect').length,
-    totalValue: mockContacts.reduce((sum, c) => sum + c.lifetimeValue, 0),
+    total: contacts.length,
+    customers: contacts.filter(c => c.type === 'customer').length,
+    prospects: contacts.filter(c => c.type === 'prospect').length,
+    totalValue: contacts.reduce((sum, c) => sum + c.lifetimeValue, 0),
   };
 
   return (
@@ -74,11 +147,22 @@ export default function Contacts() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleImport}
+                className="hidden"
+              />
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="w-4 h-4 mr-2" />
+                Import
+              </Button>
+              <Button variant="outline" onClick={handleExport}>
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
-              <Button>
+              <Button onClick={handleAddNew}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Contact
               </Button>
@@ -170,7 +254,12 @@ export default function Contacts() {
         {/* Contacts Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredContacts.map(contact => (
-            <ContactCard key={contact.id} contact={contact} onViewProfile={handleViewProfile} />
+            <ContactCard
+              key={contact.id}
+              contact={contact}
+              onViewProfile={handleViewProfile}
+              onEdit={handleEdit}
+            />
           ))}
         </div>
 
@@ -189,6 +278,14 @@ export default function Contacts() {
           contact={selectedContact}
           open={detailDialogOpen}
           onOpenChange={setDetailDialogOpen}
+        />
+
+        {/* Contact Add/Edit Dialog */}
+        <ContactDialog
+          contact={editingContact}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onSave={handleSaveContact}
         />
       </div>
     </div>

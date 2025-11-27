@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { mockLeads } from '@/lib/mockData';
 import { LeadCard } from '@/components/leads/LeadCard';
 import { LeadDetailDialog } from '@/components/leads/LeadDetailDialog';
+import { LeadDialog } from '@/components/leads/LeadDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -17,25 +18,97 @@ import {
   Search,
   Filter,
   Download,
+  Upload,
   Users,
   TrendingUp,
   IndianRupee,
   Target,
 } from 'lucide-react';
 import { Lead, LeadStatus } from '@/types/lead';
+import { exportLeadsToCSV, importLeadsFromCSV } from '@/lib/csvUtils';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Leads() {
+  const [leads, setLeads] = useState<Lead[]>(mockLeads);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const handleViewDetails = (lead: Lead) => {
     setSelectedLead(lead);
     setDetailDialogOpen(true);
   };
 
-  const filteredLeads = mockLeads.filter(lead => {
+  const handleEdit = (lead: Lead) => {
+    setEditingLead(lead);
+    setEditDialogOpen(true);
+  };
+
+  const handleAddNew = () => {
+    setEditingLead(null);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveLead = (lead: Lead) => {
+    setLeads(prevLeads => {
+      const existingIndex = prevLeads.findIndex(l => l.id === lead.id);
+      if (existingIndex >= 0) {
+        const newLeads = [...prevLeads];
+        newLeads[existingIndex] = lead;
+        toast({
+          title: "Lead updated",
+          description: "Lead has been updated successfully.",
+        });
+        return newLeads;
+      } else {
+        toast({
+          title: "Lead created",
+          description: "New lead has been created successfully.",
+        });
+        return [lead, ...prevLeads];
+      }
+    });
+  };
+
+  const handleExport = () => {
+    exportLeadsToCSV(filteredLeads, `leads-${new Date().toISOString().split('T')[0]}.csv`);
+    toast({
+      title: "Export successful",
+      description: `${filteredLeads.length} leads exported to CSV.`,
+    });
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const importedLeads = await importLeadsFromCSV(file);
+      setLeads(prev => [...importedLeads, ...prev]);
+      toast({
+        title: "Import successful",
+        description: `${importedLeads.length} leads imported successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Import failed",
+        description: "Failed to import leads. Please check the file format.",
+        variant: "destructive",
+      });
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const filteredLeads = leads.filter(lead => {
     const matchesSearch =
       lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       lead.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -47,10 +120,10 @@ export default function Leads() {
   });
 
   const stats = {
-    total: mockLeads.length,
-    new: mockLeads.filter(l => l.status === 'new').length,
-    qualified: mockLeads.filter(l => l.status === 'qualified').length,
-    totalValue: mockLeads.reduce((sum, l) => sum + l.estimatedValue, 0),
+    total: leads.length,
+    new: leads.filter(l => l.status === 'new').length,
+    qualified: leads.filter(l => l.status === 'qualified').length,
+    totalValue: leads.reduce((sum, l) => sum + l.estimatedValue, 0),
   };
 
   return (
@@ -74,11 +147,22 @@ export default function Leads() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleImport}
+                className="hidden"
+              />
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="w-4 h-4 mr-2" />
+                Import
+              </Button>
+              <Button variant="outline" onClick={handleExport}>
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
-              <Button>
+              <Button onClick={handleAddNew}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Lead
               </Button>
@@ -173,7 +257,12 @@ export default function Leads() {
         {/* Leads Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredLeads.map(lead => (
-            <LeadCard key={lead.id} lead={lead} onViewDetails={handleViewDetails} />
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              onViewDetails={handleViewDetails}
+              onEdit={handleEdit}
+            />
           ))}
         </div>
 
@@ -192,6 +281,14 @@ export default function Leads() {
           lead={selectedLead}
           open={detailDialogOpen}
           onOpenChange={setDetailDialogOpen}
+        />
+
+        {/* Lead Add/Edit Dialog */}
+        <LeadDialog
+          lead={editingLead}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onSave={handleSaveLead}
         />
       </div>
     </div>

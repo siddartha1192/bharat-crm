@@ -20,12 +20,14 @@ import {
   ExternalLink,
   Sparkles,
   TrendingUp,
+  Edit,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface LeadCardProps {
   lead: Lead;
   onViewDetails?: (lead: Lead) => void;
+  onEdit?: (lead: Lead) => void;
 }
 
 const sourceIcons = {
@@ -55,7 +57,7 @@ const priorityColors = {
   'urgent': 'bg-red-500/10 text-red-600 border-red-500/20',
 };
 
-export function LeadCard({ lead, onViewDetails }: LeadCardProps) {
+export function LeadCard({ lead, onViewDetails, onEdit }: LeadCardProps) {
   const SourceIcon = sourceIcons[lead.source];
 
   return (
@@ -188,13 +190,13 @@ export function LeadCard({ lead, onViewDetails }: LeadCardProps) {
           <span>{lead.assignedTo}</span>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="hover:bg-primary/10">
-            <MessageCircle className="w-4 h-4 mr-1" />
-            Contact
+          <Button size="sm" variant="outline" className="hover:bg-primary/10" onClick={() => onEdit?.(lead)}>
+            <Edit className="w-3 h-3 mr-1" />
+            Edit
           </Button>
           <Button size="sm" onClick={() => onViewDetails?.(lead)} className="bg-gradient-to-r from-primary to-primary/80">
             <ExternalLink className="w-4 h-4 mr-1" />
-            View Details
+            View
           </Button>
         </div>
       </div>
