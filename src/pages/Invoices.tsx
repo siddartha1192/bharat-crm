@@ -40,6 +40,23 @@ const Invoices = () => {
     setDialogOpen(true);
   };
 
+  const handleSaveInvoice = (invoice: Invoice) => {
+    setInvoices(prevInvoices => {
+      // Check if updating existing invoice or creating new one
+      const existingIndex = prevInvoices.findIndex(inv => inv.id === invoice.id);
+
+      if (existingIndex >= 0) {
+        // Update existing invoice
+        const newInvoices = [...prevInvoices];
+        newInvoices[existingIndex] = invoice;
+        return newInvoices;
+      } else {
+        // Add new invoice
+        return [invoice, ...prevInvoices];
+      }
+    });
+  };
+
   return (
     <div className="min-h-screen relative">
       {/* Tricolor Background */}
@@ -157,6 +174,7 @@ const Invoices = () => {
           invoice={selectedInvoice}
           open={dialogOpen}
           onOpenChange={setDialogOpen}
+          onSave={handleSaveInvoice}
         />
       </div>
     </div>
