@@ -41,8 +41,7 @@ export function TaskDialog({ open, onOpenChange, task, onSave }: TaskDialogProps
   const [tags, setTags] = useState(task?.tags?.join(', ') || '');
 
   const handleSave = () => {
-    onSave({
-      id: task?.id || crypto.randomUUID(),
+    const taskData: Partial<Task> = {
       title,
       description,
       priority,
@@ -50,8 +49,14 @@ export function TaskDialog({ open, onOpenChange, task, onSave }: TaskDialogProps
       dueDate,
       assignee,
       tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-      createdAt: task?.createdAt || new Date(),
-    });
+    };
+
+    // Only include id if we're editing an existing task
+    if (task?.id) {
+      taskData.id = task.id;
+    }
+
+    onSave(taskData);
     onOpenChange(false);
   };
 

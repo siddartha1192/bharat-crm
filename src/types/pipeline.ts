@@ -20,8 +20,6 @@ export interface Deal {
   assignedTo: string;
   notes: string;
   tags: string[];
-  nextAction: string;
-  source: string;
 }
 
 export interface PipelineStageConfig {
