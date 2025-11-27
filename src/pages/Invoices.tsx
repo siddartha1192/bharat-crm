@@ -57,6 +57,14 @@ const Invoices = () => {
     });
   };
 
+  // Calculate stats from current invoices state (not static mock data)
+  const stats = {
+    totalInvoices: invoices.length,
+    paidAmount: invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + inv.total, 0),
+    pendingAmount: invoices.filter(inv => inv.status === 'sent').reduce((sum, inv) => sum + inv.total, 0),
+    overdueAmount: invoices.filter(inv => inv.status === 'overdue').reduce((sum, inv) => sum + inv.total, 0),
+  };
+
   const handleDownloadPDF = (invoice: Invoice) => {
     // Create a formatted invoice HTML
     const isInterState = invoice.companyState !== invoice.customerState;
@@ -391,28 +399,28 @@ const Invoices = () => {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <StatsCard
             title="Total Invoices"
-            value={mockInvoiceStats.totalInvoices}
+            value={stats.totalInvoices}
             icon={FileText}
             trend={{ value: 12, isPositive: true }}
             colorClass="bg-gradient-to-br from-primary to-primary/80"
           />
           <StatsCard
             title="Paid Amount"
-            value={`₹${(mockInvoiceStats.paidAmount / 100000).toFixed(2)}L`}
+            value={`₹${(stats.paidAmount / 100000).toFixed(2)}L`}
             icon={CheckCircle}
             trend={{ value: 8, isPositive: true }}
             colorClass="bg-gradient-to-br from-accent to-accent/80"
           />
           <StatsCard
             title="Pending Amount"
-            value={`₹${(mockInvoiceStats.pendingAmount / 1000).toFixed(1)}K`}
+            value={`₹${(stats.pendingAmount / 1000).toFixed(1)}K`}
             icon={DollarSign}
             trend={{ value: 3, isPositive: false }}
             colorClass="bg-gradient-to-br from-secondary to-secondary/80"
           />
           <StatsCard
             title="Overdue Amount"
-            value={`₹${(mockInvoiceStats.overdueAmount / 100000).toFixed(2)}L`}
+            value={`₹${(stats.overdueAmount / 100000).toFixed(2)}L`}
             icon={AlertCircle}
             trend={{ value: 15, isPositive: false }}
             colorClass="bg-gradient-to-br from-destructive to-destructive/80"
