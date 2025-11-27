@@ -28,6 +28,34 @@ async function fetchAPI<T>(
   }
 }
 
+// Helper functions to convert date strings to Date objects
+function convertDealDates(deal: any): Deal {
+  return {
+    ...deal,
+    expectedCloseDate: new Date(deal.expectedCloseDate),
+    createdAt: new Date(deal.createdAt),
+    updatedAt: new Date(deal.updatedAt),
+  };
+}
+
+function convertTaskDates(task: any): Task {
+  return {
+    ...task,
+    dueDate: new Date(task.dueDate),
+    createdAt: new Date(task.createdAt),
+    updatedAt: new Date(task.updatedAt),
+    completedAt: task.completedAt ? new Date(task.completedAt) : undefined,
+  };
+}
+
+function convertInvoiceDates(invoice: any): Invoice {
+  return {
+    ...invoice,
+    dueDate: invoice.dueDate,
+    paymentDate: invoice.paymentDate || undefined,
+  };
+}
+
 // ============ LEADS API ============
 export const leadsAPI = {
   // Get all leads with optional filters
@@ -202,28 +230,32 @@ export const dealsAPI = {
       params.append('assignedTo', filters.assignedTo);
     }
     const query = params.toString() ? `?${params.toString()}` : '';
-    return fetchAPI<Deal[]>(`/deals${query}`);
+    const deals = await fetchAPI<any[]>(`/deals${query}`);
+    return deals.map(convertDealDates);
   },
 
   // Get single deal by ID
   getById: async (id: string): Promise<Deal> => {
-    return fetchAPI<Deal>(`/deals/${id}`);
+    const deal = await fetchAPI<any>(`/deals/${id}`);
+    return convertDealDates(deal);
   },
 
   // Create new deal
   create: async (deal: Omit<Deal, 'id' | 'createdAt' | 'updatedAt'>): Promise<Deal> => {
-    return fetchAPI<Deal>('/deals', {
+    const createdDeal = await fetchAPI<any>('/deals', {
       method: 'POST',
       body: JSON.stringify(deal),
     });
+    return convertDealDates(createdDeal);
   },
 
   // Update existing deal
   update: async (id: string, deal: Partial<Deal>): Promise<Deal> => {
-    return fetchAPI<Deal>(`/deals/${id}`, {
+    const updatedDeal = await fetchAPI<any>(`/deals/${id}`, {
       method: 'PUT',
       body: JSON.stringify(deal),
     });
+    return convertDealDates(updatedDeal);
   },
 
   // Delete deal
@@ -249,28 +281,32 @@ export const tasksAPI = {
       params.append('assignedTo', filters.assignedTo);
     }
     const query = params.toString() ? `?${params.toString()}` : '';
-    return fetchAPI<Task[]>(`/tasks${query}`);
+    const tasks = await fetchAPI<any[]>(`/tasks${query}`);
+    return tasks.map(convertTaskDates);
   },
 
   // Get single task by ID
   getById: async (id: string): Promise<Task> => {
-    return fetchAPI<Task>(`/tasks/${id}`);
+    const task = await fetchAPI<any>(`/tasks/${id}`);
+    return convertTaskDates(task);
   },
 
   // Create new task
   create: async (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> => {
-    return fetchAPI<Task>('/tasks', {
+    const createdTask = await fetchAPI<any>('/tasks', {
       method: 'POST',
       body: JSON.stringify(task),
     });
+    return convertTaskDates(createdTask);
   },
 
   // Update existing task
   update: async (id: string, task: Partial<Task>): Promise<Task> => {
-    return fetchAPI<Task>(`/tasks/${id}`, {
+    const updatedTask = await fetchAPI<any>(`/tasks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(task),
     });
+    return convertTaskDates(updatedTask);
   },
 
   // Delete task

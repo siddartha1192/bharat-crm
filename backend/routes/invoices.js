@@ -3,6 +3,16 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// Helper function to transform invoice for frontend
+const transformInvoiceForFrontend = (invoice) => {
+  const { customerGST, companyGST, ...rest } = invoice;
+  return {
+    ...rest,
+    customerGSTIN: customerGST,
+    companyGSTIN: companyGST,
+  };
+};
+
 // GET all invoices
 router.get('/', async (req, res) => {
   try {
@@ -16,7 +26,9 @@ router.get('/', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json(invoices);
+    // Transform invoices for frontend
+    const transformedInvoices = invoices.map(transformInvoiceForFrontend);
+    res.json(transformedInvoices);
   } catch (error) {
     console.error('Error fetching invoices:', error);
     res.status(500).json({ error: 'Failed to fetch invoices' });
@@ -34,7 +46,9 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    res.json(invoice);
+    // Transform invoice for frontend
+    const transformedInvoice = transformInvoiceForFrontend(invoice);
+    res.json(transformedInvoice);
   } catch (error) {
     console.error('Error fetching invoice:', error);
     res.status(500).json({ error: 'Failed to fetch invoice' });
@@ -82,7 +96,9 @@ router.post('/', async (req, res) => {
       data
     });
 
-    res.status(201).json(invoice);
+    // Transform invoice for frontend
+    const transformedInvoice = transformInvoiceForFrontend(invoice);
+    res.status(201).json(transformedInvoice);
   } catch (error) {
     console.error('Error creating invoice:', error);
     res.status(500).json({ error: 'Failed to create invoice', message: error.message });
@@ -125,7 +141,9 @@ router.put('/:id', async (req, res) => {
       data
     });
 
-    res.json(invoice);
+    // Transform invoice for frontend
+    const transformedInvoice = transformInvoiceForFrontend(invoice);
+    res.json(transformedInvoice);
   } catch (error) {
     console.error('Error updating invoice:', error);
     res.status(500).json({ error: 'Failed to update invoice', message: error.message });
