@@ -1,32 +1,61 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Task } from '@/types/task';
-import { mockTasks } from '@/lib/mockData';
+import { tasksAPI } from '@/lib/api';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import { TaskDialog } from '@/components/tasks/TaskDialog';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Filter } from 'lucide-react';
+import { Plus, Filter, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Tasks() {
-  const [tasks, setTasks] = useState<Task[]>(mockTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
   const [filter, setFilter] = useState<'all' | 'todo' | 'in-progress' | 'completed'>('all');
+
+  // Fetch tasks from API
+  useEffect(() => {
+    fetchTasks();
+  }, [filter]);
+
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const data = await tasksAPI.getAll({
+        status: filter !== 'all' ? filter : undefined
+      });
+      setTasks(data);
+    } catch (error) {
+      toast.error('Failed to load tasks. Please check if the backend is running.');
+      console.error('Error fetching tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredTasks = tasks.filter(task => 
     filter === 'all' ? true : task.status === filter
   );
 
-  const handleSaveTask = (taskData: Partial<Task>) => {
-    if (selectedTask) {
-      setTasks(tasks.map(t => t.id === selectedTask.id ? { ...t, ...taskData } : t));
-      toast.success('Task updated successfully');
-    } else {
-      setTasks([...tasks, taskData as Task]);
-      toast.success('Task created successfully');
+  const handleSaveTask = async (taskData: Partial<Task>) => {
+    try {
+      if (selectedTask) {
+        await tasksAPI.update(selectedTask.id, taskData);
+        toast.success('Task updated successfully');
+      } else {
+        await tasksAPI.create(taskData);
+        toast.success('Task created successfully');
+      }
+      setSelectedTask(undefined);
+      // Refresh the tasks list
+      fetchTasks();
+    } catch (error) {
+      toast.error('Failed to save task. Please try again.');
+      console.error('Error saving task:', error);
     }
-    setSelectedTask(undefined);
   };
 
   const handleEditTask = (task: Task) => {
@@ -68,20 +97,32 @@ export default function Tasks() {
         </div>
 
         <TabsContent value={filter} className="mt-0">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredTasks.map((task) => (
-              <TaskCard 
-                key={task.id} 
-                task={task} 
-                onClick={() => handleEditTask(task)}
-              />
-            ))}
-          </div>
+          {loading ? (
+            <Card className="p-12 text-center">
+              <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">Loading tasks...</h3>
+              <p className="text-muted-foreground">
+                Please wait while we fetch your data
+              </p>
+            </Card>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {filteredTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onClick={() => handleEditTask(task)}
+                  />
+                ))}
+              </div>
 
-          {filteredTasks.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No tasks found in this category</p>
-            </div>
+              {filteredTasks.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">No tasks found in this category</p>
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
       </Tabs>
