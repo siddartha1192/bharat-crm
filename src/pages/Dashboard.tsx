@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { mockTasks } from '@/lib/mockData';
-import { leadsAPI, contactsAPI, invoicesAPI } from '@/lib/api';
+import { leadsAPI, contactsAPI, invoicesAPI, tasksAPI } from '@/lib/api';
+import { Task } from '@/types/task';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import {
@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [leadStats, setLeadStats] = useState({ total: 0, new: 0, qualified: 0, totalValue: 0 });
   const [contactStats, setContactStats] = useState({ total: 0, customers: 0, vendors: 0, totalLifetimeValue: 0 });
   const [invoiceStats, setInvoiceStats] = useState({ totalInvoices: 0, paidAmount: 0, pendingAmount: 0, overdueAmount: 0 });
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -33,14 +34,16 @@ export default function Dashboard() {
   const fetchAllStats = async () => {
     try {
       setLoading(true);
-      const [leads, contacts, invoices] = await Promise.all([
+      const [leads, contacts, invoices, allTasks] = await Promise.all([
         leadsAPI.getStats(),
         contactsAPI.getStats(),
-        invoicesAPI.getStats()
+        invoicesAPI.getStats(),
+        tasksAPI.getAll()
       ]);
       setLeadStats(leads);
       setContactStats(contacts);
       setInvoiceStats(invoices);
+      setTasks(allTasks);
     } catch (error) {
       toast({
         title: "Error fetching stats",
@@ -53,9 +56,9 @@ export default function Dashboard() {
     }
   };
 
-  const upcomingTasks = mockTasks
+  const upcomingTasks = tasks
     .filter(t => t.status !== 'completed')
-    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     .slice(0, 3);
 
   return (

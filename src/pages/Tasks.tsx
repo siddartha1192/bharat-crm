@@ -68,6 +68,19 @@ export default function Tasks() {
     setDialogOpen(true);
   };
 
+  const handleDeleteTask = async (task: Task) => {
+    if (window.confirm(`Are you sure you want to delete "${task.title}"?`)) {
+      try {
+        await tasksAPI.delete(task.id);
+        toast.success('Task deleted successfully');
+        fetchTasks();
+      } catch (error) {
+        toast.error('Failed to delete task. Please try again.');
+        console.error('Error deleting task:', error);
+      }
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -113,6 +126,7 @@ export default function Tasks() {
                     key={task.id}
                     task={task}
                     onClick={() => handleEditTask(task)}
+                    onDelete={handleDeleteTask}
                   />
                 ))}
               </div>

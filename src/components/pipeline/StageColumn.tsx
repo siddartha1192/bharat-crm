@@ -12,9 +12,10 @@ interface StageColumnProps {
   deals: Deal[];
   onAddDeal: () => void;
   onEditDeal: (deal: Deal) => void;
+  onDeleteDeal: (deal: Deal) => void;
 }
 
-export function StageColumn({ stage, deals, onAddDeal, onEditDeal }: StageColumnProps) {
+export function StageColumn({ stage, deals, onAddDeal, onEditDeal, onDeleteDeal }: StageColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
@@ -55,6 +56,7 @@ export function StageColumn({ stage, deals, onAddDeal, onEditDeal }: StageColumn
                 key={deal.id}
                 deal={deal}
                 onClick={() => onEditDeal(deal)}
+                onDelete={onDeleteDeal}
               />
             ))}
             {deals.length === 0 && (
