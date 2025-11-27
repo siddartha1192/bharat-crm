@@ -44,29 +44,42 @@ router.get('/:id', async (req, res) => {
 // POST create new task
 router.post('/', async (req, res) => {
   try {
+    // Remove auto-generated fields
+    const { id, createdAt, updatedAt, ...taskData } = req.body;
+
+    // Ensure required fields have defaults
+    const data = {
+      ...taskData,
+      description: taskData.description || '',
+      tags: taskData.tags || [],
+    };
+
     const task = await prisma.task.create({
-      data: req.body
+      data
     });
 
     res.status(201).json(task);
   } catch (error) {
     console.error('Error creating task:', error);
-    res.status(500).json({ error: 'Failed to create task' });
+    res.status(500).json({ error: 'Failed to create task', message: error.message });
   }
 });
 
 // PUT update task
 router.put('/:id', async (req, res) => {
   try {
+    // Remove auto-generated fields
+    const { id, createdAt, updatedAt, ...taskData } = req.body;
+
     const task = await prisma.task.update({
       where: { id: req.params.id },
-      data: req.body
+      data: taskData
     });
 
     res.json(task);
   } catch (error) {
     console.error('Error updating task:', error);
-    res.status(500).json({ error: 'Failed to update task' });
+    res.status(500).json({ error: 'Failed to update task', message: error.message });
   }
 });
 
