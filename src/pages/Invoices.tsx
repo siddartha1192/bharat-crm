@@ -41,50 +41,62 @@ const Invoices = () => {
   };
 
   return (
-    <div className="p-8 space-y-8 animate-fade-in">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">Invoices</h1>
-          <p className="text-muted-foreground">
-            Manage your invoices and track payments
-          </p>
-        </div>
-        <Button onClick={handleCreateInvoice} size="lg" className="gap-2">
-          <Plus className="h-5 w-5" />
-          Create Invoice
-        </Button>
+    <div className="min-h-screen relative">
+      {/* Tricolor Background */}
+      <div className="absolute inset-0 opacity-5 pointer-events-none">
+        <div className="h-1/3 bg-gradient-to-b from-primary to-primary/50" />
+        <div className="h-1/3 bg-gradient-to-b from-background/80 to-background" />
+        <div className="h-1/3 bg-gradient-to-t from-success to-success/50" />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatsCard
-          title="Total Invoices"
-          value={mockInvoiceStats.totalInvoices}
-          icon={FileText}
-          trend={{ value: 12, isPositive: true }}
-          colorClass="bg-gradient-to-br from-blue-500 to-blue-600"
-        />
-        <StatsCard
-          title="Paid Amount"
-          value={`₹${(mockInvoiceStats.paidAmount / 1000).toFixed(1)}K`}
-          icon={CheckCircle}
-          trend={{ value: 8, isPositive: true }}
-          colorClass="bg-gradient-to-br from-green-500 to-green-600"
-        />
-        <StatsCard
-          title="Pending Amount"
-          value={`₹${(mockInvoiceStats.pendingAmount / 1000).toFixed(1)}K`}
-          icon={DollarSign}
-          trend={{ value: 3, isPositive: false }}
-          colorClass="bg-gradient-to-br from-amber-500 to-amber-600"
-        />
-        <StatsCard
-          title="Overdue Amount"
-          value={`₹${(mockInvoiceStats.overdueAmount / 1000).toFixed(1)}K`}
-          icon={AlertCircle}
-          trend={{ value: 15, isPositive: false }}
-          colorClass="bg-gradient-to-br from-red-500 to-red-600"
-        />
-      </div>
+      <div className="relative p-8 space-y-8 animate-fade-in">
+        <div className="relative">
+          {/* Tricolor accent bar */}
+          <div className="absolute -left-8 top-0 bottom-0 w-1 bg-gradient-to-b from-primary via-background to-success rounded-r" />
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-4xl font-bold text-foreground mb-2">GST Invoices</h1>
+              <p className="text-muted-foreground">
+                GST-compliant invoicing with automatic tax calculations
+              </p>
+            </div>
+            <Button onClick={handleCreateInvoice} size="lg" className="gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90">
+              <Plus className="h-5 w-5" />
+              Create Invoice
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <StatsCard
+            title="Total Invoices"
+            value={mockInvoiceStats.totalInvoices}
+            icon={FileText}
+            trend={{ value: 12, isPositive: true }}
+            colorClass="bg-gradient-to-br from-primary to-primary/80"
+          />
+          <StatsCard
+            title="Paid Amount"
+            value={`₹${(mockInvoiceStats.paidAmount / 100000).toFixed(2)}L`}
+            icon={CheckCircle}
+            trend={{ value: 8, isPositive: true }}
+            colorClass="bg-gradient-to-br from-accent to-accent/80"
+          />
+          <StatsCard
+            title="Pending Amount"
+            value={`₹${(mockInvoiceStats.pendingAmount / 1000).toFixed(1)}K`}
+            icon={DollarSign}
+            trend={{ value: 3, isPositive: false }}
+            colorClass="bg-gradient-to-br from-secondary to-secondary/80"
+          />
+          <StatsCard
+            title="Overdue Amount"
+            value={`₹${(mockInvoiceStats.overdueAmount / 100000).toFixed(2)}L`}
+            icon={AlertCircle}
+            trend={{ value: 15, isPositive: false }}
+            colorClass="bg-gradient-to-br from-destructive to-destructive/80"
+          />
+        </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
@@ -141,11 +153,12 @@ const Invoices = () => {
         </div>
       )}
 
-      <InvoiceDialog
-        invoice={selectedInvoice}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-      />
+        <InvoiceDialog
+          invoice={selectedInvoice}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+        />
+      </div>
     </div>
   );
 };
