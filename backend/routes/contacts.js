@@ -3,6 +3,21 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// Helper function to transform contact data
+const transformContactForFrontend = (contact) => {
+  const { addressStreet, addressCity, addressState, addressPincode, addressCountry, ...rest } = contact;
+  return {
+    ...rest,
+    address: {
+      street: addressStreet,
+      city: addressCity,
+      state: addressState,
+      pincode: addressPincode,
+      country: addressCountry,
+    }
+  };
+};
+
 // GET all contacts
 router.get('/', async (req, res) => {
   try {
@@ -17,7 +32,9 @@ router.get('/', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json(contacts);
+    // Transform contacts to match frontend format
+    const transformedContacts = contacts.map(transformContactForFrontend);
+    res.json(transformedContacts);
   } catch (error) {
     console.error('Error fetching contacts:', error);
     res.status(500).json({ error: 'Failed to fetch contacts' });
@@ -35,7 +52,9 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Contact not found' });
     }
 
-    res.json(contact);
+    // Transform contact to match frontend format
+    const transformedContact = transformContactForFrontend(contact);
+    res.json(transformedContact);
   } catch (error) {
     console.error('Error fetching contact:', error);
     res.status(500).json({ error: 'Failed to fetch contact' });
@@ -45,29 +64,62 @@ router.get('/:id', async (req, res) => {
 // POST create new contact
 router.post('/', async (req, res) => {
   try {
+    // Remove auto-generated fields and transform address
+    const { id, createdAt, updatedAt, address, ...contactData } = req.body;
+
+    // Transform nested address to flat fields
+    const data = {
+      ...contactData,
+      addressStreet: address?.street || '',
+      addressCity: address?.city || '',
+      addressState: address?.state || '',
+      addressPincode: address?.pincode || '',
+      addressCountry: address?.country || 'India',
+      notes: contactData.notes || '',
+      tags: contactData.tags || [],
+      lifetimeValue: contactData.lifetimeValue || 0,
+    };
+
     const contact = await prisma.contact.create({
-      data: req.body
+      data
     });
 
-    res.status(201).json(contact);
+    // Transform contact to match frontend format
+    const transformedContact = transformContactForFrontend(contact);
+    res.status(201).json(transformedContact);
   } catch (error) {
     console.error('Error creating contact:', error);
-    res.status(500).json({ error: 'Failed to create contact' });
+    res.status(500).json({ error: 'Failed to create contact', message: error.message });
   }
 });
 
 // PUT update contact
 router.put('/:id', async (req, res) => {
   try {
+    // Remove auto-generated fields and transform address
+    const { id, createdAt, updatedAt, address, ...contactData } = req.body;
+
+    // Transform nested address to flat fields if address is provided
+    const data = { ...contactData };
+    if (address) {
+      data.addressStreet = address.street || '';
+      data.addressCity = address.city || '';
+      data.addressState = address.state || '';
+      data.addressPincode = address.pincode || '';
+      data.addressCountry = address.country || 'India';
+    }
+
     const contact = await prisma.contact.update({
       where: { id: req.params.id },
-      data: req.body
+      data
     });
 
-    res.json(contact);
+    // Transform contact to match frontend format
+    const transformedContact = transformContactForFrontend(contact);
+    res.json(transformedContact);
   } catch (error) {
     console.error('Error updating contact:', error);
-    res.status(500).json({ error: 'Failed to update contact' });
+    res.status(500).json({ error: 'Failed to update contact', message: error.message });
   }
 });
 

@@ -44,29 +44,42 @@ router.get('/:id', async (req, res) => {
 // POST create new deal
 router.post('/', async (req, res) => {
   try {
+    // Remove fields that shouldn't be sent to Prisma
+    const { id, createdAt, updatedAt, nextAction, source, ...dealData } = req.body;
+
+    // Ensure required fields have defaults
+    const data = {
+      ...dealData,
+      notes: dealData.notes || '',
+      tags: dealData.tags || [],
+    };
+
     const deal = await prisma.deal.create({
-      data: req.body
+      data
     });
 
     res.status(201).json(deal);
   } catch (error) {
     console.error('Error creating deal:', error);
-    res.status(500).json({ error: 'Failed to create deal' });
+    res.status(500).json({ error: 'Failed to create deal', message: error.message });
   }
 });
 
 // PUT update deal
 router.put('/:id', async (req, res) => {
   try {
+    // Remove fields that shouldn't be updated
+    const { id, createdAt, updatedAt, nextAction, source, ...dealData } = req.body;
+
     const deal = await prisma.deal.update({
       where: { id: req.params.id },
-      data: req.body
+      data: dealData
     });
 
     res.json(deal);
   } catch (error) {
     console.error('Error updating deal:', error);
-    res.status(500).json({ error: 'Failed to update deal' });
+    res.status(500).json({ error: 'Failed to update deal', message: error.message });
   }
 });
 
