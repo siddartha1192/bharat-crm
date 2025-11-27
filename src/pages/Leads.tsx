@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { leadsAPI } from '@/lib/api';
 import { LeadCard } from '@/components/leads/LeadCard';
+import { LeadListView } from '@/components/leads/LeadListView';
 import { LeadDetailDialog } from '@/components/leads/LeadDetailDialog';
 import { LeadDialog } from '@/components/leads/LeadDialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -25,6 +26,8 @@ import {
   IndianRupee,
   Target,
   Loader2,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { Lead, LeadStatus } from '@/types/lead';
 import { exportLeadsToCSV, importLeadsFromCSV } from '@/lib/csvUtils';
@@ -41,6 +44,7 @@ export default function Leads() {
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -333,10 +337,28 @@ export default function Leads() {
                 <SelectItem value="lost">Lost</SelectItem>
               </SelectContent>
             </Select>
+            <div className="flex gap-1 border rounded-md p-1">
+              <Button
+                variant={viewMode === 'card' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('card')}
+              >
+                <LayoutGrid className="w-4 h-4 mr-2" />
+                Card
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+              >
+                <List className="w-4 h-4 mr-2" />
+                List
+              </Button>
+            </div>
           </div>
         </Card>
 
-        {/* Leads Grid */}
+        {/* Leads Grid/List */}
         {loading ? (
           <Card className="p-12 text-center">
             <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
@@ -347,17 +369,26 @@ export default function Leads() {
           </Card>
         ) : (
           <>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredLeads.map(lead => (
-                <LeadCard
-                  key={lead.id}
-                  lead={lead}
-                  onViewDetails={handleViewDetails}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
+            {viewMode === 'card' ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {filteredLeads.map(lead => (
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    onViewDetails={handleViewDetails}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            ) : (
+              <LeadListView
+                leads={filteredLeads}
+                onViewDetails={handleViewDetails}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            )}
 
             {filteredLeads.length === 0 && (
               <Card className="p-12 text-center">

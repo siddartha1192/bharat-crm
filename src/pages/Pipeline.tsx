@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { dealsAPI } from '@/lib/api';
 import { defaultPipelineStages, PipelineStage, Deal } from '@/types/pipeline';
 import { DealCard } from '@/components/pipeline/DealCard';
+import { DealListView } from '@/components/pipeline/DealListView';
 import { StageColumn } from '@/components/pipeline/StageColumn';
 import { DealDialog } from '@/components/pipeline/DealDialog';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,8 @@ import {
   Target,
   Trophy,
   Loader2,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 
 export default function Pipeline() {
@@ -37,6 +40,7 @@ export default function Pipeline() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [selectedStage, setSelectedStage] = useState<PipelineStage>('lead');
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch deals from API
@@ -349,7 +353,29 @@ export default function Pipeline() {
           </Card>
         </div>
 
-        {/* Pipeline Board with Drag and Drop */}
+        {/* View Toggle */}
+        <div className="flex justify-end">
+          <div className="flex gap-1 border rounded-md p-1">
+            <Button
+              variant={viewMode === 'board' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('board')}
+            >
+              <LayoutGrid className="w-4 h-4 mr-2" />
+              Board
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+            >
+              <List className="w-4 h-4 mr-2" />
+              List
+            </Button>
+          </div>
+        </div>
+
+        {/* Pipeline Board/List View */}
         {loading ? (
           <Card className="p-12 text-center">
             <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
@@ -358,7 +384,7 @@ export default function Pipeline() {
               Please wait while we fetch your deals
             </p>
           </Card>
-        ) : (
+        ) : viewMode === 'board' ? (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}
@@ -385,6 +411,12 @@ export default function Pipeline() {
               {activeDeal ? <DealCard deal={activeDeal} /> : null}
             </DragOverlay>
           </DndContext>
+        ) : (
+          <DealListView
+            deals={deals}
+            onDealClick={handleEditDeal}
+            onDeleteDeal={handleDeleteDeal}
+          />
         )}
 
         {/* Deal Dialog */}
