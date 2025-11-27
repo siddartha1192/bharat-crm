@@ -1,6 +1,8 @@
 import { Lead } from '@/types/lead';
 import { Contact } from '@/types/contact';
 import { Deal } from '@/types/pipeline';
+import { Task } from '@/types/task';
+import { Invoice } from '@/types/invoice';
 
 // Export leads to CSV
 export function exportLeadsToCSV(leads: Lead[], filename: string = 'leads.csv') {
@@ -334,4 +336,116 @@ export async function importDealsFromCSV(file: File): Promise<Deal[]> {
   });
 
   return deals;
+}
+
+// Export tasks to CSV
+export function exportTasksToCSV(tasks: Task[], filename: string = 'tasks.csv') {
+  const headers = [
+    'Title',
+    'Description',
+    'Status',
+    'Priority',
+    'Due Date',
+    'Assignee',
+    'Tags',
+    'Completed At',
+    'Created At',
+  ];
+
+  const rows = tasks.map(task => [
+    task.title,
+    task.description || '',
+    task.status,
+    task.priority,
+    task.dueDate.toISOString().split('T')[0],
+    task.assignee || '',
+    task.tags?.join('; ') || '',
+    task.completedAt ? task.completedAt.toISOString() : '',
+    task.createdAt.toISOString(),
+  ]);
+
+  downloadCSV([headers, ...rows], filename);
+}
+
+// Import tasks from CSV
+export async function importTasksFromCSV(file: File): Promise<Task[]> {
+  const data = await parseCSV(file);
+  const [headers, ...rows] = data;
+
+  // Map headers to indices
+  const headerMap = new Map(headers.map((h, i) => [h.toLowerCase().trim(), i]));
+
+  const tasks: Task[] = rows.map((row, index) => {
+    const getValue = (key: string) => {
+      const idx = headerMap.get(key.toLowerCase());
+      return idx !== undefined ? row[idx]?.trim() : '';
+    };
+
+    return {
+      id: `T${Date.now()}-${index}`,
+      title: getValue('title') || 'Untitled Task',
+      description: getValue('description') || '',
+      status: (getValue('status') || 'todo') as any,
+      priority: (getValue('priority') || 'medium') as any,
+      dueDate: getValue('due date') ? new Date(getValue('due date')) : new Date(),
+      assignee: getValue('assignee') || '',
+      tags: getValue('tags').split(';').map(t => t.trim()).filter(t => t),
+      completedAt: getValue('completed at') ? new Date(getValue('completed at')) : undefined,
+      createdAt: getValue('created at') ? new Date(getValue('created at')) : new Date(),
+      updatedAt: new Date(),
+    };
+  });
+
+  return tasks;
+}
+
+// Export invoices to CSV
+export function exportInvoicesToCSV(invoices: Invoice[], filename: string = 'invoices.csv') {
+  const headers = [
+    'Invoice Number',
+    'Customer Name',
+    'Customer GSTIN',
+    'Customer Address',
+    'Customer City',
+    'Customer State',
+    'Company Name',
+    'Company GSTIN',
+    'Company Address',
+    'Company City',
+    'Company State',
+    'Items',
+    'Subtotal',
+    'CGST',
+    'SGST',
+    'IGST',
+    'Total',
+    'Status',
+    'Due Date',
+    'Created At',
+  ];
+
+  const rows = invoices.map(invoice => [
+    invoice.invoiceNumber,
+    invoice.customerName,
+    invoice.customerGSTIN || '',
+    invoice.customerAddress,
+    invoice.customerCity,
+    invoice.customerState,
+    invoice.companyName,
+    invoice.companyGSTIN || '',
+    invoice.companyAddress,
+    invoice.companyCity,
+    invoice.companyState,
+    invoice.items.map(item => `${item.description} (₹${item.amount})`).join('; '),
+    invoice.subtotal.toString(),
+    invoice.cgst.toString(),
+    invoice.sgst.toString(),
+    invoice.igst.toString(),
+    invoice.total.toString(),
+    invoice.status,
+    invoice.dueDate.toISOString().split('T')[0],
+    invoice.createdAt.toISOString(),
+  ]);
+
+  downloadCSV([headers, ...rows], filename);
 }

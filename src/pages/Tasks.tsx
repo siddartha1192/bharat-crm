@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Task } from '@/types/task';
 import { tasksAPI } from '@/lib/api';
 import { TaskCard } from '@/components/tasks/TaskCard';
+import { TaskListView } from '@/components/tasks/TaskListView';
 import { TaskDialog } from '@/components/tasks/TaskDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Filter, Loader2 } from 'lucide-react';
+import { Plus, Filter, Loader2, Download, Upload, LayoutGrid, List } from 'lucide-react';
 import { toast } from 'sonner';
+import { exportTasksToCSV, importTasksFromCSV } from '@/lib/csvUtils';
 
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -15,6 +17,8 @@ export default function Tasks() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
   const [filter, setFilter] = useState<'all' | 'todo' | 'in-progress' | 'completed'>('all');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch tasks from API
   useEffect(() => {
@@ -81,6 +85,50 @@ export default function Tasks() {
     }
   };
 
+  const handleExport = () => {
+    try {
+      console.log('Exporting tasks:', filteredTasks.length);
+      exportTasksToCSV(filteredTasks, `tasks-${new Date().toISOString().split('T')[0]}.csv`);
+      toast.success(`${filteredTasks.length} tasks exported to CSV`);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export tasks. Please try again.');
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      console.log('No file selected');
+      return;
+    }
+
+    console.log('Importing file:', file.name);
+
+    try {
+      const importedTasks = await importTasksFromCSV(file);
+      console.log('Imported tasks:', importedTasks.length);
+
+      // Create all imported tasks in the backend
+      for (const task of importedTasks) {
+        await tasksAPI.create(task);
+      }
+
+      toast.success(`${importedTasks.length} tasks imported successfully`);
+
+      // Refresh the tasks list
+      fetchTasks();
+    } catch (error) {
+      console.error('Import error:', error);
+      toast.error('Failed to import tasks. Please check the file format.');
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -88,10 +136,27 @@ export default function Tasks() {
           <h1 className="text-3xl font-bold text-foreground mb-2">Tasks</h1>
           <p className="text-muted-foreground">Manage your follow-ups and to-dos</p>
         </div>
-        <Button onClick={handleCreateTask} size="lg" className="shadow-primary">
-          <Plus className="w-5 h-5 mr-2" />
-          New Task
-        </Button>
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleImport}
+            className="hidden"
+          />
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="w-4 h-4 mr-2" />
+            Import
+          </Button>
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="w-4 h-4 mr-2" />
+            Export
+          </Button>
+          <Button onClick={handleCreateTask} size="lg" className="shadow-primary">
+            <Plus className="w-5 h-5 mr-2" />
+            New Task
+          </Button>
+        </div>
       </div>
 
       <Tabs value={filter} onValueChange={(v) => setFilter(v as any)} className="w-full">
@@ -103,10 +168,26 @@ export default function Tasks() {
             <TabsTrigger value="completed">Completed</TabsTrigger>
           </TabsList>
 
-          <Button variant="outline" size="sm">
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
-          </Button>
+          <div className="flex gap-2">
+            <div className="flex gap-1 border rounded-md p-1">
+              <Button
+                variant={viewMode === 'card' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('card')}
+              >
+                <LayoutGrid className="w-4 h-4 mr-2" />
+                Card
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+              >
+                <List className="w-4 h-4 mr-2" />
+                List
+              </Button>
+            </div>
+          </div>
         </div>
 
         <TabsContent value={filter} className="mt-0">
@@ -120,16 +201,24 @@ export default function Tasks() {
             </Card>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {filteredTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onClick={() => handleEditTask(task)}
-                    onDelete={handleDeleteTask}
-                  />
-                ))}
-              </div>
+              {viewMode === 'card' ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onClick={() => handleEditTask(task)}
+                      onDelete={handleDeleteTask}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <TaskListView
+                  tasks={filteredTasks}
+                  onClick={handleEditTask}
+                  onDelete={handleDeleteTask}
+                />
+              )}
 
               {filteredTasks.length === 0 && (
                 <div className="text-center py-12">

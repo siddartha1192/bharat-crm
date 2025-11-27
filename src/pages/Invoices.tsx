@@ -14,8 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, FileText, DollarSign, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { Plus, Search, FileText, DollarSign, AlertCircle, CheckCircle, Loader2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { exportInvoicesToCSV } from "@/lib/csvUtils";
 
 const Invoices = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -409,6 +410,24 @@ const Invoices = () => {
     }
   };
 
+  const handleExportCSV = () => {
+    try {
+      console.log('Exporting invoices:', filteredInvoices.length);
+      exportInvoicesToCSV(filteredInvoices, `invoices-${new Date().toISOString().split('T')[0]}.csv`);
+      toast({
+        title: "Export successful",
+        description: `${filteredInvoices.length} invoices exported to CSV.`,
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to export invoices. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
 
@@ -423,10 +442,16 @@ const Invoices = () => {
                 GST-compliant invoicing with automatic tax calculations
               </p>
             </div>
-            <Button onClick={handleCreateInvoice} size="lg" className="gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90">
-              <Plus className="h-5 w-5" />
-              Create Invoice
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleExportCSV}>
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
+              </Button>
+              <Button onClick={handleCreateInvoice} size="lg" className="gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90">
+                <Plus className="h-5 w-5" />
+                Create Invoice
+              </Button>
+            </div>
           </div>
         </div>
 

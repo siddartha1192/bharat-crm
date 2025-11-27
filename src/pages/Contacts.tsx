@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { contactsAPI } from '@/lib/api';
 import { ContactCard } from '@/components/contacts/ContactCard';
+import { ContactListView } from '@/components/contacts/ContactListView';
 import { ContactDetailDialog } from '@/components/contacts/ContactDetailDialog';
 import { ContactDialog } from '@/components/contacts/ContactDialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -25,6 +26,8 @@ import {
   IndianRupee,
   TrendingUp,
   Loader2,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { Contact, ContactType } from '@/types/contact';
 import { exportContactsToCSV, importContactsFromCSV } from '@/lib/csvUtils';
@@ -41,6 +44,7 @@ export default function Contacts() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -330,10 +334,28 @@ export default function Contacts() {
                 <SelectItem value="vendor">Vendor</SelectItem>
               </SelectContent>
             </Select>
+            <div className="flex gap-1 border rounded-md p-1">
+              <Button
+                variant={viewMode === 'card' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('card')}
+              >
+                <LayoutGrid className="w-4 h-4 mr-2" />
+                Card
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+              >
+                <List className="w-4 h-4 mr-2" />
+                List
+              </Button>
+            </div>
           </div>
         </Card>
 
-        {/* Contacts Grid */}
+        {/* Contacts Grid/List */}
         {loading ? (
           <Card className="p-12 text-center">
             <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
@@ -344,17 +366,26 @@ export default function Contacts() {
           </Card>
         ) : (
           <>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredContacts.map(contact => (
-                <ContactCard
-                  key={contact.id}
-                  contact={contact}
-                  onViewProfile={handleViewProfile}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
+            {viewMode === 'card' ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {filteredContacts.map(contact => (
+                  <ContactCard
+                    key={contact.id}
+                    contact={contact}
+                    onViewProfile={handleViewProfile}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            ) : (
+              <ContactListView
+                contacts={filteredContacts}
+                onViewProfile={handleViewProfile}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            )}
 
             {filteredContacts.length === 0 && (
               <Card className="p-12 text-center">
