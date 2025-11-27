@@ -44,29 +44,91 @@ router.get('/:id', async (req, res) => {
 // POST create new invoice
 router.post('/', async (req, res) => {
   try {
+    // Remove auto-generated fields and transform data
+    const {
+      id,
+      createdAt,
+      updatedAt,
+      customerId,
+      customerPincode,
+      companyPincode,
+      issueDate,
+      termsAndConditions,
+      customerGSTIN,
+      companyGSTIN,
+      ...invoiceData
+    } = req.body;
+
+    // Prepare data with proper field mapping and defaults
+    const data = {
+      ...invoiceData,
+      customerGST: customerGSTIN || '',
+      companyGST: companyGSTIN || '',
+      customerPhone: invoiceData.customerPhone || '',
+      companyPAN: invoiceData.companyPAN || '',
+      notes: invoiceData.notes || '',
+      totalDiscount: invoiceData.totalDiscount || 0,
+      cgst: invoiceData.cgst || 0,
+      sgst: invoiceData.sgst || 0,
+      igst: invoiceData.igst || 0,
+      roundOff: invoiceData.roundOff || 0,
+      totalTax: invoiceData.totalTax || (invoiceData.cgst || 0) + (invoiceData.sgst || 0) + (invoiceData.igst || 0),
+      // Convert string dates to DateTime if needed
+      dueDate: invoiceData.dueDate ? new Date(invoiceData.dueDate) : new Date(),
+      paymentDate: invoiceData.paymentDate ? new Date(invoiceData.paymentDate) : null,
+    };
+
     const invoice = await prisma.invoice.create({
-      data: req.body
+      data
     });
 
     res.status(201).json(invoice);
   } catch (error) {
     console.error('Error creating invoice:', error);
-    res.status(500).json({ error: 'Failed to create invoice' });
+    res.status(500).json({ error: 'Failed to create invoice', message: error.message });
   }
 });
 
 // PUT update invoice
 router.put('/:id', async (req, res) => {
   try {
+    // Remove auto-generated fields and transform data
+    const {
+      id,
+      createdAt,
+      updatedAt,
+      customerId,
+      customerPincode,
+      companyPincode,
+      issueDate,
+      termsAndConditions,
+      customerGSTIN,
+      companyGSTIN,
+      ...invoiceData
+    } = req.body;
+
+    // Prepare data with proper field mapping
+    const data = {
+      ...invoiceData,
+    };
+
+    // Map GSTIN fields if provided
+    if (customerGSTIN !== undefined) data.customerGST = customerGSTIN;
+    if (companyGSTIN !== undefined) data.companyGST = companyGSTIN;
+
+    // Convert date strings to DateTime if provided
+    if (invoiceData.dueDate) data.dueDate = new Date(invoiceData.dueDate);
+    if (invoiceData.paymentDate) data.paymentDate = new Date(invoiceData.paymentDate);
+
     const invoice = await prisma.invoice.update({
       where: { id: req.params.id },
-      data: req.body
+      data
     });
 
     res.json(invoice);
   } catch (error) {
     console.error('Error updating invoice:', error);
-    res.status(500).json({ error: 'Failed to update invoice' });
+    res.status(500).json({ error: 'Failed to update invoice', message: error.message });
   }
 });
 
