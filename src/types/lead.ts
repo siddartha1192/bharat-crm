@@ -8,6 +8,7 @@ export interface Lead {
   company: string;
   email: string;
   phone: string;
+  whatsapp?: string;
   source: LeadSource;
   status: LeadStatus;
   priority: LeadPriority;
@@ -18,4 +19,8 @@ export interface Lead {
   lastContactedAt?: Date;
   nextFollowUpAt?: Date;
   tags: string[];
+  website?: string;
+  linkedIn?: string;
+  twitter?: string;
+  facebook?: string;
 }

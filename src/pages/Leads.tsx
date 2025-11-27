@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { mockLeads } from '@/lib/mockData';
 import { LeadCard } from '@/components/leads/LeadCard';
+import { LeadDetailDialog } from '@/components/leads/LeadDetailDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -21,11 +22,18 @@ import {
   IndianRupee,
   Target,
 } from 'lucide-react';
-import { LeadStatus } from '@/types/lead';
+import { Lead, LeadStatus } from '@/types/lead';
 
 export default function Leads() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+
+  const handleViewDetails = (lead: Lead) => {
+    setSelectedLead(lead);
+    setDetailDialogOpen(true);
+  };
 
   const filteredLeads = mockLeads.filter(lead => {
     const matchesSearch =
@@ -165,7 +173,7 @@ export default function Leads() {
         {/* Leads Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredLeads.map(lead => (
-            <LeadCard key={lead.id} lead={lead} />
+            <LeadCard key={lead.id} lead={lead} onViewDetails={handleViewDetails} />
           ))}
         </div>
 
@@ -178,6 +186,13 @@ export default function Leads() {
             </p>
           </Card>
         )}
+
+        {/* Lead Detail Dialog */}
+        <LeadDetailDialog
+          lead={selectedLead}
+          open={detailDialogOpen}
+          onOpenChange={setDetailDialogOpen}
+        />
       </div>
     </div>
   );
