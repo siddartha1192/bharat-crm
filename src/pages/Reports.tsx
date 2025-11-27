@@ -136,15 +136,55 @@ export default function Reports() {
     { name: 'Won', value: leads.filter(l => l.status === 'won').length, color: '#138808' },
   ];
 
-  // Monthly Performance (mock data for trend)
-  const monthlyData = [
-    { month: 'Jan', leads: 12, deals: 5, revenue: 8.5 },
-    { month: 'Feb', leads: 19, deals: 7, revenue: 12.3 },
-    { month: 'Mar', leads: 15, deals: 6, revenue: 10.1 },
-    { month: 'Apr', leads: 22, deals: 9, revenue: 15.8 },
-    { month: 'May', leads: 18, deals: 8, revenue: 13.2 },
-    { month: 'Jun', leads: 25, deals: 11, revenue: 18.5 },
-  ];
+  // Monthly Performance - Calculate from real data
+  const getMonthlyData = () => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const last6Months: any[] = [];
+
+    // Generate last 6 months data
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthName = monthNames[date.getMonth()];
+
+      // Count leads created in this month
+      const monthLeads = leads.filter(l => {
+        const leadDate = new Date(l.createdAt);
+        return leadDate.getFullYear() === date.getFullYear() &&
+               leadDate.getMonth() === date.getMonth();
+      }).length;
+
+      // Count won deals in this month (closed-won)
+      const monthDeals = deals.filter(d => {
+        if (d.stage !== 'closed-won') return false;
+        const dealDate = new Date(d.updatedAt);
+        return dealDate.getFullYear() === date.getFullYear() &&
+               dealDate.getMonth() === date.getMonth();
+      }).length;
+
+      // Calculate revenue from won deals in this month
+      const monthRevenue = deals
+        .filter(d => {
+          if (d.stage !== 'closed-won') return false;
+          const dealDate = new Date(d.updatedAt);
+          return dealDate.getFullYear() === date.getFullYear() &&
+                 dealDate.getMonth() === date.getMonth();
+        })
+        .reduce((sum, d) => sum + d.value, 0) / 100000;
+
+      last6Months.push({
+        month: monthName,
+        leads: monthLeads,
+        deals: monthDeals,
+        revenue: parseFloat(monthRevenue.toFixed(1)),
+      });
+    }
+
+    return last6Months;
+  };
+
+  const monthlyData = getMonthlyData();
 
   const stats = {
     totalLeads: leads.length,
