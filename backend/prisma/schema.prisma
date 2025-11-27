@@ -1,0 +1,141 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Lead {
+  id                String   @id @default(uuid())
+  name              String
+  company           String
+  email             String
+  phone             String
+  whatsapp          String?
+  source            String   // 'web-form' | 'whatsapp' | 'call' | 'email' | 'referral' | 'social-media' | 'missed-call'
+  status            String   // 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost'
+  priority          String   // 'low' | 'medium' | 'high' | 'urgent'
+  estimatedValue    Float
+  assignedTo        String
+  notes             String   @default("")
+  tags              String[] // Array of tags
+  website           String?
+  linkedIn          String?
+  twitter           String?
+  facebook          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastContactedAt   DateTime?
+  nextFollowUpAt    DateTime?
+
+  @@index([status, priority])
+  @@index([assignedTo])
+}
+
+model Contact {
+  id              String   @id @default(uuid())
+  name            String
+  company         String
+  designation     String
+  email           String
+  phone           String
+  alternatePhone  String?
+  whatsapp        String?
+  type            String   // 'customer' | 'prospect' | 'partner' | 'vendor'
+  industry        String   // 'technology' | 'manufacturing' | 'retail' | 'export' | 'services' | 'textile' | 'food' | 'healthcare' | 'other'
+  companySize     String
+  gstNumber       String?
+  panNumber       String?
+  addressStreet   String   @default("")
+  addressCity     String   @default("")
+  addressState    String   @default("")
+  addressPincode  String   @default("")
+  addressCountry  String   @default("India")
+  website         String?
+  linkedIn        String?
+  notes           String   @default("")
+  tags            String[] // Array of tags
+  assignedTo      String
+  lifetimeValue   Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([type])
+  @@index([assignedTo])
+}
+
+model Invoice {
+  id                String   @id @default(uuid())
+  invoiceNumber     String   @unique
+  customerName      String
+  customerEmail     String
+  customerPhone     String
+  customerAddress   String
+  customerState     String
+  customerGST       String?
+  companyName       String
+  companyAddress    String
+  companyState      String
+  companyGST        String
+  companyPAN        String
+  status            String   // 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+  paymentMethod     String?  // 'cash' | 'upi' | 'bank-transfer' | 'cheque' | 'card' | 'razorpay' | 'paytm'
+  paymentDate       DateTime?
+  dueDate           DateTime
+  subtotal          Float
+  totalDiscount     Float    @default(0)
+  cgst              Float    @default(0)
+  sgst              Float    @default(0)
+  igst              Float    @default(0)
+  totalTax          Float
+  roundOff          Float    @default(0)
+  total             Float
+  notes             String   @default("")
+  lineItems         Json     // Store line items as JSON
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([status])
+  @@index([customerName])
+}
+
+model Deal {
+  id              String   @id @default(uuid())
+  title           String
+  company         String
+  contactName     String
+  value           Float
+  stage           String   // 'lead' | 'qualified' | 'proposal' | 'negotiation' | 'closed-won' | 'closed-lost'
+  probability     Int      // 0-100
+  expectedCloseDate DateTime
+  assignedTo      String
+  notes           String   @default("")
+  tags            String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([stage])
+  @@index([assignedTo])
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @default("")
+  priority    String   // 'low' | 'medium' | 'high' | 'urgent'
+  status      String   // 'todo' | 'in-progress' | 'completed'
+  dueDate     DateTime
+  assignee    String
+  tags        String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  completedAt DateTime?
+
+  @@index([status])
+  @@index([assignee])
+}
