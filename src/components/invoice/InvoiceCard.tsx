@@ -8,6 +8,7 @@ import { format } from "date-fns";
 interface InvoiceCardProps {
   invoice: Invoice;
   onEdit: (invoice: Invoice) => void;
+  onDownload: (invoice: Invoice) => void;
 }
 
 const statusColors = {
@@ -18,7 +19,7 @@ const statusColors = {
   cancelled: "bg-gray-500/10 text-gray-600 dark:text-gray-400",
 };
 
-export const InvoiceCard = ({ invoice, onEdit }: InvoiceCardProps) => {
+export const InvoiceCard = ({ invoice, onEdit, onDownload }: InvoiceCardProps) => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -107,7 +108,7 @@ export const InvoiceCard = ({ invoice, onEdit }: InvoiceCardProps) => {
           <Eye className="h-4 w-4 mr-2" />
           View
         </Button>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" onClick={() => onDownload(invoice)}>
           <Download className="h-4 w-4 mr-2" />
           PDF
         </Button>
