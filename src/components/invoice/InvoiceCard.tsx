@@ -26,11 +26,13 @@ export const InvoiceCard = ({ invoice, onEdit }: InvoiceCardProps) => {
     }).format(amount);
   };
 
+  const isInterState = invoice.companyState !== invoice.customerState;
+
   return (
     <Card className="p-6 hover:shadow-lg transition-all duration-300 border-border/50 bg-card/50 backdrop-blur-sm">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/10 flex items-center justify-center">
             <FileText className="h-6 w-6 text-primary" />
           </div>
           <div>
@@ -38,6 +40,7 @@ export const InvoiceCard = ({ invoice, onEdit }: InvoiceCardProps) => {
               {invoice.invoiceNumber}
             </h3>
             <p className="text-sm text-muted-foreground">{invoice.customerName}</p>
+            <p className="text-xs text-muted-foreground">{invoice.customerState}</p>
           </div>
         </div>
         <Badge className={statusColors[invoice.status]}>
@@ -58,13 +61,46 @@ export const InvoiceCard = ({ invoice, onEdit }: InvoiceCardProps) => {
             {format(new Date(invoice.dueDate), "MMM dd, yyyy")}
           </span>
         </div>
-        <div className="flex justify-between items-center py-2">
-          <span className="text-sm text-muted-foreground">Total Amount</span>
-          <span className="text-lg font-bold text-primary">
-            {formatCurrency(invoice.total)}
-          </span>
+
+        {/* GST Breakdown */}
+        <div className="p-3 bg-primary/5 rounded-lg space-y-2">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Subtotal:</span>
+            <span>{formatCurrency(invoice.subtotal - (invoice.totalDiscount || 0))}</span>
+          </div>
+          {isInterState ? (
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>IGST (Inter-state):</span>
+              <span>{formatCurrency(invoice.igst)}</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>CGST:</span>
+                <span>{formatCurrency(invoice.cgst)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>SGST:</span>
+                <span>{formatCurrency(invoice.sgst)}</span>
+              </div>
+            </>
+          )}
+          <div className="flex justify-between items-center pt-2 border-t border-border/50">
+            <span className="text-sm font-semibold text-foreground">Total Amount</span>
+            <span className="text-lg font-bold text-primary">
+              {formatCurrency(invoice.total)}
+            </span>
+          </div>
         </div>
       </div>
+
+      {/* Payment Info */}
+      {invoice.status === 'paid' && invoice.paymentDate && (
+        <div className="mb-4 p-2 bg-accent/10 rounded text-xs text-accent">
+          Paid on {format(new Date(invoice.paymentDate), "MMM dd, yyyy")}
+          {invoice.paymentMethod && ` via ${invoice.paymentMethod.toUpperCase()}`}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2 pt-4 border-t border-border/50">
         <Button variant="outline" size="sm" onClick={() => onEdit(invoice)}>
@@ -73,7 +109,7 @@ export const InvoiceCard = ({ invoice, onEdit }: InvoiceCardProps) => {
         </Button>
         <Button variant="outline" size="sm">
           <Download className="h-4 w-4 mr-2" />
-          Download
+          PDF
         </Button>
       </div>
     </Card>
