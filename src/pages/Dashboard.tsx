@@ -18,18 +18,11 @@ export default function Dashboard() {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen relative">
-      {/* Indian Flag Tricolor Background */}
-      <div className="absolute inset-0 opacity-5 pointer-events-none">
-        <div className="h-1/3 bg-gradient-to-b from-primary to-primary/50" />
-        <div className="h-1/3 bg-gradient-to-b from-background/80 to-background" />
-        <div className="h-1/3 bg-gradient-to-t from-success to-success/50" />
-      </div>
-
-      <div className="relative p-6 max-w-7xl mx-auto space-y-6">
-        {/* Header with Tricolor Accent */}
+    <div className="min-h-screen bg-background">
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        {/* Header */}
         <div className="relative">
-          <div className="absolute -left-6 top-0 bottom-0 w-1 bg-gradient-to-b from-primary via-background to-success rounded-r" />
+          <div className="absolute -left-6 top-0 bottom-0 w-1 bg-primary rounded-r" />
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">
               Bharat CRM Dashboard
