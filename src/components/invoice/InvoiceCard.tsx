@@ -51,12 +51,6 @@ export const InvoiceCard = ({ invoice, onEdit, onDownload }: InvoiceCardProps) =
 
       <div className="space-y-3 mb-4">
         <div className="flex justify-between items-center py-2 border-b border-border/50">
-          <span className="text-sm text-muted-foreground">Issue Date</span>
-          <span className="text-sm font-medium text-foreground">
-            {format(new Date(invoice.issueDate), "MMM dd, yyyy")}
-          </span>
-        </div>
-        <div className="flex justify-between items-center py-2 border-b border-border/50">
           <span className="text-sm text-muted-foreground">Due Date</span>
           <span className="text-sm font-medium text-foreground">
             {format(new Date(invoice.dueDate), "MMM dd, yyyy")}

@@ -176,28 +176,32 @@ export const invoicesAPI = {
       params.append('clientId', filters.clientId);
     }
     const query = params.toString() ? `?${params.toString()}` : '';
-    return fetchAPI<Invoice[]>(`/invoices${query}`);
+    const invoices = await fetchAPI<any[]>(`/invoices${query}`);
+    return invoices.map(convertInvoiceDates);
   },
 
   // Get single invoice by ID
   getById: async (id: string): Promise<Invoice> => {
-    return fetchAPI<Invoice>(`/invoices/${id}`);
+    const invoice = await fetchAPI<any>(`/invoices/${id}`);
+    return convertInvoiceDates(invoice);
   },
 
   // Create new invoice
   create: async (invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>): Promise<Invoice> => {
-    return fetchAPI<Invoice>('/invoices', {
+    const createdInvoice = await fetchAPI<any>('/invoices', {
       method: 'POST',
       body: JSON.stringify(invoice),
     });
+    return convertInvoiceDates(createdInvoice);
   },
 
   // Update existing invoice
   update: async (id: string, invoice: Partial<Invoice>): Promise<Invoice> => {
-    return fetchAPI<Invoice>(`/invoices/${id}`, {
+    const updatedInvoice = await fetchAPI<any>(`/invoices/${id}`, {
       method: 'PUT',
       body: JSON.stringify(invoice),
     });
+    return convertInvoiceDates(updatedInvoice);
   },
 
   // Delete invoice
