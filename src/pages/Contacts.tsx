@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { mockContacts } from '@/lib/mockData';
 import { ContactCard } from '@/components/contacts/ContactCard';
+import { ContactDetailDialog } from '@/components/contacts/ContactDetailDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -21,11 +22,18 @@ import {
   IndianRupee,
   TrendingUp,
 } from 'lucide-react';
-import { ContactType } from '@/types/contact';
+import { Contact, ContactType } from '@/types/contact';
 
 export default function Contacts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<ContactType | 'all'>('all');
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+
+  const handleViewProfile = (contact: Contact) => {
+    setSelectedContact(contact);
+    setDetailDialogOpen(true);
+  };
 
   const filteredContacts = mockContacts.filter(contact => {
     const matchesSearch =
@@ -162,7 +170,7 @@ export default function Contacts() {
         {/* Contacts Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredContacts.map(contact => (
-            <ContactCard key={contact.id} contact={contact} />
+            <ContactCard key={contact.id} contact={contact} onViewProfile={handleViewProfile} />
           ))}
         </div>
 
@@ -175,6 +183,13 @@ export default function Contacts() {
             </p>
           </Card>
         )}
+
+        {/* Contact Detail Dialog */}
+        <ContactDetailDialog
+          contact={selectedContact}
+          open={detailDialogOpen}
+          onOpenChange={setDetailDialogOpen}
+        />
       </div>
     </div>
   );
