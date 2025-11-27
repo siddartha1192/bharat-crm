@@ -18,12 +18,14 @@ import {
   Sparkles,
   Award,
   Edit,
+  Trash2,
 } from 'lucide-react';
 
 interface ContactCardProps {
   contact: Contact;
   onViewProfile?: (contact: Contact) => void;
   onEdit?: (contact: Contact) => void;
+  onDelete?: (contact: Contact) => void;
 }
 
 const typeColors = {
@@ -45,7 +47,7 @@ const industryIcons = {
   'other': '🏢',
 };
 
-export function ContactCard({ contact, onViewProfile, onEdit }: ContactCardProps) {
+export function ContactCard({ contact, onViewProfile, onEdit, onDelete }: ContactCardProps) {
   return (
     <Card className="p-5 hover:shadow-lg transition-all border-l-4 border-l-primary/20 hover:border-l-primary">
       <div className="flex items-start justify-between mb-4">
@@ -168,13 +170,19 @@ export function ContactCard({ contact, onViewProfile, onEdit }: ContactCardProps
           <span>{contact.assignedTo}</span>
         </div>
         <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+            onClick={() => onDelete?.(contact)}
+          >
+            <Trash2 className="w-3 h-3" />
+          </Button>
           <Button size="sm" variant="outline" className="hover:bg-primary/10" onClick={() => onEdit?.(contact)}>
-            <Edit className="w-3 h-3 mr-1" />
-            Edit
+            <Edit className="w-3 h-3" />
           </Button>
           <Button size="sm" onClick={() => onViewProfile?.(contact)} className="bg-gradient-to-r from-primary to-primary/80">
-            <ExternalLink className="w-4 h-4 mr-1" />
-            View
+            <ExternalLink className="w-4 h-4" />
           </Button>
         </div>
       </div>
