@@ -1,14 +1,16 @@
 import { Task } from '@/types/task';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Clock, AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 interface TaskCardProps {
   task: Task;
   onClick?: () => void;
+  onDelete?: (task: Task) => void;
 }
 
 const priorityConfig = {
@@ -24,7 +26,7 @@ const statusConfig = {
   'completed': { color: 'bg-success', text: 'Completed' },
 };
 
-export function TaskCard({ task, onClick }: TaskCardProps) {
+export function TaskCard({ task, onClick, onDelete }: TaskCardProps) {
   const isOverdue = task.status !== 'completed' && task.dueDate < new Date();
   const isDueToday = task.dueDate.toDateString() === new Date().toDateString();
   const priority = priorityConfig[task.priority];
@@ -54,15 +56,30 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
           </h3>
           <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
         </div>
-        
-        {task.status === 'completed' ? (
-          <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0" />
-        ) : (
-          <div className={cn(
-            "w-5 h-5 rounded-full border-2 flex-shrink-0",
-            "border-muted group-hover:border-primary transition-colors"
-          )} />
-        )}
+
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(task);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+          {task.status === 'completed' ? (
+            <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0" />
+          ) : (
+            <div className={cn(
+              "w-5 h-5 rounded-full border-2 flex-shrink-0",
+              "border-muted group-hover:border-primary transition-colors"
+            )} />
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap mb-3">

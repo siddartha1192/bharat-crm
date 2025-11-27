@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Task, TaskPriority, TaskStatus } from '@/types/task';
 import {
   Dialog,
@@ -32,13 +32,35 @@ interface TaskDialogProps {
 }
 
 export function TaskDialog({ open, onOpenChange, task, onSave }: TaskDialogProps) {
-  const [title, setTitle] = useState(task?.title || '');
-  const [description, setDescription] = useState(task?.description || '');
-  const [priority, setPriority] = useState<TaskPriority>(task?.priority || 'medium');
-  const [status, setStatus] = useState<TaskStatus>(task?.status || 'todo');
-  const [dueDate, setDueDate] = useState<Date>(task?.dueDate || new Date());
-  const [assignee, setAssignee] = useState(task?.assignee || '');
-  const [tags, setTags] = useState(task?.tags?.join(', ') || '');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>('medium');
+  const [status, setStatus] = useState<TaskStatus>('todo');
+  const [dueDate, setDueDate] = useState<Date>(new Date());
+  const [assignee, setAssignee] = useState('');
+  const [tags, setTags] = useState('');
+
+  // Update form when task prop changes
+  useEffect(() => {
+    if (task) {
+      setTitle(task.title || '');
+      setDescription(task.description || '');
+      setPriority(task.priority || 'medium');
+      setStatus(task.status || 'todo');
+      setDueDate(task.dueDate || new Date());
+      setAssignee(task.assignee || '');
+      setTags(task.tags?.join(', ') || '');
+    } else {
+      // Reset for new task
+      setTitle('');
+      setDescription('');
+      setPriority('medium');
+      setStatus('todo');
+      setDueDate(new Date());
+      setAssignee('');
+      setTags('');
+    }
+  }, [task, open]);
 
   const handleSave = () => {
     const taskData: Partial<Task> = {

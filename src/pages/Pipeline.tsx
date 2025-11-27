@@ -180,6 +180,19 @@ export default function Pipeline() {
     setDialogOpen(true);
   };
 
+  const handleDeleteDeal = async (deal: Deal) => {
+    if (window.confirm(`Are you sure you want to delete "${deal.title}"?`)) {
+      try {
+        await dealsAPI.delete(deal.id);
+        toast.success('Deal deleted successfully!');
+        fetchDeals();
+      } catch (error) {
+        toast.error('Failed to delete deal. Please try again.');
+        console.error('Error deleting deal:', error);
+      }
+    }
+  };
+
   const handleSaveDeal = async (dealData: Partial<Deal>) => {
     try {
       if (selectedDeal) {
@@ -362,6 +375,7 @@ export default function Pipeline() {
                     deals={getDealsByStage(stage.id)}
                     onAddDeal={() => handleAddDeal(stage.id)}
                     onEditDeal={handleEditDeal}
+                    onDeleteDeal={handleDeleteDeal}
                   />
                 ))}
               </div>

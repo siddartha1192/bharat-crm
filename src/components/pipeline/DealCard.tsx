@@ -2,6 +2,7 @@ import { Deal } from '@/types/pipeline';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -12,15 +13,17 @@ import {
   User,
   Target,
   GripVertical,
+  Trash2,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 
 interface DealCardProps {
   deal: Deal;
   onClick?: () => void;
+  onDelete?: (deal: Deal) => void;
 }
 
-export function DealCard({ deal, onClick }: DealCardProps) {
+export function DealCard({ deal, onClick, onDelete }: DealCardProps) {
   const {
     attributes,
     listeners,
@@ -59,14 +62,29 @@ export function DealCard({ deal, onClick }: DealCardProps) {
           <GripVertical className="w-4 h-4 text-muted-foreground" />
         </div>
         <div className="flex-1 space-y-3">
-          <div>
-            <h3 className="font-semibold text-foreground mb-1 line-clamp-2">
-              {deal.title}
-            </h3>
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <Building2 className="w-3 h-3" />
-              <span className="truncate">{deal.company}</span>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1">
+              <h3 className="font-semibold text-foreground mb-1 line-clamp-2">
+                {deal.title}
+              </h3>
+              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                <Building2 className="w-3 h-3" />
+                <span className="truncate">{deal.company}</span>
+              </div>
             </div>
+            {onDelete && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(deal);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center justify-between">
