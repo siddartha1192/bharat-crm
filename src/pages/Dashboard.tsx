@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { leadsAPI, contactsAPI, invoicesAPI, tasksAPI } from '@/lib/api';
 import { Task } from '@/types/task';
 import { StatsCard } from '@/components/dashboard/StatsCard';
@@ -26,6 +27,7 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchAllStats();
@@ -60,6 +62,15 @@ export default function Dashboard() {
     .filter(t => t.status !== 'completed')
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     .slice(0, 3);
+
+  const handleViewAllTasks = () => {
+    navigate('/tasks');
+  };
+
+  const handleTaskClick = (task: Task) => {
+    // Navigate to tasks page - the Tasks page will handle opening the task dialog
+    navigate('/tasks');
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -171,16 +182,23 @@ export default function Dashboard() {
               <h2 className="text-xl font-semibold text-foreground mb-1">Upcoming Tasks</h2>
               <p className="text-sm text-muted-foreground">Tasks due soon that need your attention</p>
             </div>
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" onClick={handleViewAllTasks}>
               View All
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </div>
-          
+
           <div className="space-y-4">
-            {upcomingTasks.map(task => (
-              <TaskCard key={task.id} task={task} />
-            ))}
+            {upcomingTasks.length > 0 ? (
+              upcomingTasks.map(task => (
+                <TaskCard key={task.id} task={task} onClick={() => handleTaskClick(task)} />
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No upcoming tasks</p>
+                <p className="text-sm mt-2">You're all caught up! 🎉</p>
+              </div>
+            )}
           </div>
         </Card>
 
