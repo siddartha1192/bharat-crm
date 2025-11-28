@@ -37,6 +37,7 @@ export default function Pipeline() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
+  const [originalDealStage, setOriginalDealStage] = useState<PipelineStage | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [selectedStage, setSelectedStage] = useState<PipelineStage>('lead');
@@ -91,6 +92,10 @@ export default function Pipeline() {
   const handleDragStart = (event: DragStartEvent) => {
     const deal = deals.find(d => d.id === event.active.id);
     setActiveDeal(deal || null);
+    // Store the original stage before dragging
+    if (deal) {
+      setOriginalDealStage(deal.stage);
+    }
   };
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -124,13 +129,18 @@ export default function Pipeline() {
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    // Get the deal that was dragged
+    const activeDeal = deals.find(d => d.id === active.id);
+
+    // Reset drag state
     setActiveDeal(null);
 
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeDeal = deals.find(d => d.id === active.id);
-    if (!activeDeal) return;
+    if (!over || !activeDeal || !originalDealStage) {
+      setOriginalDealStage(null);
+      return;
+    }
 
     let targetStage: PipelineStage | null = null;
 
@@ -145,15 +155,8 @@ export default function Pipeline() {
       }
     }
 
-    // Update the deal's stage if it changed
-    if (targetStage && activeDeal.stage !== targetStage) {
-      // Optimistic update
-      setDeals(prevDeals =>
-        prevDeals.map(d =>
-          d.id === activeDeal.id ? { ...d, stage: targetStage, updatedAt: new Date() } : d
-        )
-      );
-
+    // Update the deal's stage if it changed from the original
+    if (targetStage && originalDealStage !== targetStage) {
       const stageName = defaultPipelineStages.find(s => s.id === targetStage)?.name;
 
       try {
@@ -161,16 +164,19 @@ export default function Pipeline() {
         await dealsAPI.update(activeDeal.id, { stage: targetStage });
         toast.success(`Deal moved to ${stageName}!`);
       } catch (error) {
-        // Revert on error
+        // Revert on error - restore to original stage
         setDeals(prevDeals =>
           prevDeals.map(d =>
-            d.id === activeDeal.id ? { ...d, stage: activeDeal.stage } : d
+            d.id === activeDeal.id ? { ...d, stage: originalDealStage } : d
           )
         );
         toast.error('Failed to update deal. Please try again.');
         console.error('Error updating deal stage:', error);
       }
     }
+
+    // Reset original stage
+    setOriginalDealStage(null);
   };
 
   const handleAddDeal = (stage: PipelineStage) => {
