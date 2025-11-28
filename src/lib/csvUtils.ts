@@ -4,6 +4,19 @@ import { Deal } from '@/types/pipeline';
 import { Task } from '@/types/task';
 import { Invoice } from '@/types/invoice';
 
+// Helper function to safely convert dates to ISO string
+function safeToISOString(date: Date | string | undefined): string {
+  if (!date) return '';
+  try {
+    if (typeof date === 'string') return date;
+    if (date instanceof Date) return date.toISOString();
+    return String(date);
+  } catch (error) {
+    console.error('Error converting date:', error);
+    return '';
+  }
+}
+
 // Export leads to CSV
 export function exportLeadsToCSV(leads: Lead[], filename: string = 'leads.csv') {
   const headers = [
@@ -38,12 +51,12 @@ export function exportLeadsToCSV(leads: Lead[], filename: string = 'leads.csv') 
     lead.estimatedValue.toString(),
     lead.assignedTo,
     lead.notes,
-    lead.tags.join('; '),
+    lead.tags?.join('; ') || '',
     lead.website || '',
     lead.linkedIn || '',
     lead.twitter || '',
     lead.facebook || '',
-    lead.createdAt.toISOString(),
+    safeToISOString(lead.createdAt),
   ]);
 
   downloadCSV([headers, ...rows], filename);
@@ -91,18 +104,18 @@ export function exportContactsToCSV(contacts: Contact[], filename: string = 'con
     contact.companySize,
     contact.gstNumber || '',
     contact.panNumber || '',
-    contact.address.street,
-    contact.address.city,
-    contact.address.state,
-    contact.address.pincode,
-    contact.address.country,
+    contact.address?.street || '',
+    contact.address?.city || '',
+    contact.address?.state || '',
+    contact.address?.pincode || '',
+    contact.address?.country || '',
     contact.website || '',
     contact.linkedIn || '',
     contact.assignedTo,
     contact.lifetimeValue.toString(),
     contact.notes,
-    contact.tags.join('; '),
-    contact.createdAt.toISOString(),
+    contact.tags?.join('; ') || '',
+    safeToISOString(contact.createdAt),
   ]);
 
   downloadCSV([headers, ...rows], filename);
@@ -294,11 +307,11 @@ export function exportDealsToCSV(deals: Deal[], filename: string = 'deals.csv') 
     deal.stage,
     deal.value.toString(),
     deal.probability.toString(),
-    deal.expectedCloseDate.toISOString().split('T')[0],
+    safeToISOString(deal.expectedCloseDate).split('T')[0],
     deal.assignedTo,
     deal.notes,
-    deal.tags.join('; '),
-    deal.createdAt.toISOString(),
+    deal.tags?.join('; ') || '',
+    safeToISOString(deal.createdAt),
   ]);
 
   downloadCSV([headers, ...rows], filename);
@@ -357,11 +370,11 @@ export function exportTasksToCSV(tasks: Task[], filename: string = 'tasks.csv') 
     task.description || '',
     task.status,
     task.priority,
-    task.dueDate.toISOString().split('T')[0],
+    safeToISOString(task.dueDate).split('T')[0],
     task.assignee || '',
     task.tags?.join('; ') || '',
-    task.completedAt ? task.completedAt.toISOString() : '',
-    task.createdAt.toISOString(),
+    task.completedAt ? safeToISOString(task.completedAt) : '',
+    safeToISOString(task.createdAt),
   ]);
 
   downloadCSV([headers, ...rows], filename);
@@ -436,15 +449,15 @@ export function exportInvoicesToCSV(invoices: Invoice[], filename: string = 'inv
     invoice.companyAddress,
     invoice.companyCity,
     invoice.companyState,
-    invoice.items.map(item => `${item.description} (₹${item.amount})`).join('; '),
+    invoice.items?.map(item => `${item.description} (₹${item.amount})`).join('; ') || '',
     invoice.subtotal.toString(),
     invoice.cgst.toString(),
     invoice.sgst.toString(),
     invoice.igst.toString(),
     invoice.total.toString(),
     invoice.status,
-    invoice.dueDate.toISOString().split('T')[0],
-    invoice.createdAt.toISOString(),
+    safeToISOString(invoice.dueDate).split('T')[0],
+    safeToISOString(invoice.createdAt),
   ]);
 
   downloadCSV([headers, ...rows], filename);
