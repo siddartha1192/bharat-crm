@@ -5,9 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { Building2, Mail, Lock, Loader2, User, Briefcase } from 'lucide-react';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
@@ -20,34 +19,20 @@ export default function Login() {
   });
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login, register } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      const payload = isLogin
-        ? { email: formData.email, password: formData.password }
-        : formData;
-
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Authentication failed');
+      if (isLogin) {
+        // Use AuthContext login function
+        await login(formData.email, formData.password);
+      } else {
+        // Use AuthContext register function
+        await register(formData.email, formData.password, formData.name, formData.company);
       }
-
-      // Store user data in localStorage
-      localStorage.setItem('user', JSON.stringify(data));
-      localStorage.setItem('userId', data.id);
 
       toast({
         title: isLogin ? 'Welcome back!' : 'Account created!',
