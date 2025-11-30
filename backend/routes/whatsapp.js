@@ -517,14 +517,19 @@ router.post('/webhook', async (req, res) => {
 // Helper function to process incoming messages
 async function processIncomingMessage(message, value) {
   try {
-    const fromPhone = message.from;
+    let fromPhone = message.from;
     const messageId = message.id;
     const timestamp = message.timestamp;
+
+    // Normalize phone number - add + prefix if not present
+    if (!fromPhone.startsWith('+')) {
+      fromPhone = '+' + fromPhone;
+    }
 
     // Get contact name from the webhook data
     let contactName = fromPhone;
     if (value.contacts && value.contacts.length > 0) {
-      const contact = value.contacts.find(c => c.wa_id === fromPhone);
+      const contact = value.contacts.find(c => c.wa_id === message.from);
       if (contact && contact.profile && contact.profile.name) {
         contactName = contact.profile.name;
       }
@@ -559,11 +564,21 @@ async function processIncomingMessage(message, value) {
 
     console.log(`Received message from ${fromPhone}: ${messageText}`);
 
+    // Phone number variations (with and without +)
+    const phoneVariations = [fromPhone];
+    if (fromPhone.startsWith('+')) {
+      phoneVariations.push(fromPhone.substring(1)); // without +
+    } else {
+      phoneVariations.push('+' + fromPhone); // with +
+    }
+
     // Find all users who might have this conversation
     // (In multi-user scenario, we need to find the right user)
     const conversations = await prisma.whatsAppConversation.findMany({
       where: {
-        contactPhone: fromPhone
+        contactPhone: {
+          in: phoneVariations
+        }
       },
       include: {
         user: {
@@ -574,11 +589,13 @@ async function processIncomingMessage(message, value) {
 
     // If no conversation exists, try to find the contact in the CRM
     if (conversations.length === 0) {
+      console.log(`No existing conversation found for ${fromPhone}. Searching for contact...`);
+
       const contacts = await prisma.contact.findMany({
         where: {
           OR: [
-            { whatsapp: fromPhone },
-            { phone: fromPhone }
+            { whatsapp: { in: phoneVariations } },
+            { phone: { in: phoneVariations } }
           ]
         },
         include: {
@@ -588,8 +605,12 @@ async function processIncomingMessage(message, value) {
         }
       });
 
+      console.log(`Found ${contacts.length} contacts matching phone number`);
+
       // Create conversation for each user who has this contact
       for (const contact of contacts) {
+        console.log(`Creating conversation for user ${contact.userId} (${contact.user.name})`);
+
         const filePath = conversationStorage.getFilePath(contact.userId, fromPhone);
         const conversation = await prisma.whatsAppConversation.create({
           data: {
@@ -622,10 +643,15 @@ async function processIncomingMessage(message, value) {
 
         // Save to file
         await conversationStorage.saveMessage(contact.userId, fromPhone, savedMessage);
+        console.log(`✅ Message saved to conversation for user ${contact.userId}`);
       }
     } else {
+      console.log(`Found ${conversations.length} existing conversation(s) for ${fromPhone}`);
+
       // Update existing conversations
       for (const conversation of conversations) {
+        console.log(`Updating conversation ${conversation.id} for user ${conversation.userId}`);
+
         // Update conversation
         await prisma.whatsAppConversation.update({
           where: { id: conversation.id },
@@ -654,10 +680,15 @@ async function processIncomingMessage(message, value) {
 
         // Save to file
         await conversationStorage.saveMessage(conversation.userId, fromPhone, savedMessage);
+        console.log(`✅ Message saved to existing conversation for user ${conversation.userId}`);
       }
     }
+
+    console.log(`✅ Successfully processed incoming message from ${fromPhone}`);
   } catch (error) {
-    console.error('Error processing incoming message:', error);
+    console.error('❌ Error processing incoming message:', error);
+    console.error('Error details:', error.message);
+    console.error('Stack trace:', error.stack);
   }
 }
 
