@@ -25,6 +25,7 @@ const contactRoutes = require('./routes/contacts');
 const invoiceRoutes = require('./routes/invoices');
 const dealRoutes = require('./routes/deals');
 const taskRoutes = require('./routes/tasks');
+const whatsappRoutes = require('./routes/whatsapp');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -33,6 +34,7 @@ app.use('/api/contacts', contactRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
