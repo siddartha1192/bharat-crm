@@ -10,6 +10,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // Hashed password
+  name      String
+  company   String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  leads     Lead[]
+  contacts  Contact[]
+  invoices  Invoice[]
+  deals     Deal[]
+  tasks     Task[]
+
+  @@index([email])
+}
+
 model Lead {
   id                String   @id @default(uuid())
   name              String
@@ -33,8 +52,13 @@ model Lead {
   lastContactedAt   DateTime?
   nextFollowUpAt    DateTime?
 
+  // User relation
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([status, priority])
   @@index([assignedTo])
+  @@index([userId])
 }
 
 model Contact {
@@ -65,8 +89,13 @@ model Contact {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // User relation
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([type])
   @@index([assignedTo])
+  @@index([userId])
 }
 
 model Invoice {
@@ -76,10 +105,12 @@ model Invoice {
   customerEmail     String
   customerPhone     String
   customerAddress   String
+  customerCity      String   @default("")
   customerState     String
   customerGST       String?
   companyName       String
   companyAddress    String
+  companyCity       String   @default("")
   companyState      String
   companyGST        String
   companyPAN        String
@@ -100,8 +131,13 @@ model Invoice {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  // User relation
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([status])
   @@index([customerName])
+  @@index([userId])
 }
 
 model Deal {
@@ -119,8 +155,13 @@ model Deal {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // User relation
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([stage])
   @@index([assignedTo])
+  @@index([userId])
 }
 
 model Task {
@@ -136,6 +177,11 @@ model Task {
   updatedAt   DateTime @updatedAt
   completedAt DateTime?
 
+  // User relation
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([status])
   @@index([assignee])
+  @@index([userId])
 }

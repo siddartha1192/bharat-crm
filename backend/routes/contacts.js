@@ -22,7 +22,13 @@ const transformContactForFrontend = (contact) => {
 router.get('/', async (req, res) => {
   try {
     const { type, assignedTo } = req.query;
-    const where = {};
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    const where = { userId };
 
     if (type && type !== 'all') where.type = type;
     if (assignedTo) where.assignedTo = assignedTo;
@@ -44,8 +50,17 @@ router.get('/', async (req, res) => {
 // GET single contact by ID
 router.get('/:id', async (req, res) => {
   try {
-    const contact = await prisma.contact.findUnique({
-      where: { id: req.params.id }
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    const contact = await prisma.contact.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
     });
 
     if (!contact) {
@@ -64,12 +79,19 @@ router.get('/:id', async (req, res) => {
 // POST create new contact
 router.post('/', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
     // Remove auto-generated fields and transform address
     const { id, createdAt, updatedAt, address, ...contactData } = req.body;
 
     // Transform nested address to flat fields
     const data = {
       ...contactData,
+      userId,
       addressStreet: address?.street || '',
       addressCity: address?.city || '',
       addressState: address?.state || '',
@@ -96,6 +118,24 @@ router.post('/', async (req, res) => {
 // PUT update contact
 router.put('/:id', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // First verify the contact belongs to the user
+    const existingContact = await prisma.contact.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
+    });
+
+    if (!existingContact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
     // Remove auto-generated fields and transform address
     const { id, createdAt, updatedAt, address, ...contactData } = req.body;
 
@@ -126,6 +166,24 @@ router.put('/:id', async (req, res) => {
 // DELETE contact
 router.delete('/:id', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // First verify the contact belongs to the user
+    const existingContact = await prisma.contact.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
+    });
+
+    if (!existingContact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
     await prisma.contact.delete({
       where: { id: req.params.id }
     });
@@ -140,11 +198,20 @@ router.delete('/:id', async (req, res) => {
 // GET contact stats
 router.get('/stats/summary', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
     const [total, customers, prospects, totalValue] = await Promise.all([
-      prisma.contact.count(),
-      prisma.contact.count({ where: { type: 'customer' } }),
-      prisma.contact.count({ where: { type: 'prospect' } }),
-      prisma.contact.aggregate({ _sum: { lifetimeValue: true } })
+      prisma.contact.count({ where: { userId } }),
+      prisma.contact.count({ where: { userId, type: 'customer' } }),
+      prisma.contact.count({ where: { userId, type: 'prospect' } }),
+      prisma.contact.aggregate({
+        where: { userId },
+        _sum: { lifetimeValue: true }
+      })
     ]);
 
     res.json({

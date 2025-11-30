@@ -7,7 +7,13 @@ const prisma = new PrismaClient();
 router.get('/', async (req, res) => {
   try {
     const { status } = req.query;
-    const where = {};
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    const where = { userId };
 
     if (status && status !== 'all') where.status = status;
 
@@ -26,8 +32,17 @@ router.get('/', async (req, res) => {
 // GET single task by ID
 router.get('/:id', async (req, res) => {
   try {
-    const task = await prisma.task.findUnique({
-      where: { id: req.params.id }
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    const task = await prisma.task.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
     });
 
     if (!task) {
@@ -44,12 +59,19 @@ router.get('/:id', async (req, res) => {
 // POST create new task
 router.post('/', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
     // Remove auto-generated fields
     const { id, createdAt, updatedAt, ...taskData } = req.body;
 
     // Ensure required fields have defaults
     const data = {
       ...taskData,
+      userId,
       description: taskData.description || '',
       tags: taskData.tags || [],
     };
@@ -68,6 +90,24 @@ router.post('/', async (req, res) => {
 // PUT update task
 router.put('/:id', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // First verify the task belongs to the user
+    const existingTask = await prisma.task.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
     // Remove auto-generated fields
     const { id, createdAt, updatedAt, ...taskData } = req.body;
 
@@ -86,6 +126,24 @@ router.put('/:id', async (req, res) => {
 // DELETE task
 router.delete('/:id', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // First verify the task belongs to the user
+    const existingTask = await prisma.task.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
     await prisma.task.delete({
       where: { id: req.params.id }
     });
