@@ -5,9 +5,12 @@ This guide will help you integrate WhatsApp Business API with your Bharat CRM to
 ## Features
 
 ✅ Send WhatsApp messages to contacts via the CRM
+✅ Receive incoming WhatsApp messages via webhook
+✅ Full WhatsApp Web-style conversation interface
+✅ Real-time message updates with auto-polling
 ✅ Click-to-chat functionality (opens WhatsApp Web/App)
-✅ Beautiful chat modal interface
-✅ Message delivery confirmation
+✅ Message delivery confirmation and status tracking
+✅ Conversation history stored in both database and files
 ✅ Support for WhatsApp Business API
 
 ## Prerequisites
@@ -218,12 +221,164 @@ Response:
    - Maintain high-quality messages to avoid restrictions
    - Avoid spam or promotional content
 
+## Webhook Setup (Receive Incoming Messages)
+
+The webhook feature allows your CRM to receive messages sent by contacts, enabling two-way communication.
+
+### Step 1: Configure Webhook Environment Variable
+
+Add the webhook verification token to your `.env` file:
+
+```env
+# Webhook verification token (you can set any value)
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=bharat_crm_webhook_token
+```
+
+**Note**: You can use any secure random string. Remember this value as you'll need it when configuring the webhook in Meta Business Suite.
+
+### Step 2: Expose Your Backend to the Internet
+
+WhatsApp needs to access your webhook endpoint from the internet. You have several options:
+
+**Option A: Using ngrok (for development/testing)**
+```bash
+# Install ngrok from https://ngrok.com
+ngrok http 3001
+```
+
+This will give you a public URL like: `https://abc123.ngrok.io`
+
+**Option B: Using a VPS/Cloud Server (for production)**
+- Deploy your backend to a server with a public IP
+- Set up a domain and SSL certificate
+- Ensure port 3001 is accessible (or use a reverse proxy like Nginx)
+
+**Option C: Using Cloudflare Tunnel**
+```bash
+cloudflared tunnel --url http://localhost:3001
+```
+
+### Step 3: Configure Webhook in Meta Business Suite
+
+1. **Go to Your Meta App**:
+   - Open [Meta for Developers](https://developers.facebook.com)
+   - Select your app
+   - Go to WhatsApp > Configuration
+
+2. **Set up Webhook**:
+   - Click "Edit" in the Webhook section
+   - **Callback URL**: `https://your-public-url/api/whatsapp/webhook`
+     - Example: `https://abc123.ngrok.io/api/whatsapp/webhook`
+   - **Verify Token**: Enter the same token you set in `.env` file
+     - Example: `bharat_crm_webhook_token`
+   - Click "Verify and Save"
+
+3. **Subscribe to Webhook Fields**:
+   - After verification, click "Manage" in Webhook fields
+   - Subscribe to:
+     - ✅ `messages` (to receive incoming messages)
+     - ✅ `message_status` (to receive delivery/read status)
+
+### Step 4: Test Webhook
+
+1. **Send a test message** to your WhatsApp Business number from your personal WhatsApp
+2. **Check backend logs** - You should see:
+   ```
+   Received message from +919876543210: Hello!
+   ```
+3. **Check the WhatsApp page** in your CRM:
+   - The conversation should appear automatically
+   - The message should be visible in the chat
+   - Auto-polling will fetch new messages every 3 seconds
+
+### How It Works
+
+1. **Incoming Messages**:
+   - Contact sends a message to your WhatsApp Business number
+   - WhatsApp sends a webhook POST request to your backend
+   - Backend processes the message and saves it to:
+     - Database (`WhatsAppMessage` table)
+     - File system (`backend/conversations/{userId}/{phone}.json`)
+   - Frontend polls every 3 seconds and displays new messages
+
+2. **Message Status Updates**:
+   - When messages are delivered/read, WhatsApp sends status updates
+   - Backend automatically updates message status in the database
+   - Frontend shows checkmarks (single = sent, double = read)
+
+3. **Auto-Polling**:
+   - Conversations list refreshes every 5 seconds
+   - Active conversation messages refresh every 3 seconds
+   - No manual refresh needed - new messages appear automatically
+
+### Webhook Endpoints
+
+**GET /api/whatsapp/webhook** - Webhook verification (used by Meta)
+```bash
+GET /api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=your_token&hub.challenge=123
+```
+
+**POST /api/whatsapp/webhook** - Receive messages and status updates
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "changes": [{
+      "value": {
+        "messages": [{
+          "from": "+919876543210",
+          "text": { "body": "Hello!" },
+          "type": "text"
+        }]
+      }
+    }]
+  }]
+}
+```
+
+### Supported Message Types
+
+The webhook processes these message types:
+- ✅ **Text** - Plain text messages
+- ✅ **Image** - Images (shows "[Image]" with caption if provided)
+- ✅ **Document** - PDF, Word, etc. (shows "[Document]")
+- ✅ **Audio** - Voice messages (shows "[Audio]")
+- ✅ **Video** - Video files (shows "[Video]")
+- ✅ **Location** - Shared locations (shows "[Location]")
+
+### Troubleshooting Webhooks
+
+**Webhook verification fails:**
+- Ensure your backend is publicly accessible
+- Check that `WHATSAPP_WEBHOOK_VERIFY_TOKEN` matches the value in Meta
+- Verify the callback URL is correct
+- Check backend logs for errors
+
+**Messages not appearing in CRM:**
+- Check backend logs for webhook POST requests
+- Verify the message was successfully saved to database
+- Ensure frontend polling is active (check browser console)
+- Refresh the conversations list manually
+
+**Webhook URL changed (ngrok restarted):**
+- Get new ngrok URL
+- Update callback URL in Meta Business Suite
+- Re-verify the webhook
+
+### Production Considerations
+
+1. **Use HTTPS**: WhatsApp requires HTTPS for webhooks
+2. **Webhook Security**: Validate webhook requests (implemented in code)
+3. **Rate Limiting**: Implement rate limiting for webhook endpoint
+4. **Error Handling**: Webhook always returns 200 to prevent retries
+5. **Logging**: Monitor webhook logs for issues
+6. **Scaling**: Consider using a queue (Redis/RabbitMQ) for high message volumes
+
 ## Advanced Features (Coming Soon)
 
 - 📎 Send media (images, documents, videos)
 - 📝 Use message templates
 - 🤖 Auto-reply with AI (OpenAI integration ready)
-- 💬 Conversation history tracking
 - 📊 Message analytics and delivery reports
 
 ## Cost
