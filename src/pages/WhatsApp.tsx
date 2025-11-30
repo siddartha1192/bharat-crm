@@ -86,6 +86,26 @@ export default function WhatsApp() {
     fetchConversations();
   }, []);
 
+  // Poll for new conversations every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchConversations(false); // Don't show loading spinner during polling
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [searchQuery]);
+
+  // Poll for new messages in current conversation every 3 seconds
+  useEffect(() => {
+    if (!selectedConversation) return;
+
+    const interval = setInterval(() => {
+      refreshMessages();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [selectedConversation?.id]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -104,9 +124,9 @@ export default function WhatsApp() {
     return () => clearTimeout(timer);
   }, [contactSearch]);
 
-  const fetchConversations = async () => {
+  const fetchConversations = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const response = await fetch(`${API_URL}/whatsapp/conversations?search=${searchQuery}`, {
         headers: {
           'X-User-Id': userId || '',
@@ -119,13 +139,15 @@ export default function WhatsApp() {
       setConversations(data.conversations);
     } catch (error) {
       console.error('Error fetching conversations:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load conversations',
-        variant: 'destructive',
-      });
+      if (showLoading) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load conversations',
+          variant: 'destructive',
+        });
+      }
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -149,6 +171,40 @@ export default function WhatsApp() {
         description: 'Failed to load messages',
         variant: 'destructive',
       });
+    }
+  };
+
+  const refreshMessages = async () => {
+    if (!selectedConversation) return;
+
+    try {
+      const response = await fetch(`${API_URL}/whatsapp/conversations/${selectedConversation.id}`, {
+        headers: {
+          'X-User-Id': userId || '',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to refresh messages');
+
+      const data = await response.json();
+      const newMessages = data.messages.reverse();
+
+      // Only update if there are new messages
+      if (newMessages.length !== messages.length) {
+        setMessages(newMessages);
+
+        // Update conversation in list
+        setConversations(prev =>
+          prev.map(c =>
+            c.id === selectedConversation.id
+              ? { ...c, lastMessage: data.lastMessage, lastMessageAt: data.lastMessageAt, unreadCount: 0 }
+              : c
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error refreshing messages:', error);
+      // Silent failure - don't show error toast for polling
     }
   };
 
