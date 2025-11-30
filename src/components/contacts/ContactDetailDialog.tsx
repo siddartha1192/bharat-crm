@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Contact } from '@/types/contact';
 import {
   Dialog,
@@ -29,6 +30,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { WhatsAppChatModal } from '@/components/whatsapp/WhatsAppChatModal';
 
 interface ContactDetailDialogProps {
   contact: Contact | null;
@@ -56,10 +58,18 @@ const industryIcons = {
 };
 
 export function ContactDetailDialog({ contact, open, onOpenChange }: ContactDetailDialogProps) {
+  const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
+
   if (!contact) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <WhatsAppChatModal
+        contact={contact}
+        open={whatsappModalOpen}
+        onOpenChange={setWhatsappModalOpen}
+      />
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
@@ -148,19 +158,34 @@ export function ContactDetailDialog({ contact, open, onOpenChange }: ContactDeta
                 </div>
               )}
               {contact.whatsapp && (
-                <div className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg hover:bg-secondary/30 transition-colors">
-                  <MessageCircle className="w-5 h-5 text-green-600" />
-                  <div className="flex-1">
-                    <div className="text-xs text-muted-foreground">WhatsApp</div>
-                    <a
-                      href={`https://wa.me/${contact.whatsapp.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium hover:text-primary flex items-center gap-1"
+                <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+                  <div className="flex items-center gap-3">
+                    <MessageCircle className="w-5 h-5 text-green-600" />
+                    <div className="flex-1">
+                      <div className="text-xs text-muted-foreground">WhatsApp</div>
+                      <div className="text-sm font-medium">{contact.whatsapp}</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        window.open(`https://wa.me/${contact.whatsapp.replace(/\D/g, '')}`, '_blank');
+                      }}
+                      className="hover:bg-green-100 dark:hover:bg-green-900/30"
                     >
-                      {contact.whatsapp}
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
+                      <ExternalLink className="w-3 h-3 mr-1" />
+                      Open
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => setWhatsappModalOpen(true)}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <MessageCircle className="w-3 h-3 mr-1" />
+                      Send
+                    </Button>
                   </div>
                 </div>
               )}
@@ -329,7 +354,7 @@ export function ContactDetailDialog({ contact, open, onOpenChange }: ContactDeta
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-2 pt-4 flex-wrap">
             <Button className="flex-1">
               <PhoneCall className="w-4 h-4 mr-2" />
               Call Contact
@@ -338,6 +363,15 @@ export function ContactDetailDialog({ contact, open, onOpenChange }: ContactDeta
               <Mail className="w-4 h-4 mr-2" />
               Send Email
             </Button>
+            {contact.whatsapp && (
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700"
+                onClick={() => setWhatsappModalOpen(true)}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                WhatsApp
+              </Button>
+            )}
             <Button className="flex-1" variant="outline">
               <Video className="w-4 h-4 mr-2" />
               Schedule Meet
@@ -346,5 +380,6 @@ export function ContactDetailDialog({ contact, open, onOpenChange }: ContactDeta
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

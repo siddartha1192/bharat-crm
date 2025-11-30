@@ -91,10 +91,18 @@ export function ContactCard({ contact, onViewProfile, onEdit, onDelete }: Contac
           <span>{contact.phone}</span>
         </div>
         {contact.whatsapp && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <MessageCircle className="w-4 h-4 text-green-600" />
+          <button
+            className="flex items-center gap-2 text-sm text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              const whatsappUrl = `https://wa.me/${contact.whatsapp.replace(/\D/g, '')}`;
+              window.open(whatsappUrl, '_blank');
+            }}
+            title="Open WhatsApp"
+          >
+            <MessageCircle className="w-4 h-4" />
             <span>{contact.whatsapp}</span>
-          </div>
+          </button>
         )}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <MapPin className="w-4 h-4" />
