@@ -1,291 +1,603 @@
-import { useState } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useToast } from '@/hooks/use-toast';
 import {
   MessageCircle,
-  Send,
-  Phone,
   Search,
-  MoreVertical,
-  Paperclip,
-  Smile,
+  Send,
+  Plus,
+  Loader2,
+  Check,
   CheckCheck,
+  Phone,
+  MoreVertical,
+  Trash2,
+  User,
 } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-// Mock WhatsApp conversations
-const mockConversations = [
-  {
-    id: '1',
-    name: 'Rajesh Kumar',
-    company: 'Tech Innovations',
-    lastMessage: 'Thanks for the demo! Looking forward to the proposal.',
-    timestamp: '2 min ago',
-    unread: 2,
-    status: 'active',
-  },
-  {
-    id: '2',
-    name: 'Sunita Reddy',
-    company: 'Hyderabad Exports',
-    lastMessage: 'Can we schedule a call tomorrow?',
-    timestamp: '15 min ago',
-    unread: 1,
-    status: 'active',
-  },
-  {
-    id: '3',
-    name: 'Amit Patel',
-    company: 'Mumbai Traders',
-    lastMessage: 'What are the pricing options?',
-    timestamp: '1 hour ago',
-    unread: 0,
-    status: 'responded',
-  },
-  {
-    id: '4',
-    name: 'Vikram Singh',
-    company: 'Delhi Retail',
-    lastMessage: 'Got it, thanks!',
-    timestamp: '3 hours ago',
-    unread: 0,
-    status: 'responded',
-  },
-];
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
-const mockMessages = [
-  {
-    id: '1',
-    sender: 'customer',
-    message: 'Hi, I saw your CRM solution online. Can you tell me more about the GST features?',
-    timestamp: '10:30 AM',
-    status: 'read',
-  },
-  {
-    id: '2',
-    sender: 'me',
-    message: 'Hello! Thanks for reaching out. Our CRM includes full GST-compliant invoicing with automatic tax calculations.',
-    timestamp: '10:32 AM',
-    status: 'read',
-  },
-  {
-    id: '3',
-    sender: 'customer',
-    message: 'That sounds great! Can you send me a demo video?',
-    timestamp: '10:35 AM',
-    status: 'read',
-  },
-  {
-    id: '4',
-    sender: 'me',
-    message: 'Absolutely! I\'ll send you a personalized demo video. Would you also like to schedule a live demo call?',
-    timestamp: '10:37 AM',
-    status: 'read',
-  },
-  {
-    id: '5',
-    sender: 'customer',
-    message: 'Thanks for the demo! Looking forward to the proposal.',
-    timestamp: '11:20 AM',
-    status: 'read',
-  },
-];
+interface Contact {
+  id: string;
+  name: string;
+  company: string;
+  phone: string;
+  whatsapp?: string;
+}
+
+interface Message {
+  id: string;
+  message: string;
+  sender: string;
+  senderName: string;
+  status: string;
+  createdAt: string;
+}
+
+interface Conversation {
+  id: string;
+  contactName: string;
+  contactPhone: string;
+  lastMessage?: string;
+  lastMessageAt?: string;
+  unreadCount: number;
+  messages?: Message[];
+}
 
 export default function WhatsApp() {
-  const [selectedChat, setSelectedChat] = useState(mockConversations[0]);
-  const [message, setMessage] = useState('');
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [showNewChatDialog, setShowNewChatDialog] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<Contact[]>([]);
+  const [searchingContacts, setSearchingContacts] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  const userId = localStorage.getItem('userId');
+
+  // Fetch conversations on mount
+  useEffect(() => {
+    fetchConversations();
+  }, []);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Search contacts when search query changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (contactSearch.trim().length >= 2) {
+        searchContacts();
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [contactSearch]);
+
+  const fetchConversations = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_URL}/whatsapp/conversations?search=${searchQuery}`, {
+        headers: {
+          'X-User-Id': userId || '',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch conversations');
+
+      const data = await response.json();
+      setConversations(data.conversations);
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load conversations',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadConversation = async (conversation: Conversation) => {
+    try {
+      const response = await fetch(`${API_URL}/whatsapp/conversations/${conversation.id}`, {
+        headers: {
+          'X-User-Id': userId || '',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to load conversation');
+
+      const data = await response.json();
+      setSelectedConversation(data);
+      setMessages(data.messages.reverse()); // Reverse to show oldest first
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load messages',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const searchContacts = async () => {
+    try {
+      setSearchingContacts(true);
+      const response = await fetch(
+        `${API_URL}/whatsapp/search-contacts?query=${encodeURIComponent(contactSearch)}`,
+        {
+          headers: {
+            'X-User-Id': userId || '',
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to search contacts');
+
+      const data = await response.json();
+      setSearchResults(data.contacts);
+    } catch (error) {
+      console.error('Error searching contacts:', error);
+    } finally {
+      setSearchingContacts(false);
+    }
+  };
+
+  const startNewConversation = async (contact: Contact) => {
+    try {
+      const response = await fetch(`${API_URL}/whatsapp/conversations/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId || '',
+        },
+        body: JSON.stringify({
+          contactPhone: contact.whatsapp || contact.phone,
+          contactName: contact.name,
+          contactId: contact.id,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to start conversation');
+
+      const conversation = await response.json();
+      setShowNewChatDialog(false);
+      setContactSearch('');
+      setSearchResults([]);
+
+      // Add to conversations list if not already there
+      if (!conversations.find(c => c.id === conversation.id)) {
+        setConversations([conversation, ...conversations]);
+      }
+
+      setSelectedConversation(conversation);
+      setMessages([]);
+    } catch (error) {
+      console.error('Error starting conversation:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to start conversation',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation || sending) return;
+
+    try {
+      setSending(true);
+      const response = await fetch(`${API_URL}/whatsapp/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId || '',
+        },
+        body: JSON.stringify({
+          phoneNumber: selectedConversation.contactPhone,
+          message: newMessage.trim(),
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to send message');
+
+      const data = await response.json();
+
+      // Add message to local state
+      const tempMessage: Message = {
+        id: data.messageId || Date.now().toString(),
+        message: newMessage.trim(),
+        sender: 'user',
+        senderName: 'You',
+        status: 'sent',
+        createdAt: new Date().toISOString(),
+      };
+
+      setMessages([...messages, tempMessage]);
+      setNewMessage('');
+
+      // Update conversation in list
+      setConversations(prev =>
+        prev.map(c =>
+          c.id === selectedConversation.id
+            ? { ...c, lastMessage: newMessage.trim(), lastMessageAt: new Date().toISOString() }
+            : c
+        )
+      );
+
+      toast({
+        title: 'Message sent',
+        description: 'Your message has been delivered',
+      });
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to send message',
+        variant: 'destructive',
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const deleteConversation = async (conversationId: string) => {
+    if (!confirm('Are you sure you want to delete this conversation?')) return;
+
+    try {
+      const response = await fetch(`${API_URL}/whatsapp/conversations/${conversationId}`, {
+        method: 'DELETE',
+        headers: {
+          'X-User-Id': userId || '',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to delete conversation');
+
+      setConversations(prev => prev.filter(c => c.id !== conversationId));
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null);
+        setMessages([]);
+      }
+
+      toast({
+        title: 'Conversation deleted',
+        description: 'The conversation has been removed',
+      });
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete conversation',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+
+    if (diffInHours < 24) {
+      return format(date, 'HH:mm');
+    } else if (diffInHours < 48) {
+      return 'Yesterday';
+    } else {
+      return format(date, 'MMM dd');
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-background">
-
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="flex h-[calc(100vh-4rem)] bg-background">
+      {/* Conversations List */}
+      <div className="w-96 border-r border-border flex flex-col">
         {/* Header */}
-        <div className="relative">
-          <div className="absolute -left-6 top-0 bottom-0 w-1 bg-primary rounded-r" />
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">
-                WhatsApp Business Integration
-              </h1>
-              <p className="text-muted-foreground">
-                Manage WhatsApp conversations with leads and customers
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Badge className="bg-green-500/10 text-green-600 border-green-500/20 border">
-                <div className="w-2 h-2 rounded-full bg-green-500 mr-2" />
-                Connected
-              </Badge>
-            </div>
+        <div className="p-4 border-b border-border">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <MessageCircle className="w-6 h-6 text-green-600" />
+              WhatsApp
+            </h2>
+            <Button
+              size="sm"
+              onClick={() => setShowNewChatDialog(true)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              New Chat
+            </Button>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search conversations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && fetchConversations()}
+              className="pl-10"
+            />
           </div>
         </div>
 
-        {/* WhatsApp Chat Interface */}
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Conversations List */}
-          <Card className="p-4 lg:col-span-1">
-            <div className="mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search conversations..."
-                  className="pl-10"
-                />
-              </div>
+        {/* Conversations */}
+        <ScrollArea className="flex-1">
+          {loading ? (
+            <div className="flex items-center justify-center h-40">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
-
-            <div className="space-y-2 max-h-[600px] overflow-y-auto">
-              {mockConversations.map(conv => (
-                <div
-                  key={conv.id}
-                  onClick={() => setSelectedChat(conv)}
-                  className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                    selectedChat.id === conv.id
-                      ? 'bg-primary/10 border border-primary/20'
-                      : 'hover:bg-muted/50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-green-500 text-white">
-                        {conv.name.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-semibold text-sm text-foreground truncate">
-                          {conv.name}
-                        </h4>
+          ) : conversations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
+              <MessageCircle className="w-12 h-12 mb-2 opacity-50" />
+              <p>No conversations yet</p>
+              <p className="text-sm">Start a new chat to begin</p>
+            </div>
+          ) : (
+            conversations.map(conv => (
+              <div
+                key={conv.id}
+                className={`p-4 border-b border-border cursor-pointer hover:bg-accent/50 transition-colors ${
+                  selectedConversation?.id === conv.id ? 'bg-accent' : ''
+                }`}
+                onClick={() => loadConversation(conv)}
+              >
+                <div className="flex items-start gap-3">
+                  <Avatar>
+                    <AvatarFallback className="bg-green-500/10 text-green-600">
+                      {getInitials(conv.contactName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-semibold truncate">{conv.contactName}</h3>
+                      {conv.lastMessageAt && (
                         <span className="text-xs text-muted-foreground">
-                          {conv.timestamp}
+                          {formatTime(conv.lastMessageAt)}
                         </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mb-1">{conv.company}</p>
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-muted-foreground truncate flex-1">
-                          {conv.lastMessage}
-                        </p>
-                        {conv.unread > 0 && (
-                          <Badge className="bg-green-500 text-white ml-2">
-                            {conv.unread}
-                          </Badge>
-                        )}
-                      </div>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground truncate">
+                        {conv.lastMessage || 'No messages yet'}
+                      </p>
+                      {conv.unreadCount > 0 && (
+                        <Badge className="ml-2 bg-green-600 text-white">
+                          {conv.unreadCount}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Chat Window */}
-          <Card className="lg:col-span-2 flex flex-col h-[700px]">
-            {/* Chat Header */}
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-green-500 text-white">
-                    {selectedChat.name.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="font-semibold text-foreground">{selectedChat.name}</h3>
-                  <p className="text-sm text-muted-foreground">{selectedChat.company}</p>
-                </div>
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="ghost">
-                  <Phone className="w-4 h-4" />
-                </Button>
-                <Button size="sm" variant="ghost">
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
+            ))
+          )}
+        </ScrollArea>
+      </div>
+
+      {/* Chat Area */}
+      {selectedConversation ? (
+        <div className="flex-1 flex flex-col">
+          {/* Chat Header */}
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="bg-green-500/10 text-green-600">
+                  {getInitials(selectedConversation.contactName)}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h3 className="font-semibold">{selectedConversation.contactName}</h3>
+                <p className="text-sm text-muted-foreground">{selectedConversation.contactPhone}</p>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost">
+                <Phone className="w-4 h-4" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="ghost">
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => deleteConversation(selectedConversation.id)}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Conversation
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
 
-            {/* Messages */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-muted/20">
-              {mockMessages.map(msg => (
+          {/* Messages */}
+          <ScrollArea className="flex-1 p-4">
+            <div className="space-y-4">
+              {messages.map(msg => (
                 <div
                   key={msg.id}
-                  className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
                     className={`max-w-[70%] rounded-lg p-3 ${
-                      msg.sender === 'me'
-                        ? 'bg-green-500 text-white'
-                        : 'bg-card border border-border'
+                      msg.sender === 'user'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-accent text-foreground'
                     }`}
                   >
-                    <p className="text-sm mb-1">{msg.message}</p>
-                    <div className="flex items-center justify-end gap-1">
-                      <span
-                        className={`text-xs ${
-                          msg.sender === 'me' ? 'text-white/70' : 'text-muted-foreground'
-                        }`}
-                      >
-                        {msg.timestamp}
+                    {msg.sender !== 'user' && (
+                      <p className="text-xs font-semibold mb-1">{msg.senderName}</p>
+                    )}
+                    <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                    <div className="flex items-center justify-end gap-1 mt-1">
+                      <span className="text-xs opacity-70">
+                        {format(new Date(msg.createdAt), 'HH:mm')}
                       </span>
-                      {msg.sender === 'me' && (
-                        <CheckCheck className="w-3 h-3 text-white/70" />
+                      {msg.sender === 'user' && (
+                        <span className="text-xs">
+                          {msg.status === 'read' ? (
+                            <CheckCheck className="w-3 h-3" />
+                          ) : (
+                            <Check className="w-3 h-3" />
+                          )}
+                        </span>
                       )}
                     </div>
                   </div>
                 </div>
               ))}
+              <div ref={messagesEndRef} />
             </div>
+          </ScrollArea>
 
-            {/* Message Input */}
-            <div className="p-4 border-t border-border">
-              <div className="flex items-end gap-2">
-                <Button size="sm" variant="ghost">
-                  <Paperclip className="w-4 h-4" />
-                </Button>
-                <Button size="sm" variant="ghost">
-                  <Smile className="w-4 h-4" />
-                </Button>
-                <Textarea
-                  placeholder="Type a message..."
-                  className="flex-1 min-h-[60px] max-h-[120px] resize-none"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                />
-                <Button size="sm" className="bg-green-500 hover:bg-green-600">
+          {/* Message Input */}
+          <div className="p-4 border-t border-border">
+            <div className="flex items-end gap-2">
+              <Textarea
+                placeholder="Type a message..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                rows={1}
+                className="resize-none"
+              />
+              <Button
+                onClick={sendMessage}
+                disabled={!newMessage.trim() || sending}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {sending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
                   <Send className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Info Card */}
-        <Card className="p-6">
-          <div className="flex items-start gap-4">
-            <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
-              <MessageCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground mb-2">
-                WhatsApp Business API Integration
-              </h3>
-              <p className="text-sm text-muted-foreground mb-3">
-                Connect your WhatsApp Business account to manage all customer conversations in one place.
-                Send automated messages, create templates, and track conversation metrics.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">Send/Receive Messages</Badge>
-                <Badge variant="outline">Message Templates</Badge>
-                <Badge variant="outline">Automated Responses</Badge>
-                <Badge variant="outline">Lead Capture</Badge>
-                <Badge variant="outline">Conversation Analytics</Badge>
-              </div>
+                )}
+              </Button>
             </div>
           </div>
-        </Card>
-      </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-center text-muted-foreground">
+          <div>
+            <MessageCircle className="w-24 h-24 mx-auto mb-4 opacity-20" />
+            <h3 className="text-xl font-semibold mb-2">WhatsApp Web</h3>
+            <p>Select a conversation to start messaging</p>
+            <Button
+              onClick={() => setShowNewChatDialog(true)}
+              className="mt-4 bg-green-600 hover:bg-green-700"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Start New Chat
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* New Chat Dialog */}
+      <Dialog open={showNewChatDialog} onOpenChange={setShowNewChatDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Start New Conversation</DialogTitle>
+            <DialogDescription>Search for a contact to start chatting</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search contacts..."
+                value={contactSearch}
+                onChange={(e) => setContactSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            <ScrollArea className="h-[300px]">
+              {searchingContacts ? (
+                <div className="flex items-center justify-center h-20">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-20 text-muted-foreground text-sm">
+                  {contactSearch.trim() ? 'No contacts found' : 'Type to search contacts'}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {searchResults.map(contact => (
+                    <Card
+                      key={contact.id}
+                      className="p-3 cursor-pointer hover:bg-accent transition-colors"
+                      onClick={() => startNewConversation(contact)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                          <AvatarFallback>
+                            <User className="w-4 h-4" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="font-medium">{contact.name}</p>
+                          <p className="text-sm text-muted-foreground">{contact.company}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {contact.whatsapp || contact.phone}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
