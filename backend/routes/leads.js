@@ -7,7 +7,13 @@ const prisma = new PrismaClient();
 router.get('/', async (req, res) => {
   try {
     const { status, assignedTo } = req.query;
-    const where = {};
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    const where = { userId };
 
     if (status && status !== 'all') where.status = status;
     if (assignedTo) where.assignedTo = assignedTo;
@@ -27,8 +33,17 @@ router.get('/', async (req, res) => {
 // GET single lead by ID
 router.get('/:id', async (req, res) => {
   try {
-    const lead = await prisma.lead.findUnique({
-      where: { id: req.params.id }
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    const lead = await prisma.lead.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
     });
 
     if (!lead) {
@@ -45,8 +60,17 @@ router.get('/:id', async (req, res) => {
 // POST create new lead
 router.post('/', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
     const lead = await prisma.lead.create({
-      data: req.body
+      data: {
+        ...req.body,
+        userId
+      }
     });
 
     res.status(201).json(lead);
@@ -59,6 +83,24 @@ router.post('/', async (req, res) => {
 // PUT update lead
 router.put('/:id', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // First verify the lead belongs to the user
+    const existingLead = await prisma.lead.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
+    });
+
+    if (!existingLead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
     const lead = await prisma.lead.update({
       where: { id: req.params.id },
       data: req.body
@@ -74,6 +116,24 @@ router.put('/:id', async (req, res) => {
 // DELETE lead
 router.delete('/:id', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // First verify the lead belongs to the user
+    const existingLead = await prisma.lead.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
+    });
+
+    if (!existingLead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
     await prisma.lead.delete({
       where: { id: req.params.id }
     });
@@ -88,11 +148,20 @@ router.delete('/:id', async (req, res) => {
 // GET lead stats
 router.get('/stats/summary', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
     const [total, newLeads, qualified, totalValue] = await Promise.all([
-      prisma.lead.count(),
-      prisma.lead.count({ where: { status: 'new' } }),
-      prisma.lead.count({ where: { status: 'qualified' } }),
-      prisma.lead.aggregate({ _sum: { estimatedValue: true } })
+      prisma.lead.count({ where: { userId } }),
+      prisma.lead.count({ where: { userId, status: 'new' } }),
+      prisma.lead.count({ where: { userId, status: 'qualified' } }),
+      prisma.lead.aggregate({
+        where: { userId },
+        _sum: { estimatedValue: true }
+      })
     ]);
 
     res.json({

@@ -8,12 +8,22 @@ async function fetchAPI<T>(
   options?: RequestInit
 ): Promise<T> {
   try {
+    // Get userId from localStorage for authentication
+    const userId = localStorage.getItem('userId');
+
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    };
+
+    // Add userId header if available
+    if (userId) {
+      headers['X-User-Id'] = userId;
+    }
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
       ...options,
+      headers,
     });
 
     if (!response.ok) {

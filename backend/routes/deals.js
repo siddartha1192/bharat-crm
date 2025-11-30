@@ -7,7 +7,13 @@ const prisma = new PrismaClient();
 router.get('/', async (req, res) => {
   try {
     const { stage } = req.query;
-    const where = {};
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    const where = { userId };
 
     if (stage && stage !== 'all') where.stage = stage;
 
@@ -26,8 +32,17 @@ router.get('/', async (req, res) => {
 // GET single deal by ID
 router.get('/:id', async (req, res) => {
   try {
-    const deal = await prisma.deal.findUnique({
-      where: { id: req.params.id }
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    const deal = await prisma.deal.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
     });
 
     if (!deal) {
@@ -44,12 +59,19 @@ router.get('/:id', async (req, res) => {
 // POST create new deal
 router.post('/', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
     // Remove fields that shouldn't be sent to Prisma
     const { id, createdAt, updatedAt, nextAction, source, ...dealData } = req.body;
 
     // Ensure required fields have defaults
     const data = {
       ...dealData,
+      userId,
       notes: dealData.notes || '',
       tags: dealData.tags || [],
     };
@@ -68,6 +90,24 @@ router.post('/', async (req, res) => {
 // PUT update deal
 router.put('/:id', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // First verify the deal belongs to the user
+    const existingDeal = await prisma.deal.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
+    });
+
+    if (!existingDeal) {
+      return res.status(404).json({ error: 'Deal not found' });
+    }
+
     // Remove fields that shouldn't be updated
     const { id, createdAt, updatedAt, nextAction, source, ...dealData } = req.body;
 
@@ -86,6 +126,24 @@ router.put('/:id', async (req, res) => {
 // DELETE deal
 router.delete('/:id', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // First verify the deal belongs to the user
+    const existingDeal = await prisma.deal.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
+    });
+
+    if (!existingDeal) {
+      return res.status(404).json({ error: 'Deal not found' });
+    }
+
     await prisma.deal.delete({
       where: { id: req.params.id }
     });

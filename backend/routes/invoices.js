@@ -17,7 +17,13 @@ const transformInvoiceForFrontend = (invoice) => {
 router.get('/', async (req, res) => {
   try {
     const { status } = req.query;
-    const where = {};
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    const where = { userId };
 
     if (status && status !== 'all') where.status = status;
 
@@ -38,8 +44,17 @@ router.get('/', async (req, res) => {
 // GET single invoice by ID
 router.get('/:id', async (req, res) => {
   try {
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: req.params.id }
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    const invoice = await prisma.invoice.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
     });
 
     if (!invoice) {
@@ -58,6 +73,12 @@ router.get('/:id', async (req, res) => {
 // POST create new invoice
 router.post('/', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
     // Remove auto-generated fields and transform data
     const {
       id,
@@ -76,6 +97,7 @@ router.post('/', async (req, res) => {
     // Prepare data with proper field mapping and defaults
     const data = {
       ...invoiceData,
+      userId,
       customerGST: customerGSTIN || '',
       companyGST: companyGSTIN || '',
       customerPhone: invoiceData.customerPhone || '',
@@ -108,6 +130,24 @@ router.post('/', async (req, res) => {
 // PUT update invoice
 router.put('/:id', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // First verify the invoice belongs to the user
+    const existingInvoice = await prisma.invoice.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
+    });
+
+    if (!existingInvoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
     // Remove auto-generated fields and transform data
     const {
       id,
@@ -153,6 +193,24 @@ router.put('/:id', async (req, res) => {
 // DELETE invoice
 router.delete('/:id', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // First verify the invoice belongs to the user
+    const existingInvoice = await prisma.invoice.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
+    });
+
+    if (!existingInvoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
     await prisma.invoice.delete({
       where: { id: req.params.id }
     });
@@ -167,18 +225,24 @@ router.delete('/:id', async (req, res) => {
 // GET invoice stats
 router.get('/stats/summary', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
     const [total, paid, pending, overdue] = await Promise.all([
-      prisma.invoice.count(),
+      prisma.invoice.count({ where: { userId } }),
       prisma.invoice.aggregate({
-        where: { status: 'paid' },
+        where: { userId, status: 'paid' },
         _sum: { total: true }
       }),
       prisma.invoice.aggregate({
-        where: { status: 'sent' },
+        where: { userId, status: 'sent' },
         _sum: { total: true }
       }),
       prisma.invoice.aggregate({
-        where: { status: 'overdue' },
+        where: { userId, status: 'overdue' },
         _sum: { total: true }
       })
     ]);
