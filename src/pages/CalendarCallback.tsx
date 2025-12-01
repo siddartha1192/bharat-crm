@@ -12,36 +12,49 @@ export default function CalendarCallback() {
   const [message, setMessage] = useState('Connecting to Google Calendar...');
 
   useEffect(() => {
+    console.log('🔍 CalendarCallback mounted');
+    console.log('📍 Current URL:', window.location.href);
+    console.log('🔑 Code from URL:', searchParams.get('code'));
+    console.log('👤 User ID from storage:', localStorage.getItem('userId'));
+
     const handleCallback = async () => {
-      const code = searchParams.get('code');
-      const error = searchParams.get('error');
-      const userId = localStorage.getItem('userId');
-
-      // Check for errors from Google
-      if (error) {
-        setStatus('error');
-        setMessage(`Authentication failed: ${error}`);
-        setTimeout(() => navigate('/calendar'), 3000);
-        return;
-      }
-
-      // Check if code exists
-      if (!code) {
-        setStatus('error');
-        setMessage('No authorization code received');
-        setTimeout(() => navigate('/calendar'), 3000);
-        return;
-      }
-
-      // Check if user is logged in
-      if (!userId) {
-        setStatus('error');
-        setMessage('User not logged in');
-        setTimeout(() => navigate('/login'), 3000);
-        return;
-      }
-
       try {
+        const code = searchParams.get('code');
+        const error = searchParams.get('error');
+        const userId = localStorage.getItem('userId');
+
+        console.log('🚀 Starting OAuth callback handling...');
+
+        // Check for errors from Google
+        if (error) {
+          console.error('❌ OAuth error from Google:', error);
+          setStatus('error');
+          setMessage(`Authentication failed: ${error}`);
+          setTimeout(() => navigate('/calendar'), 3000);
+          return;
+        }
+
+        // Check if code exists
+        if (!code) {
+          console.error('❌ No authorization code in URL');
+          setStatus('error');
+          setMessage('No authorization code received from Google');
+          setTimeout(() => navigate('/calendar'), 3000);
+          return;
+        }
+
+        // Check if user is logged in
+        if (!userId) {
+          console.error('❌ User not logged in');
+          setStatus('error');
+          setMessage('User not logged in. Please log in first.');
+          setTimeout(() => navigate('/login'), 3000);
+          return;
+        }
+
+        console.log('✅ All checks passed, sending to backend...');
+        console.log('📡 API URL:', `${API_URL}/calendar/auth/callback`);
+
         // Send code to backend
         const response = await fetch(`${API_URL}/calendar/auth/callback`, {
           method: 'POST',
@@ -54,19 +67,30 @@ export default function CalendarCallback() {
           }),
         });
 
+        console.log('📥 Backend response status:', response.status);
+
         if (!response.ok) {
-          throw new Error('Failed to connect Google Calendar');
+          const errorData = await response.json().catch(() => ({}));
+          console.error('❌ Backend error:', errorData);
+          throw new Error(errorData.error || 'Failed to connect Google Calendar');
         }
 
         const data = await response.json();
+        console.log('✅ Backend response:', data);
 
         setStatus('success');
         setMessage('Google Calendar connected successfully!');
 
+        console.log('✅ Success! Redirecting to calendar in 2 seconds...');
+
         // Redirect to calendar after 2 seconds
-        setTimeout(() => navigate('/calendar'), 2000);
+        setTimeout(() => {
+          console.log('🔄 Redirecting to /calendar');
+          navigate('/calendar');
+        }, 2000);
       } catch (error: any) {
-        console.error('Error connecting Google Calendar:', error);
+        console.error('❌ Error in callback handler:', error);
+        console.error('❌ Error stack:', error.stack);
         setStatus('error');
         setMessage(error.message || 'Failed to connect Google Calendar');
         setTimeout(() => navigate('/calendar'), 3000);
