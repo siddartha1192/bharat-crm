@@ -16,6 +16,7 @@ import Pipeline from "./pages/Pipeline";
 import Reports from "./pages/Reports";
 import WhatsApp from "./pages/WhatsApp";
 import Invoices from "./pages/Invoices";
+import Calendar from "./pages/Calendar";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 
@@ -56,10 +57,7 @@ const App = () => (
             <Route path="/whatsapp" element={<ProtectedLayout><WhatsApp /></ProtectedLayout>} />
             <Route path="/invoices" element={<ProtectedLayout><Invoices /></ProtectedLayout>} />
             <Route path="/reports" element={<ProtectedLayout><Reports /></ProtectedLayout>} />
-            <Route
-              path="/calendar"
-              element={<ProtectedLayout><ComingSoon title="Calendar" description="Calendar view coming soon!" /></ProtectedLayout>}
-            />
+            <Route path="/calendar" element={<ProtectedLayout><Calendar /></ProtectedLayout>} />
             <Route
               path="/settings"
               element={<ProtectedLayout><ComingSoon title="Settings" description="Settings coming soon!" /></ProtectedLayout>}
