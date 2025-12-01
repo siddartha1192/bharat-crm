@@ -17,6 +17,7 @@ import Reports from "./pages/Reports";
 import WhatsApp from "./pages/WhatsApp";
 import Invoices from "./pages/Invoices";
 import Calendar from "./pages/Calendar";
+import CalendarCallback from "./pages/CalendarCallback";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 
@@ -58,6 +59,7 @@ const App = () => (
             <Route path="/invoices" element={<ProtectedLayout><Invoices /></ProtectedLayout>} />
             <Route path="/reports" element={<ProtectedLayout><Reports /></ProtectedLayout>} />
             <Route path="/calendar" element={<ProtectedLayout><Calendar /></ProtectedLayout>} />
+            <Route path="/calendar/callback" element={<ProtectedRoute><CalendarCallback /></ProtectedRoute>} />
             <Route
               path="/settings"
               element={<ProtectedLayout><ComingSoon title="Settings" description="Settings coming soon!" /></ProtectedLayout>}
