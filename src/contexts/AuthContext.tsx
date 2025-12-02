@@ -8,48 +8,92 @@ interface User {
   email: string;
   name: string;
   company: string;
+  role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'VIEWER';
+  profilePic?: string;
 }
 
 interface AuthContextType {
   user: User | null;
+  token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (email: string, password: string, name: string, company?: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  refreshToken: () => Promise<void>;
   isAuthenticated: boolean;
+  hasRole: (...roles: string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   // Check if user is logged in on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-      } catch (error) {
-        console.error('Error parsing stored user:', error);
-        localStorage.removeItem('user');
-        localStorage.removeItem('userId');
-      }
+    const storedToken = localStorage.getItem('token');
+    const storedUserId = localStorage.getItem('userId');
+
+    if (storedToken && storedUserId) {
+      setToken(storedToken);
+      // Fetch user details
+      fetchUserDetails(storedToken);
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
+
+  // Set up token refresh interval
+  useEffect(() => {
+    if (token) {
+      // Refresh token every 6 days (token expires in 7 days)
+      const refreshInterval = setInterval(() => {
+        refreshToken();
+      }, 6 * 24 * 60 * 60 * 1000); // 6 days
+
+      return () => clearInterval(refreshInterval);
+    }
+  }, [token]);
+
+  const fetchUserDetails = async (authToken: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user details');
+      }
+
+      const userData = await response.json();
+      setUser(userData);
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      // Clear invalid token
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userId');
+      setToken(null);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const login = async (email: string, password: string) => {
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
@@ -58,10 +102,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(data.error || 'Login failed');
       }
 
-      // Store user data
-      localStorage.setItem('user', JSON.stringify(data));
-      localStorage.setItem('userId', data.id);
-      setUser(data);
+      // Store tokens and user data
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('refreshToken', data.refreshToken);
+      localStorage.setItem('userId', data.user.id);
+      localStorage.setItem('userRole', data.user.role);
+
+      setToken(data.token);
+      setUser(data.user);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/google/url`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get Google auth URL');
+      }
+
+      // Redirect to Google OAuth
+      window.location.href = data.authUrl;
     } catch (error) {
       throw error;
     }
@@ -72,9 +136,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, name, company })
+        body: JSON.stringify({ email, password, name, company }),
       });
 
       const data = await response.json();
@@ -83,29 +147,93 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // Store user data
-      localStorage.setItem('user', JSON.stringify(data));
-      localStorage.setItem('userId', data.id);
-      setUser(data);
+      // Store tokens and user data
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('refreshToken', data.refreshToken);
+      localStorage.setItem('userId', data.user.id);
+      localStorage.setItem('userRole', data.user.role);
+
+      setToken(data.token);
+      setUser(data.user);
     } catch (error) {
       throw error;
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('userId');
-    setUser(null);
-    navigate('/login');
+  const logout = async () => {
+    try {
+      if (token) {
+        await fetch(`${API_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('userName');
+      localStorage.removeItem('userEmail');
+      setToken(null);
+      setUser(null);
+      navigate('/login');
+    }
+  };
+
+  const refreshToken = async () => {
+    try {
+      const storedRefreshToken = localStorage.getItem('refreshToken');
+
+      if (!storedRefreshToken) {
+        throw new Error('No refresh token available');
+      }
+
+      const response = await fetch(`${API_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken: storedRefreshToken }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Token refresh failed');
+      }
+
+      // Update tokens
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('refreshToken', data.refreshToken);
+      setToken(data.token);
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      // If refresh fails, logout
+      await logout();
+    }
+  };
+
+  const hasRole = (...roles: string[]) => {
+    if (!user) return false;
+    return roles.includes(user.role);
   };
 
   const value = {
     user,
+    token,
     loading,
     login,
+    loginWithGoogle,
     register,
     logout,
-    isAuthenticated: !!user
+    refreshToken,
+    isAuthenticated: !!user && !!token,
+    hasRole,
   };
 
   return (
@@ -121,4 +249,12 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+}
+
+// Helper function to get authorization headers
+export function getAuthHeaders() {
+  const token = localStorage.getItem('token');
+  return {
+    'Authorization': token ? `Bearer ${token}` : '',
+  };
 }

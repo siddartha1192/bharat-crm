@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -8,44 +8,59 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Building2, Mail, Lock, Loader2, User, Briefcase } from 'lucide-react';
 
-export default function Login() {
-  const [isLogin, setIsLogin] = useState(true);
+export default function Signup() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    confirmPassword: '',
     name: '',
     company: ''
   });
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login, register, loginWithGoogle } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate passwords match
+    if (formData.password !== formData.confirmPassword) {
+      toast({
+        title: 'Error',
+        description: 'Passwords do not match',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Validate password length
+    if (formData.password.length < 6) {
+      toast({
+        title: 'Error',
+        description: 'Password must be at least 6 characters',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      if (isLogin) {
-        // Use AuthContext login function
-        await login(formData.email, formData.password);
-      } else {
-        // Use AuthContext register function
-        await register(formData.email, formData.password, formData.name, formData.company);
-      }
+      await register(formData.email, formData.password, formData.name, formData.company);
 
       toast({
-        title: isLogin ? 'Welcome back!' : 'Account created!',
-        description: isLogin ? 'You have successfully logged in.' : 'Your account has been created successfully.',
+        title: 'Account created!',
+        description: 'Your account has been created successfully.',
       });
 
       // Navigate to dashboard
-      navigate('/');
+      navigate('/dashboard');
     } catch (error: any) {
-      console.error('Auth error:', error);
+      console.error('Registration error:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Authentication failed. Please try again.',
+        description: error.message || 'Registration failed. Please try again.',
         variant: 'destructive'
       });
     } finally {
@@ -70,50 +85,46 @@ export default function Login() {
               <Building2 className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Bharat CRM</h1>
+          <h1 className="text-3xl font-bold text-foreground">Create Account</h1>
           <p className="text-muted-foreground">
-            {isLogin ? 'Welcome back! Please login to continue.' : 'Create your account to get started.'}
+            Sign up to get started with Bharat CRM
           </p>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="name"
-                    name="name"
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="name">Full Name</Label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                id="name"
+                name="name"
+                type="text"
+                placeholder="Enter your full name"
+                value={formData.name}
+                onChange={handleChange}
+                className="pl-10"
+                required
+              />
+            </div>
+          </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="company">Company Name</Label>
-                <div className="relative">
-                  <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="company"
-                    name="company"
-                    type="text"
-                    placeholder="Enter your company name"
-                    value={formData.company}
-                    onChange={handleChange}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="company">Company Name (Optional)</Label>
+            <div className="relative">
+              <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                id="company"
+                name="company"
+                type="text"
+                placeholder="Enter your company name"
+                value={formData.company}
+                onChange={handleChange}
+                className="pl-10"
+              />
+            </div>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -140,8 +151,25 @@ export default function Login() {
                 id="password"
                 name="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder="At least 6 characters"
                 value={formData.password}
+                onChange={handleChange}
+                className="pl-10"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                placeholder="Re-enter your password"
+                value={formData.confirmPassword}
                 onChange={handleChange}
                 className="pl-10"
                 required
@@ -157,10 +185,10 @@ export default function Login() {
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {isLogin ? 'Logging in...' : 'Creating account...'}
+                Creating account...
               </>
             ) : (
-              isLogin ? 'Login' : 'Create Account'
+              'Create Account'
             )}
           </Button>
         </form>
@@ -175,7 +203,7 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Google Sign In */}
+        {/* Google Sign Up */}
         <Button
           type="button"
           variant="outline"
@@ -187,7 +215,7 @@ export default function Login() {
             } catch (error: any) {
               toast({
                 title: 'Error',
-                description: error.message || 'Failed to sign in with Google',
+                description: error.message || 'Failed to sign up with Google',
                 variant: 'destructive'
               });
               setLoading(false);
@@ -213,21 +241,15 @@ export default function Login() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          {isLogin ? 'Sign in with Google' : 'Sign up with Google'}
+          Sign up with Google
         </Button>
 
-        {/* Toggle between login and register */}
+        {/* Login link */}
         <div className="text-center text-sm">
-          <button
-            type="button"
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setFormData({ email: '', password: '', name: '', company: '' });
-            }}
-            className="text-primary hover:underline"
-          >
-            {isLogin ? "Don't have an account? Register" : 'Already have an account? Login'}
-          </button>
+          <span className="text-muted-foreground">Already have an account? </span>
+          <Link to="/login" className="text-primary hover:underline">
+            Login
+          </Link>
         </div>
 
         {/* Indian CRM Notice */}

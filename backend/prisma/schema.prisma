@@ -10,19 +10,43 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  ADMIN
+  MANAGER
+  AGENT
+  VIEWER
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
-  password  String   // Hashed password
+  password  String?  // Hashed password (optional for Google OAuth users)
   name      String
   company   String   @default("")
+  role      UserRole @default(AGENT)
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Google OAuth for Authentication
+  googleId           String?  @unique
+  googleEmail        String?
+  googleProfilePic   String?
 
   // Google Calendar Integration
   googleAccessToken  String?
   googleRefreshToken String?
   googleTokenExpiry  DateTime?
+
+  // Password Reset
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
+
+  // Team & Department
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  teamId       String?
+  team         Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   // Relations
   leads                   Lead[]
@@ -32,8 +56,89 @@ model User {
   tasks                   Task[]
   whatsappConversations   WhatsAppConversation[]
   calendarEvents          CalendarEvent[]
+  activityLogs            ActivityLog[]
+  sessions                Session[]
 
   @@index([email])
+  @@index([googleId])
+  @@index([role])
+  @@index([departmentId])
+  @@index([teamId])
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  managerId   String?  // Department manager
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  users       User[]
+  teams       Team[]
+
+  @@index([managerId])
+}
+
+model Team {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  managerId    String?  // Team lead/manager
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  users        User[]
+
+  @@index([departmentId])
+  @@index([managerId])
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  action      String   // 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'VIEW' | etc.
+  entityType  String   // 'Lead' | 'Contact' | 'Invoice' | 'Deal' | 'Task' | 'User' | etc.
+  entityId    String?  // ID of the affected entity
+  description String   @db.Text
+  metadata    Json?    // Additional data (before/after values, etc.)
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  // User relation
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  token        String   @unique
+  refreshToken String?  @unique
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // User relation
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
 }
 
 model Lead {

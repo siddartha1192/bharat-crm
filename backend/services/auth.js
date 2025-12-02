@@ -1,0 +1,479 @@
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
+
+const prisma = new PrismaClient();
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_EXPIRES_IN = '7d';
+const REFRESH_TOKEN_EXPIRES_IN = '30d';
+
+const googleClient = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.GOOGLE_AUTH_REDIRECT_URI || 'http://localhost:8080/auth/google/callback'
+);
+
+class AuthService {
+  /**
+   * Generate JWT token
+   */
+  generateToken(userId, role) {
+    return jwt.sign(
+      { userId, role },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+  }
+
+  /**
+   * Generate refresh token
+   */
+  generateRefreshToken() {
+    return crypto.randomBytes(40).toString('hex');
+  }
+
+  /**
+   * Verify JWT token
+   */
+  verifyToken(token) {
+    try {
+      return jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      throw new Error('Invalid or expired token');
+    }
+  }
+
+  /**
+   * Hash password
+   */
+  async hashPassword(password) {
+    return await bcrypt.hash(password, 10);
+  }
+
+  /**
+   * Compare password
+   */
+  async comparePassword(password, hashedPassword) {
+    return await bcrypt.compare(password, hashedPassword);
+  }
+
+  /**
+   * Create session
+   */
+  async createSession(userId, ipAddress, userAgent) {
+    const token = this.generateToken(userId,
+      (await prisma.user.findUnique({ where: { id: userId } }))?.role
+    );
+    const refreshToken = this.generateRefreshToken();
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+
+    const session = await prisma.session.create({
+      data: {
+        userId,
+        token,
+        refreshToken,
+        expiresAt,
+        ipAddress,
+        userAgent,
+        isActive: true,
+      },
+    });
+
+    return { token, refreshToken, session };
+  }
+
+  /**
+   * Register new user with email/password
+   */
+  async register(data) {
+    const { email, password, name, company, role = 'AGENT' } = data;
+
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      throw new Error('User with this email already exists');
+    }
+
+    // Hash password
+    const hashedPassword = await this.hashPassword(password);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+        company: company || '',
+        role,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        company: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    // Log activity
+    await this.logActivity(user.id, 'REGISTER', 'User', user.id, `User registered: ${email}`);
+
+    return user;
+  }
+
+  /**
+   * Login with email/password
+   */
+  async login(email, password, ipAddress, userAgent) {
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new Error('Invalid email or password');
+    }
+
+    if (!user.isActive) {
+      throw new Error('Account is deactivated');
+    }
+
+    // Check password
+    if (!user.password) {
+      throw new Error('Please login with Google');
+    }
+
+    const isValidPassword = await this.comparePassword(password, user.password);
+    if (!isValidPassword) {
+      throw new Error('Invalid email or password');
+    }
+
+    // Create session
+    const { token, refreshToken } = await this.createSession(user.id, ipAddress, userAgent);
+
+    // Log activity
+    await this.logActivity(user.id, 'LOGIN', 'User', user.id, 'User logged in', { ipAddress });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        company: user.company,
+        role: user.role,
+      },
+      token,
+      refreshToken,
+    };
+  }
+
+  /**
+   * Google OAuth - Get authorization URL
+   */
+  getGoogleAuthUrl() {
+    return googleClient.generateAuthUrl({
+      access_type: 'offline',
+      scope: [
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/userinfo.email',
+      ],
+      prompt: 'consent',
+    });
+  }
+
+  /**
+   * Google OAuth - Handle callback and login/signup
+   */
+  async googleAuth(code, ipAddress, userAgent) {
+    try {
+      // Exchange code for tokens
+      const { tokens } = await googleClient.getToken(code);
+      googleClient.setCredentials(tokens);
+
+      // Get user info
+      const ticket = await googleClient.verifyIdToken({
+        idToken: tokens.id_token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+
+      const payload = ticket.getPayload();
+      const googleId = payload.sub;
+      const email = payload.email;
+      const name = payload.name;
+      const picture = payload.picture;
+
+      // Check if user exists
+      let user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { googleId },
+            { email },
+          ],
+        },
+      });
+
+      if (user) {
+        // Update Google info if needed
+        if (!user.googleId) {
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              googleId,
+              googleEmail: email,
+              googleProfilePic: picture,
+            },
+          });
+        }
+
+        // Log activity
+        await this.logActivity(user.id, 'LOGIN', 'User', user.id, 'User logged in with Google', { ipAddress });
+      } else {
+        // Create new user
+        user = await prisma.user.create({
+          data: {
+            email,
+            name,
+            googleId,
+            googleEmail: email,
+            googleProfilePic: picture,
+            role: 'AGENT',
+            isActive: true,
+          },
+        });
+
+        // Log activity
+        await this.logActivity(user.id, 'REGISTER', 'User', user.id, 'User registered with Google', { ipAddress });
+      }
+
+      if (!user.isActive) {
+        throw new Error('Account is deactivated');
+      }
+
+      // Create session
+      const { token, refreshToken } = await this.createSession(user.id, ipAddress, userAgent);
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          company: user.company,
+          role: user.role,
+          profilePic: user.googleProfilePic,
+        },
+        token,
+        refreshToken,
+      };
+    } catch (error) {
+      console.error('Google Auth Error:', error);
+      throw new Error('Google authentication failed: ' + error.message);
+    }
+  }
+
+  /**
+   * Refresh access token
+   */
+  async refreshAccessToken(refreshToken) {
+    const session = await prisma.session.findUnique({
+      where: { refreshToken },
+      include: { user: true },
+    });
+
+    if (!session || !session.isActive || new Date() > session.expiresAt) {
+      throw new Error('Invalid or expired refresh token');
+    }
+
+    // Generate new tokens
+    const newToken = this.generateToken(session.userId, session.user.role);
+    const newRefreshToken = this.generateRefreshToken();
+
+    // Update session
+    await prisma.session.update({
+      where: { id: session.id },
+      data: {
+        token: newToken,
+        refreshToken: newRefreshToken,
+      },
+    });
+
+    return { token: newToken, refreshToken: newRefreshToken };
+  }
+
+  /**
+   * Logout
+   */
+  async logout(token) {
+    try {
+      const session = await prisma.session.findUnique({
+        where: { token },
+      });
+
+      if (session) {
+        await prisma.session.update({
+          where: { id: session.id },
+          data: { isActive: false },
+        });
+
+        // Log activity
+        await this.logActivity(session.userId, 'LOGOUT', 'User', session.userId, 'User logged out');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  }
+
+  /**
+   * Request password reset
+   */
+  async requestPasswordReset(email) {
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      // Don't reveal if user exists
+      return { message: 'If the email exists, a reset link has been sent' };
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1); // 1 hour
+
+    // Save token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: hashedToken,
+        passwordResetExpires: expiresAt,
+      },
+    });
+
+    // Log activity
+    await this.logActivity(user.id, 'PASSWORD_RESET_REQUEST', 'User', user.id, 'Password reset requested');
+
+    // Return reset token (in production, send this via email)
+    return { resetToken, message: 'Password reset token generated' };
+  }
+
+  /**
+   * Reset password
+   */
+  async resetPassword(resetToken, newPassword) {
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+    const user = await prisma.user.findFirst({
+      where: {
+        passwordResetToken: hashedToken,
+        passwordResetExpires: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!user) {
+      throw new Error('Invalid or expired reset token');
+    }
+
+    // Hash new password
+    const hashedPassword = await this.hashPassword(newPassword);
+
+    // Update password and clear reset token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
+    });
+
+    // Invalidate all sessions
+    await prisma.session.updateMany({
+      where: { userId: user.id },
+      data: { isActive: false },
+    });
+
+    // Log activity
+    await this.logActivity(user.id, 'PASSWORD_RESET', 'User', user.id, 'Password reset successful');
+
+    return { message: 'Password reset successful' };
+  }
+
+  /**
+   * Log activity
+   */
+  async logActivity(userId, action, entityType, entityId, description, metadata = {}) {
+    try {
+      await prisma.activityLog.create({
+        data: {
+          userId,
+          action,
+          entityType,
+          entityId,
+          description,
+          metadata,
+        },
+      });
+    } catch (error) {
+      console.error('Activity log error:', error);
+    }
+  }
+
+  /**
+   * Get user sessions
+   */
+  async getUserSessions(userId) {
+    return await prisma.session.findMany({
+      where: {
+        userId,
+        isActive: true,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  /**
+   * Revoke session
+   */
+  async revokeSession(sessionId, userId) {
+    const session = await prisma.session.findFirst({
+      where: {
+        id: sessionId,
+        userId,
+      },
+    });
+
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { isActive: false },
+    });
+
+    await this.logActivity(userId, 'SESSION_REVOKED', 'Session', sessionId, 'Session revoked');
+
+    return { message: 'Session revoked successfully' };
+  }
+}
+
+module.exports = new AuthService();
