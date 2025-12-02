@@ -19,6 +19,7 @@ import Contacts from "./pages/Contacts";
 import Pipeline from "./pages/Pipeline";
 import Reports from "./pages/Reports";
 import WhatsApp from "./pages/WhatsApp";
+import Emails from "./pages/Emails";
 import Invoices from "./pages/Invoices";
 import Calendar from "./pages/Calendar";
 import CalendarCallback from "./pages/CalendarCallback";
@@ -65,6 +66,7 @@ const App = () => (
             <Route path="/pipeline" element={<ProtectedLayout><Pipeline /></ProtectedLayout>} />
             <Route path="/tasks" element={<ProtectedLayout><Tasks /></ProtectedLayout>} />
             <Route path="/whatsapp" element={<ProtectedLayout><WhatsApp /></ProtectedLayout>} />
+            <Route path="/emails" element={<ProtectedLayout><Emails /></ProtectedLayout>} />
             <Route path="/invoices" element={<ProtectedLayout><Invoices /></ProtectedLayout>} />
             <Route path="/reports" element={<ProtectedLayout><Reports /></ProtectedLayout>} />
             <Route path="/calendar" element={<ProtectedLayout><Calendar /></ProtectedLayout>} />
