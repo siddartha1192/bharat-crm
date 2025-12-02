@@ -80,7 +80,7 @@ export default function AuthCallback() {
         // Redirect to dashboard after 2 seconds
         setTimeout(() => {
           console.log('🔄 Redirecting to /dashboard');
-          navigate('/dashboard');
+          window.location.href = '/dashboard'
         }, 2000);
       } catch (error: any) {
         console.error('❌ Error in callback handler:', error);
