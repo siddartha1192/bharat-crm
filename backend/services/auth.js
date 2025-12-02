@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
+const emailService = require('./email');
 
 const prisma = new PrismaClient();
 
@@ -364,8 +365,15 @@ class AuthService {
     // Log activity
     await this.logActivity(user.id, 'PASSWORD_RESET_REQUEST', 'User', user.id, 'Password reset requested');
 
-    // Return reset token (in production, send this via email)
-    return { resetToken, message: 'Password reset token generated' };
+    // Send password reset email
+    try {
+      await emailService.sendPasswordResetEmail(email, resetToken, user.id);
+      return { message: 'Password reset email sent successfully' };
+    } catch (error) {
+      console.error('Error sending password reset email:', error);
+      // Still return the token for development/testing purposes
+      return { resetToken, message: 'Password reset token generated (email sending failed)', error: error.message };
+    }
   }
 
   /**

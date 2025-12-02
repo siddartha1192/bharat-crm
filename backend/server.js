@@ -29,6 +29,7 @@ const whatsappRoutes = require('./routes/whatsapp');
 const calendarRoutes = require('./routes/calendar');
 const searchRoutes = require('./routes/search');
 const teamsRoutes = require('./routes/teams');
+const emailRoutes = require('./routes/emails');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -41,6 +42,7 @@ app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/teams', teamsRoutes);
+app.use('/api/emails', emailRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
