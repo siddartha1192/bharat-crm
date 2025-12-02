@@ -8,6 +8,8 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
 import Tasks from "./pages/Tasks";
 import Leads from "./pages/Leads";
@@ -48,9 +50,12 @@ const App = () => (
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/auth/google/callback" element={<AuthCallback />} />
 
             {/* Protected routes */}
             <Route path="/" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
+            <Route path="/dashboard" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
             <Route path="/leads" element={<ProtectedLayout><Leads /></ProtectedLayout>} />
             <Route path="/contacts" element={<ProtectedLayout><Contacts /></ProtectedLayout>} />
             <Route path="/pipeline" element={<ProtectedLayout><Pipeline /></ProtectedLayout>} />
