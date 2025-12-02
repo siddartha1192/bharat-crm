@@ -58,6 +58,7 @@ model User {
   calendarEvents          CalendarEvent[]
   activityLogs            ActivityLog[]
   sessions                Session[]
+  emailLogs               EmailLog[]
 
   @@index([email])
   @@index([googleId])
@@ -363,4 +364,36 @@ model CalendarEvent {
   @@index([userId])
   @@index([startTime])
   @@index([googleEventId])
+}
+
+model EmailLog {
+  id              String   @id @default(uuid())
+  to              String[] // Array of recipient email addresses
+  cc              String[] @default([])
+  bcc             String[] @default([])
+  from            String   // Sender email
+  subject         String
+  body            String   @db.Text
+  htmlBody        String?  @db.Text
+  status          String   // 'sent' | 'failed' | 'pending' | 'queued'
+  errorMessage    String?  @db.Text
+  messageId       String?  // Email provider message ID
+  entityType      String?  // 'Lead' | 'Contact' | 'Deal' | 'PasswordReset' | 'Manual'
+  entityId        String?  // ID of related entity
+  attachments     Json?    // Array of attachment metadata
+  sentAt          DateTime?
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User relation - who sent the email
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([to])
 }
