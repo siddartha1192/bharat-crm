@@ -28,7 +28,9 @@ export default function AuthCallback() {
           console.error('❌ OAuth error from Google:', error);
           setStatus('error');
           setMessage(`Authentication failed: ${error}`);
-          setTimeout(() => navigate('/login'), 3000);
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 3000);
           return;
         }
 
@@ -37,7 +39,9 @@ export default function AuthCallback() {
           console.error('❌ No authorization code in URL');
           setStatus('error');
           setMessage('No authorization code received from Google');
-          setTimeout(() => navigate('/login'), 3000);
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 3000);
           return;
         }
 
@@ -75,19 +79,21 @@ export default function AuthCallback() {
         setStatus('success');
         setMessage('Authentication successful! Welcome to Bharat CRM.');
 
-        console.log('✅ Success! Redirecting to dashboard in 2 seconds...');
+        console.log('✅ Success! Redirecting to dashboard in 1 second...');
 
-        // Redirect to dashboard after 2 seconds
+        // Redirect to dashboard with page reload to initialize AuthContext
         setTimeout(() => {
           console.log('🔄 Redirecting to /dashboard');
-          navigate('/dashboard');
-        }, 2000);
+          window.location.href = '/dashboard';
+        }, 1000);
       } catch (error: any) {
         console.error('❌ Error in callback handler:', error);
         console.error('❌ Error stack:', error.stack);
         setStatus('error');
         setMessage(error.message || 'Failed to authenticate with Google');
-        setTimeout(() => navigate('/login'), 3000);
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 3000);
       }
     };
 
