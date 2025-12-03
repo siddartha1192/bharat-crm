@@ -1,6 +1,5 @@
 const OpenAI = require('openai');
 const { PrismaClient } = require('@prisma/client');
-const { google } = require('googleapis');
 
 const prisma = new PrismaClient();
 
@@ -8,22 +7,10 @@ const prisma = new PrismaClient();
 const AI_ENABLED = process.env.ENABLE_AI_FEATURE !== 'false';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OWNER_EMAIL = process.env.OWNER_EMAIL || 'siddartha1192@gmail.com';
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001/api';
 
 // Initialize OpenAI client
 const openai = AI_ENABLED && OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
-
-// OAuth2 client for Google Calendar
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GMAIL_REDIRECT_URI
-);
-
-if (process.env.GMAIL_REFRESH_TOKEN) {
-  oauth2Client.setCredentials({
-    refresh_token: process.env.GMAIL_REFRESH_TOKEN,
-  });
-}
 
 // Bharat CRM Product Knowledge Base
 const PRODUCT_KNOWLEDGE = `
@@ -239,11 +226,12 @@ class OpenAIService {
   }
 
   /**
-   * Create calendar event for appointment
+   * Create calendar event for appointment using internal API
    */
-  async createAppointment(appointmentData, contactPhone) {
+  async createAppointment(appointmentData, contactPhone, userId) {
     try {
-      const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+      console.log('📅 Creating appointment via internal calendar API...');
+      console.log('Appointment data:', JSON.stringify(appointmentData, null, 2));
 
       // Parse date and time
       const appointmentDateTime = this.parseDateTime(appointmentData.date, appointmentData.time);
@@ -252,9 +240,8 @@ class OpenAIService {
       const startTime = appointmentDateTime;
       const endTime = new Date(appointmentDateTime.getTime() + 60 * 60 * 1000);
 
-      const event = {
-        summary: `CRM Demo/Consultation - ${appointmentData.name || 'WhatsApp Lead'}`,
-        description: `
+      const title = `CRM Demo/Consultation - ${appointmentData.name || 'WhatsApp Lead'}`;
+      const description = `
 Appointment Details:
 - Name: ${appointmentData.name || 'Not provided'}
 - Email: ${appointmentData.email || 'Not provided'}
@@ -263,61 +250,70 @@ Appointment Details:
 - Source: WhatsApp AI Assistant
 
 Contact for: Demo/Consultation about Bharat CRM
-        `.trim(),
-        start: {
-          dateTime: startTime.toISOString(),
-          timeZone: 'Asia/Kolkata',
-        },
-        end: {
-          dateTime: endTime.toISOString(),
-          timeZone: 'Asia/Kolkata',
-        },
-        attendees: [
-          { email: OWNER_EMAIL },
-          ...(appointmentData.email ? [{ email: appointmentData.email }] : []),
+      `.trim();
+
+      const attendees = [];
+      if (appointmentData.email) {
+        attendees.push(appointmentData.email);
+      }
+
+      // Get owner user ID if not provided
+      if (!userId) {
+        userId = await this.getOwnerUserId();
+      }
+
+      if (!userId) {
+        throw new Error('Could not determine user ID for calendar event');
+      }
+
+      // Create event using internal calendar API
+      const eventData = {
+        title,
+        description,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        location: 'WhatsApp/Online',
+        attendees,
+        isAllDay: false,
+        color: 'green',
+        reminders: [
+          { method: 'email', minutes: 24 * 60 }, // 1 day before
+          { method: 'popup', minutes: 30 }, // 30 minutes before
         ],
-        reminders: {
-          useDefault: false,
-          overrides: [
-            { method: 'email', minutes: 24 * 60 }, // 1 day before
-            { method: 'popup', minutes: 30 }, // 30 minutes before
-          ],
-        },
+        syncWithGoogle: true // Sync with Google Calendar if connected
       };
 
-      const response = await calendar.events.insert({
-        calendarId: 'primary',
-        requestBody: event,
-        sendUpdates: 'all', // Send email notifications to attendees
+      console.log('📤 Calling internal calendar API with data:', JSON.stringify(eventData, null, 2));
+
+      // Use fetch to call the internal API
+      const response = await fetch(`${API_BASE_URL}/calendar/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId
+        },
+        body: JSON.stringify(eventData)
       });
 
-      console.log('✅ Calendar event created:', response.data.id);
-
-      // Also create in CRM database
-      const userId = await this.getOwnerUserId();
-      if (userId) {
-        await prisma.calendarEvent.create({
-          data: {
-            title: event.summary,
-            description: event.description,
-            startTime: startTime,
-            endTime: endTime,
-            location: 'WhatsApp/Online',
-            attendees: appointmentData.email ? [appointmentData.email] : [],
-            googleEventId: response.data.id,
-            userId: userId,
-          },
-        });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(`Calendar API error: ${errorData.error || response.statusText}`);
       }
+
+      const result = await response.json();
+      console.log('✅ Calendar event created via internal API:', result.event?.id);
 
       return {
         success: true,
-        eventId: response.data.id,
-        eventLink: response.data.htmlLink,
+        eventId: result.event?.id,
+        eventLink: result.event?.googleEventId ? `https://calendar.google.com/calendar/event?eid=${result.event.googleEventId}` : null,
         startTime: startTime,
+        event: result.event
       };
     } catch (error) {
       console.error('❌ Error creating calendar event:', error);
+      console.error('Error details:', error.message);
+      console.error('Stack:', error.stack);
       throw new Error(`Failed to create appointment: ${error.message}`);
     }
   }
@@ -411,9 +407,11 @@ Contact for: Demo/Consultation about Bharat CRM
       // If appointment data detected, try to create calendar event
       if (result.appointmentData && result.appointmentData.date && result.appointmentData.time) {
         try {
+          console.log('🗓️ Appointment data detected, creating calendar event...');
           const appointment = await this.createAppointment(
             result.appointmentData,
-            conversation.contactPhone
+            conversation.contactPhone,
+            userId
           );
 
           if (appointment.success) {
