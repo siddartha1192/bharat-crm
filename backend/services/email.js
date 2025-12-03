@@ -32,7 +32,8 @@ class EmailService {
     try {
       const accessToken = await oauth2Client.getAccessToken();
 
-      return nodemailer.createTransporter({
+      // Fixed: Changed createTransporter to createTransport
+      return nodemailer.createTransport({
         service: 'gmail',
         auth: {
           type: 'OAuth2',
@@ -46,45 +47,6 @@ class EmailService {
     } catch (error) {
       console.error('Error creating email transporter:', error);
       throw new Error('Failed to create email transporter');
-    }
-  }
-
-  /**
-   * Get Gmail API client
-   */
-  getGmailClient() {
-    return google.gmail({ version: 'v1', auth: oauth2Client });
-  }
-
-  /**
-   * Get thread ID from Gmail message ID
-   */
-  async getThreadIdFromMessageId(messageId) {
-    try {
-      const gmail = this.getGmailClient();
-
-      // Search for the message by Message-ID header
-      const searchQuery = `rfc822msgid:${messageId.replace(/[<>]/g, '')}`;
-      const response = await gmail.users.messages.list({
-        userId: 'me',
-        q: searchQuery,
-        maxResults: 1,
-      });
-
-      if (response.data.messages && response.data.messages.length > 0) {
-        const message = await gmail.users.messages.get({
-          userId: 'me',
-          id: response.data.messages[0].id,
-        });
-        return {
-          gmailMessageId: message.data.id,
-          gmailThreadId: message.data.threadId,
-        };
-      }
-      return null;
-    } catch (error) {
-      console.error('Error getting thread ID:', error);
-      return null;
     }
   }
 
@@ -140,24 +102,6 @@ class EmailService {
       };
 
       const info = await transporter.sendMail(mailOptions);
-
-      // Get Gmail thread ID (async, don't block the response)
-      setTimeout(async () => {
-        try {
-          const gmailData = await this.getThreadIdFromMessageId(info.messageId);
-          if (gmailData) {
-            await prisma.emailLog.update({
-              where: { id: emailLog.id },
-              data: {
-                gmailMessageId: gmailData.gmailMessageId,
-                gmailThreadId: gmailData.gmailThreadId,
-              },
-            });
-          }
-        } catch (error) {
-          console.error('Error updating Gmail thread ID:', error);
-        }
-      }, 3000); // Wait 3 seconds for Gmail to index the message
 
       // Update email log with success
       await prisma.emailLog.update({
@@ -365,146 +309,6 @@ class EmailService {
     const pending = await prisma.emailLog.count({ where: { userId, status: 'pending' } });
 
     return { total, sent, failed, pending };
-  }
-
-  /**
-   * Check for replies to sent emails
-   */
-  async checkForReplies(userId) {
-    try {
-      const gmail = this.getGmailClient();
-
-      // Get all sent emails with thread IDs
-      const sentEmails = await prisma.emailLog.findMany({
-        where: {
-          userId,
-          status: 'sent',
-          gmailThreadId: { not: null },
-        },
-        orderBy: { sentAt: 'desc' },
-      });
-
-      let totalRepliesFound = 0;
-      const processedThreads = new Set();
-
-      for (const email of sentEmails) {
-        // Skip if we've already processed this thread
-        if (processedThreads.has(email.gmailThreadId)) {
-          continue;
-        }
-        processedThreads.add(email.gmailThreadId);
-
-        // Get all messages in the thread
-        const thread = await gmail.users.threads.get({
-          userId: 'me',
-          id: email.gmailThreadId,
-        });
-
-        // Count messages that are not from us (replies)
-        const userEmail = GMAIL_USER.toLowerCase();
-        const replies = [];
-
-        for (const message of thread.data.messages) {
-          const headers = message.payload.headers;
-          const fromHeader = headers.find(h => h.name.toLowerCase() === 'from');
-          const subjectHeader = headers.find(h => h.name.toLowerCase() === 'subject');
-          const dateHeader = headers.find(h => h.name.toLowerCase() === 'date');
-
-          if (fromHeader && !fromHeader.value.toLowerCase().includes(userEmail)) {
-            // This is a reply from someone else
-            const replyDate = dateHeader ? new Date(dateHeader.value) : new Date();
-
-            // Only count replies that came after the original email
-            if (replyDate > email.sentAt) {
-              // Get email body
-              let body = '';
-              if (message.payload.body && message.payload.body.data) {
-                body = Buffer.from(message.payload.body.data, 'base64').toString('utf-8');
-              } else if (message.payload.parts) {
-                const textPart = message.payload.parts.find(p => p.mimeType === 'text/plain' || p.mimeType === 'text/html');
-                if (textPart && textPart.body && textPart.body.data) {
-                  body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
-                }
-              }
-
-              replies.push({
-                from: fromHeader.value,
-                subject: subjectHeader ? subjectHeader.value : email.subject,
-                body: body.substring(0, 1000), // Limit body length
-                receivedAt: replyDate,
-                gmailMessageId: message.id,
-              });
-            }
-          }
-        }
-
-        // Update the email log with reply count and create reply records
-        if (replies.length > 0) {
-          const lastReply = replies[replies.length - 1];
-
-          await prisma.emailLog.update({
-            where: { id: email.id },
-            data: {
-              replyCount: replies.length,
-              lastReplyAt: lastReply.receivedAt,
-            },
-          });
-
-          // Create email log entries for replies
-          for (const reply of replies) {
-            // Check if we already have this reply
-            const existingReply = await prisma.emailLog.findFirst({
-              where: {
-                gmailMessageId: reply.gmailMessageId,
-                userId,
-              },
-            });
-
-            if (!existingReply) {
-              await prisma.emailLog.create({
-                data: {
-                  to: [email.from], // Reply goes to original sender
-                  from: reply.from,
-                  subject: reply.subject,
-                  body: reply.body,
-                  status: 'sent',
-                  gmailMessageId: reply.gmailMessageId,
-                  gmailThreadId: email.gmailThreadId,
-                  parentEmailId: email.id,
-                  sentAt: reply.receivedAt,
-                  userId,
-                  entityType: email.entityType,
-                  entityId: email.entityId,
-                },
-              });
-              totalRepliesFound++;
-            }
-          }
-        }
-      }
-
-      console.log(`✅ Checked for replies: Found ${totalRepliesFound} new replies`);
-      return { success: true, repliesFound: totalRepliesFound };
-    } catch (error) {
-      console.error('❌ Error checking for replies:', error);
-      throw new Error(`Failed to check for replies: ${error.message}`);
-    }
-  }
-
-  /**
-   * Get email with its replies
-   */
-  async getEmailWithReplies(emailId, userId) {
-    const email = await prisma.emailLog.findFirst({
-      where: { id: emailId, userId },
-      include: {
-        replies: {
-          orderBy: { sentAt: 'asc' },
-        },
-      },
-    });
-
-    return email;
   }
 }
 
