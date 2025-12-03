@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const whatsappService = require('../services/whatsapp');
 const conversationStorage = require('../services/conversationStorage');
+const openaiService = require('../services/openai');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -451,6 +452,76 @@ router.delete('/conversations/:conversationId', async (req, res) => {
   }
 });
 
+// Toggle AI assistant for a conversation
+router.patch('/conversations/:conversationId/ai-toggle', async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'];
+    const { conversationId } = req.params;
+    const { enabled } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled field must be a boolean' });
+    }
+
+    const conversation = await prisma.whatsAppConversation.findFirst({
+      where: {
+        id: conversationId,
+        userId
+      }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    // Update AI enabled status
+    const updated = await prisma.whatsAppConversation.update({
+      where: { id: conversationId },
+      data: { aiEnabled: enabled }
+    });
+
+    res.json({
+      success: true,
+      message: `AI assistant ${enabled ? 'enabled' : 'disabled'} for this conversation`,
+      aiEnabled: updated.aiEnabled
+    });
+  } catch (error) {
+    console.error('Error toggling AI:', error);
+    res.status(500).json({
+      error: 'Failed to toggle AI',
+      message: error.message
+    });
+  }
+});
+
+// Get AI feature status
+router.get('/ai-status', async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    res.json({
+      aiFeatureEnabled: openaiService.isEnabled(),
+      message: openaiService.isEnabled()
+        ? 'AI assistant is available and ready to use'
+        : 'AI assistant is disabled globally (check ENABLE_AI_FEATURE env variable)'
+    });
+  } catch (error) {
+    console.error('Error checking AI status:', error);
+    res.status(500).json({
+      error: 'Failed to check AI status',
+      message: error.message
+    });
+  }
+});
+
 // ============ WEBHOOK ENDPOINTS ============
 
 // Webhook verification (GET) - Required by WhatsApp
@@ -681,6 +752,61 @@ async function processIncomingMessage(message, value) {
         // Save to file
         await conversationStorage.saveMessage(conversation.userId, fromPhone, savedMessage);
         console.log(`✅ Message saved to existing conversation for user ${conversation.userId}`);
+
+        // Process AI response if enabled
+        if (openaiService.isEnabled() && conversation.aiEnabled && messageType === 'text') {
+          try {
+            console.log(`🤖 AI is enabled for conversation ${conversation.id}, generating response...`);
+
+            const aiResult = await openaiService.processWhatsAppMessage(
+              conversation.id,
+              messageText,
+              conversation.userId
+            );
+
+            if (aiResult && aiResult.response) {
+              console.log(`🤖 AI Response: ${aiResult.response}`);
+
+              // Send AI response via WhatsApp
+              if (whatsappService.isConfigured()) {
+                const sentMessage = await whatsappService.sendMessage(fromPhone, aiResult.response);
+
+                // Save AI response to database
+                const aiMessage = await prisma.whatsAppMessage.create({
+                  data: {
+                    conversationId: conversation.id,
+                    message: aiResult.response,
+                    sender: 'ai',
+                    senderName: 'AI Assistant',
+                    status: 'sent',
+                    messageType: 'text',
+                    isAiGenerated: true,
+                    metadata: {
+                      whatsappMessageId: sentMessage.messageId,
+                      tokensUsed: aiResult.tokensUsed
+                    }
+                  }
+                });
+
+                // Update conversation
+                await prisma.whatsAppConversation.update({
+                  where: { id: conversation.id },
+                  data: {
+                    lastMessage: aiResult.response,
+                    lastMessageAt: new Date()
+                  }
+                });
+
+                // Save to file
+                await conversationStorage.saveMessage(conversation.userId, fromPhone, aiMessage);
+                console.log(`✅ AI response sent and saved to conversation`);
+              }
+            }
+          } catch (aiError) {
+            console.error('❌ Error generating AI response:', aiError);
+            // Continue processing even if AI fails
+          }
+        }
       }
     }
 
