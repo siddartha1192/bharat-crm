@@ -44,6 +44,7 @@ async function testConnection() {
     const client = new QdrantClient({
       url: aiConfig.vectorDB.url,
       apiKey: aiConfig.vectorDB.apiKey,
+      checkCompatibility: false, // Skip version check for cloud compatibility
     });
 
     // Test connection by getting collections

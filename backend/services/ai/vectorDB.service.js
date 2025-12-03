@@ -55,6 +55,7 @@ class VectorDBService {
         this.client = new QdrantClient({
           url: aiConfig.vectorDB.url,
           apiKey: aiConfig.vectorDB.apiKey,
+          checkCompatibility: false, // Skip version check for cloud compatibility
         });
 
         // Check if collection exists, create if not
