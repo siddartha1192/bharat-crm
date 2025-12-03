@@ -23,6 +23,7 @@ import Emails from "./pages/Emails";
 import Invoices from "./pages/Invoices";
 import Calendar from "./pages/Calendar";
 import CalendarCallback from "./pages/CalendarCallback";
+import AIAssistant from "./pages/AIAssistant";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 
@@ -71,6 +72,7 @@ const App = () => (
             <Route path="/reports" element={<ProtectedLayout><Reports /></ProtectedLayout>} />
             <Route path="/calendar" element={<ProtectedLayout><Calendar /></ProtectedLayout>} />
             <Route path="/calendar/callback" element={<ProtectedRoute><CalendarCallback /></ProtectedRoute>} />
+            <Route path="/ai-assistant" element={<ProtectedLayout><AIAssistant /></ProtectedLayout>} />
             <Route
               path="/settings"
               element={<ProtectedLayout><ComingSoon title="Settings" description="Settings coming soon!" /></ProtectedLayout>}
