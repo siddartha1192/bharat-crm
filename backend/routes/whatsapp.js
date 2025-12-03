@@ -633,7 +633,9 @@ async function processIncomingMessage(message, value) {
         messageText = `[${messageType}]`;
     }
 
-    console.log(`Received message from ${fromPhone}: ${messageText}`);
+    console.log(`\n======================================`);
+    console.log(`📩 Received message from ${fromPhone}: ${messageText}`);
+    console.log(`   Type: ${messageType}, ID: ${messageId}`);
 
     // Phone number variations (with and without +)
     const phoneVariations = [fromPhone];
@@ -717,11 +719,15 @@ async function processIncomingMessage(message, value) {
         console.log(`✅ Message saved to conversation for user ${contact.userId}`);
 
         // Process AI response if enabled for new conversation
-        console.log(`🔍 Checking AI conditions - isEnabled: ${openaiService.isEnabled()}, aiEnabled: ${conversation.aiEnabled}, messageType: ${messageType}`);
+        console.log(`\n🔍 AI CHECK FOR NEW CONVERSATION:`);
+        console.log(`   - openaiService.isEnabled(): ${openaiService.isEnabled()}`);
+        console.log(`   - conversation.aiEnabled: ${conversation.aiEnabled}`);
+        console.log(`   - messageType: ${messageType}`);
+        console.log(`   - ALL CONDITIONS MET: ${openaiService.isEnabled() && conversation.aiEnabled && messageType === 'text'}`);
 
         if (openaiService.isEnabled() && conversation.aiEnabled && messageType === 'text') {
           try {
-            console.log(`🤖 AI is enabled for new conversation ${conversation.id}, generating response...`);
+            console.log(`\n🤖 ✅ AI PROCESSING STARTING for new conversation ${conversation.id}...`);
 
             const aiResult = await openaiService.processWhatsAppMessage(
               conversation.id,
@@ -729,12 +735,19 @@ async function processIncomingMessage(message, value) {
               conversation.userId
             );
 
+            console.log(`\n🤖 AI Result received:`, aiResult ? 'YES' : 'NO');
+
             if (aiResult && aiResult.response) {
-              console.log(`🤖 AI Response: ${aiResult.response}`);
+              console.log(`\n✅ AI Response Generated (${aiResult.response.length} chars):`);
+              console.log(`   ${aiResult.response.substring(0, 100)}...`);
 
               // Send AI response via WhatsApp
+              console.log(`\n📤 Attempting to send AI response via WhatsApp...`);
+              console.log(`   WhatsApp configured: ${whatsappService.isConfigured()}`);
+
               if (whatsappService.isConfigured()) {
                 const sentMessage = await whatsappService.sendMessage(fromPhone, aiResult.response);
+                console.log(`   ✅ WhatsApp message sent! Message ID: ${sentMessage.messageId}`);
 
                 // Save AI response to database
                 const aiMessage = await prisma.whatsAppMessage.create({
@@ -764,14 +777,21 @@ async function processIncomingMessage(message, value) {
 
                 // Save to file
                 await conversationStorage.saveMessage(conversation.userId, fromPhone, aiMessage);
-                console.log(`✅ AI response sent and saved to new conversation`);
+                console.log(`\n✅ ✅ ✅ AI RESPONSE SENT AND SAVED TO NEW CONVERSATION!`);
+              } else {
+                console.log(`\n⚠️ WhatsApp service not configured - AI response not sent`);
               }
+            } else {
+              console.log(`\n⚠️ AI returned empty result or no response`);
             }
           } catch (aiError) {
-            console.error('❌ Error generating AI response for new conversation:', aiError);
-            console.error('Error details:', aiError.message);
+            console.error('\n❌❌❌ ERROR GENERATING AI RESPONSE FOR NEW CONVERSATION:');
+            console.error('Error message:', aiError.message);
+            console.error('Error stack:', aiError.stack);
             // Continue processing even if AI fails
           }
+        } else {
+          console.log(`\n⏭️ SKIPPING AI - Conditions not met`);
         }
       }
     } else {
@@ -812,11 +832,15 @@ async function processIncomingMessage(message, value) {
         console.log(`✅ Message saved to existing conversation for user ${conversation.userId}`);
 
         // Process AI response if enabled
-        console.log(`🔍 Checking AI conditions - isEnabled: ${openaiService.isEnabled()}, aiEnabled: ${conversation.aiEnabled}, messageType: ${messageType}`);
+        console.log(`\n🔍 AI CHECK FOR EXISTING CONVERSATION (${conversation.id}):`);
+        console.log(`   - openaiService.isEnabled(): ${openaiService.isEnabled()}`);
+        console.log(`   - conversation.aiEnabled: ${conversation.aiEnabled}`);
+        console.log(`   - messageType: ${messageType}`);
+        console.log(`   - ALL CONDITIONS MET: ${openaiService.isEnabled() && conversation.aiEnabled && messageType === 'text'}`);
 
         if (openaiService.isEnabled() && conversation.aiEnabled && messageType === 'text') {
           try {
-            console.log(`🤖 AI is enabled for conversation ${conversation.id}, generating response...`);
+            console.log(`\n🤖 ✅ AI PROCESSING STARTING for existing conversation ${conversation.id}...`);
 
             const aiResult = await openaiService.processWhatsAppMessage(
               conversation.id,
@@ -824,12 +848,19 @@ async function processIncomingMessage(message, value) {
               conversation.userId
             );
 
+            console.log(`\n🤖 AI Result received:`, aiResult ? 'YES' : 'NO');
+
             if (aiResult && aiResult.response) {
-              console.log(`🤖 AI Response: ${aiResult.response}`);
+              console.log(`\n✅ AI Response Generated (${aiResult.response.length} chars):`);
+              console.log(`   ${aiResult.response.substring(0, 100)}...`);
 
               // Send AI response via WhatsApp
+              console.log(`\n📤 Attempting to send AI response via WhatsApp...`);
+              console.log(`   WhatsApp configured: ${whatsappService.isConfigured()}`);
+
               if (whatsappService.isConfigured()) {
                 const sentMessage = await whatsappService.sendMessage(fromPhone, aiResult.response);
+                console.log(`   ✅ WhatsApp message sent! Message ID: ${sentMessage.messageId}`);
 
                 // Save AI response to database
                 const aiMessage = await prisma.whatsAppMessage.create({
@@ -859,22 +890,32 @@ async function processIncomingMessage(message, value) {
 
                 // Save to file
                 await conversationStorage.saveMessage(conversation.userId, fromPhone, aiMessage);
-                console.log(`✅ AI response sent and saved to conversation`);
+                console.log(`\n✅ ✅ ✅ AI RESPONSE SENT AND SAVED TO EXISTING CONVERSATION!`);
+              } else {
+                console.log(`\n⚠️ WhatsApp service not configured - AI response not sent`);
               }
+            } else {
+              console.log(`\n⚠️ AI returned empty result or no response`);
             }
           } catch (aiError) {
-            console.error('❌ Error generating AI response:', aiError);
+            console.error('\n❌❌❌ ERROR GENERATING AI RESPONSE FOR EXISTING CONVERSATION:');
+            console.error('Error message:', aiError.message);
+            console.error('Error stack:', aiError.stack);
             // Continue processing even if AI fails
           }
+        } else {
+          console.log(`\n⏭️ SKIPPING AI - Conditions not met for existing conversation`);
         }
       }
     }
 
-    console.log(`✅ Successfully processed incoming message from ${fromPhone}`);
+    console.log(`\n✅ Successfully processed incoming message from ${fromPhone}`);
+    console.log(`======================================\n`);
   } catch (error) {
-    console.error('❌ Error processing incoming message:', error);
+    console.error('\n❌❌❌ FATAL ERROR processing incoming message:', error);
     console.error('Error details:', error.message);
     console.error('Stack trace:', error.stack);
+    console.log(`======================================\n`);
   }
 }
 
