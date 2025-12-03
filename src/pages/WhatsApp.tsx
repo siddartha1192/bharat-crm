@@ -19,6 +19,8 @@ import {
   MoreVertical,
   Trash2,
   User,
+  Bot,
+  BotOff,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
@@ -52,6 +54,7 @@ interface Message {
   senderName: string;
   status: string;
   createdAt: string;
+  isAiGenerated?: boolean;
 }
 
 interface Conversation {
@@ -62,6 +65,7 @@ interface Conversation {
   lastMessageAt?: string;
   unreadCount: number;
   messages?: Message[];
+  aiEnabled: boolean;
 }
 
 export default function WhatsApp() {
@@ -76,6 +80,7 @@ export default function WhatsApp() {
   const [contactSearch, setContactSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Contact[]>([]);
   const [searchingContacts, setSearchingContacts] = useState(false);
+  const [aiFeatureAvailable, setAiFeatureAvailable] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -84,6 +89,7 @@ export default function WhatsApp() {
   // Fetch conversations on mount
   useEffect(() => {
     fetchConversations();
+    checkAIStatus();
   }, []);
 
   // Poll for new conversations every 5 seconds
@@ -362,6 +368,62 @@ export default function WhatsApp() {
     }
   };
 
+  const checkAIStatus = async () => {
+    try {
+      const response = await fetch(`${API_URL}/whatsapp/ai-status`, {
+        headers: { 'X-User-Id': userId || '' },
+      });
+      const data = await response.json();
+      setAiFeatureAvailable(data.aiFeatureEnabled);
+    } catch (error) {
+      console.error('Error checking AI status:', error);
+    }
+  };
+
+  const toggleAI = async () => {
+    if (!selectedConversation) return;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/whatsapp/conversations/${selectedConversation.id}/ai-toggle`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': userId || '',
+          },
+          body: JSON.stringify({ enabled: !selectedConversation.aiEnabled }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSelectedConversation(prev =>
+          prev ? { ...prev, aiEnabled: data.aiEnabled } : null
+        );
+
+        // Update in conversations list too
+        setConversations(prev =>
+          prev.map(c =>
+            c.id === selectedConversation.id ? { ...c, aiEnabled: data.aiEnabled } : c
+          )
+        );
+
+        toast({
+          title: `AI Assistant ${data.aiEnabled ? 'Enabled' : 'Disabled'}`,
+          description: data.message,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to toggle AI assistant',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -488,6 +550,27 @@ export default function WhatsApp() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {aiFeatureAvailable && (
+                <Button
+                  size="sm"
+                  variant={selectedConversation.aiEnabled ? 'default' : 'outline'}
+                  onClick={toggleAI}
+                  title={selectedConversation.aiEnabled ? 'AI Assistant Enabled - Click to Disable' : 'AI Assistant Disabled - Click to Enable'}
+                  className={selectedConversation.aiEnabled ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                >
+                  {selectedConversation.aiEnabled ? (
+                    <>
+                      <Bot className="w-4 h-4 mr-2" />
+                      AI On
+                    </>
+                  ) : (
+                    <>
+                      <BotOff className="w-4 h-4 mr-2" />
+                      AI Off
+                    </>
+                  )}
+                </Button>
+              )}
               <Button size="sm" variant="ghost">
                 <Phone className="w-4 h-4" />
               </Button>
@@ -516,24 +599,29 @@ export default function WhatsApp() {
               {messages.map(msg => (
                 <div
                   key={msg.id}
-                  className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${msg.sender === 'user' || msg.sender === 'ai' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
                     className={`max-w-[70%] rounded-lg p-3 ${
                       msg.sender === 'user'
                         ? 'bg-green-600 text-white'
+                        : msg.isAiGenerated || msg.sender === 'ai'
+                        ? 'bg-blue-600 text-white'
                         : 'bg-accent text-foreground'
                     }`}
                   >
-                    {msg.sender !== 'user' && (
-                      <p className="text-xs font-semibold mb-1">{msg.senderName}</p>
+                    {(msg.sender === 'contact' || msg.isAiGenerated || msg.sender === 'ai') && (
+                      <p className="text-xs font-semibold mb-1 flex items-center gap-1">
+                        {(msg.isAiGenerated || msg.sender === 'ai') && <Bot className="w-3 h-3" />}
+                        {msg.senderName}
+                      </p>
                     )}
                     <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
                     <div className="flex items-center justify-end gap-1 mt-1">
                       <span className="text-xs opacity-70">
                         {format(new Date(msg.createdAt), 'HH:mm')}
                       </span>
-                      {msg.sender === 'user' && (
+                      {(msg.sender === 'user' || msg.sender === 'ai') && (
                         <span className="text-xs">
                           {msg.status === 'read' ? (
                             <CheckCheck className="w-3 h-3" />
