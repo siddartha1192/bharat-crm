@@ -2,19 +2,39 @@
 
 ## 5-Minute Setup
 
-### Step 1: Update Environment (1 min)
+### Step 1: Set Up Qdrant Cloud (2 min) ⭐ RECOMMENDED
+
+**IMPORTANT:** For best results, use Qdrant Cloud's **FREE tier** (takes 2 minutes to set up)
+
+📖 **See [QDRANT_CLOUD_SETUP.md](./QDRANT_CLOUD_SETUP.md) for detailed instructions**
+
+Quick steps:
+1. Go to https://cloud.qdrant.io/ and sign up
+2. Create a free cluster (1GB storage, unlimited requests)
+3. Copy your cluster URL and API key
+
+Then update your `.env`:
+```env
+QDRANT_URL=https://your-cluster.region.cloud.qdrant.io:6333
+QDRANT_API_KEY=your_qdrant_api_key
+OPENAI_API_KEY=sk-proj-your_openai_key
+```
+
+### Step 1b: Alternative - In-Memory Mode (Not Recommended)
+
+⚠️ Only for quick testing - limited functionality
 
 ```bash
 cd backend
 
-# Add enterprise AI variables to your .env
+# Add to your .env
 cat >> .env << 'EOF'
 
 # ========================================
 # ENTERPRISE AI CONFIGURATION
 # ========================================
 
-# Vector Database (use :memory: for development)
+# Vector Database (in-memory mode - NOT RECOMMENDED)
 QDRANT_URL=:memory:
 VECTOR_COLLECTION_NAME=bharat_crm_knowledge
 
