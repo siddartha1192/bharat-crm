@@ -715,6 +715,64 @@ async function processIncomingMessage(message, value) {
         // Save to file
         await conversationStorage.saveMessage(contact.userId, fromPhone, savedMessage);
         console.log(`✅ Message saved to conversation for user ${contact.userId}`);
+
+        // Process AI response if enabled for new conversation
+        console.log(`🔍 Checking AI conditions - isEnabled: ${openaiService.isEnabled()}, aiEnabled: ${conversation.aiEnabled}, messageType: ${messageType}`);
+
+        if (openaiService.isEnabled() && conversation.aiEnabled && messageType === 'text') {
+          try {
+            console.log(`🤖 AI is enabled for new conversation ${conversation.id}, generating response...`);
+
+            const aiResult = await openaiService.processWhatsAppMessage(
+              conversation.id,
+              messageText,
+              conversation.userId
+            );
+
+            if (aiResult && aiResult.response) {
+              console.log(`🤖 AI Response: ${aiResult.response}`);
+
+              // Send AI response via WhatsApp
+              if (whatsappService.isConfigured()) {
+                const sentMessage = await whatsappService.sendMessage(fromPhone, aiResult.response);
+
+                // Save AI response to database
+                const aiMessage = await prisma.whatsAppMessage.create({
+                  data: {
+                    conversationId: conversation.id,
+                    message: aiResult.response,
+                    sender: 'ai',
+                    senderName: 'AI Assistant',
+                    status: 'sent',
+                    messageType: 'text',
+                    isAiGenerated: true,
+                    metadata: {
+                      whatsappMessageId: sentMessage.messageId,
+                      tokensUsed: aiResult.tokensUsed
+                    }
+                  }
+                });
+
+                // Update conversation
+                await prisma.whatsAppConversation.update({
+                  where: { id: conversation.id },
+                  data: {
+                    lastMessage: aiResult.response,
+                    lastMessageAt: new Date()
+                  }
+                });
+
+                // Save to file
+                await conversationStorage.saveMessage(conversation.userId, fromPhone, aiMessage);
+                console.log(`✅ AI response sent and saved to new conversation`);
+              }
+            }
+          } catch (aiError) {
+            console.error('❌ Error generating AI response for new conversation:', aiError);
+            console.error('Error details:', aiError.message);
+            // Continue processing even if AI fails
+          }
+        }
       }
     } else {
       console.log(`Found ${conversations.length} existing conversation(s) for ${fromPhone}`);
@@ -754,6 +812,8 @@ async function processIncomingMessage(message, value) {
         console.log(`✅ Message saved to existing conversation for user ${conversation.userId}`);
 
         // Process AI response if enabled
+        console.log(`🔍 Checking AI conditions - isEnabled: ${openaiService.isEnabled()}, aiEnabled: ${conversation.aiEnabled}, messageType: ${messageType}`);
+
         if (openaiService.isEnabled() && conversation.aiEnabled && messageType === 'text') {
           try {
             console.log(`🤖 AI is enabled for conversation ${conversation.id}, generating response...`);
