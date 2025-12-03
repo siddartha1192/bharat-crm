@@ -378,12 +378,16 @@ model EmailLog {
   status          String   // 'sent' | 'failed' | 'pending' | 'queued'
   errorMessage    String?  @db.Text
   messageId       String?  // Email provider message ID
+  gmailMessageId  String?  // Gmail API message ID
+  gmailThreadId   String?  // Gmail thread ID for grouping replies
   entityType      String?  // 'Lead' | 'Contact' | 'Deal' | 'PasswordReset' | 'Manual'
   entityId        String?  // ID of related entity
   attachments     Json?    // Array of attachment metadata
   sentAt          DateTime?
   openedAt        DateTime?
   clickedAt       DateTime?
+  replyCount      Int      @default(0) // Number of replies received
+  lastReplyAt     DateTime? // When last reply was received
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -391,9 +395,16 @@ model EmailLog {
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Reply relation
+  parentEmailId   String?  // If this is a reply, reference to parent email
+  parentEmail     EmailLog? @relation("EmailReplies", fields: [parentEmailId], references: [id], onDelete: SetNull)
+  replies         EmailLog[] @relation("EmailReplies")
+
   @@index([userId])
   @@index([status])
   @@index([entityType, entityId])
   @@index([createdAt])
   @@index([to])
+  @@index([gmailThreadId])
+  @@index([parentEmailId])
 }
