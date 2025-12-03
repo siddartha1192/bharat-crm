@@ -5,8 +5,9 @@
 
 const { QdrantClient } = require('@qdrant/js-client-rest');
 const { OpenAIEmbeddings } = require('@langchain/openai');
-const { QdrantVectorStore } = require('@langchain/community/vectorstores/qdrant');
-const { RecursiveCharacterTextSplitter } = require('langchain/text_splitter');
+const { QdrantVectorStore } = require('@langchain/qdrant');
+const { MemoryVectorStore } = require('@langchain/community/vectorstores/memory');
+const { RecursiveCharacterTextSplitter } = require('@langchain/textsplitters');
 const aiConfig = require('../../config/ai.config');
 
 class VectorDBService {
@@ -15,6 +16,7 @@ class VectorDBService {
     this.vectorStore = null;
     this.embeddings = null;
     this.initialized = false;
+    this.useMemory = false; // Flag for in-memory mode
   }
 
   /**
@@ -34,41 +36,51 @@ class VectorDBService {
         modelName: aiConfig.vectorDB.embeddingModel,
       });
 
-      // Initialize Qdrant client
+      // Initialize vector store based on configuration
       if (aiConfig.vectorDB.url === ':memory:') {
-        console.log('📦 Using in-memory Qdrant (for development)');
-        this.client = new QdrantClient({ url: ':memory:' });
+        console.log('📦 Using in-memory vector store (for development)');
+        console.log('💡 For production, set QDRANT_URL to a Qdrant instance URL');
+
+        this.useMemory = true;
+
+        // Use MemoryVectorStore for development
+        this.vectorStore = new MemoryVectorStore(this.embeddings);
+
       } else {
         console.log(`📡 Connecting to Qdrant at ${aiConfig.vectorDB.url}`);
+
+        this.useMemory = false;
+
+        // Initialize Qdrant client
         this.client = new QdrantClient({
           url: aiConfig.vectorDB.url,
           apiKey: aiConfig.vectorDB.apiKey,
         });
-      }
 
-      // Check if collection exists, create if not
-      try {
-        await this.client.getCollection(aiConfig.vectorDB.collectionName);
-        console.log(`✅ Collection '${aiConfig.vectorDB.collectionName}' exists`);
-      } catch (error) {
-        console.log(`📝 Creating collection '${aiConfig.vectorDB.collectionName}'...`);
-        await this.client.createCollection(aiConfig.vectorDB.collectionName, {
-          vectors: {
-            size: 1536, // OpenAI embedding dimension for text-embedding-3-small
-            distance: 'Cosine',
-          },
-        });
-        console.log('✅ Collection created');
-      }
-
-      // Initialize vector store
-      this.vectorStore = await QdrantVectorStore.fromExistingCollection(
-        this.embeddings,
-        {
-          client: this.client,
-          collectionName: aiConfig.vectorDB.collectionName,
+        // Check if collection exists, create if not
+        try {
+          await this.client.getCollection(aiConfig.vectorDB.collectionName);
+          console.log(`✅ Collection '${aiConfig.vectorDB.collectionName}' exists`);
+        } catch (error) {
+          console.log(`📝 Creating collection '${aiConfig.vectorDB.collectionName}'...`);
+          await this.client.createCollection(aiConfig.vectorDB.collectionName, {
+            vectors: {
+              size: 1536, // OpenAI embedding dimension for text-embedding-3-small
+              distance: 'Cosine',
+            },
+          });
+          console.log('✅ Collection created');
         }
-      );
+
+        // Initialize vector store
+        this.vectorStore = await QdrantVectorStore.fromExistingCollection(
+          this.embeddings,
+          {
+            client: this.client,
+            collectionName: aiConfig.vectorDB.collectionName,
+          }
+        );
+      }
 
       this.initialized = true;
       console.log('✅ Vector Database initialized successfully');
@@ -179,24 +191,31 @@ class VectorDBService {
 
     try {
       console.log('🗑️ Clearing vector database collection...');
-      await this.client.deleteCollection(aiConfig.vectorDB.collectionName);
 
-      // Recreate collection
-      await this.client.createCollection(aiConfig.vectorDB.collectionName, {
-        vectors: {
-          size: 1536,
-          distance: 'Cosine',
-        },
-      });
+      if (this.useMemory) {
+        // For in-memory, just recreate the vector store
+        this.vectorStore = new MemoryVectorStore(this.embeddings);
+      } else {
+        // For Qdrant, delete and recreate collection
+        await this.client.deleteCollection(aiConfig.vectorDB.collectionName);
 
-      // Reinitialize vector store
-      this.vectorStore = await QdrantVectorStore.fromExistingCollection(
-        this.embeddings,
-        {
-          client: this.client,
-          collectionName: aiConfig.vectorDB.collectionName,
-        }
-      );
+        // Recreate collection
+        await this.client.createCollection(aiConfig.vectorDB.collectionName, {
+          vectors: {
+            size: 1536,
+            distance: 'Cosine',
+          },
+        });
+
+        // Reinitialize vector store
+        this.vectorStore = await QdrantVectorStore.fromExistingCollection(
+          this.embeddings,
+          {
+            client: this.client,
+            collectionName: aiConfig.vectorDB.collectionName,
+          }
+        );
+      }
 
       console.log('✅ Collection cleared and recreated');
       return { success: true };
@@ -213,13 +232,28 @@ class VectorDBService {
     await this.initialize();
 
     try {
-      const info = await this.client.getCollection(aiConfig.vectorDB.collectionName);
-      return {
-        name: aiConfig.vectorDB.collectionName,
-        pointsCount: info.points_count,
-        vectorSize: info.config.params.vectors.size,
-        distance: info.config.params.vectors.distance,
-      };
+      if (this.useMemory) {
+        // For in-memory, return basic stats
+        // MemoryVectorStore doesn't expose internal document count directly
+        // So we'll return estimated stats
+        return {
+          name: aiConfig.vectorDB.collectionName,
+          pointsCount: 0, // Not available in memory mode
+          vectorSize: 1536,
+          distance: 'Cosine',
+          mode: 'in-memory',
+        };
+      } else {
+        // For Qdrant, get real stats
+        const info = await this.client.getCollection(aiConfig.vectorDB.collectionName);
+        return {
+          name: aiConfig.vectorDB.collectionName,
+          pointsCount: info.points_count,
+          vectorSize: info.config.params.vectors.size,
+          distance: info.config.params.vectors.distance,
+          mode: 'qdrant',
+        };
+      }
     } catch (error) {
       console.error('❌ Error getting stats:', error);
       throw error;
