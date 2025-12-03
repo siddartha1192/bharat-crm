@@ -12,6 +12,7 @@ import {
   FileText,
   Sparkles,
   Mail,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -26,6 +27,7 @@ const navigation = [
   { name: 'Invoices', href: '/invoices', icon: FileText },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'Calendar', href: '/calendar', icon: Calendar },
+  { name: 'AI Assistant', href: '/ai-assistant', icon: Bot, badge: 'New' },
 ];
 
 export function Sidebar() {
@@ -60,6 +62,11 @@ export function Sidebar() {
 
             <item.icon className="w-5 h-5 relative z-10" />
             <span className="relative z-10">{item.name}</span>
+            {item.badge && (
+              <span className="ml-auto px-2 py-0.5 text-xs font-semibold bg-green-500 text-white rounded-full relative z-10">
+                {item.badge}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
