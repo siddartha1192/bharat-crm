@@ -5,6 +5,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const aiConfig = require('../../config/ai.config');
+const googleCalendarService = require('../google-calendar.service');
 
 const prisma = new PrismaClient();
 
@@ -104,13 +105,49 @@ Notes: ${data.notes || 'None'}
         attendees.push(data.email);
       }
 
-      // Get owner user ID
+      // Get owner user with Google Calendar tokens
       const ownerUser = await prisma.user.findFirst({
         where: { email: aiConfig.company.ownerEmail },
+        select: {
+          id: true,
+          googleAccessToken: true,
+          googleRefreshToken: true,
+        },
       });
 
       if (!ownerUser) {
         return { success: false, error: 'Owner user not found' };
+      }
+
+      let googleEventId = null;
+
+      // Sync to Google Calendar if user has it connected
+      if (ownerUser.googleAccessToken && ownerUser.googleRefreshToken) {
+        try {
+          console.log('   🔄 Syncing to Google Calendar...');
+          const auth = await googleCalendarService.getAuthenticatedClient(
+            ownerUser.googleAccessToken,
+            ownerUser.googleRefreshToken
+          );
+
+          const googleEvent = await googleCalendarService.createEvent(auth, {
+            title,
+            description,
+            startTime,
+            endTime,
+            location: 'WhatsApp/Online',
+            attendees,
+            isAllDay: false,
+          });
+
+          googleEventId = googleEvent.id;
+          console.log('   ✅ Synced to Google Calendar:', googleEventId);
+        } catch (error) {
+          console.error('   ⚠️ Failed to sync to Google Calendar:', error.message);
+          // Continue creating in database even if Google sync fails
+        }
+      } else {
+        console.log('   ℹ️ Google Calendar not connected, skipping sync');
       }
 
       // Create event in database
@@ -125,6 +162,7 @@ Notes: ${data.notes || 'None'}
           attendees,
           isAllDay: false,
           color: 'green', // Green for AI-created appointments
+          googleEventId, // Store Google Calendar event ID for sync
         },
       });
 
@@ -135,6 +173,8 @@ Notes: ${data.notes || 'None'}
           title: event.title,
           startTime: event.startTime,
           endTime: event.endTime,
+          syncedToGoogle: !!googleEventId, // Indicates if synced to Google Calendar
+          googleEventId,
         },
       };
     } catch (error) {
