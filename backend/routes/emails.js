@@ -271,4 +271,45 @@ router.get('/stats/summary', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * Delete email log
+ * DELETE /api/emails/:id
+ */
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if email belongs to user
+    const emailLog = await prisma.emailLog.findFirst({
+      where: {
+        id,
+        userId: req.user.id,
+      },
+    });
+
+    if (!emailLog) {
+      return res.status(404).json({ error: 'Email not found' });
+    }
+
+    // Delete the email log
+    await prisma.emailLog.delete({
+      where: { id },
+    });
+
+    // Log activity
+    await authService.logActivity(
+      req.user.id,
+      'DELETE',
+      'EmailLog',
+      id,
+      `Deleted email: ${emailLog.subject}`
+    );
+
+    res.json({ message: 'Email deleted successfully' });
+  } catch (error) {
+    console.error('Delete email error:', error);
+    res.status(500).json({ error: 'Failed to delete email' });
+  }
+});
+
 module.exports = router;

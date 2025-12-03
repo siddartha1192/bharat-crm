@@ -19,6 +19,7 @@ import {
   Search,
   Filter,
   Eye,
+  Trash2,
 } from 'lucide-react';
 import {
   Dialog,
@@ -70,6 +71,8 @@ export default function Emails() {
   const [selectedEmail, setSelectedEmail] = useState<EmailLog | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [emailToDelete, setEmailToDelete] = useState<EmailLog | null>(null);
   const { toast } = useToast();
 
   // Compose form state
@@ -179,6 +182,38 @@ export default function Emails() {
       });
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleDeleteEmail = async () => {
+    if (!emailToDelete) return;
+
+    try {
+      const response = await fetch(`${API_URL}/emails/${emailToDelete.id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete email');
+      }
+
+      toast({
+        title: 'Success!',
+        description: 'Email deleted successfully',
+      });
+
+      setDeleteConfirmOpen(false);
+      setEmailToDelete(null);
+      fetchEmails();
+      fetchStats();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete email',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -356,9 +391,30 @@ export default function Emails() {
                         ? new Date(email.sentAt).toLocaleDateString()
                         : new Date(email.createdAt).toLocaleDateString()}
                     </span>
-                    <Button variant="ghost" size="sm">
-                      <Eye className="w-4 h-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedEmail(email);
+                          setViewEmailOpen(true);
+                        }}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEmailToDelete(email);
+                          setDeleteConfirmOpen(true);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600 hover:text-red-700" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -504,6 +560,43 @@ export default function Emails() {
                   <p className="text-sm text-red-700">{selectedEmail.errorMessage}</p>
                 </div>
               )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Email</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this email? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          {emailToDelete && (
+            <div className="space-y-4 mt-4">
+              <div className="bg-muted p-4 rounded-md">
+                <p className="text-sm font-semibold mb-2">{emailToDelete.subject}</p>
+                <p className="text-sm text-muted-foreground">To: {emailToDelete.to.join(', ')}</p>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDeleteConfirmOpen(false);
+                    setEmailToDelete(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteEmail}>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Email
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
