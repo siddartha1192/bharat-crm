@@ -312,4 +312,49 @@ router.delete('/:id', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * Check for new email replies
+ * POST /api/emails/check-replies
+ */
+router.post('/check-replies', authenticate, async (req, res) => {
+  try {
+    const result = await emailService.checkForReplies(req.user.id);
+
+    // Log activity
+    await authService.logActivity(
+      req.user.id,
+      'VIEW',
+      'EmailLog',
+      null,
+      `Checked for email replies: ${result.repliesFound} new replies found`
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('Check replies error:', error);
+    res.status(500).json({ error: error.message || 'Failed to check for replies' });
+  }
+});
+
+/**
+ * Get email with replies
+ * GET /api/emails/:id/replies
+ */
+router.get('/:id/replies', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const emailWithReplies = await emailService.getEmailWithReplies(id, req.user.id);
+
+    if (!emailWithReplies) {
+      return res.status(404).json({ error: 'Email not found' });
+    }
+
+    res.json(emailWithReplies);
+  } catch (error) {
+    console.error('Get email with replies error:', error);
+    res.status(500).json({ error: 'Failed to get email with replies' });
+  }
+});
+
 module.exports = router;

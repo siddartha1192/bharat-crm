@@ -20,6 +20,8 @@ import {
   Filter,
   Eye,
   Trash2,
+  RefreshCw,
+  MessageSquare,
 } from 'lucide-react';
 import {
   Dialog,
@@ -53,6 +55,9 @@ interface EmailLog {
   entityId?: string;
   sentAt?: string;
   createdAt: string;
+  replyCount?: number;
+  lastReplyAt?: string;
+  replies?: EmailLog[];
 }
 
 interface EmailStats {
@@ -73,6 +78,7 @@ export default function Emails() {
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [emailToDelete, setEmailToDelete] = useState<EmailLog | null>(null);
+  const [checkingReplies, setCheckingReplies] = useState(false);
   const { toast } = useToast();
 
   // Compose form state
@@ -90,6 +96,15 @@ export default function Emails() {
     fetchEmails();
     fetchStats();
   }, [statusFilter]);
+
+  // Auto-refresh replies every 10 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      handleCheckReplies(true); // true for silent mode (no toast)
+    }, 10 * 60 * 1000); // 10 minutes
+
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchEmails = async () => {
     try {
@@ -217,6 +232,66 @@ export default function Emails() {
     }
   };
 
+  const handleCheckReplies = async (silent = false) => {
+    setCheckingReplies(true);
+
+    try {
+      const response = await fetch(`${API_URL}/emails/check-replies`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to check for replies');
+      }
+
+      const data = await response.json();
+
+      if (!silent) {
+        toast({
+          title: 'Replies Checked',
+          description: `Found ${data.repliesFound} new ${data.repliesFound === 1 ? 'reply' : 'replies'}`,
+        });
+      }
+
+      // Refresh email list to show updated reply counts
+      fetchEmails();
+    } catch (error: any) {
+      if (!silent) {
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to check for replies',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setCheckingReplies(false);
+    }
+  };
+
+  const handleViewEmail = async (email: EmailLog) => {
+    try {
+      // Fetch email with replies
+      const response = await fetch(`${API_URL}/emails/${email.id}/replies`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (response.ok) {
+        const emailWithReplies = await response.json();
+        setSelectedEmail(emailWithReplies);
+      } else {
+        setSelectedEmail(email);
+      }
+
+      setViewEmailOpen(true);
+    } catch (error) {
+      console.error('Error fetching email with replies:', error);
+      setSelectedEmail(email);
+      setViewEmailOpen(true);
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'sent':
@@ -263,10 +338,20 @@ export default function Emails() {
             Send and track emails for leads, contacts, and more
           </p>
         </div>
-        <Button onClick={() => setComposeOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Compose New Email
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => handleCheckReplies(false)}
+            disabled={checkingReplies}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${checkingReplies ? 'animate-spin' : ''}`} />
+            Check for Replies
+          </Button>
+          <Button onClick={() => setComposeOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Compose New Email
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -359,10 +444,7 @@ export default function Emails() {
               <div
                 key={email.id}
                 className="p-4 hover:bg-accent/50 cursor-pointer transition-colors"
-                onClick={() => {
-                  setSelectedEmail(email);
-                  setViewEmailOpen(true);
-                }}
+                onClick={() => handleViewEmail(email)}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -374,6 +456,12 @@ export default function Emails() {
                         {email.entityType && (
                           <Badge variant="outline" className="text-xs">
                             {email.entityType}
+                          </Badge>
+                        )}
+                        {email.replyCount && email.replyCount > 0 && (
+                          <Badge variant="secondary" className="text-xs">
+                            <MessageSquare className="w-3 h-3 mr-1" />
+                            {email.replyCount} {email.replyCount === 1 ? 'reply' : 'replies'}
                           </Badge>
                         )}
                       </div>
@@ -397,8 +485,7 @@ export default function Emails() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedEmail(email);
-                          setViewEmailOpen(true);
+                          handleViewEmail(email);
                         }}
                       >
                         <Eye className="w-4 h-4" />
@@ -513,51 +600,105 @@ export default function Emails() {
               {selectedEmail?.sentAt
                 ? `Sent on ${new Date(selectedEmail.sentAt).toLocaleString()}`
                 : `Created on ${new Date(selectedEmail?.createdAt || '').toLocaleString()}`}
+              {selectedEmail?.replyCount && selectedEmail.replyCount > 0 && (
+                <span className="ml-2">
+                  • {selectedEmail.replyCount} {selectedEmail.replyCount === 1 ? 'reply' : 'replies'}
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
 
           {selectedEmail && (
             <div className="space-y-4 mt-4">
-              <div className="flex items-center gap-2">
-                {getStatusIcon(selectedEmail.status)}
-                {getStatusBadge(selectedEmail.status)}
-                {selectedEmail.entityType && (
-                  <Badge variant="outline">{selectedEmail.entityType}</Badge>
+              {/* Original Email */}
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Mail className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Original Email</span>
+                  {getStatusIcon(selectedEmail.status)}
+                  {getStatusBadge(selectedEmail.status)}
+                  {selectedEmail.entityType && (
+                    <Badge variant="outline">{selectedEmail.entityType}</Badge>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">From:</p>
+                    <p className="text-sm">{selectedEmail.from}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">To:</p>
+                    <p className="text-sm">{selectedEmail.to.join(', ')}</p>
+                  </div>
+
+                  {selectedEmail.cc.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground">CC:</p>
+                      <p className="text-sm">{selectedEmail.cc.join(', ')}</p>
+                    </div>
+                  )}
+
+                  {selectedEmail.bcc.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground">BCC:</p>
+                      <p className="text-sm">{selectedEmail.bcc.join(', ')}</p>
+                    </div>
+                  )}
+
+                  <div className="border-t border-blue-200 dark:border-blue-800 pt-3 mt-3">
+                    <p className="text-sm whitespace-pre-wrap">{selectedEmail.body}</p>
+                  </div>
+                </div>
+
+                {selectedEmail.status === 'failed' && selectedEmail.errorMessage && (
+                  <div className="bg-red-50 border border-red-200 rounded-md p-3 mt-3">
+                    <p className="text-xs font-semibold text-red-800 mb-1">Error:</p>
+                    <p className="text-xs text-red-700">{selectedEmail.errorMessage}</p>
+                  </div>
                 )}
               </div>
 
-              <div className="space-y-2">
-                <p className="text-sm font-semibold">From:</p>
-                <p className="text-sm">{selectedEmail.from}</p>
-              </div>
+              {/* Replies */}
+              {selectedEmail.replies && selectedEmail.replies.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold">Replies</h3>
+                  </div>
 
-              <div className="space-y-2">
-                <p className="text-sm font-semibold">To:</p>
-                <p className="text-sm">{selectedEmail.to.join(', ')}</p>
-              </div>
+                  {selectedEmail.replies.map((reply, index) => (
+                    <div
+                      key={reply.id}
+                      className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 ml-6"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="w-4 h-4 text-gray-600" />
+                          <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                            Reply {index + 1}
+                          </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {reply.sentAt
+                            ? new Date(reply.sentAt).toLocaleString()
+                            : new Date(reply.createdAt).toLocaleString()}
+                        </span>
+                      </div>
 
-              {selectedEmail.cc.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold">CC:</p>
-                  <p className="text-sm">{selectedEmail.cc.join(', ')}</p>
-                </div>
-              )}
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-xs font-semibold text-muted-foreground">From:</p>
+                          <p className="text-sm">{reply.from}</p>
+                        </div>
 
-              {selectedEmail.bcc.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold">BCC:</p>
-                  <p className="text-sm">{selectedEmail.bcc.join(', ')}</p>
-                </div>
-              )}
-
-              <div className="border-t pt-4">
-                <p className="text-sm whitespace-pre-wrap">{selectedEmail.body}</p>
-              </div>
-
-              {selectedEmail.status === 'failed' && selectedEmail.errorMessage && (
-                <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                  <p className="text-sm font-semibold text-red-800 mb-1">Error:</p>
-                  <p className="text-sm text-red-700">{selectedEmail.errorMessage}</p>
+                        <div className="border-t border-gray-200 dark:border-gray-800 pt-2 mt-2">
+                          <p className="text-sm whitespace-pre-wrap">{reply.body}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
