@@ -1,7 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
+const { authenticate } = require('../middleware/auth');
 const prisma = new PrismaClient();
+
+// Apply authentication to all routes
+router.use(authenticate);
 
 // Helper function to transform invoice for frontend
 const transformInvoiceForFrontend = (invoice) => {
@@ -17,11 +21,7 @@ const transformInvoiceForFrontend = (invoice) => {
 router.get('/', async (req, res) => {
   try {
     const { status } = req.query;
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const where = { userId };
 
@@ -44,11 +44,7 @@ router.get('/', async (req, res) => {
 // GET single invoice by ID
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const invoice = await prisma.invoice.findFirst({
       where: {
@@ -73,11 +69,7 @@ router.get('/:id', async (req, res) => {
 // POST create new invoice
 router.post('/', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // Remove auto-generated fields and transform data
     const {
@@ -130,11 +122,7 @@ router.post('/', async (req, res) => {
 // PUT update invoice
 router.put('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // First verify the invoice belongs to the user
     const existingInvoice = await prisma.invoice.findFirst({
@@ -193,11 +181,7 @@ router.put('/:id', async (req, res) => {
 // DELETE invoice
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // First verify the invoice belongs to the user
     const existingInvoice = await prisma.invoice.findFirst({
@@ -225,11 +209,7 @@ router.delete('/:id', async (req, res) => {
 // GET invoice stats
 router.get('/stats/summary', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const [total, paid, pending, overdue] = await Promise.all([
       prisma.invoice.count({ where: { userId } }),
