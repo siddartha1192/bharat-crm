@@ -68,8 +68,7 @@ router.get('/', authenticate, hasPermission('MANAGER'), async (req, res) => {
         role: true,
         isActive: true,
         createdAt: true,
-        updatedAt: true,
-        lastLogin: true
+        updatedAt: true
       },
       orderBy: {
         createdAt: 'desc'
@@ -116,8 +115,7 @@ router.get('/:id', authenticate, async (req, res) => {
         role: true,
         isActive: true,
         createdAt: true,
-        updatedAt: true,
-        lastLogin: true
+        updatedAt: true
       }
     });
 
