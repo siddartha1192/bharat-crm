@@ -191,9 +191,14 @@ Notes: ${data.notes || 'None'}
         return { success: false, error: 'Task title is required' };
       }
 
-      // Get owner user ID
+      // Get owner user with name
       const ownerUser = await prisma.user.findFirst({
         where: { email: aiConfig.company.ownerEmail },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
       });
 
       if (!ownerUser) {
@@ -206,16 +211,20 @@ Notes: ${data.notes || 'None'}
         dueDate = new Date(data.dueDate);
       }
 
+      // Determine assignee name (from AI data or default to owner)
+      const assigneeName = data.assignee || ownerUser.name || ownerUser.email;
+
       // Create task
       const task = await prisma.task.create({
         data: {
           title: data.title,
           description: data.description || '',
-          priority: data.priority || 'Medium',
-          status: 'pending',
+          priority: data.priority || 'medium',
+          status: 'todo',
           dueDate,
           userId: ownerUser.id,
-          assignedToId: ownerUser.id,
+          assignee: assigneeName, // ✓ Fixed: Now providing required assignee field
+          tags: data.tags || [],
         },
       });
 
