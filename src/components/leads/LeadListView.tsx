@@ -150,7 +150,8 @@ export function LeadListView({ leads, onViewDetails, onEdit, onDelete }: LeadLis
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
