@@ -8,17 +8,17 @@ async function fetchAPI<T>(
   options?: RequestInit
 ): Promise<T> {
   try {
-    // Get userId from localStorage for authentication
-    const userId = localStorage.getItem('userId');
+    // Get token from localStorage for authentication
+    const token = localStorage.getItem('token');
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options?.headers,
     };
 
-    // Add userId header if available
-    if (userId) {
-      headers['X-User-Id'] = userId;
+    // Add Authorization Bearer token if available
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -27,6 +27,16 @@ async function fetchAPI<T>(
     });
 
     if (!response.ok) {
+      // Handle 401 Unauthorized - token expired or invalid
+      if (response.status === 401) {
+        // Clear invalid token and redirect to login
+        localStorage.removeItem('token');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        throw new Error('Session expired. Please login again.');
+      }
+
       const error = await response.json().catch(() => ({ message: 'An error occurred' }));
       throw new Error(error.message || `HTTP error! status: ${response.status}`);
     }
