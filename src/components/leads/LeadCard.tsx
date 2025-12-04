@@ -60,7 +60,25 @@ const priorityColors = {
 };
 
 export function LeadCard({ lead, onViewDetails, onEdit, onDelete }: LeadCardProps) {
-  const SourceIcon = sourceIcons[lead.source];
+  const SourceIcon = sourceIcons[lead.source] || Globe;
+
+  // Safe getters with defaults
+  const getName = () => lead.name || 'Unknown';
+  const getInitials = () => {
+    const name = getName();
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+  const getCompany = () => lead.company || 'No Company';
+  const getEmail = () => lead.email || 'No Email';
+  const getPhone = () => lead.phone || 'No Phone';
+  const getValue = () => (lead.estimatedValue || 0).toLocaleString('en-IN');
+  const getCreatedDate = () => {
+    try {
+      return formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true });
+    } catch {
+      return 'Recently';
+    }
+  };
 
   return (
     <Card className="p-4 hover:shadow-lg transition-all border-l-4 border-l-primary/20 hover:border-l-primary">
@@ -68,23 +86,23 @@ export function LeadCard({ lead, onViewDetails, onEdit, onDelete }: LeadCardProp
         <div className="flex items-center gap-3">
           <Avatar className="h-12 w-12 ring-2 ring-primary/10">
             <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground font-semibold">
-              {lead.name.split(' ').map(n => n[0]).join('')}
+              {getInitials()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h3 className="font-semibold text-foreground text-lg">{lead.name}</h3>
+            <h3 className="font-semibold text-foreground text-lg">{getName()}</h3>
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <Building2 className="w-4 h-4" />
-              <span>{lead.company}</span>
+              <span>{getCompany()}</span>
             </div>
           </div>
         </div>
         <div className="flex flex-col gap-1 items-end">
-          <Badge className={`${statusColors[lead.status]} border font-medium`}>
-            {lead.status}
+          <Badge className={`${statusColors[lead.status] || statusColors.new} border font-medium`}>
+            {lead.status || 'new'}
           </Badge>
-          <Badge className={`${priorityColors[lead.priority]} border font-medium`}>
-            {lead.priority}
+          <Badge className={`${priorityColors[lead.priority] || priorityColors.medium} border font-medium`}>
+            {lead.priority || 'medium'}
           </Badge>
         </div>
       </div>
@@ -92,30 +110,30 @@ export function LeadCard({ lead, onViewDetails, onEdit, onDelete }: LeadCardProp
       <div className="space-y-2 mb-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Mail className="w-4 h-4" />
-          <span>{lead.email}</span>
+          <span>{getEmail()}</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Phone className="w-4 h-4" />
-          <span>{lead.phone}</span>
+          <span>{getPhone()}</span>
         </div>
         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
           <IndianRupee className="w-4 h-4" />
-          <span>₹{lead.estimatedValue.toLocaleString('en-IN')}</span>
+          <span>₹{getValue()}</span>
         </div>
       </div>
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
         <SourceIcon className="w-3 h-3" />
-        <span>Source: {lead.source.replace('-', ' ')}</span>
+        <span>Source: {(lead.source || 'unknown').replace('-', ' ')}</span>
         <span className="mx-1">•</span>
-        <span>Created {formatDistanceToNow(lead.createdAt, { addSuffix: true })}</span>
+        <span>Created {getCreatedDate()}</span>
       </div>
 
       {lead.nextFollowUpAt && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3 p-2 bg-accent/10 rounded">
           <Calendar className="w-3 h-3" />
           <span>
-            Follow-up: {formatDistanceToNow(lead.nextFollowUpAt, { addSuffix: true })}
+            Follow-up: {formatDistanceToNow(new Date(lead.nextFollowUpAt), { addSuffix: true })}
           </span>
         </div>
       )}
@@ -125,7 +143,7 @@ export function LeadCard({ lead, onViewDetails, onEdit, onDelete }: LeadCardProp
       )}
 
       <div className="flex flex-wrap gap-1 mb-3">
-        {lead.tags.map(tag => (
+        {(lead.tags || []).map(tag => (
           <Badge key={tag} variant="outline" className="text-xs">
             {tag}
           </Badge>
@@ -189,7 +207,7 @@ export function LeadCard({ lead, onViewDetails, onEdit, onDelete }: LeadCardProp
       <div className="flex items-center justify-between pt-3 border-t border-border">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <User className="w-4 h-4" />
-          <span>{lead.assignedTo}</span>
+          <span>{lead.assignedTo || 'Unassigned'}</span>
         </div>
         <div className="flex gap-2">
           <Button
