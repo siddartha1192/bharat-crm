@@ -36,8 +36,14 @@ class WhatsAppAIService {
         maxTokens: aiConfig.whatsappAI.maxTokens,
       });
 
-      // Initialize vector DB for feature retrieval
-      await vectorDBService.initialize();
+      // Try to initialize vector DB for feature retrieval (optional)
+      try {
+        await vectorDBService.initialize();
+        console.log('✅ Vector DB initialized for WhatsApp AI');
+      } catch (error) {
+        console.warn('⚠️ Vector DB initialization failed - WhatsApp AI will work without product knowledge context');
+        console.warn('   Error:', error.message);
+      }
 
       this.initialized = true;
       console.log('✅ WhatsApp AI Service initialized');
@@ -165,11 +171,19 @@ Remember: Output ONLY valid JSON. No additional text before or after.`;
         },
       });
 
-      // Search vector DB for relevant product information
-      const relevantDocs = await vectorDBService.search(userMessage, 3);
-      const productContext = relevantDocs.length > 0
-        ? `\n\nRELEVANT PRODUCT INFORMATION:\n${relevantDocs.map(doc => doc.content).join('\n\n')}`
-        : '';
+      // Search vector DB for relevant product information (optional)
+      let productContext = '';
+      try {
+        const relevantDocs = await vectorDBService.search(userMessage, 3);
+        if (relevantDocs.length > 0) {
+          productContext = `\n\nRELEVANT PRODUCT INFORMATION:\n${relevantDocs.map(doc => doc.content).join('\n\n')}`;
+          console.log(`📚 Found ${relevantDocs.length} relevant docs from vector DB`);
+        }
+      } catch (error) {
+        console.warn('❌ Error searching vector database:', error.message);
+        console.log('ℹ️  Continuing without product knowledge context');
+        // Continue without product context - WhatsApp AI will still work
+      }
 
       // Build message history
       const messages = [
