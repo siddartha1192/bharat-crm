@@ -5,7 +5,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const aiConfig = require('../../config/ai.config');
-const googleCalendarService = require('../google-calendar.service');
+const googleCalendarService = require('../googleCalendar.js');
 
 const prisma = new PrismaClient();
 
@@ -138,6 +138,7 @@ Notes: ${data.notes || 'None'}
             location: 'WhatsApp/Online',
             attendees,
             isAllDay: false,
+            syncWithGoogle: true,
           });
 
           googleEventId = googleEvent.id;
