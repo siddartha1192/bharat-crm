@@ -20,6 +20,7 @@ app.get('/api/health', (req, res) => {
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
 const leadRoutes = require('./routes/leads');
 const contactRoutes = require('./routes/contacts');
 const invoiceRoutes = require('./routes/invoices');
@@ -34,6 +35,7 @@ const aiRoutes = require('./routes/ai');
 
 // Use routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/invoices', invoiceRoutes);

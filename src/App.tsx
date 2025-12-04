@@ -24,6 +24,7 @@ import Invoices from "./pages/Invoices";
 import Calendar from "./pages/Calendar";
 import CalendarCallback from "./pages/CalendarCallback";
 import AIAssistant from "./pages/AIAssistant";
+import Settings from "./pages/Settings";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 
@@ -75,7 +76,7 @@ const App = () => (
             <Route path="/ai-assistant" element={<ProtectedLayout><AIAssistant /></ProtectedLayout>} />
             <Route
               path="/settings"
-              element={<ProtectedLayout><ComingSoon title="Settings" description="Settings coming soon!" /></ProtectedLayout>}
+              element={<ProtectedLayout><Settings /></ProtectedLayout>}
             />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
