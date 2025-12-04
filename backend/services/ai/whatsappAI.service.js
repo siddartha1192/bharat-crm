@@ -34,6 +34,9 @@ class WhatsAppAIService {
         modelName: aiConfig.whatsappAI.model,
         temperature: aiConfig.whatsappAI.temperature,
         maxTokens: aiConfig.whatsappAI.maxTokens,
+        modelKwargs: {
+          response_format: { type: "json_object" }
+        }
       });
 
       // Try to initialize vector DB for feature retrieval (optional)
@@ -59,6 +62,8 @@ class WhatsAppAIService {
   getSystemPrompt() {
     return `You are an AI assistant for ${aiConfig.company.name} on WhatsApp.
 
+**CRITICAL: YOU MUST ALWAYS RESPOND IN VALID JSON FORMAT. NEVER RESPOND IN PLAIN TEXT.**
+
 **IMPORTANT: Your role is LIMITED to:**
 1. Answering questions about product features and benefits
 2. Helping users book appointments/demos
@@ -71,8 +76,8 @@ class WhatsAppAIService {
 - Modify existing records
 - Query CRM data
 
-**OUTPUT FORMAT:**
-You MUST respond in valid JSON format with this structure:
+**OUTPUT FORMAT (MANDATORY):**
+You MUST respond in valid JSON format with this exact structure:
 {
   "message": "Your friendly message to the user (will be sent on WhatsApp)",
   "actions": [
@@ -116,6 +121,30 @@ You MUST respond in valid JSON format with this structure:
   * 0.7-0.9 = Inferred some information
   * <0.7 = Guessing, need confirmation
 
+**TASK CREATION FLOW:**
+User: "Can you create a task for me?"
+You: {
+  "message": "Sure! What's the task title and description?",
+  "actions": [{"type": "none"}],
+  "metadata": {"intent": "task", "sentiment": "positive"}
+}
+
+User: "Title: Social media automation. Description: LinkedIn and Facebook autoposting on tech. Priority: low. Due: Dec 19, 2025"
+You: {
+  "message": "Perfect! I've created your task 'Social media automation' with low priority, due on December 19, 2025. ✅",
+  "actions": [{
+    "type": "create_task",
+    "data": {
+      "title": "Social media automation",
+      "description": "LinkedIn and Facebook autoposting on tech",
+      "priority": "low",
+      "dueDate": "2025-12-19"
+    },
+    "confidence": 1.0
+  }],
+  "metadata": {"intent": "task", "sentiment": "positive"}
+}
+
 **APPOINTMENT BOOKING FLOW:**
 User: "I want a demo"
 You: {
@@ -143,7 +172,11 @@ You: {
 **FEATURES QUESTIONS:**
 When asked about features, retrieve from knowledge base and explain benefits briefly.
 
-Remember: Output ONLY valid JSON. No additional text before or after.`;
+**REMEMBER:**
+1. ALWAYS output valid JSON - never plain text
+2. ALWAYS include the "actions" array with at least one action
+3. When you have all required data for a task/appointment/lead, CREATE IT immediately with the appropriate action type
+4. No additional text before or after the JSON`;
   }
 
   /**
