@@ -1,0 +1,2845 @@
+================================================================================
+                         BHARAT CRM API REFERENCE
+================================================================================
+
+Base URL: http://localhost:3001/api
+Content-Type: application/json
+
+================================================================================
+                              AUTHENTICATION
+================================================================================
+
+1. REGISTER NEW USER
+--------------------
+Method: POST
+Endpoint: /api/auth/register
+
+Description: Create a new user account with email and password
+
+Headers:
+  Content-Type: application/json
+
+Request Body:
+  {
+    "email": "string (required) - User email address",
+    "password": "string (required, min 6 chars) - User password",
+    "name": "string (required) - User full name",
+    "company": "string (optional) - Company name",
+    "role": "string (optional) - User role (ADMIN, MANAGER, AGENT)"
+  }
+
+Response:
+  {
+    "user": {
+      "id": "string",
+      "email": "string",
+      "name": "string",
+      "company": "string",
+      "role": "string",
+      "isActive": true,
+      "createdAt": "timestamp"
+    },
+    "token": "string - JWT access token",
+    "refreshToken": "string - JWT refresh token",
+    "message": "Registration successful"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "password123",
+    "name": "John Doe",
+    "company": "Acme Corp"
+  }'
+
+
+2. LOGIN
+--------
+Method: POST
+Endpoint: /api/auth/login
+
+Description: Authenticate user with email and password
+
+Headers:
+  Content-Type: application/json
+
+Request Body:
+  {
+    "email": "string (required) - User email",
+    "password": "string (required) - User password"
+  }
+
+Response:
+  {
+    "user": { ... },
+    "token": "string",
+    "refreshToken": "string"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "password123"
+  }'
+
+
+3. GET GOOGLE AUTH URL
+-----------------------
+Method: GET
+Endpoint: /api/auth/google/url
+
+Description: Get Google OAuth authorization URL
+
+Response:
+  {
+    "authUrl": "string - Google OAuth URL"
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/auth/google/url
+
+
+4. GOOGLE OAUTH CALLBACK
+-------------------------
+Method: POST
+Endpoint: /api/auth/google/callback
+
+Description: Handle Google OAuth callback and create/login user
+
+Request Body:
+  {
+    "code": "string (required) - Google OAuth authorization code"
+  }
+
+Response:
+  {
+    "user": { ... },
+    "token": "string",
+    "refreshToken": "string"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/auth/google/callback \
+  -H "Content-Type: application/json" \
+  -d '{"code": "google_auth_code"}'
+
+
+5. REFRESH TOKEN
+----------------
+Method: POST
+Endpoint: /api/auth/refresh
+
+Description: Refresh access token using refresh token
+
+Request Body:
+  {
+    "refreshToken": "string (required) - JWT refresh token"
+  }
+
+Response:
+  {
+    "token": "string - New access token",
+    "refreshToken": "string - New refresh token"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken": "your_refresh_token"}'
+
+
+6. LOGOUT
+---------
+Method: POST
+Endpoint: /api/auth/logout
+
+Description: Logout and invalidate current session
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "message": "Logged out successfully"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/auth/logout \
+  -H "Authorization: Bearer your_access_token"
+
+
+7. GET CURRENT USER
+-------------------
+Method: GET
+Endpoint: /api/auth/me
+
+Description: Get current authenticated user details
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "id": "string",
+    "email": "string",
+    "name": "string",
+    "company": "string",
+    "role": "string",
+    "isActive": true,
+    "googleProfilePic": "string",
+    "department": { ... },
+    "team": { ... },
+    "createdAt": "timestamp"
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/auth/me \
+  -H "Authorization: Bearer your_access_token"
+
+
+8. FORGOT PASSWORD
+------------------
+Method: POST
+Endpoint: /api/auth/forgot-password
+
+Description: Request password reset email
+
+Request Body:
+  {
+    "email": "string (required) - User email"
+  }
+
+Response:
+  {
+    "message": "Password reset email sent"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+
+
+9. RESET PASSWORD
+-----------------
+Method: POST
+Endpoint: /api/auth/reset-password
+
+Description: Reset password with reset token
+
+Request Body:
+  {
+    "resetToken": "string (required) - Password reset token",
+    "newPassword": "string (required, min 6 chars) - New password"
+  }
+
+Response:
+  {
+    "message": "Password reset successful"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resetToken": "reset_token",
+    "newPassword": "newpassword123"
+  }'
+
+
+10. GET USER SESSIONS
+---------------------
+Method: GET
+Endpoint: /api/auth/sessions
+
+Description: Get all active sessions for current user
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "sessions": [
+      {
+        "id": "string",
+        "ipAddress": "string",
+        "userAgent": "string",
+        "createdAt": "timestamp",
+        "expiresAt": "timestamp"
+      }
+    ]
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/auth/sessions \
+  -H "Authorization: Bearer your_access_token"
+
+
+11. REVOKE SESSION
+------------------
+Method: DELETE
+Endpoint: /api/auth/sessions/:sessionId
+
+Description: Revoke a specific session
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "message": "Session revoked successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/auth/sessions/session_id \
+  -H "Authorization: Bearer your_access_token"
+
+
+12. GET ACTIVITY LOGS (Admin/Manager Only)
+-------------------------------------------
+Method: GET
+Endpoint: /api/auth/activity-logs
+
+Description: Get activity logs with filtering options
+
+Headers:
+  Authorization: Bearer {token}
+
+Query Parameters:
+  - userId: string (optional) - Filter by user ID
+  - action: string (optional) - Filter by action type
+  - entityType: string (optional) - Filter by entity type
+  - limit: number (optional, default: 50) - Limit results
+  - offset: number (optional, default: 0) - Offset for pagination
+
+Response:
+  {
+    "logs": [ ... ],
+    "total": number
+  }
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/auth/activity-logs?limit=50&offset=0" \
+  -H "Authorization: Bearer your_access_token"
+
+
+13. GET MY ACTIVITY
+-------------------
+Method: GET
+Endpoint: /api/auth/my-activity
+
+Description: Get activity logs for current user
+
+Headers:
+  Authorization: Bearer {token}
+
+Query Parameters:
+  - limit: number (optional, default: 50)
+  - offset: number (optional, default: 0)
+
+Response:
+  {
+    "logs": [ ... ],
+    "total": number
+  }
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/auth/my-activity?limit=50" \
+  -H "Authorization: Bearer your_access_token"
+
+
+14. GET USER BY ID (Backwards Compatibility)
+---------------------------------------------
+Method: GET
+Endpoint: /api/auth/user/:id
+
+Description: Get user information by ID
+
+Response:
+  {
+    "id": "string",
+    "email": "string",
+    "name": "string",
+    "company": "string",
+    "role": "string",
+    "createdAt": "timestamp"
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/auth/user/user_id
+
+
+================================================================================
+                                  LEADS
+================================================================================
+
+1. GET ALL LEADS
+----------------
+Method: GET
+Endpoint: /api/leads
+
+Description: Get all leads for the authenticated user
+
+Headers:
+  X-User-Id: string (required) - User ID
+
+Query Parameters:
+  - status: string (optional) - Filter by status (new, contacted, qualified, etc.)
+  - assignedTo: string (optional) - Filter by assigned user ID
+
+Response:
+  [
+    {
+      "id": "string",
+      "name": "string",
+      "email": "string",
+      "phone": "string",
+      "company": "string",
+      "status": "string",
+      "priority": "string",
+      "estimatedValue": number,
+      "assignedTo": "string",
+      "createdAt": "timestamp",
+      "updatedAt": "timestamp"
+    }
+  ]
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/leads?status=new" \
+  -H "X-User-Id: user_id"
+
+
+2. GET SINGLE LEAD
+------------------
+Method: GET
+Endpoint: /api/leads/:id
+
+Description: Get a specific lead by ID
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "id": "string",
+    "name": "string",
+    "email": "string",
+    "phone": "string",
+    "company": "string",
+    "status": "string",
+    "priority": "string",
+    "estimatedValue": number,
+    "assignedTo": "string",
+    "createdAt": "timestamp"
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/leads/lead_id \
+  -H "X-User-Id: user_id"
+
+
+3. CREATE LEAD
+--------------
+Method: POST
+Endpoint: /api/leads
+
+Description: Create a new lead
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "name": "string (required) - Lead name",
+    "email": "string (optional) - Lead email",
+    "phone": "string (optional) - Lead phone",
+    "company": "string (optional) - Company name",
+    "status": "string (optional) - Lead status",
+    "priority": "string (optional) - Priority level",
+    "estimatedValue": number (optional) - Estimated deal value",
+    "assignedTo": "string (optional) - Assigned user ID",
+    "source": "string (optional) - Lead source",
+    "notes": "string (optional) - Additional notes"
+  }
+
+Response:
+  {
+    "id": "string",
+    "name": "string",
+    "email": "string",
+    ...
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/leads \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "+911234567890",
+    "company": "Acme Inc",
+    "status": "new",
+    "priority": "high",
+    "estimatedValue": 50000
+  }'
+
+
+4. UPDATE LEAD
+--------------
+Method: PUT
+Endpoint: /api/leads/:id
+
+Description: Update an existing lead
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "name": "string (optional)",
+    "email": "string (optional)",
+    "phone": "string (optional)",
+    "company": "string (optional)",
+    "status": "string (optional)",
+    "priority": "string (optional)",
+    "estimatedValue": number (optional)",
+    "assignedTo": "string (optional)"
+  }
+
+Response:
+  {
+    "id": "string",
+    "name": "string",
+    ...
+  }
+
+cURL Example:
+curl -X PUT http://localhost:3001/api/leads/lead_id \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "qualified",
+    "priority": "high"
+  }'
+
+
+5. DELETE LEAD
+--------------
+Method: DELETE
+Endpoint: /api/leads/:id
+
+Description: Delete a lead
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "message": "Lead deleted successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/leads/lead_id \
+  -H "X-User-Id: user_id"
+
+
+6. GET LEAD STATS
+-----------------
+Method: GET
+Endpoint: /api/leads/stats/summary
+
+Description: Get summary statistics for leads
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "total": number,
+    "new": number,
+    "qualified": number,
+    "totalValue": number
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/leads/stats/summary \
+  -H "X-User-Id: user_id"
+
+
+================================================================================
+                                CONTACTS
+================================================================================
+
+1. GET ALL CONTACTS
+-------------------
+Method: GET
+Endpoint: /api/contacts
+
+Description: Get all contacts for the authenticated user
+
+Headers:
+  X-User-Id: string (required)
+
+Query Parameters:
+  - type: string (optional) - Filter by type (customer, prospect, partner, etc.)
+  - assignedTo: string (optional) - Filter by assigned user ID
+
+Response:
+  [
+    {
+      "id": "string",
+      "name": "string",
+      "email": "string",
+      "phone": "string",
+      "whatsapp": "string",
+      "company": "string",
+      "designation": "string",
+      "type": "string",
+      "address": {
+        "street": "string",
+        "city": "string",
+        "state": "string",
+        "pincode": "string",
+        "country": "string"
+      },
+      "lifetimeValue": number,
+      "tags": ["string"],
+      "notes": "string",
+      "createdAt": "timestamp"
+    }
+  ]
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/contacts?type=customer" \
+  -H "X-User-Id: user_id"
+
+
+2. GET SINGLE CONTACT
+---------------------
+Method: GET
+Endpoint: /api/contacts/:id
+
+Description: Get a specific contact by ID
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "id": "string",
+    "name": "string",
+    "email": "string",
+    "phone": "string",
+    "company": "string",
+    "address": { ... },
+    ...
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/contacts/contact_id \
+  -H "X-User-Id: user_id"
+
+
+3. CREATE CONTACT
+-----------------
+Method: POST
+Endpoint: /api/contacts
+
+Description: Create a new contact
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "name": "string (required) - Contact name",
+    "email": "string (optional) - Email address",
+    "phone": "string (optional) - Phone number",
+    "whatsapp": "string (optional) - WhatsApp number",
+    "company": "string (optional) - Company name",
+    "designation": "string (optional) - Job title",
+    "type": "string (optional) - Contact type",
+    "address": {
+      "street": "string (optional)",
+      "city": "string (optional)",
+      "state": "string (optional)",
+      "pincode": "string (optional)",
+      "country": "string (optional)"
+    },
+    "lifetimeValue": number (optional, default: 0),
+    "tags": ["string"] (optional, default: []),
+    "notes": "string (optional, default: '')"
+  }
+
+Response:
+  {
+    "id": "string",
+    "name": "string",
+    ...
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/contacts \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Jane Smith",
+    "email": "jane@example.com",
+    "phone": "+911234567890",
+    "company": "Tech Corp",
+    "designation": "CEO",
+    "type": "customer",
+    "address": {
+      "street": "123 Main St",
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "pincode": "400001",
+      "country": "India"
+    }
+  }'
+
+
+4. UPDATE CONTACT
+-----------------
+Method: PUT
+Endpoint: /api/contacts/:id
+
+Description: Update an existing contact
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "name": "string (optional)",
+    "email": "string (optional)",
+    "phone": "string (optional)",
+    "company": "string (optional)",
+    "type": "string (optional)",
+    "address": { ... } (optional)
+  }
+
+Response:
+  {
+    "id": "string",
+    "name": "string",
+    ...
+  }
+
+cURL Example:
+curl -X PUT http://localhost:3001/api/contacts/contact_id \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "customer",
+    "lifetimeValue": 100000
+  }'
+
+
+5. DELETE CONTACT
+-----------------
+Method: DELETE
+Endpoint: /api/contacts/:id
+
+Description: Delete a contact
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "message": "Contact deleted successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/contacts/contact_id \
+  -H "X-User-Id: user_id"
+
+
+6. GET CONTACT STATS
+--------------------
+Method: GET
+Endpoint: /api/contacts/stats/summary
+
+Description: Get summary statistics for contacts
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "total": number,
+    "customers": number,
+    "prospects": number,
+    "totalValue": number
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/contacts/stats/summary \
+  -H "X-User-Id: user_id"
+
+
+================================================================================
+                                  DEALS
+================================================================================
+
+1. GET ALL DEALS
+----------------
+Method: GET
+Endpoint: /api/deals
+
+Description: Get all deals for the authenticated user
+
+Headers:
+  X-User-Id: string (required)
+
+Query Parameters:
+  - stage: string (optional) - Filter by stage (lead, proposal, negotiation, won, lost)
+
+Response:
+  [
+    {
+      "id": "string",
+      "title": "string",
+      "company": "string",
+      "contactName": "string",
+      "stage": "string",
+      "value": number,
+      "probability": number,
+      "expectedCloseDate": "timestamp",
+      "notes": "string",
+      "tags": ["string"],
+      "createdAt": "timestamp"
+    }
+  ]
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/deals?stage=proposal" \
+  -H "X-User-Id: user_id"
+
+
+2. GET SINGLE DEAL
+------------------
+Method: GET
+Endpoint: /api/deals/:id
+
+Description: Get a specific deal by ID
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "id": "string",
+    "title": "string",
+    "company": "string",
+    ...
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/deals/deal_id \
+  -H "X-User-Id: user_id"
+
+
+3. CREATE DEAL
+--------------
+Method: POST
+Endpoint: /api/deals
+
+Description: Create a new deal
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "title": "string (required) - Deal title",
+    "company": "string (optional) - Company name",
+    "contactName": "string (optional) - Contact name",
+    "stage": "string (optional) - Deal stage",
+    "value": number (required) - Deal value",
+    "probability": number (optional) - Win probability (0-100)",
+    "expectedCloseDate": "string (optional) - Expected close date",
+    "notes": "string (optional, default: '')",
+    "tags": ["string"] (optional, default: [])"
+  }
+
+Response:
+  {
+    "id": "string",
+    "title": "string",
+    ...
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/deals \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Enterprise Software Deal",
+    "company": "Tech Corp",
+    "contactName": "Jane Smith",
+    "stage": "proposal",
+    "value": 500000,
+    "probability": 75,
+    "expectedCloseDate": "2024-12-31"
+  }'
+
+
+4. UPDATE DEAL
+--------------
+Method: PUT
+Endpoint: /api/deals/:id
+
+Description: Update an existing deal
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "title": "string (optional)",
+    "stage": "string (optional)",
+    "value": number (optional)",
+    "probability": number (optional)"
+  }
+
+Response:
+  {
+    "id": "string",
+    "title": "string",
+    ...
+  }
+
+cURL Example:
+curl -X PUT http://localhost:3001/api/deals/deal_id \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "stage": "won",
+    "probability": 100
+  }'
+
+
+5. DELETE DEAL
+--------------
+Method: DELETE
+Endpoint: /api/deals/:id
+
+Description: Delete a deal
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "message": "Deal deleted successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/deals/deal_id \
+  -H "X-User-Id: user_id"
+
+
+================================================================================
+                                  TASKS
+================================================================================
+
+1. GET ALL TASKS
+----------------
+Method: GET
+Endpoint: /api/tasks
+
+Description: Get all tasks for the authenticated user
+
+Headers:
+  X-User-Id: string (required)
+
+Query Parameters:
+  - status: string (optional) - Filter by status (pending, in-progress, completed)
+
+Response:
+  [
+    {
+      "id": "string",
+      "title": "string",
+      "description": "string",
+      "status": "string",
+      "priority": "string",
+      "dueDate": "timestamp",
+      "relatedTo": "string",
+      "relatedToId": "string",
+      "tags": ["string"],
+      "createdAt": "timestamp"
+    }
+  ]
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/tasks?status=pending" \
+  -H "X-User-Id: user_id"
+
+
+2. GET SINGLE TASK
+------------------
+Method: GET
+Endpoint: /api/tasks/:id
+
+Description: Get a specific task by ID
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "id": "string",
+    "title": "string",
+    "description": "string",
+    ...
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/tasks/task_id \
+  -H "X-User-Id: user_id"
+
+
+3. CREATE TASK
+--------------
+Method: POST
+Endpoint: /api/tasks
+
+Description: Create a new task
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "title": "string (required) - Task title",
+    "description": "string (optional, default: '') - Task description",
+    "status": "string (optional) - Task status",
+    "priority": "string (optional) - Priority level",
+    "dueDate": "string (required) - Due date",
+    "relatedTo": "string (optional) - Related entity type",
+    "relatedToId": "string (optional) - Related entity ID",
+    "tags": ["string"] (optional, default: [])"
+  }
+
+Response:
+  {
+    "id": "string",
+    "title": "string",
+    ...
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/tasks \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Follow up with client",
+    "description": "Call to discuss proposal",
+    "status": "pending",
+    "priority": "high",
+    "dueDate": "2024-12-31",
+    "relatedTo": "Lead",
+    "relatedToId": "lead_id"
+  }'
+
+
+4. UPDATE TASK
+--------------
+Method: PUT
+Endpoint: /api/tasks/:id
+
+Description: Update an existing task
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "title": "string (optional)",
+    "status": "string (optional)",
+    "priority": "string (optional)",
+    "dueDate": "string (optional)"
+  }
+
+Response:
+  {
+    "id": "string",
+    "title": "string",
+    ...
+  }
+
+cURL Example:
+curl -X PUT http://localhost:3001/api/tasks/task_id \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "completed"
+  }'
+
+
+5. DELETE TASK
+--------------
+Method: DELETE
+Endpoint: /api/tasks/:id
+
+Description: Delete a task
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "message": "Task deleted successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/tasks/task_id \
+  -H "X-User-Id: user_id"
+
+
+================================================================================
+                          CALENDAR & GOOGLE CALENDAR
+================================================================================
+
+1. GET GOOGLE CALENDAR AUTH URL
+--------------------------------
+Method: GET
+Endpoint: /api/calendar/auth/url
+
+Description: Get Google Calendar OAuth authorization URL
+
+Response:
+  {
+    "authUrl": "string - Google OAuth URL"
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/calendar/auth/url
+
+
+2. GOOGLE CALENDAR OAUTH CALLBACK
+----------------------------------
+Method: POST
+Endpoint: /api/calendar/auth/callback
+
+Description: Handle Google Calendar OAuth callback and store tokens
+
+Request Body:
+  {
+    "code": "string (required) - OAuth authorization code",
+    "userId": "string (required) - User ID"
+  }
+
+Response:
+  {
+    "success": true,
+    "message": "Google Calendar connected successfully"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/calendar/auth/callback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "oauth_code",
+    "userId": "user_id"
+  }'
+
+
+3. DISCONNECT GOOGLE CALENDAR
+------------------------------
+Method: POST
+Endpoint: /api/calendar/auth/disconnect
+
+Description: Disconnect Google Calendar integration
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "success": true,
+    "message": "Google Calendar disconnected"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/calendar/auth/disconnect \
+  -H "X-User-Id: user_id"
+
+
+4. CHECK GOOGLE CALENDAR CONNECTION STATUS
+-------------------------------------------
+Method: GET
+Endpoint: /api/calendar/auth/status
+
+Description: Check if Google Calendar is connected
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "connected": boolean,
+    "configured": boolean
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/calendar/auth/status \
+  -H "X-User-Id: user_id"
+
+
+5. GET CALENDAR EVENTS
+----------------------
+Method: GET
+Endpoint: /api/calendar/events
+
+Description: Get calendar events with optional Google Calendar sync
+
+Headers:
+  X-User-Id: string (required)
+
+Query Parameters:
+  - start: string (optional) - Start date filter
+  - end: string (optional) - End date filter
+  - syncWithGoogle: string (optional) - "true" to sync with Google Calendar
+
+Response:
+  {
+    "events": [
+      {
+        "id": "string",
+        "title": "string",
+        "description": "string",
+        "startTime": "timestamp",
+        "endTime": "timestamp",
+        "location": "string",
+        "attendees": ["string"],
+        "isAllDay": boolean,
+        "color": "string",
+        "reminders": object,
+        "googleEventId": "string"
+      }
+    ]
+  }
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/calendar/events?syncWithGoogle=true" \
+  -H "X-User-Id: user_id"
+
+
+6. CREATE CALENDAR EVENT
+-------------------------
+Method: POST
+Endpoint: /api/calendar/events
+
+Description: Create a new calendar event
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "title": "string (required) - Event title",
+    "description": "string (optional) - Event description",
+    "startTime": "string (required) - Start time ISO format",
+    "endTime": "string (required) - End time ISO format",
+    "location": "string (optional) - Event location",
+    "attendees": ["string"] (optional) - Attendee emails",
+    "isAllDay": boolean (optional, default: false) - All-day event",
+    "color": "string (optional, default: 'blue') - Event color",
+    "reminders": object (optional) - Reminder settings",
+    "syncWithGoogle": boolean (optional) - Sync to Google Calendar"
+  }
+
+Response:
+  {
+    "event": {
+      "id": "string",
+      "title": "string",
+      ...
+    }
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/calendar/events \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Team Meeting",
+    "description": "Weekly sync",
+    "startTime": "2024-12-31T10:00:00Z",
+    "endTime": "2024-12-31T11:00:00Z",
+    "location": "Conference Room A",
+    "attendees": ["team@example.com"],
+    "syncWithGoogle": true
+  }'
+
+
+7. UPDATE CALENDAR EVENT
+-------------------------
+Method: PUT
+Endpoint: /api/calendar/events/:eventId
+
+Description: Update an existing calendar event
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "title": "string (required)",
+    "description": "string (required)",
+    "startTime": "string (required)",
+    "endTime": "string (required)",
+    "location": "string (optional)",
+    "attendees": ["string"] (optional)",
+    "isAllDay": boolean (optional)",
+    "color": "string (optional)",
+    "reminders": object (optional)",
+    "syncWithGoogle": boolean (optional)"
+  }
+
+Response:
+  {
+    "event": { ... }
+  }
+
+cURL Example:
+curl -X PUT http://localhost:3001/api/calendar/events/event_id \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Updated Meeting",
+    "startTime": "2024-12-31T11:00:00Z",
+    "endTime": "2024-12-31T12:00:00Z"
+  }'
+
+
+8. DELETE CALENDAR EVENT
+-------------------------
+Method: DELETE
+Endpoint: /api/calendar/events/:eventId
+
+Description: Delete a calendar event
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "success": true,
+    "message": "Event deleted successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/calendar/events/event_id \
+  -H "X-User-Id: user_id"
+
+
+================================================================================
+                                  EMAILS
+================================================================================
+
+1. SEND EMAIL TO LEAD
+---------------------
+Method: POST
+Endpoint: /api/emails/lead/:leadId
+
+Description: Send an email to a specific lead
+
+Headers:
+  Authorization: Bearer {token}
+  Content-Type: application/json
+
+Request Body:
+  {
+    "subject": "string (required) - Email subject",
+    "text": "string (required) - Plain text content",
+    "html": "string (optional) - HTML content",
+    "cc": ["string"] (optional) - CC recipients",
+    "bcc": ["string"] (optional) - BCC recipients",
+    "attachments": [object] (optional) - Email attachments"
+  }
+
+Response:
+  {
+    "success": true,
+    "messageId": "string"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/emails/lead/lead_id \
+  -H "Authorization: Bearer your_access_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": "Follow up",
+    "text": "Hello, following up on our conversation..."
+  }'
+
+
+2. SEND EMAIL TO CONTACT
+-------------------------
+Method: POST
+Endpoint: /api/emails/contact/:contactId
+
+Description: Send an email to a specific contact
+
+Headers:
+  Authorization: Bearer {token}
+  Content-Type: application/json
+
+Request Body:
+  {
+    "subject": "string (required)",
+    "text": "string (required)",
+    "html": "string (optional)",
+    "cc": ["string"] (optional)",
+    "bcc": ["string"] (optional)",
+    "attachments": [object] (optional)"
+  }
+
+Response:
+  {
+    "success": true,
+    "messageId": "string"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/emails/contact/contact_id \
+  -H "Authorization: Bearer your_access_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": "Monthly Newsletter",
+    "text": "Here is your monthly update..."
+  }'
+
+
+3. SEND EMAIL TO DEAL
+---------------------
+Method: POST
+Endpoint: /api/emails/deal/:dealId
+
+Description: Send an email related to a specific deal
+
+Headers:
+  Authorization: Bearer {token}
+  Content-Type: application/json
+
+Request Body:
+  {
+    "to": "string (required) - Recipient email",
+    "subject": "string (required)",
+    "text": "string (required)",
+    "html": "string (optional)",
+    "cc": ["string"] (optional)",
+    "bcc": ["string"] (optional)",
+    "attachments": [object] (optional)"
+  }
+
+Response:
+  {
+    "success": true,
+    "messageId": "string"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/emails/deal/deal_id \
+  -H "Authorization: Bearer your_access_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "client@example.com",
+    "subject": "Deal Proposal",
+    "text": "Please find attached our proposal..."
+  }'
+
+
+4. SEND MANUAL EMAIL
+--------------------
+Method: POST
+Endpoint: /api/emails/send
+
+Description: Send a custom email not linked to any entity
+
+Headers:
+  Authorization: Bearer {token}
+  Content-Type: application/json
+
+Request Body:
+  {
+    "to": "string (required) - Recipient email",
+    "subject": "string (required) - Email subject",
+    "text": "string (required) - Plain text content",
+    "html": "string (optional) - HTML content",
+    "cc": ["string"] (optional)",
+    "bcc": ["string"] (optional)",
+    "attachments": [object] (optional)"
+  }
+
+Response:
+  {
+    "success": true,
+    "messageId": "string"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/emails/send \
+  -H "Authorization: Bearer your_access_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "recipient@example.com",
+    "subject": "Hello",
+    "text": "Custom message content"
+  }'
+
+
+5. GET EMAIL LOGS
+-----------------
+Method: GET
+Endpoint: /api/emails
+
+Description: Get email logs with filtering options
+
+Headers:
+  Authorization: Bearer {token}
+
+Query Parameters:
+  - status: string (optional) - Filter by status
+  - entityType: string (optional) - Filter by entity type
+  - limit: number (optional, default: 50)
+  - offset: number (optional, default: 0)
+
+Response:
+  {
+    "emails": [ ... ],
+    "total": number
+  }
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/emails?limit=50" \
+  -H "Authorization: Bearer your_access_token"
+
+
+6. GET EMAIL LOG BY ID
+----------------------
+Method: GET
+Endpoint: /api/emails/:id
+
+Description: Get a specific email log by ID
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "id": "string",
+    "to": "string",
+    "subject": "string",
+    "status": "string",
+    ...
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/emails/email_id \
+  -H "Authorization: Bearer your_access_token"
+
+
+7. GET EMAIL STATS
+------------------
+Method: GET
+Endpoint: /api/emails/stats/summary
+
+Description: Get email statistics
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "total": number,
+    "sent": number,
+    "failed": number,
+    "opened": number
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/emails/stats/summary \
+  -H "Authorization: Bearer your_access_token"
+
+
+8. DELETE EMAIL LOG
+-------------------
+Method: DELETE
+Endpoint: /api/emails/:id
+
+Description: Delete an email log
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "message": "Email deleted successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/emails/email_id \
+  -H "Authorization: Bearer your_access_token"
+
+
+9. CHECK FOR EMAIL REPLIES
+---------------------------
+Method: POST
+Endpoint: /api/emails/check-replies
+
+Description: Check for new email replies
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "repliesFound": number,
+    "replies": [ ... ]
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/emails/check-replies \
+  -H "Authorization: Bearer your_access_token"
+
+
+10. GET EMAIL WITH REPLIES
+---------------------------
+Method: GET
+Endpoint: /api/emails/:id/replies
+
+Description: Get an email with all its replies
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "email": { ... },
+    "replies": [ ... ]
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/emails/email_id/replies \
+  -H "Authorization: Bearer your_access_token"
+
+
+================================================================================
+                                 INVOICES
+================================================================================
+
+1. GET ALL INVOICES
+-------------------
+Method: GET
+Endpoint: /api/invoices
+
+Description: Get all invoices for the authenticated user
+
+Headers:
+  X-User-Id: string (required)
+
+Query Parameters:
+  - status: string (optional) - Filter by status (draft, sent, paid, overdue)
+
+Response:
+  [
+    {
+      "id": "string",
+      "invoiceNumber": "string",
+      "customerName": "string",
+      "customerEmail": "string",
+      "customerPhone": "string",
+      "customerAddress": "string",
+      "customerGSTIN": "string",
+      "companyName": "string",
+      "companyAddress": "string",
+      "companyGSTIN": "string",
+      "companyPAN": "string",
+      "items": [object],
+      "subtotal": number,
+      "totalDiscount": number,
+      "cgst": number,
+      "sgst": number,
+      "igst": number,
+      "totalTax": number,
+      "roundOff": number,
+      "total": number,
+      "status": "string",
+      "dueDate": "timestamp",
+      "paymentDate": "timestamp",
+      "notes": "string",
+      "createdAt": "timestamp"
+    }
+  ]
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/invoices?status=sent" \
+  -H "X-User-Id: user_id"
+
+
+2. GET SINGLE INVOICE
+---------------------
+Method: GET
+Endpoint: /api/invoices/:id
+
+Description: Get a specific invoice by ID
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "id": "string",
+    "invoiceNumber": "string",
+    ...
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/invoices/invoice_id \
+  -H "X-User-Id: user_id"
+
+
+3. CREATE INVOICE
+-----------------
+Method: POST
+Endpoint: /api/invoices
+
+Description: Create a new invoice
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "invoiceNumber": "string (required) - Invoice number",
+    "customerName": "string (required) - Customer name",
+    "customerEmail": "string (optional) - Customer email",
+    "customerPhone": "string (optional, default: '') - Customer phone",
+    "customerAddress": "string (optional) - Customer address",
+    "customerGSTIN": "string (optional, default: '') - Customer GSTIN",
+    "companyName": "string (required) - Company name",
+    "companyAddress": "string (required) - Company address",
+    "companyGSTIN": "string (optional, default: '') - Company GSTIN",
+    "companyPAN": "string (optional, default: '') - Company PAN",
+    "items": [object] (required) - Invoice line items",
+    "subtotal": number (required) - Subtotal amount",
+    "totalDiscount": number (optional, default: 0)",
+    "cgst": number (optional, default: 0) - Central GST",
+    "sgst": number (optional, default: 0) - State GST",
+    "igst": number (optional, default: 0) - Integrated GST",
+    "totalTax": number (optional) - Total tax amount",
+    "roundOff": number (optional, default: 0)",
+    "total": number (required) - Total amount",
+    "status": "string (optional) - Invoice status",
+    "dueDate": "string (optional) - Due date",
+    "paymentDate": "string (optional) - Payment date",
+    "notes": "string (optional, default: '')"
+  }
+
+Response:
+  {
+    "id": "string",
+    "invoiceNumber": "string",
+    ...
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/invoices \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "invoiceNumber": "INV-2024-001",
+    "customerName": "Acme Corp",
+    "customerEmail": "billing@acme.com",
+    "companyName": "My Company",
+    "companyAddress": "123 Business St",
+    "items": [
+      {
+        "description": "Service",
+        "quantity": 1,
+        "rate": 10000,
+        "amount": 10000
+      }
+    ],
+    "subtotal": 10000,
+    "cgst": 900,
+    "sgst": 900,
+    "totalTax": 1800,
+    "total": 11800,
+    "status": "sent",
+    "dueDate": "2024-12-31"
+  }'
+
+
+4. UPDATE INVOICE
+-----------------
+Method: PUT
+Endpoint: /api/invoices/:id
+
+Description: Update an existing invoice
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "status": "string (optional)",
+    "paymentDate": "string (optional)",
+    "notes": "string (optional)"
+  }
+
+Response:
+  {
+    "id": "string",
+    "invoiceNumber": "string",
+    ...
+  }
+
+cURL Example:
+curl -X PUT http://localhost:3001/api/invoices/invoice_id \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "paid",
+    "paymentDate": "2024-12-25"
+  }'
+
+
+5. DELETE INVOICE
+-----------------
+Method: DELETE
+Endpoint: /api/invoices/:id
+
+Description: Delete an invoice
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "message": "Invoice deleted successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/invoices/invoice_id \
+  -H "X-User-Id: user_id"
+
+
+6. GET INVOICE STATS
+--------------------
+Method: GET
+Endpoint: /api/invoices/stats/summary
+
+Description: Get invoice statistics
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "totalInvoices": number,
+    "paidAmount": number,
+    "pendingAmount": number,
+    "overdueAmount": number
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/invoices/stats/summary \
+  -H "X-User-Id: user_id"
+
+
+================================================================================
+                                 WHATSAPP
+================================================================================
+
+1. SEND WHATSAPP MESSAGE
+------------------------
+Method: POST
+Endpoint: /api/whatsapp/send
+
+Description: Send a WhatsApp message to a contact
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "contactId": "string (optional) - Contact ID",
+    "phoneNumber": "string (optional) - Phone number if no contactId",
+    "message": "string (required) - Message text"
+  }
+
+Response:
+  {
+    "success": true,
+    "messageId": "string",
+    "recipient": "string",
+    "phone": "string",
+    "message": "Message sent successfully",
+    "conversationId": "string"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/whatsapp/send \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phoneNumber": "+911234567890",
+    "message": "Hello from Bharat CRM!"
+  }'
+
+
+2. SEND TEMPLATE MESSAGE
+------------------------
+Method: POST
+Endpoint: /api/whatsapp/send-template
+
+Description: Send a WhatsApp template message
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "contactId": "string (optional) - Contact ID",
+    "phoneNumber": "string (optional) - Phone number",
+    "templateName": "string (required) - Template name",
+    "parameters": ["string"] (optional) - Template parameters"
+  }
+
+Response:
+  {
+    "success": true,
+    "messageId": "string",
+    "message": "Template message sent successfully"
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/whatsapp/send-template \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phoneNumber": "+911234567890",
+    "templateName": "hello_world",
+    "parameters": []
+  }'
+
+
+3. CHECK WHATSAPP STATUS
+------------------------
+Method: GET
+Endpoint: /api/whatsapp/status
+
+Description: Check WhatsApp configuration status
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "configured": boolean,
+    "message": "string"
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/whatsapp/status \
+  -H "X-User-Id: user_id"
+
+
+4. GET ALL CONVERSATIONS
+-------------------------
+Method: GET
+Endpoint: /api/whatsapp/conversations
+
+Description: Get all WhatsApp conversations for a user
+
+Headers:
+  X-User-Id: string (required)
+
+Query Parameters:
+  - search: string (optional) - Search by contact name or phone
+  - limit: number (optional, default: 50)
+  - offset: number (optional, default: 0)
+
+Response:
+  {
+    "conversations": [
+      {
+        "id": "string",
+        "contactName": "string",
+        "contactPhone": "string",
+        "contactId": "string",
+        "lastMessage": "string",
+        "lastMessageAt": "timestamp",
+        "unreadCount": number,
+        "aiEnabled": boolean,
+        "filePath": "string",
+        "messages": [ ... ]
+      }
+    ],
+    "total": number,
+    "limit": number,
+    "offset": number
+  }
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/whatsapp/conversations?limit=50" \
+  -H "X-User-Id: user_id"
+
+
+5. GET SINGLE CONVERSATION
+---------------------------
+Method: GET
+Endpoint: /api/whatsapp/conversations/:conversationId
+
+Description: Get a specific conversation with messages
+
+Headers:
+  X-User-Id: string (required)
+
+Query Parameters:
+  - limit: number (optional, default: 50)
+  - offset: number (optional, default: 0)
+
+Response:
+  {
+    "id": "string",
+    "contactName": "string",
+    "contactPhone": "string",
+    "lastMessage": "string",
+    "unreadCount": number,
+    "messages": [
+      {
+        "id": "string",
+        "message": "string",
+        "sender": "string",
+        "senderName": "string",
+        "status": "string",
+        "messageType": "string",
+        "isAiGenerated": boolean,
+        "createdAt": "timestamp"
+      }
+    ]
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/whatsapp/conversations/conversation_id \
+  -H "X-User-Id: user_id"
+
+
+6. START NEW CONVERSATION
+--------------------------
+Method: POST
+Endpoint: /api/whatsapp/conversations/start
+
+Description: Start a new conversation or get existing one
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "contactPhone": "string (required) - Contact phone number",
+    "contactName": "string (optional) - Contact name",
+    "contactId": "string (optional) - Contact ID"
+  }
+
+Response:
+  {
+    "id": "string",
+    "contactPhone": "string",
+    "contactName": "string",
+    "messages": [ ... ]
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/whatsapp/conversations/start \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contactPhone": "+911234567890",
+    "contactName": "John Doe"
+  }'
+
+
+7. SEARCH CONTACTS FOR WHATSAPP
+--------------------------------
+Method: GET
+Endpoint: /api/whatsapp/search-contacts
+
+Description: Search contacts for starting a new WhatsApp conversation
+
+Headers:
+  X-User-Id: string (required)
+
+Query Parameters:
+  - query: string (required, min 2 chars) - Search query
+
+Response:
+  {
+    "contacts": [
+      {
+        "id": "string",
+        "name": "string",
+        "company": "string",
+        "phone": "string",
+        "whatsapp": "string",
+        "email": "string"
+      }
+    ]
+  }
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/whatsapp/search-contacts?query=john" \
+  -H "X-User-Id: user_id"
+
+
+8. DELETE CONVERSATION
+----------------------
+Method: DELETE
+Endpoint: /api/whatsapp/conversations/:conversationId
+
+Description: Delete a WhatsApp conversation
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "message": "Conversation deleted successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/whatsapp/conversations/conversation_id \
+  -H "X-User-Id: user_id"
+
+
+9. TOGGLE AI ASSISTANT
+-----------------------
+Method: PATCH
+Endpoint: /api/whatsapp/conversations/:conversationId/ai-toggle
+
+Description: Enable or disable AI assistant for a conversation
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "enabled": boolean (required) - AI enabled status
+  }
+
+Response:
+  {
+    "success": true,
+    "message": "AI assistant enabled/disabled for this conversation",
+    "aiEnabled": boolean
+  }
+
+cURL Example:
+curl -X PATCH http://localhost:3001/api/whatsapp/conversations/conversation_id/ai-toggle \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true}'
+
+
+10. GET AI FEATURE STATUS
+--------------------------
+Method: GET
+Endpoint: /api/whatsapp/ai-status
+
+Description: Check if AI assistant feature is enabled
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "aiFeatureEnabled": boolean,
+    "message": "string"
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/whatsapp/ai-status \
+  -H "X-User-Id: user_id"
+
+
+11. WHATSAPP WEBHOOK VERIFICATION (GET)
+----------------------------------------
+Method: GET
+Endpoint: /api/whatsapp/webhook
+
+Description: Webhook verification endpoint for WhatsApp (required by Meta)
+
+Query Parameters:
+  - hub.mode: string - Should be "subscribe"
+  - hub.verify_token: string - Verification token
+  - hub.challenge: string - Challenge string to return
+
+Response:
+  Returns the challenge string if verification is successful
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=your_token&hub.challenge=challenge_string"
+
+
+12. WHATSAPP WEBHOOK (POST)
+----------------------------
+Method: POST
+Endpoint: /api/whatsapp/webhook
+
+Description: Webhook endpoint for receiving WhatsApp messages
+
+Request Body:
+  WhatsApp webhook payload (automatically sent by Meta)
+
+Response:
+  Returns 200 OK immediately
+
+Note: This endpoint is called by WhatsApp/Meta, not by your application
+
+
+================================================================================
+                              AI SERVICES
+================================================================================
+
+1. PORTAL AI CHAT
+-----------------
+Method: POST
+Endpoint: /api/ai/chat
+
+Description: Ask questions about CRM data using AI
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "message": "string (required) - User query",
+    "conversationHistory": [object] (optional) - Previous messages
+  }
+
+Response:
+  {
+    "success": true,
+    "response": "string - AI response message",
+    "data": object - Relevant CRM data,
+    "sources": ["string"] - Data sources used,
+    "stats": object - Query statistics
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/ai/chat \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Show me my top 5 leads"
+  }'
+
+
+2. GET AI STATUS
+----------------
+Method: GET
+Endpoint: /api/ai/status
+
+Description: Get AI system status and configuration
+
+Response:
+  {
+    "whatsapp": {
+      "enabled": boolean,
+      "model": "string",
+      "temperature": number
+    },
+    "portal": {
+      "enabled": boolean,
+      "model": "string",
+      "temperature": number
+    },
+    "vectorDatabase": {
+      "configured": boolean,
+      "documentCount": number
+    }
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/ai/status
+
+
+3. SEARCH VECTOR DATABASE
+--------------------------
+Method: POST
+Endpoint: /api/ai/search
+
+Description: Search documents in vector database
+
+Headers:
+  Content-Type: application/json
+
+Request Body:
+  {
+    "query": "string (required) - Search query",
+    "limit": number (optional, default: 5) - Max results",
+    "minScore": number (optional, default: 0.7) - Minimum similarity score"
+  }
+
+Response:
+  {
+    "success": true,
+    "query": "string",
+    "results": [
+      {
+        "content": "string",
+        "metadata": object,
+        "score": number
+      }
+    ],
+    "count": number
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/ai/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "customer feedback",
+    "limit": 5
+  }'
+
+
+4. INGEST DOCUMENTS
+-------------------
+Method: POST
+Endpoint: /api/ai/ingest
+
+Description: Add documents to vector database
+
+Headers:
+  X-User-Id: string (required)
+  Content-Type: application/json
+
+Request Body:
+  {
+    "documents": [
+      {
+        "content": "string (required) - Document content",
+        "metadata": object (optional) - Additional metadata
+      }
+    ]
+  }
+
+Response:
+  {
+    "success": true,
+    "message": "Successfully ingested N document chunks",
+    "chunksAdded": number
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/ai/ingest \
+  -H "X-User-Id: user_id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documents": [
+      {
+        "content": "Product documentation...",
+        "metadata": {"type": "documentation"}
+      }
+    ]
+  }'
+
+
+5. CLEAR VECTOR DATABASE
+-------------------------
+Method: DELETE
+Endpoint: /api/ai/clear
+
+Description: Clear all documents from vector database (Admin only)
+
+Headers:
+  X-User-Id: string (required)
+
+Response:
+  {
+    "success": true,
+    "message": "Vector database cleared successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/ai/clear \
+  -H "X-User-Id: user_id"
+
+
+6. GET VECTOR DATABASE STATS
+-----------------------------
+Method: GET
+Endpoint: /api/ai/stats
+
+Description: Get vector database statistics
+
+Response:
+  {
+    "success": true,
+    "stats": {
+      "documentCount": number,
+      "collectionName": "string",
+      "configured": boolean
+    }
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/ai/stats
+
+
+================================================================================
+                              GLOBAL SEARCH
+================================================================================
+
+1. SEARCH ALL ENTITIES
+-----------------------
+Method: GET
+Endpoint: /api/search
+
+Description: Search across all CRM entities (contacts, leads, tasks, deals, etc.)
+
+Headers:
+  X-User-Id: string (required)
+
+Query Parameters:
+  - q: string (required, min 2 chars) - Search query
+
+Response:
+  {
+    "results": [
+      {
+        "id": "string",
+        "type": "string - Entity type (contact, lead, task, deal, etc.)",
+        "title": "string - Primary display text",
+        "subtitle": "string - Secondary display text",
+        "metadata": "string - Additional info"
+      }
+    ],
+    "total": number
+  }
+
+cURL Example:
+curl -X GET "http://localhost:3001/api/search?q=john" \
+  -H "X-User-Id: user_id"
+
+
+================================================================================
+                          TEAMS & DEPARTMENTS
+================================================================================
+
+1. GET ALL DEPARTMENTS
+----------------------
+Method: GET
+Endpoint: /api/teams/departments
+
+Description: Get all departments
+
+Headers:
+  Authorization: Bearer {token}
+
+Query Parameters:
+  - includeInactive: string (optional, default: "false") - Include inactive departments
+
+Response:
+  {
+    "departments": [
+      {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "managerId": "string",
+        "isActive": boolean,
+        "users": [ ... ],
+        "teams": [ ... ]
+      }
+    ]
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/teams/departments \
+  -H "Authorization: Bearer your_access_token"
+
+
+2. CREATE DEPARTMENT (Admin/Manager)
+-------------------------------------
+Method: POST
+Endpoint: /api/teams/departments
+
+Description: Create a new department
+
+Headers:
+  Authorization: Bearer {token}
+  Content-Type: application/json
+
+Request Body:
+  {
+    "name": "string (required) - Department name",
+    "description": "string (optional) - Department description",
+    "managerId": "string (optional) - Manager user ID"
+  }
+
+Response:
+  {
+    "department": {
+      "id": "string",
+      "name": "string",
+      "description": "string",
+      "managerId": "string",
+      "isActive": true
+    }
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/teams/departments \
+  -H "Authorization: Bearer your_access_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sales",
+    "description": "Sales department",
+    "managerId": "manager_user_id"
+  }'
+
+
+3. UPDATE DEPARTMENT (Admin/Manager)
+-------------------------------------
+Method: PUT
+Endpoint: /api/teams/departments/:id
+
+Description: Update a department
+
+Headers:
+  Authorization: Bearer {token}
+  Content-Type: application/json
+
+Request Body:
+  {
+    "name": "string (optional)",
+    "description": "string (optional)",
+    "managerId": "string (optional)",
+    "isActive": boolean (optional)
+  }
+
+Response:
+  {
+    "department": { ... }
+  }
+
+cURL Example:
+curl -X PUT http://localhost:3001/api/teams/departments/dept_id \
+  -H "Authorization: Bearer your_access_token" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Updated Sales Department"}'
+
+
+4. DELETE DEPARTMENT (Admin Only)
+----------------------------------
+Method: DELETE
+Endpoint: /api/teams/departments/:id
+
+Description: Delete a department
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "message": "Department deleted successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/teams/departments/dept_id \
+  -H "Authorization: Bearer your_access_token"
+
+
+5. GET ALL TEAMS
+----------------
+Method: GET
+Endpoint: /api/teams
+
+Description: Get all teams
+
+Headers:
+  Authorization: Bearer {token}
+
+Query Parameters:
+  - departmentId: string (optional) - Filter by department
+  - includeInactive: string (optional, default: "false") - Include inactive teams
+
+Response:
+  {
+    "teams": [
+      {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "departmentId": "string",
+        "managerId": "string",
+        "isActive": boolean,
+        "department": { ... },
+        "users": [ ... ]
+      }
+    ]
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/teams \
+  -H "Authorization: Bearer your_access_token"
+
+
+6. CREATE TEAM (Admin/Manager)
+-------------------------------
+Method: POST
+Endpoint: /api/teams
+
+Description: Create a new team
+
+Headers:
+  Authorization: Bearer {token}
+  Content-Type: application/json
+
+Request Body:
+  {
+    "name": "string (required) - Team name",
+    "description": "string (optional) - Team description",
+    "departmentId": "string (optional) - Department ID",
+    "managerId": "string (optional) - Manager user ID"
+  }
+
+Response:
+  {
+    "team": {
+      "id": "string",
+      "name": "string",
+      "description": "string",
+      "departmentId": "string",
+      "managerId": "string",
+      "isActive": true
+    }
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/teams \
+  -H "Authorization: Bearer your_access_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sales Team A",
+    "description": "First sales team",
+    "departmentId": "dept_id",
+    "managerId": "manager_id"
+  }'
+
+
+7. UPDATE TEAM (Admin/Manager)
+-------------------------------
+Method: PUT
+Endpoint: /api/teams/:id
+
+Description: Update a team
+
+Headers:
+  Authorization: Bearer {token}
+  Content-Type: application/json
+
+Request Body:
+  {
+    "name": "string (optional)",
+    "description": "string (optional)",
+    "departmentId": "string (optional)",
+    "managerId": "string (optional)",
+    "isActive": boolean (optional)
+  }
+
+Response:
+  {
+    "team": { ... }
+  }
+
+cURL Example:
+curl -X PUT http://localhost:3001/api/teams/team_id \
+  -H "Authorization: Bearer your_access_token" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Updated Team Name"}'
+
+
+8. DELETE TEAM (Admin Only)
+----------------------------
+Method: DELETE
+Endpoint: /api/teams/:id
+
+Description: Delete a team
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "message": "Team deleted successfully"
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/teams/team_id \
+  -H "Authorization: Bearer your_access_token"
+
+
+9. ASSIGN USER TO TEAM (Admin/Manager)
+---------------------------------------
+Method: POST
+Endpoint: /api/teams/:teamId/users/:userId
+
+Description: Assign a user to a team
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "user": {
+      "id": "string",
+      "name": "string",
+      "teamId": "string",
+      "team": { ... }
+    }
+  }
+
+cURL Example:
+curl -X POST http://localhost:3001/api/teams/team_id/users/user_id \
+  -H "Authorization: Bearer your_access_token"
+
+
+10. REMOVE USER FROM TEAM (Admin/Manager)
+------------------------------------------
+Method: DELETE
+Endpoint: /api/teams/:teamId/users/:userId
+
+Description: Remove a user from a team
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "user": {
+      "id": "string",
+      "name": "string",
+      "teamId": null
+    }
+  }
+
+cURL Example:
+curl -X DELETE http://localhost:3001/api/teams/team_id/users/user_id \
+  -H "Authorization: Bearer your_access_token"
+
+
+11. GET TEAM MEMBERS
+--------------------
+Method: GET
+Endpoint: /api/teams/:id/users
+
+Description: Get all members of a team
+
+Headers:
+  Authorization: Bearer {token}
+
+Response:
+  {
+    "users": [
+      {
+        "id": "string",
+        "name": "string",
+        "email": "string",
+        "role": "string",
+        "createdAt": "timestamp"
+      }
+    ]
+  }
+
+cURL Example:
+curl -X GET http://localhost:3001/api/teams/team_id/users \
+  -H "Authorization: Bearer your_access_token"
+
+
+================================================================================
+                            COMMON HEADERS
+================================================================================
+
+Authentication Endpoints:
+  - Most endpoints use either:
+    1. X-User-Id header (for simpler authentication)
+    2. Authorization: Bearer {token} header (for JWT authentication)
+
+Content-Type:
+  - All POST/PUT requests: application/json
+
+================================================================================
+                          COMMON RESPONSE CODES
+================================================================================
+
+200 OK - Request successful
+201 Created - Resource created successfully
+400 Bad Request - Invalid request parameters
+401 Unauthorized - Authentication required or failed
+403 Forbidden - Insufficient permissions
+404 Not Found - Resource not found
+500 Internal Server Error - Server error occurred
+
+================================================================================
+                              NOTES
+================================================================================
+
+1. All timestamps are in ISO 8601 format
+2. All currency values are in Indian Rupees (₹)
+3. Phone numbers should include country code (e.g., +91 for India)
+4. Date fields accept ISO format strings (e.g., "2024-12-31T10:00:00Z")
+5. For pagination, use limit and offset query parameters
+6. Arrays in query parameters should be comma-separated
+7. Boolean values in query parameters should be "true" or "false" strings
+8. File uploads (for attachments) should use multipart/form-data
+
+================================================================================
+                            ENVIRONMENT SETUP
+================================================================================
+
+Required Environment Variables:
+  - DATABASE_URL: PostgreSQL connection string
+  - JWT_SECRET: Secret key for JWT tokens
+  - WHATSAPP_TOKEN: WhatsApp Business API token (optional)
+  - WHATSAPP_PHONE_ID: WhatsApp Business phone number ID (optional)
+  - GOOGLE_CLIENT_ID: Google OAuth client ID (optional)
+  - GOOGLE_CLIENT_SECRET: Google OAuth client secret (optional)
+  - OPENAI_API_KEY: OpenAI API key for AI features (optional)
+  - ENABLE_AI_FEATURE: "true" to enable AI features (optional)
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================
