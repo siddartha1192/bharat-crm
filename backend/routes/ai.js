@@ -14,6 +14,7 @@ router.use(authenticate);
 router.post('/chat', async (req, res) => {
   try {
     const userId = req.user.id;
+    const { message, conversationHistory } = req.body;
 
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required' });
@@ -123,6 +124,7 @@ router.post('/search', async (req, res) => {
 router.post('/ingest', async (req, res) => {
   try {
     const userId = req.user.id;
+    const { documents } = req.body;
 
     if (!documents || !Array.isArray(documents) || documents.length === 0) {
       return res.status(400).json({ error: 'Documents array is required' });

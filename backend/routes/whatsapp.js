@@ -129,9 +129,10 @@ router.post('/send', authenticate, async (req, res) => {
 });
 
 // Send template message
-router.post('/send-template', async (req, res) => {
+router.post('/send-template', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { contactId, templateName, phoneNumber, parameters } = req.body;
 
     if (!templateName) {
       return res.status(400).json({ error: 'Template name is required' });
@@ -189,7 +190,7 @@ router.post('/send-template', async (req, res) => {
 });
 
 // Check WhatsApp configuration status
-router.get('/status', async (req, res) => {
+router.get('/status', authenticate, async (req, res) => {
   const userId = req.user.id;
 
   res.json({
@@ -203,7 +204,7 @@ router.get('/status', async (req, res) => {
 // ============ CONVERSATION MANAGEMENT ============
 
 // Get all conversations for a user
-router.get('/conversations', async (req, res) => {
+router.get('/conversations', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -249,7 +250,7 @@ router.get('/conversations', async (req, res) => {
 });
 
 // Get a single conversation with messages
-router.get('/conversations/:conversationId', async (req, res) => {
+router.get('/conversations/:conversationId', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -291,7 +292,7 @@ router.get('/conversations/:conversationId', async (req, res) => {
 });
 
 // Start a new conversation or get existing one
-router.post('/conversations/start', async (req, res) => {
+router.post('/conversations/start', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -343,7 +344,7 @@ router.post('/conversations/start', async (req, res) => {
 });
 
 // Search contacts for new conversation
-router.get('/search-contacts', async (req, res) => {
+router.get('/search-contacts', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -459,7 +460,7 @@ router.patch('/conversations/:conversationId/ai-toggle', authenticate, async (re
 });
 
 // Get AI feature status
-router.get('/ai-status', async (req, res) => {
+router.get('/ai-status', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
 
