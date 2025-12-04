@@ -1,20 +1,19 @@
 const express = require('express');
 const router = express.Router();
+const { authenticate } = require('../middleware/auth');
 const portalAIService = require('../services/ai/portalAI.service');
 const whatsappAIService = require('../services/ai/whatsappAI.service');
 const vectorDBService = require('../services/ai/vectorDB.service');
+
+// Apply authentication to all AI routes
+router.use(authenticate);
 
 /**
  * Portal AI Chat - Ask anything about the CRM
  */
 router.post('/chat', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { message, conversationHistory } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required' });
@@ -123,12 +122,7 @@ router.post('/search', async (req, res) => {
  */
 router.post('/ingest', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { documents } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     if (!documents || !Array.isArray(documents) || documents.length === 0) {
       return res.status(400).json({ error: 'Documents array is required' });
@@ -164,11 +158,7 @@ router.post('/ingest', async (req, res) => {
  */
 router.delete('/clear', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // TODO: Add admin check here
     console.log(`\n🗑️ Clearing vector database...`);

@@ -1,17 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
+const { authenticate } = require('../middleware/auth');
 const prisma = new PrismaClient();
+
+// Apply authentication to all routes
+router.use(authenticate);
 
 // Global search endpoint
 router.get('/', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { q } = req.query;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     if (!q || q.trim().length < 2) {
       return res.json({ results: [] });

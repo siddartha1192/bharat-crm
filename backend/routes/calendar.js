@@ -2,7 +2,11 @@ const express = require('express');
 const router = express.Router();
 const googleCalendarService = require('../services/googleCalendar');
 const { PrismaClient } = require('@prisma/client');
+const { authenticate } = require('../middleware/auth');
 const prisma = new PrismaClient();
+
+// Apply authentication to all routes
+router.use(authenticate);
 
 // Get Google Calendar authorization URL
 router.get('/auth/url', (req, res) => {
@@ -54,11 +58,7 @@ router.post('/auth/callback', async (req, res) => {
 // Disconnect Google Calendar
 router.post('/auth/disconnect', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     await prisma.user.update({
       where: { id: userId },
@@ -79,11 +79,7 @@ router.post('/auth/disconnect', async (req, res) => {
 // Check connection status
 router.get('/auth/status', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -109,12 +105,7 @@ router.get('/auth/status', async (req, res) => {
 // Get all events
 router.get('/events', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { start, end, syncWithGoogle } = req.query;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -188,12 +179,7 @@ router.get('/events', async (req, res) => {
 // Create event
 router.post('/events', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { title, description, startTime, endTime, location, attendees, isAllDay, color, reminders, syncWithGoogle } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     if (!title || !startTime || !endTime) {
       return res.status(400).json({ error: 'Title, start time, and end time are required' });
@@ -264,13 +250,7 @@ router.post('/events', async (req, res) => {
 // Update event
 router.put('/events/:eventId', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { eventId } = req.params;
-    const { title, description, startTime, endTime, location, attendees, isAllDay, color, reminders, syncWithGoogle } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const existingEvent = await prisma.calendarEvent.findFirst({
       where: {
@@ -342,12 +322,7 @@ router.put('/events/:eventId', async (req, res) => {
 // Delete event
 router.delete('/events/:eventId', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { eventId } = req.params;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const event = await prisma.calendarEvent.findFirst({
       where: {

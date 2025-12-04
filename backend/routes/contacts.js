@@ -1,7 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
+const { authenticate } = require('../middleware/auth');
 const prisma = new PrismaClient();
+
+// Apply authentication to all routes
+router.use(authenticate);
 
 // Helper function to transform contact data
 const transformContactForFrontend = (contact) => {
@@ -22,11 +26,7 @@ const transformContactForFrontend = (contact) => {
 router.get('/', async (req, res) => {
   try {
     const { type, assignedTo } = req.query;
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const where = { userId };
 
@@ -50,11 +50,7 @@ router.get('/', async (req, res) => {
 // GET single contact by ID
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const contact = await prisma.contact.findFirst({
       where: {
@@ -79,11 +75,7 @@ router.get('/:id', async (req, res) => {
 // POST create new contact
 router.post('/', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // Remove auto-generated fields and transform address
     const { id, createdAt, updatedAt, address, ...contactData } = req.body;
@@ -118,11 +110,7 @@ router.post('/', async (req, res) => {
 // PUT update contact
 router.put('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // First verify the contact belongs to the user
     const existingContact = await prisma.contact.findFirst({
@@ -166,11 +154,7 @@ router.put('/:id', async (req, res) => {
 // DELETE contact
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // First verify the contact belongs to the user
     const existingContact = await prisma.contact.findFirst({
@@ -198,11 +182,7 @@ router.delete('/:id', async (req, res) => {
 // GET contact stats
 router.get('/stats/summary', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const [total, customers, prospects, totalValue] = await Promise.all([
       prisma.contact.count({ where: { userId } }),

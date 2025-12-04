@@ -4,18 +4,16 @@ const whatsappService = require('../services/whatsapp');
 const conversationStorage = require('../services/conversationStorage');
 const whatsappAIService = require('../services/ai/whatsappAI.service');
 const actionHandlerService = require('../services/ai/actionHandler.service');
+const { authenticate } = require('../middleware/auth');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// Send WhatsApp message to a contact
-router.post('/send', async (req, res) => {
-  try {
-    const userId = req.headers['x-user-id'];
-    const { contactId, message, phoneNumber } = req.body;
+// ============ PROTECTED ENDPOINTS (REQUIRE AUTH) ============
 
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+// Send WhatsApp message to a contact
+router.post('/send', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
 
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required' });
@@ -133,12 +131,7 @@ router.post('/send', async (req, res) => {
 // Send template message
 router.post('/send-template', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { contactId, templateName, parameters, phoneNumber } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     if (!templateName) {
       return res.status(400).json({ error: 'Template name is required' });
@@ -197,11 +190,7 @@ router.post('/send-template', async (req, res) => {
 
 // Check WhatsApp configuration status
 router.get('/status', async (req, res) => {
-  const userId = req.headers['x-user-id'];
-
-  if (!userId) {
-    return res.status(401).json({ error: 'User ID is required' });
-  }
+  const userId = req.user.id;
 
   res.json({
     configured: whatsappService.isConfigured(),
@@ -216,12 +205,7 @@ router.get('/status', async (req, res) => {
 // Get all conversations for a user
 router.get('/conversations', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { search, limit = 50, offset = 0 } = req.query;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const where = { userId };
 
@@ -267,13 +251,7 @@ router.get('/conversations', async (req, res) => {
 // Get a single conversation with messages
 router.get('/conversations/:conversationId', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { conversationId } = req.params;
-    const { limit = 50, offset = 0 } = req.query;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const conversation = await prisma.whatsAppConversation.findFirst({
       where: {
@@ -315,12 +293,7 @@ router.get('/conversations/:conversationId', async (req, res) => {
 // Start a new conversation or get existing one
 router.post('/conversations/start', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { contactPhone, contactName, contactId } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     if (!contactPhone) {
       return res.status(400).json({ error: 'Contact phone is required' });
@@ -372,12 +345,7 @@ router.post('/conversations/start', async (req, res) => {
 // Search contacts for new conversation
 router.get('/search-contacts', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { query } = req.query;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     if (!query || query.trim().length < 2) {
       return res.json({ contacts: [] });
@@ -415,14 +383,9 @@ router.get('/search-contacts', async (req, res) => {
 });
 
 // Delete a conversation
-router.delete('/conversations/:conversationId', async (req, res) => {
+router.delete('/conversations/:conversationId', authenticate, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { conversationId } = req.params;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const conversation = await prisma.whatsAppConversation.findFirst({
       where: {
@@ -456,13 +419,7 @@ router.delete('/conversations/:conversationId', async (req, res) => {
 // Toggle AI assistant for a conversation
 router.patch('/conversations/:conversationId/ai-toggle', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { conversationId } = req.params;
-    const { enabled } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     if (typeof enabled !== 'boolean') {
       return res.status(400).json({ error: 'enabled field must be a boolean' });
@@ -502,11 +459,7 @@ router.patch('/conversations/:conversationId/ai-toggle', async (req, res) => {
 // Get AI feature status
 router.get('/ai-status', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     res.json({
       aiFeatureEnabled: openaiService.isEnabled(),
@@ -523,7 +476,8 @@ router.get('/ai-status', async (req, res) => {
   }
 });
 
-// ============ WEBHOOK ENDPOINTS ============
+// ============ WEBHOOK ENDPOINTS (PUBLIC - NO AUTH) ============
+// Webhooks are called by WhatsApp/Meta and don't have user tokens
 
 // Webhook verification (GET) - Required by WhatsApp
 router.get('/webhook', (req, res) => {

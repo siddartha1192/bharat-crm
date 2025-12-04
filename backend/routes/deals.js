@@ -1,17 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
+const { authenticate } = require('../middleware/auth');
 const prisma = new PrismaClient();
+
+// Apply authentication to all routes
+router.use(authenticate);
 
 // GET all deals
 router.get('/', async (req, res) => {
   try {
     const { stage } = req.query;
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const where = { userId };
 
@@ -32,11 +32,7 @@ router.get('/', async (req, res) => {
 // GET single deal by ID
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const deal = await prisma.deal.findFirst({
       where: {
@@ -59,11 +55,7 @@ router.get('/:id', async (req, res) => {
 // POST create new deal
 router.post('/', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // Remove fields that shouldn't be sent to Prisma
     const { id, createdAt, updatedAt, nextAction, source, ...dealData } = req.body;
@@ -90,11 +82,7 @@ router.post('/', async (req, res) => {
 // PUT update deal
 router.put('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // First verify the deal belongs to the user
     const existingDeal = await prisma.deal.findFirst({
@@ -126,11 +114,7 @@ router.put('/:id', async (req, res) => {
 // DELETE deal
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // First verify the deal belongs to the user
     const existingDeal = await prisma.deal.findFirst({

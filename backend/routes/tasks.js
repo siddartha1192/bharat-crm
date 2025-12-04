@@ -1,17 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
+const { authenticate } = require('../middleware/auth');
 const prisma = new PrismaClient();
+
+// Apply authentication to all routes
+router.use(authenticate);
 
 // GET all tasks
 router.get('/', async (req, res) => {
   try {
     const { status } = req.query;
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const where = { userId };
 
@@ -32,11 +32,7 @@ router.get('/', async (req, res) => {
 // GET single task by ID
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     const task = await prisma.task.findFirst({
       where: {
@@ -59,11 +55,7 @@ router.get('/:id', async (req, res) => {
 // POST create new task
 router.post('/', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // Remove auto-generated fields
     const { id, createdAt, updatedAt, ...taskData } = req.body;
@@ -90,11 +82,7 @@ router.post('/', async (req, res) => {
 // PUT update task
 router.put('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // First verify the task belongs to the user
     const existingTask = await prisma.task.findFirst({
@@ -126,11 +114,7 @@ router.put('/:id', async (req, res) => {
 // DELETE task
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-
-    if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
-    }
+    const userId = req.user.id;
 
     // First verify the task belongs to the user
     const existingTask = await prisma.task.findFirst({
