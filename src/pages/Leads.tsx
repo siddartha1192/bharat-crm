@@ -203,9 +203,9 @@ export default function Leads() {
 
   const filteredLeads = leads.filter(lead => {
     const matchesSearch =
-      lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lead.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lead.email.toLowerCase().includes(searchQuery.toLowerCase());
+      (lead.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (lead.company || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (lead.email || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
 
@@ -216,7 +216,7 @@ export default function Leads() {
     total: leads.length,
     new: leads.filter(l => l.status === 'new').length,
     qualified: leads.filter(l => l.status === 'qualified').length,
-    totalValue: leads.reduce((sum, l) => sum + l.estimatedValue, 0),
+    totalValue: leads.reduce((sum, l) => sum + (l.estimatedValue || 0), 0),
   };
 
   return (

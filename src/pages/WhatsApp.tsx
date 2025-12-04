@@ -371,7 +371,9 @@ export default function WhatsApp() {
   const checkAIStatus = async () => {
     try {
       const response = await fetch(`${API_URL}/whatsapp/ai-status`, {
-        headers: { 'X-User-Id': userId || '' },
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
       const data = await response.json();
       setAiFeatureAvailable(data.aiFeatureEnabled);
