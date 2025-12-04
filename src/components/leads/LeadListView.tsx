@@ -55,7 +55,16 @@ export function LeadListView({ leads, onViewDetails, onEdit, onDelete }: LeadLis
             </tr>
           </thead>
           <tbody>
-            {leads.map((lead, index) => (
+            {leads.map((lead, index) => {
+              const getCreatedDate = () => {
+                try {
+                  return formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true });
+                } catch {
+                  return 'Recently';
+                }
+              };
+
+              return (
               <tr
                 key={lead.id}
                 className={`border-b hover:bg-muted/30 transition-colors ${
@@ -63,48 +72,48 @@ export function LeadListView({ leads, onViewDetails, onEdit, onDelete }: LeadLis
                 }`}
               >
                 <td className="p-4">
-                  <div className="font-medium text-foreground">{lead.name}</div>
-                  <div className="text-sm text-muted-foreground">{lead.assignedTo}</div>
+                  <div className="font-medium text-foreground">{lead.name || 'Unknown'}</div>
+                  <div className="text-sm text-muted-foreground">{lead.assignedTo || 'Unassigned'}</div>
                 </td>
                 <td className="p-4">
                   <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm">{lead.company}</span>
+                    <span className="text-sm">{lead.company || 'No Company'}</span>
                   </div>
                 </td>
                 <td className="p-4">
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2 text-sm">
                       <Mail className="w-3 h-3 text-muted-foreground" />
-                      <span className="truncate max-w-[180px]">{lead.email}</span>
+                      <span className="truncate max-w-[180px]">{lead.email || 'No Email'}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Phone className="w-3 h-3 text-muted-foreground" />
-                      <span>{lead.phone}</span>
+                      <span>{lead.phone || 'No Phone'}</span>
                     </div>
                   </div>
                 </td>
                 <td className="p-4">
-                  <Badge className={`${statusColors[lead.status]} border`}>
-                    {lead.status}
+                  <Badge className={`${statusColors[lead.status] || statusColors.new} border`}>
+                    {lead.status || 'new'}
                   </Badge>
                 </td>
                 <td className="p-4">
-                  <Badge className={`${priorityColors[lead.priority]} border`}>
-                    {lead.priority}
+                  <Badge className={`${priorityColors[lead.priority] || priorityColors.medium} border`}>
+                    {lead.priority || 'medium'}
                   </Badge>
                 </td>
                 <td className="p-4">
                   <div className="flex items-center gap-1 text-sm font-medium">
                     <IndianRupee className="w-4 h-4" />
-                    {(lead.estimatedValue / 100000).toFixed(1)}L
+                    {((lead.estimatedValue || 0) / 100000).toFixed(1)}L
                   </div>
                 </td>
                 <td className="p-4">
-                  <span className="text-sm capitalize">{lead.source.replace('-', ' ')}</span>
+                  <span className="text-sm capitalize">{(lead.source || 'unknown').replace('-', ' ')}</span>
                 </td>
                 <td className="p-4 text-sm text-muted-foreground">
-                  {formatDistanceToNow(lead.createdAt, { addSuffix: true })}
+                  {getCreatedDate()}
                 </td>
                 <td className="p-4">
                   <div className="flex items-center justify-end gap-1">
