@@ -84,7 +84,7 @@ export default function WhatsApp() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  const userId = localStorage.getItem('userId');
+  const token = localStorage.getItem('token');
 
   // Fetch conversations on mount
   useEffect(() => {
@@ -135,7 +135,7 @@ export default function WhatsApp() {
       if (showLoading) setLoading(true);
       const response = await fetch(`${API_URL}/whatsapp/conversations?search=${searchQuery}`, {
         headers: {
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -161,7 +161,7 @@ export default function WhatsApp() {
     try {
       const response = await fetch(`${API_URL}/whatsapp/conversations/${conversation.id}`, {
         headers: {
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -186,7 +186,7 @@ export default function WhatsApp() {
     try {
       const response = await fetch(`${API_URL}/whatsapp/conversations/${selectedConversation.id}`, {
         headers: {
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -221,7 +221,7 @@ export default function WhatsApp() {
         `${API_URL}/whatsapp/search-contacts?query=${encodeURIComponent(contactSearch)}`,
         {
           headers: {
-            'X-User-Id': userId || '',
+            'Authorization': `Bearer ${token}`,
           },
         }
       );
@@ -243,7 +243,7 @@ export default function WhatsApp() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           contactPhone: contact.whatsapp || contact.phone,
@@ -285,7 +285,7 @@ export default function WhatsApp() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           phoneNumber: selectedConversation.contactPhone,
@@ -342,7 +342,7 @@ export default function WhatsApp() {
       const response = await fetch(`${API_URL}/whatsapp/conversations/${conversationId}`, {
         method: 'DELETE',
         headers: {
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -390,7 +390,7 @@ export default function WhatsApp() {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'X-User-Id': userId || '',
+            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({ enabled: !selectedConversation.aiEnabled }),
         }
