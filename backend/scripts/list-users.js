@@ -26,7 +26,7 @@ async function listUsers() {
         role: true,
         isActive: true,
         createdAt: true,
-        lastLogin: true
+        updatedAt: true
       },
       orderBy: {
         createdAt: 'desc'
@@ -49,14 +49,14 @@ async function listUsers() {
       const statusIcon = user.isActive ? '✓' : '✗';
       const statusColor = user.isActive ? '\x1b[32m' : '\x1b[31m';
       const createdDate = new Date(user.createdAt).toLocaleDateString();
-      const lastLoginDate = user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never';
+      const updatedDate = new Date(user.updatedAt).toLocaleDateString();
 
       console.log(`\n${index + 1}. ${user.name}`);
       console.log(`   📧 Email: ${user.email}`);
       console.log(`   🛡️  Role: ${roleColor}${user.role}${RESET}`);
       console.log(`   ${statusColor}${statusIcon}${RESET} Status: ${user.isActive ? 'Active' : 'Inactive'}`);
       console.log(`   📅 Created: ${createdDate}`);
-      console.log(`   🔐 Last Login: ${lastLoginDate}`);
+      console.log(`   🔄 Last Updated: ${updatedDate}`);
       console.log(`   🆔 ID: ${user.id}`);
     });
 
