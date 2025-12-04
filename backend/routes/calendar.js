@@ -106,6 +106,7 @@ router.get('/auth/status', async (req, res) => {
 router.get('/events', async (req, res) => {
   try {
     const userId = req.user.id;
+    const { start, end, syncWithGoogle } = req.query;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -180,6 +181,7 @@ router.get('/events', async (req, res) => {
 router.post('/events', async (req, res) => {
   try {
     const userId = req.user.id;
+    const { title, description, startTime, endTime, location, attendees, isAllDay, color, reminders, syncWithGoogle } = req.body;
 
     if (!title || !startTime || !endTime) {
       return res.status(400).json({ error: 'Title, start time, and end time are required' });
@@ -251,6 +253,8 @@ router.post('/events', async (req, res) => {
 router.put('/events/:eventId', async (req, res) => {
   try {
     const userId = req.user.id;
+    const { eventId } = req.params;
+    const { title, description, startTime, endTime, location, attendees, isAllDay, color, reminders, syncWithGoogle } = req.body;
 
     const existingEvent = await prisma.calendarEvent.findFirst({
       where: {
@@ -297,19 +301,20 @@ router.put('/events/:eventId', async (req, res) => {
     }
 
     // Update in database
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (startTime !== undefined) updateData.startTime = new Date(startTime);
+    if (endTime !== undefined) updateData.endTime = new Date(endTime);
+    if (location !== undefined) updateData.location = location;
+    if (attendees !== undefined) updateData.attendees = attendees;
+    if (isAllDay !== undefined) updateData.isAllDay = isAllDay;
+    if (color !== undefined) updateData.color = color;
+    if (reminders !== undefined) updateData.reminders = reminders;
+
     const updatedEvent = await prisma.calendarEvent.update({
       where: { id: eventId },
-      data: {
-        title,
-        description,
-        startTime: new Date(startTime),
-        endTime: new Date(endTime),
-        location,
-        attendees,
-        isAllDay,
-        color,
-        reminders
-      }
+      data: updateData
     });
 
     res.json({ event: updatedEvent });
@@ -323,6 +328,7 @@ router.put('/events/:eventId', async (req, res) => {
 router.delete('/events/:eventId', async (req, res) => {
   try {
     const userId = req.user.id;
+    const { eventId } = req.params;
 
     const event = await prisma.calendarEvent.findFirst({
       where: {

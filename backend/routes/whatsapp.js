@@ -14,6 +14,7 @@ const prisma = new PrismaClient();
 router.post('/send', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { message, phoneNumber, contactId } = req.body;
 
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required' });
@@ -207,6 +208,7 @@ router.get('/status', authenticate, async (req, res) => {
 router.get('/conversations', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { search, limit = '50', offset = '0' } = req.query;
 
     const where = { userId };
 
@@ -253,6 +255,8 @@ router.get('/conversations', authenticate, async (req, res) => {
 router.get('/conversations/:conversationId', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { conversationId } = req.params;
+    const { limit = '100', offset = '0' } = req.query;
 
     const conversation = await prisma.whatsAppConversation.findFirst({
       where: {
@@ -295,6 +299,7 @@ router.get('/conversations/:conversationId', authenticate, async (req, res) => {
 router.post('/conversations/start', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { contactPhone, contactName, contactId } = req.body;
 
     if (!contactPhone) {
       return res.status(400).json({ error: 'Contact phone is required' });
@@ -347,6 +352,7 @@ router.post('/conversations/start', authenticate, async (req, res) => {
 router.get('/search-contacts', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { query } = req.query;
 
     if (!query || query.trim().length < 2) {
       return res.json({ contacts: [] });
@@ -387,6 +393,7 @@ router.get('/search-contacts', authenticate, async (req, res) => {
 router.delete('/conversations/:conversationId', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { conversationId } = req.params;
 
     const conversation = await prisma.whatsAppConversation.findFirst({
       where: {
