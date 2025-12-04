@@ -74,7 +74,7 @@ export function RoleSwitch({ children }: { children: ReactNode }) {
 
   const childArray = Array.isArray(children) ? children : [children];
 
-  for (const child: any of childArray) {
+  for (const child of childArray) {
     if (!child) continue;
 
     const role = child.type?.displayName;
