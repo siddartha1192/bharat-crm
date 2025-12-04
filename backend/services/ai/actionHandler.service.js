@@ -267,12 +267,15 @@ Notes: ${data.notes || 'None'}
           name: data.name,
           email: data.email,
           phone: data.phone || context.contactPhone || '',
+          whatsapp: context.contactPhone || data.phone || '',
           company: data.company || '',
           source: data.source || 'WhatsApp AI',
           status: 'new',
+          priority: data.priority || 'medium',
+          estimatedValue: data.estimatedValue || 0,
+          assignedTo: ownerUser.name || ownerUser.email,
           notes: data.notes || 'Lead captured via WhatsApp AI Assistant',
           userId: ownerUser.id,
-          assignedToId: ownerUser.id,
         },
       });
 
