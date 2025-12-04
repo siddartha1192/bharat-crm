@@ -39,7 +39,7 @@ export default function AIAssistant() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  const userId = localStorage.getItem('userId');
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
     fetchAIStatus();
@@ -75,7 +75,7 @@ Ask me anything!`,
     try {
       const response = await fetch(`${API_URL}/ai/status`, {
         headers: {
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
         },
       });
       const data = await response.json();
@@ -103,7 +103,7 @@ Ask me anything!`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           message: input,

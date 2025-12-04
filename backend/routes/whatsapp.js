@@ -417,9 +417,11 @@ router.delete('/conversations/:conversationId', authenticate, async (req, res) =
 });
 
 // Toggle AI assistant for a conversation
-router.patch('/conversations/:conversationId/ai-toggle', async (req, res) => {
+router.patch('/conversations/:conversationId/ai-toggle', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { conversationId } = req.params;
+    const { enabled } = req.body;
 
     if (typeof enabled !== 'boolean') {
       return res.status(400).json({ error: 'enabled field must be a boolean' });

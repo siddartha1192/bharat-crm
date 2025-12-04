@@ -87,7 +87,7 @@ export default function Calendar() {
   const [date, setDate] = useState(new Date());
   const { toast } = useToast();
 
-  const userId = localStorage.getItem('userId');
+  const token = localStorage.getItem('token');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -116,7 +116,7 @@ export default function Calendar() {
     try {
       const response = await fetch(`${API_URL}/calendar/auth/status`, {
         headers: {
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -141,7 +141,7 @@ export default function Calendar() {
         `${API_URL}/calendar/events?syncWithGoogle=${syncWithGoogle}`,
         {
           headers: {
-            'X-User-Id': userId || '',
+            'Authorization': `Bearer ${token}`,
           },
         }
       );
@@ -192,7 +192,7 @@ export default function Calendar() {
       const response = await fetch(`${API_URL}/calendar/auth/disconnect`, {
         method: 'POST',
         headers: {
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -284,7 +284,7 @@ export default function Calendar() {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'X-User-Id': userId || '',
+            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify(eventData),
         });
@@ -293,7 +293,7 @@ export default function Calendar() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-User-Id': userId || '',
+            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify(eventData),
         });
@@ -325,7 +325,7 @@ export default function Calendar() {
       const response = await fetch(`${API_URL}/calendar/events/${selectedEvent.id}`, {
         method: 'DELETE',
         headers: {
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
         },
       });
 
