@@ -72,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const userData = await response.json();
+      localStorage.setItem('user', JSON.stringify(userData)); // Store for RBAC
       setUser(userData);
     } catch (error) {
       console.error('Error fetching user details:', error);
@@ -79,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('userId');
+      localStorage.removeItem('user');
       setToken(null);
       setUser(null);
     } finally {
@@ -107,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('refreshToken', data.refreshToken);
       localStorage.setItem('userId', data.user.id);
       localStorage.setItem('userRole', data.user.role);
+      localStorage.setItem('user', JSON.stringify(data.user)); // Store complete user object for RBAC
 
       setToken(data.token);
       setUser(data.user);
@@ -152,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('refreshToken', data.refreshToken);
       localStorage.setItem('userId', data.user.id);
       localStorage.setItem('userRole', data.user.role);
+      localStorage.setItem('user', JSON.stringify(data.user)); // Store complete user object for RBAC
 
       setToken(data.token);
       setUser(data.user);
@@ -179,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('userRole');
       localStorage.removeItem('userName');
       localStorage.removeItem('userEmail');
+      localStorage.removeItem('user'); // Remove user object for RBAC
       setToken(null);
       setUser(null);
       navigate('/login');
