@@ -206,6 +206,9 @@ model Contact {
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Deal relation (one-to-many)
+  deals           Deal[]
+
   @@index([type])
   @@index([assignedTo])
   @@index([userId])
@@ -258,6 +261,7 @@ model Deal {
   title           String
   company         String
   contactName     String
+  contactId       String?  // Optional link to Contact
   value           Float
   stage           String   // 'lead' | 'qualified' | 'proposal' | 'negotiation' | 'closed-won' | 'closed-lost'
   probability     Int      // 0-100
@@ -272,9 +276,13 @@ model Deal {
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Contact relation (optional)
+  contact         Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
   @@index([stage])
   @@index([assignedTo])
   @@index([userId])
+  @@index([contactId])
 }
 
 model Task {
