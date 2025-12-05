@@ -58,7 +58,6 @@ export function UserManagement() {
   const canManageRoles = can('users:manage_roles');
   const canUpdateUsers = can('users:update');
 
-  // Fetch all users
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -91,7 +90,6 @@ export function UserManagement() {
     fetchUsers();
   }, []);
 
-  // Open role change dialog
   const handleChangeRole = (user: User) => {
     if (!canManageRoles) {
       toast({
@@ -102,7 +100,6 @@ export function UserManagement() {
       return;
     }
 
-    // Prevent changing own role
     if (user.id === currentUser?.id) {
       toast({
         title: 'Not Allowed',
@@ -117,7 +114,6 @@ export function UserManagement() {
     setShowRoleDialog(true);
   };
 
-  // Update user role
   const handleUpdateRole = async () => {
     if (!selectedUser || !newRole) return;
 
@@ -142,7 +138,6 @@ export function UserManagement() {
         description: `${selectedUser.name}'s role has been changed to ${getRoleDisplayName(newRole)}`,
       });
 
-      // Refresh users list
       await fetchUsers();
       setShowRoleDialog(false);
       setSelectedUser(null);
@@ -159,7 +154,6 @@ export function UserManagement() {
     }
   };
 
-  // Toggle user active status
   const handleToggleActive = async (user: User) => {
     if (!canUpdateUsers) {
       toast({
@@ -170,7 +164,6 @@ export function UserManagement() {
       return;
     }
 
-    // Prevent deactivating own account
     if (user.id === currentUser?.id) {
       toast({
         title: 'Not Allowed',
@@ -211,7 +204,6 @@ export function UserManagement() {
     }
   };
 
-  // Get role badge color
   const getRoleBadgeColor = (role: UserRole) => {
     switch (role) {
       case 'ADMIN':
@@ -227,7 +219,6 @@ export function UserManagement() {
     }
   };
 
-  // Filter users
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -255,7 +246,6 @@ export function UserManagement() {
           </div>
         </CardHeader>
         <CardContent>
-          {/* Search */}
           <div className="mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -268,7 +258,6 @@ export function UserManagement() {
             </div>
           </div>
 
-          {/* Users Table */}
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -353,7 +342,6 @@ export function UserManagement() {
             </div>
           )}
 
-          {/* Role Legend */}
           <div className="mt-6 p-4 bg-muted/50 rounded-lg">
             <h4 className="text-sm font-semibold mb-3">Role Descriptions</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -372,7 +360,6 @@ export function UserManagement() {
         </CardContent>
       </Card>
 
-      {/* Role Change Dialog */}
       <Dialog open={showRoleDialog} onOpenChange={setShowRoleDialog}>
         <DialogContent>
           <DialogHeader>
