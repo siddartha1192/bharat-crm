@@ -22,6 +22,7 @@ import {
   Target,
 } from 'lucide-react';
 import { LeadStatus } from '@/types/lead';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 
 export default function Leads() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -66,14 +67,18 @@ export default function Leads() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Lead
-              </Button>
+              <ProtectedFeature permission="leads:export">
+                <Button variant="outline">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </ProtectedFeature>
+              <ProtectedFeature permission="leads:create">
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Lead
+                </Button>
+              </ProtectedFeature>
             </div>
           </div>
         </div>
