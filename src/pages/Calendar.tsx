@@ -88,8 +88,6 @@ export default function Calendar() {
   const [date, setDate] = useState(new Date());
   const { toast } = useToast();
 
-  const token = localStorage.getItem('token');
-
   // Form state
   const [formData, setFormData] = useState({
     title: '',
@@ -115,6 +113,12 @@ export default function Calendar() {
 
   const checkConnectionStatus = async () => {
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No token found in localStorage');
+        return;
+      }
+
       const response = await fetch(`${API_URL}/calendar/auth/status`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -132,6 +136,14 @@ export default function Calendar() {
 
   const fetchEvents = async (syncWithGoogle = false) => {
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No token found in localStorage');
+        setLoading(false);
+        setSyncing(false);
+        return;
+      }
+
       if (syncWithGoogle) {
         setSyncing(true);
       } else {
@@ -172,6 +184,17 @@ export default function Calendar() {
 
   const connectGoogleCalendar = async () => {
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No token found in localStorage');
+        toast({
+          title: 'Authentication Error',
+          description: 'Please log in first to connect Google Calendar',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const response = await fetch(`${API_URL}/calendar/auth/url`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -209,6 +232,12 @@ export default function Calendar() {
 
   const disconnectGoogleCalendar = async () => {
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No token found in localStorage');
+        return;
+      }
+
       const response = await fetch(`${API_URL}/calendar/auth/disconnect`, {
         method: 'POST',
         headers: {
@@ -282,6 +311,17 @@ export default function Calendar() {
     }
 
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No token found in localStorage');
+        toast({
+          title: 'Authentication Error',
+          description: 'Please log in first',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const eventData = {
         title: formData.title,
         description: formData.description,
@@ -342,6 +382,17 @@ export default function Calendar() {
     if (!selectedEvent) return;
 
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No token found in localStorage');
+        toast({
+          title: 'Authentication Error',
+          description: 'Please log in first',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const response = await fetch(`${API_URL}/calendar/events/${selectedEvent.id}`, {
         method: 'DELETE',
         headers: {
