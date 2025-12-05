@@ -7,6 +7,7 @@ import { StageColumn } from '@/components/pipeline/StageColumn';
 import { DealDialog } from '@/components/pipeline/DealDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { exportDealsToCSV, importDealsFromCSV } from '@/lib/csvUtils';
 import {
@@ -88,6 +89,12 @@ export default function Pipeline() {
 
   const getDealsByStage = (stage: PipelineStage) => {
     return deals.filter(deal => deal.stage === stage);
+  };
+
+  const getStageValue = (stage: PipelineStage) => {
+    return deals
+      .filter(deal => deal.stage === stage)
+      .reduce((sum, deal) => sum + deal.value, 0);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -294,13 +301,13 @@ export default function Pipeline() {
                 Import CSV
               </Button>
               <ProtectedFeature permission="deals:export">
-                <Button variant="outline">
+                <Button variant="outline" onClick={handleExport}>
                   <Download className="w-4 h-4 mr-2" />
                   Export
                 </Button>
               </ProtectedFeature>
               <ProtectedFeature permission="deals:create">
-                <Button>
+                <Button onClick={() => handleAddDeal('lead')}>
                   <Plus className="w-4 h-4 mr-2" />
                   Add Deal
                 </Button>
@@ -362,60 +369,6 @@ export default function Pipeline() {
               </div>
             </div>
           </Card>
-        </div>
-
-        {/* Pipeline Board */}
-        <div className="overflow-x-auto">
-          <div className="flex gap-4 min-w-max pb-4">
-            {defaultPipelineStages.map(stage => {
-              const deals = getDealsByStage(stage.id);
-              const stageValue = getStageValue(stage.id);
-
-              return (
-                <div key={stage.id} className="flex-shrink-0 w-[320px]">
-                  <Card className="p-4">
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${stage.color}`} />
-                          <h3 className="font-semibold text-foreground">{stage.name}</h3>
-                          <Badge variant="secondary" className="text-xs">
-                            {deals.length}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <IndianRupee className="w-3 h-3" />
-                        <span>₹{(stageValue / 100000).toFixed(1)}L</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 max-h-[calc(100vh-400px)] overflow-y-auto">
-                      {deals.map(deal => (
-                        <DealCard key={deal.id} deal={deal} />
-                      ))}
-                      {deals.length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground text-sm">
-                          No deals in this stage
-                        </div>
-                      )}
-                    </div>
-
-                    <ProtectedFeature permission="deals:create">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full mt-3 text-muted-foreground hover:text-foreground"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Deal
-                      </Button>
-                    </ProtectedFeature>
-                  </Card>
-                </div>
-              );
-            })}
-          </div>
         </div>
 
         {/* Pipeline Board/List View */}

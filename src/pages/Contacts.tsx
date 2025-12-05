@@ -235,13 +235,13 @@ export default function Contacts() {
             </div>
             <div className="flex gap-2">
               <ProtectedFeature permission="contacts:export">
-                <Button variant="outline">
+                <Button variant="outline" onClick={handleExport}>
                   <Download className="w-4 h-4 mr-2" />
                   Export
                 </Button>
               </ProtectedFeature>
               <ProtectedFeature permission="contacts:create">
-                <Button>
+                <Button onClick={handleAddNew}>
                   <Plus className="w-4 h-4 mr-2" />
                   Add Contact
                 </Button>
