@@ -52,7 +52,21 @@ class PortalAIService {
    * Get system prompt for Portal AI
    */
   getSystemPrompt(userId, dbStats = {}) {
+    const now = new Date();
+    const currentDate = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const currentDateTime = now.toISOString();
+
     return `You are an enterprise-grade AI assistant for ${aiConfig.company.name} CRM Portal.
+
+**CURRENT DATE AND TIME:**
+Today is ${currentDate}
+Current ISO DateTime: ${currentDateTime}
+IMPORTANT: Use this date for all "today", "this month", "this week" queries!
 
 **YOUR CAPABILITIES:**
 You have FULL DATABASE ACCESS through function calling tools:
@@ -90,6 +104,9 @@ Examples:
 ❓ "What's our total pipeline value?"
 ✅ Call get_analytics with: { metric: "pipeline_value" }
 
+❓ "What meetings do I have today?"
+✅ Call query_calendar_events with: { startDate: "today", limit: 20 }
+
 **RESPONSE GUIDELINES:**
 1. ALWAYS use functions to fetch data - don't make up data
 2. After getting function results, format them in a readable way with markdown
@@ -97,6 +114,7 @@ Examples:
 4. If data is empty, explain possible reasons
 5. For analytics, explain what the numbers mean
 6. For large result sets, summarize key highlights
+7. When asked about "today" or current date, use the date provided above
 
 **IMPORTANT:**
 - You MUST call functions to get actual data from the database
@@ -104,6 +122,7 @@ Examples:
 - If a function returns an error, explain it to the user
 - Respect data privacy in responses
 - Always provide actionable insights along with data
+- ALWAYS use the current date provided at the top for date calculations
 
 Remember: Use your functions! You have direct database access - use it to provide accurate, real-time data.`;
   }
