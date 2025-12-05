@@ -29,9 +29,8 @@ import {
   LayoutGrid,
   List,
 } from 'lucide-react';
-import { Lead, LeadStatus } from '@/types/lead';
-import { exportLeadsToCSV, importLeadsFromCSV } from '@/lib/csvUtils';
-import { useToast } from '@/hooks/use-toast';
+import { LeadStatus } from '@/types/lead';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 
 export default function Leads() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -233,25 +232,18 @@ export default function Leads() {
               </p>
             </div>
             <div className="flex gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv"
-                onChange={handleImport}
-                className="hidden"
-              />
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="w-4 h-4 mr-2" />
-                Import
-              </Button>
-              <Button variant="outline" onClick={handleExport}>
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-              <Button onClick={handleAddNew}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Lead
-              </Button>
+              <ProtectedFeature permission="leads:export">
+                <Button variant="outline">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </ProtectedFeature>
+              <ProtectedFeature permission="leads:create">
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Lead
+                </Button>
+              </ProtectedFeature>
             </div>
           </div>
         </div>

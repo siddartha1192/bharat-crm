@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthHeaders } from '@/contexts/AuthContext';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import {
   Mail,
   Send,
@@ -347,10 +348,12 @@ export default function Emails() {
             <RefreshCw className={`w-4 h-4 mr-2 ${checkingReplies ? 'animate-spin' : ''}`} />
             Check for Replies
           </Button>
-          <Button onClick={() => setComposeOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Compose New Email
-          </Button>
+          <ProtectedFeature permission="emails:send">
+            <Button onClick={() => setComposeOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Compose New Email
+            </Button>
+          </ProtectedFeature>
         </div>
       </div>
 

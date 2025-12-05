@@ -29,9 +29,8 @@ import {
   LayoutGrid,
   List,
 } from 'lucide-react';
-import { Contact, ContactType } from '@/types/contact';
-import { exportContactsToCSV, importContactsFromCSV } from '@/lib/csvUtils';
-import { useToast } from '@/hooks/use-toast';
+import { ContactType } from '@/types/contact';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 
 export default function Contacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -233,25 +232,18 @@ export default function Contacts() {
               </p>
             </div>
             <div className="flex gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv"
-                onChange={handleImport}
-                className="hidden"
-              />
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="w-4 h-4 mr-2" />
-                Import
-              </Button>
-              <Button variant="outline" onClick={handleExport}>
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-              <Button onClick={handleAddNew}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Contact
-              </Button>
+              <ProtectedFeature permission="contacts:export">
+                <Button variant="outline">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </ProtectedFeature>
+              <ProtectedFeature permission="contacts:create">
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Contact
+                </Button>
+              </ProtectedFeature>
             </div>
           </div>
         </div>
