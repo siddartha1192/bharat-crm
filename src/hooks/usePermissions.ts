@@ -30,8 +30,16 @@ export function usePermissions() {
     const userStr = localStorage.getItem('user');
     if (!userStr) return null;
     try {
-      return JSON.parse(userStr);
-    } catch {
+      const parsed = JSON.parse(userStr);
+      return parsed;
+    } catch (error) {
+      console.error('Failed to parse user from localStorage, clearing corrupted data:', error);
+      // Clear corrupted data
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('userRole');
       return null;
     }
   }, []);
