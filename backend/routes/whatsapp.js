@@ -1,0 +1,926 @@
+const express = require('express');
+const router = express.Router();
+const whatsappService = require('../services/whatsapp');
+const conversationStorage = require('../services/conversationStorage');
+const whatsappAIService = require('../services/ai/whatsappAI.service');
+const actionHandlerService = require('../services/ai/actionHandler.service');
+const { authenticate } = require('../middleware/auth');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+// ============ PROTECTED ENDPOINTS (REQUIRE AUTH) ============
+
+// Send WhatsApp message to a contact
+router.post('/send', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { message, phoneNumber, contactId } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    // If contactId is provided, verify the contact belongs to the user
+    let recipientPhone = phoneNumber;
+    let contactName = 'Contact';
+
+    if (contactId) {
+      const contact = await prisma.contact.findFirst({
+        where: {
+          id: contactId,
+          userId
+        }
+      });
+
+      if (!contact) {
+        return res.status(404).json({ error: 'Contact not found' });
+      }
+
+      recipientPhone = contact.whatsapp || contact.phone;
+      contactName = contact.name;
+    }
+
+    if (!recipientPhone) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    // Check if WhatsApp is configured
+    if (!whatsappService.isConfigured()) {
+      return res.status(503).json({
+        error: 'WhatsApp is not configured',
+        message: 'Please configure WHATSAPP_TOKEN and WHATSAPP_PHONE_ID in environment variables'
+      });
+    }
+
+    // Send the message
+    const result = await whatsappService.sendMessage(recipientPhone, message);
+
+    // Get or create conversation
+    let conversation = await prisma.whatsAppConversation.findUnique({
+      where: {
+        userId_contactPhone: {
+          userId,
+          contactPhone: recipientPhone
+        }
+      }
+    });
+
+    // Get user info for sender name
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true }
+    });
+
+    if (!conversation) {
+      // Create new conversation
+      const filePath = conversationStorage.getFilePath(userId, recipientPhone);
+      conversation = await prisma.whatsAppConversation.create({
+        data: {
+          userId,
+          contactName,
+          contactPhone: recipientPhone,
+          contactId: contactId || null,
+          lastMessage: message,
+          lastMessageAt: new Date(),
+          filePath
+        }
+      });
+    } else {
+      // Update existing conversation
+      conversation = await prisma.whatsAppConversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessage: message,
+          lastMessageAt: new Date()
+        }
+      });
+    }
+
+    // Save message to database
+    const savedMessage = await prisma.whatsAppMessage.create({
+      data: {
+        conversationId: conversation.id,
+        message,
+        sender: 'user',
+        senderName: user?.name || 'User',
+        status: 'sent',
+        messageType: 'text',
+        metadata: { whatsappMessageId: result.messageId }
+      }
+    });
+
+    // Save message to file
+    await conversationStorage.saveMessage(userId, recipientPhone, savedMessage);
+
+    res.json({
+      success: true,
+      messageId: result.messageId,
+      recipient: contactName,
+      phone: recipientPhone,
+      message: 'Message sent successfully',
+      conversationId: conversation.id
+    });
+  } catch (error) {
+    console.error('Error sending WhatsApp message:', error);
+    res.status(500).json({
+      error: 'Failed to send message',
+      message: error.message
+    });
+  }
+});
+
+// Send template message
+router.post('/send-template', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { contactId, templateName, phoneNumber, parameters } = req.body;
+
+    if (!templateName) {
+      return res.status(400).json({ error: 'Template name is required' });
+    }
+
+    // If contactId is provided, verify the contact belongs to the user
+    let recipientPhone = phoneNumber;
+
+    if (contactId) {
+      const contact = await prisma.contact.findFirst({
+        where: {
+          id: contactId,
+          userId
+        }
+      });
+
+      if (!contact) {
+        return res.status(404).json({ error: 'Contact not found' });
+      }
+
+      recipientPhone = contact.whatsapp || contact.phone;
+    }
+
+    if (!recipientPhone) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    // Check if WhatsApp is configured
+    if (!whatsappService.isConfigured()) {
+      return res.status(503).json({
+        error: 'WhatsApp is not configured',
+        message: 'Please configure WHATSAPP_TOKEN and WHATSAPP_PHONE_ID in environment variables'
+      });
+    }
+
+    // Send template message
+    const result = await whatsappService.sendTemplateMessage(
+      recipientPhone,
+      templateName,
+      parameters || []
+    );
+
+    res.json({
+      success: true,
+      messageId: result.messageId,
+      message: 'Template message sent successfully'
+    });
+  } catch (error) {
+    console.error('Error sending template message:', error);
+    res.status(500).json({
+      error: 'Failed to send template message',
+      message: error.message
+    });
+  }
+});
+
+// Check WhatsApp configuration status
+router.get('/status', authenticate, async (req, res) => {
+  const userId = req.user.id;
+
+  res.json({
+    configured: whatsappService.isConfigured(),
+    message: whatsappService.isConfigured()
+      ? 'WhatsApp is configured and ready to use'
+      : 'WhatsApp is not configured. Please set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID'
+  });
+});
+
+// ============ CONVERSATION MANAGEMENT ============
+
+// Get all conversations for a user
+router.get('/conversations', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { search, limit = '50', offset = '0' } = req.query;
+
+    const where = { userId };
+
+    // Add search filter if provided
+    if (search) {
+      where.OR = [
+        { contactName: { contains: search, mode: 'insensitive' } },
+        { contactPhone: { contains: search } }
+      ];
+    }
+
+    const [conversations, total] = await Promise.all([
+      prisma.whatsAppConversation.findMany({
+        where,
+        include: {
+          messages: {
+            take: 1,
+            orderBy: { createdAt: 'desc' }
+          }
+        },
+        orderBy: { lastMessageAt: 'desc' },
+        take: parseInt(limit),
+        skip: parseInt(offset)
+      }),
+      prisma.whatsAppConversation.count({ where })
+    ]);
+
+    res.json({
+      conversations,
+      total,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    res.status(500).json({
+      error: 'Failed to fetch conversations',
+      message: error.message
+    });
+  }
+});
+
+// Get a single conversation with messages
+router.get('/conversations/:conversationId', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { conversationId } = req.params;
+    const { limit = '100', offset = '0' } = req.query;
+
+    const conversation = await prisma.whatsAppConversation.findFirst({
+      where: {
+        id: conversationId,
+        userId
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit),
+          skip: parseInt(offset)
+        }
+      }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    // Mark as read (reset unread count)
+    if (conversation.unreadCount > 0) {
+      await prisma.whatsAppConversation.update({
+        where: { id: conversationId },
+        data: { unreadCount: 0 }
+      });
+      conversation.unreadCount = 0;
+    }
+
+    res.json(conversation);
+  } catch (error) {
+    console.error('Error fetching conversation:', error);
+    res.status(500).json({
+      error: 'Failed to fetch conversation',
+      message: error.message
+    });
+  }
+});
+
+// Start a new conversation or get existing one
+router.post('/conversations/start', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { contactPhone, contactName, contactId } = req.body;
+
+    if (!contactPhone) {
+      return res.status(400).json({ error: 'Contact phone is required' });
+    }
+
+    // Check if conversation already exists
+    let conversation = await prisma.whatsAppConversation.findUnique({
+      where: {
+        userId_contactPhone: {
+          userId,
+          contactPhone
+        }
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 50
+        }
+      }
+    });
+
+    if (!conversation) {
+      // Create new conversation
+      const filePath = conversationStorage.getFilePath(userId, contactPhone);
+      conversation = await prisma.whatsAppConversation.create({
+        data: {
+          userId,
+          contactName: contactName || contactPhone,
+          contactPhone,
+          contactId: contactId || null,
+          filePath
+        },
+        include: {
+          messages: true
+        }
+      });
+    }
+
+    res.json(conversation);
+  } catch (error) {
+    console.error('Error starting conversation:', error);
+    res.status(500).json({
+      error: 'Failed to start conversation',
+      message: error.message
+    });
+  }
+});
+
+// Search contacts for new conversation
+router.get('/search-contacts', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { query } = req.query;
+
+    if (!query || query.trim().length < 2) {
+      return res.json({ contacts: [] });
+    }
+
+    const contacts = await prisma.contact.findMany({
+      where: {
+        userId,
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { phone: { contains: query } },
+          { whatsapp: { contains: query } },
+          { company: { contains: query, mode: 'insensitive' } }
+        ]
+      },
+      select: {
+        id: true,
+        name: true,
+        company: true,
+        phone: true,
+        whatsapp: true,
+        email: true
+      },
+      take: 10
+    });
+
+    res.json({ contacts });
+  } catch (error) {
+    console.error('Error searching contacts:', error);
+    res.status(500).json({
+      error: 'Failed to search contacts',
+      message: error.message
+    });
+  }
+});
+
+// Delete a conversation
+router.delete('/conversations/:conversationId', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { conversationId } = req.params;
+
+    const conversation = await prisma.whatsAppConversation.findFirst({
+      where: {
+        id: conversationId,
+        userId
+      }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    // Delete conversation file
+    await conversationStorage.deleteConversation(userId, conversation.contactPhone);
+
+    // Delete from database (this will cascade delete messages)
+    await prisma.whatsAppConversation.delete({
+      where: { id: conversationId }
+    });
+
+    res.json({ message: 'Conversation deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting conversation:', error);
+    res.status(500).json({
+      error: 'Failed to delete conversation',
+      message: error.message
+    });
+  }
+});
+
+// Toggle AI assistant for a conversation
+router.patch('/conversations/:conversationId/ai-toggle', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { conversationId } = req.params;
+    const { enabled } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled field must be a boolean' });
+    }
+
+    const conversation = await prisma.whatsAppConversation.findFirst({
+      where: {
+        id: conversationId,
+        userId
+      }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    // Update AI enabled status
+    const updated = await prisma.whatsAppConversation.update({
+      where: { id: conversationId },
+      data: { aiEnabled: enabled }
+    });
+
+    res.json({
+      success: true,
+      message: `AI assistant ${enabled ? 'enabled' : 'disabled'} for this conversation`,
+      aiEnabled: updated.aiEnabled
+    });
+  } catch (error) {
+    console.error('Error toggling AI:', error);
+    res.status(500).json({
+      error: 'Failed to toggle AI',
+      message: error.message
+    });
+  }
+});
+
+// Get AI feature status
+router.get('/ai-status', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    res.json({
+      aiFeatureEnabled: openaiService.isEnabled(),
+      message: openaiService.isEnabled()
+        ? 'AI assistant is available and ready to use'
+        : 'AI assistant is disabled globally (check ENABLE_AI_FEATURE env variable)'
+    });
+  } catch (error) {
+    console.error('Error checking AI status:', error);
+    res.status(500).json({
+      error: 'Failed to check AI status',
+      message: error.message
+    });
+  }
+});
+
+// ============ WEBHOOK ENDPOINTS (PUBLIC - NO AUTH) ============
+// Webhooks are called by WhatsApp/Meta and don't have user tokens
+
+// Webhook verification (GET) - Required by WhatsApp
+router.get('/webhook', (req, res) => {
+  try {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    // Set a verify token in your .env file
+    const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'bharat_crm_webhook_token';
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('Webhook verified successfully');
+      res.status(200).send(challenge);
+    } else {
+      console.error('Webhook verification failed');
+      res.status(403).send('Forbidden');
+    }
+  } catch (error) {
+    console.error('Error in webhook verification:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Webhook for receiving messages (POST)
+router.post('/webhook', async (req, res) => {
+  try {
+    const body = req.body;
+
+    // Acknowledge receipt immediately
+    res.status(200).send('EVENT_RECEIVED');
+
+    // Process the webhook asynchronously
+    if (body.object === 'whatsapp_business_account') {
+      for (const entry of body.entry || []) {
+        for (const change of entry.changes || []) {
+          if (change.field === 'messages') {
+            const value = change.value;
+
+            // Process incoming messages
+            if (value.messages && value.messages.length > 0) {
+              for (const message of value.messages) {
+                await processIncomingMessage(message, value);
+              }
+            }
+
+            // Process message status updates (delivered, read, etc.)
+            if (value.statuses && value.statuses.length > 0) {
+              for (const status of value.statuses) {
+                await processMessageStatus(status);
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error processing webhook:', error);
+    // Still return 200 to prevent WhatsApp from retrying
+  }
+});
+
+// Helper function to process incoming messages
+async function processIncomingMessage(message, value) {
+  try {
+    let fromPhone = message.from;
+    const messageId = message.id;
+    const timestamp = message.timestamp;
+
+    // Normalize phone number - add + prefix if not present
+    if (!fromPhone.startsWith('+')) {
+      fromPhone = '+' + fromPhone;
+    }
+
+    // Get contact name from the webhook data
+    let contactName = fromPhone;
+    if (value.contacts && value.contacts.length > 0) {
+      const contact = value.contacts.find(c => c.wa_id === message.from);
+      if (contact && contact.profile && contact.profile.name) {
+        contactName = contact.profile.name;
+      }
+    }
+
+    // Extract message content based on type
+    let messageText = '';
+    let messageType = message.type || 'text';
+
+    switch (messageType) {
+      case 'text':
+        messageText = message.text.body;
+        break;
+      case 'image':
+        messageText = message.image.caption || '[Image]';
+        break;
+      case 'document':
+        messageText = message.document.caption || '[Document]';
+        break;
+      case 'audio':
+        messageText = '[Audio]';
+        break;
+      case 'video':
+        messageText = message.video.caption || '[Video]';
+        break;
+      case 'location':
+        messageText = '[Location]';
+        break;
+      default:
+        messageText = `[${messageType}]`;
+    }
+
+    console.log(`\n======================================`);
+    console.log(`📩 Received message from ${fromPhone}: ${messageText}`);
+    console.log(`   Type: ${messageType}, ID: ${messageId}`);
+
+    // Phone number variations (with and without +)
+    const phoneVariations = [fromPhone];
+    if (fromPhone.startsWith('+')) {
+      phoneVariations.push(fromPhone.substring(1)); // without +
+    } else {
+      phoneVariations.push('+' + fromPhone); // with +
+    }
+
+    // Find all users who might have this conversation
+    // (In multi-user scenario, we need to find the right user)
+    const conversations = await prisma.whatsAppConversation.findMany({
+      where: {
+        contactPhone: {
+          in: phoneVariations
+        }
+      },
+      include: {
+        user: {
+          select: { id: true, name: true }
+        }
+      }
+    });
+
+    // If no conversation exists, try to find the contact in the CRM
+    if (conversations.length === 0) {
+      console.log(`No existing conversation found for ${fromPhone}. Searching for contact...`);
+
+      const contacts = await prisma.contact.findMany({
+        where: {
+          OR: [
+            { whatsapp: { in: phoneVariations } },
+            { phone: { in: phoneVariations } }
+          ]
+        },
+        include: {
+          user: {
+            select: { id: true, name: true }
+          }
+        }
+      });
+
+      console.log(`Found ${contacts.length} contacts matching phone number`);
+
+      // Create conversation for each user who has this contact
+      for (const contact of contacts) {
+        console.log(`Creating conversation for user ${contact.userId} (${contact.user.name})`);
+
+        const filePath = conversationStorage.getFilePath(contact.userId, fromPhone);
+        const conversation = await prisma.whatsAppConversation.create({
+          data: {
+            userId: contact.userId,
+            contactName: contactName,
+            contactPhone: fromPhone,
+            contactId: contact.id,
+            lastMessage: messageText,
+            lastMessageAt: new Date(parseInt(timestamp) * 1000),
+            unreadCount: 1,
+            filePath
+          }
+        });
+
+        // Save the message
+        const savedMessage = await prisma.whatsAppMessage.create({
+          data: {
+            conversationId: conversation.id,
+            message: messageText,
+            sender: 'contact',
+            senderName: contactName,
+            status: 'received',
+            messageType,
+            metadata: {
+              whatsappMessageId: messageId,
+              timestamp: timestamp
+            }
+          }
+        });
+
+        // Save to file
+        await conversationStorage.saveMessage(contact.userId, fromPhone, savedMessage);
+        console.log(`✅ Message saved to conversation for user ${contact.userId}`);
+
+        // Process AI response if enabled for new conversation (Structured)
+        console.log(`\n🔍 AI CHECK FOR NEW CONVERSATION:`);
+        console.log(`   - whatsappAIService.isEnabled(): ${whatsappAIService.isEnabled()}`);
+        console.log(`   - conversation.aiEnabled: ${conversation.aiEnabled}`);
+        console.log(`   - messageType: ${messageType}`);
+        console.log(`   - ALL CONDITIONS MET: ${whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text'}`);
+
+        if (whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text') {
+          try {
+            console.log(`\n🤖 ✅ AI PROCESSING STARTING (Structured) for new conversation ${conversation.id}...`);
+
+            // Get structured AI response
+            const aiResult = await whatsappAIService.processMessage(
+              conversation.id,
+              messageText,
+              conversation.userId
+            );
+
+            console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
+
+            // Execute any actions
+            const actionResults = await actionHandlerService.executeActions(
+              aiResult.actions,
+              {
+                userId: conversation.userId,
+                contactPhone: fromPhone,
+                conversationId: conversation.id,
+              }
+            );
+
+            console.log(`\n⚡ Executed ${actionResults.length} action(s)`);
+
+            // Send message to WhatsApp
+            if (whatsappService.isConfigured() && aiResult.message) {
+              const sentMessage = await whatsappService.sendMessage(fromPhone, aiResult.message);
+              console.log(`   ✅ WhatsApp message sent! Message ID: ${sentMessage.messageId}`);
+
+              // Save AI response to database
+              const aiMessage = await prisma.whatsAppMessage.create({
+                data: {
+                  conversationId: conversation.id,
+                  message: aiResult.message,
+                  sender: 'ai',
+                  senderName: 'AI Assistant',
+                  status: 'sent',
+                  messageType: 'text',
+                  isAiGenerated: true,
+                  metadata: {
+                    whatsappMessageId: sentMessage.messageId,
+                    intent: aiResult.metadata?.intent,
+                    sentiment: aiResult.metadata?.sentiment,
+                    actions: actionResults,
+                  }
+                }
+              });
+
+              // Update conversation
+              await prisma.whatsAppConversation.update({
+                where: { id: conversation.id },
+                data: {
+                  lastMessage: aiResult.message,
+                  lastMessageAt: new Date()
+                }
+              });
+
+              // Save to file
+              await conversationStorage.saveMessage(conversation.userId, fromPhone, aiMessage);
+              console.log(`\n✅ ✅ ✅ AI RESPONSE SENT AND SAVED TO NEW CONVERSATION!`);
+            } else {
+              console.log(`\n⚠️ WhatsApp service not configured or no message to send`);
+            }
+          } catch (aiError) {
+            console.error('\n❌❌❌ ERROR GENERATING AI RESPONSE FOR NEW CONVERSATION:');
+            console.error('Error message:', aiError.message);
+            console.error('Error stack:', aiError.stack);
+            // Continue processing even if AI fails
+          }
+        } else {
+          console.log(`\n⏭️ SKIPPING AI - Conditions not met`);
+        }
+      }
+    } else {
+      console.log(`Found ${conversations.length} existing conversation(s) for ${fromPhone}`);
+
+      // Update existing conversations
+      for (const conversation of conversations) {
+        console.log(`Updating conversation ${conversation.id} for user ${conversation.userId}`);
+
+        // Update conversation
+        await prisma.whatsAppConversation.update({
+          where: { id: conversation.id },
+          data: {
+            lastMessage: messageText,
+            lastMessageAt: new Date(parseInt(timestamp) * 1000),
+            unreadCount: { increment: 1 }
+          }
+        });
+
+        // Save the message
+        const savedMessage = await prisma.whatsAppMessage.create({
+          data: {
+            conversationId: conversation.id,
+            message: messageText,
+            sender: 'contact',
+            senderName: contactName,
+            status: 'received',
+            messageType,
+            metadata: {
+              whatsappMessageId: messageId,
+              timestamp: timestamp
+            }
+          }
+        });
+
+        // Save to file
+        await conversationStorage.saveMessage(conversation.userId, fromPhone, savedMessage);
+        console.log(`✅ Message saved to existing conversation for user ${conversation.userId}`);
+
+        // Process AI response if enabled (Structured)
+        console.log(`\n🔍 AI CHECK FOR EXISTING CONVERSATION (${conversation.id}):`);
+        console.log(`   - whatsappAIService.isEnabled(): ${whatsappAIService.isEnabled()}`);
+        console.log(`   - conversation.aiEnabled: ${conversation.aiEnabled}`);
+        console.log(`   - messageType: ${messageType}`);
+        console.log(`   - ALL CONDITIONS MET: ${whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text'}`);
+
+        if (whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text') {
+          try {
+            console.log(`\n🤖 ✅ AI PROCESSING STARTING (Structured) for existing conversation ${conversation.id}...`);
+
+            // Get structured AI response
+            const aiResult = await whatsappAIService.processMessage(
+              conversation.id,
+              messageText,
+              conversation.userId
+            );
+
+            console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
+
+            // Execute any actions
+            const actionResults = await actionHandlerService.executeActions(
+              aiResult.actions,
+              {
+                userId: conversation.userId,
+                contactPhone: fromPhone,
+                conversationId: conversation.id,
+              }
+            );
+
+            console.log(`\n⚡ Executed ${actionResults.length} action(s)`);
+
+            // Send message to WhatsApp
+            if (whatsappService.isConfigured() && aiResult.message) {
+              const sentMessage = await whatsappService.sendMessage(fromPhone, aiResult.message);
+              console.log(`   ✅ WhatsApp message sent! Message ID: ${sentMessage.messageId}`);
+
+              // Save AI response to database
+              const aiMessage = await prisma.whatsAppMessage.create({
+                data: {
+                  conversationId: conversation.id,
+                  message: aiResult.message,
+                  sender: 'ai',
+                  senderName: 'AI Assistant',
+                  status: 'sent',
+                  messageType: 'text',
+                  isAiGenerated: true,
+                  metadata: {
+                    whatsappMessageId: sentMessage.messageId,
+                    intent: aiResult.metadata?.intent,
+                    sentiment: aiResult.metadata?.sentiment,
+                    actions: actionResults,
+                  }
+                }
+              });
+
+              // Update conversation
+              await prisma.whatsAppConversation.update({
+                where: { id: conversation.id },
+                data: {
+                  lastMessage: aiResult.message,
+                  lastMessageAt: new Date()
+                }
+              });
+
+              // Save to file
+              await conversationStorage.saveMessage(conversation.userId, fromPhone, aiMessage);
+              console.log(`\n✅ ✅ ✅ AI RESPONSE SENT AND SAVED TO EXISTING CONVERSATION!`);
+            } else {
+              console.log(`\n⚠️ WhatsApp service not configured or no message to send`);
+            }
+          } catch (aiError) {
+            console.error('\n❌❌❌ ERROR GENERATING AI RESPONSE FOR EXISTING CONVERSATION:');
+            console.error('Error message:', aiError.message);
+            console.error('Error stack:', aiError.stack);
+            // Continue processing even if AI fails
+          }
+        } else {
+          console.log(`\n⏭️ SKIPPING AI - Conditions not met for existing conversation`);
+        }
+      }
+    }
+
+    console.log(`\n✅ Successfully processed incoming message from ${fromPhone}`);
+    console.log(`======================================\n`);
+  } catch (error) {
+    console.error('\n❌❌❌ FATAL ERROR processing incoming message:', error);
+    console.error('Error details:', error.message);
+    console.error('Stack trace:', error.stack);
+    console.log(`======================================\n`);
+  }
+}
+
+// Helper function to process message status updates
+async function processMessageStatus(status) {
+  try {
+    const messageId = status.id;
+    const statusValue = status.status; // 'sent', 'delivered', 'read', 'failed'
+
+    // Update message status in database
+    const message = await prisma.whatsAppMessage.findFirst({
+      where: {
+        metadata: {
+          path: ['whatsappMessageId'],
+          equals: messageId
+        }
+      }
+    });
+
+    if (message) {
+      await prisma.whatsAppMessage.update({
+        where: { id: message.id },
+        data: { status: statusValue }
+      });
+
+      console.log(`Updated message ${messageId} status to ${statusValue}`);
+    }
+  } catch (error) {
+    console.error('Error processing message status:', error);
+  }
+}
+
+module.exports = router;

@@ -1,0 +1,420 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  AGENT
+  VIEWER
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String?  // Hashed password (optional for Google OAuth users)
+  name      String
+  company   String   @default("")
+  role      UserRole @default(AGENT)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Google OAuth for Authentication
+  googleId           String?  @unique
+  googleEmail        String?
+  googleProfilePic   String?
+
+  // Google Calendar Integration
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleTokenExpiry  DateTime?
+
+  // Password Reset
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
+
+  // Team & Department
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  teamId       String?
+  team         Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  // Relations
+  leads                   Lead[]
+  contacts                Contact[]
+  invoices                Invoice[]
+  deals                   Deal[]
+  tasks                   Task[]
+  whatsappConversations   WhatsAppConversation[]
+  calendarEvents          CalendarEvent[]
+  activityLogs            ActivityLog[]
+  sessions                Session[]
+  emailLogs               EmailLog[]
+
+  @@index([email])
+  @@index([googleId])
+  @@index([role])
+  @@index([departmentId])
+  @@index([teamId])
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  managerId   String?  // Department manager
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  users       User[]
+  teams       Team[]
+
+  @@index([managerId])
+}
+
+model Team {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  managerId    String?  // Team lead/manager
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  users        User[]
+
+  @@index([departmentId])
+  @@index([managerId])
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  action      String   // 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'VIEW' | etc.
+  entityType  String   // 'Lead' | 'Contact' | 'Invoice' | 'Deal' | 'Task' | 'User' | etc.
+  entityId    String?  // ID of the affected entity
+  description String   @db.Text
+  metadata    Json?    // Additional data (before/after values, etc.)
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  // User relation
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  token        String   @unique
+  refreshToken String?  @unique
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // User relation
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model Lead {
+  id                String   @id @default(uuid())
+  name              String
+  company           String
+  email             String
+  phone             String
+  whatsapp          String?
+  source            String   // 'web-form' | 'whatsapp' | 'call' | 'email' | 'referral' | 'social-media' | 'missed-call'
+  status            String   // 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost'
+  priority          String   // 'low' | 'medium' | 'high' | 'urgent'
+  estimatedValue    Float
+  assignedTo        String
+  notes             String   @default("")
+  tags              String[] // Array of tags
+  website           String?
+  linkedIn          String?
+  twitter           String?
+  facebook          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastContactedAt   DateTime?
+  nextFollowUpAt    DateTime?
+
+  // User relation
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, priority])
+  @@index([assignedTo])
+  @@index([userId])
+}
+
+model Contact {
+  id              String   @id @default(uuid())
+  name            String
+  company         String
+  designation     String
+  email           String
+  phone           String
+  alternatePhone  String?
+  whatsapp        String?
+  type            String   // 'customer' | 'prospect' | 'partner' | 'vendor'
+  industry        String   // 'technology' | 'manufacturing' | 'retail' | 'export' | 'services' | 'textile' | 'food' | 'healthcare' | 'other'
+  companySize     String
+  gstNumber       String?
+  panNumber       String?
+  addressStreet   String   @default("")
+  addressCity     String   @default("")
+  addressState    String   @default("")
+  addressPincode  String   @default("")
+  addressCountry  String   @default("India")
+  website         String?
+  linkedIn        String?
+  notes           String   @default("")
+  tags            String[] // Array of tags
+  assignedTo      String
+  lifetimeValue   Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User relation
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Deal relation (one-to-many)
+  deals           Deal[]
+
+  @@index([type])
+  @@index([assignedTo])
+  @@index([userId])
+}
+
+model Invoice {
+  id                String   @id @default(uuid())
+  invoiceNumber     String   @unique
+  customerName      String
+  customerEmail     String
+  customerPhone     String
+  customerAddress   String
+  customerCity      String   @default("")
+  customerState     String
+  customerGST       String?
+  companyName       String
+  companyAddress    String
+  companyCity       String   @default("")
+  companyState      String
+  companyGST        String
+  companyPAN        String
+  status            String   // 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+  paymentMethod     String?  // 'cash' | 'upi' | 'bank-transfer' | 'cheque' | 'card' | 'razorpay' | 'paytm'
+  paymentDate       DateTime?
+  dueDate           DateTime
+  subtotal          Float
+  totalDiscount     Float    @default(0)
+  cgst              Float    @default(0)
+  sgst              Float    @default(0)
+  igst              Float    @default(0)
+  totalTax          Float
+  roundOff          Float    @default(0)
+  total             Float
+  notes             String   @default("")
+  lineItems         Json     // Store line items as JSON
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // User relation
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([customerName])
+  @@index([userId])
+}
+
+model Deal {
+  id              String   @id @default(uuid())
+  title           String
+  company         String
+  contactName     String
+  contactId       String?  // Optional link to Contact
+  value           Float
+  stage           String   // 'lead' | 'qualified' | 'proposal' | 'negotiation' | 'closed-won' | 'closed-lost'
+  probability     Int      // 0-100
+  expectedCloseDate DateTime
+  assignedTo      String
+  notes           String   @default("")
+  tags            String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User relation
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Contact relation (optional)
+  contact         Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([stage])
+  @@index([assignedTo])
+  @@index([userId])
+  @@index([contactId])
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @default("")
+  priority    String   // 'low' | 'medium' | 'high' | 'urgent'
+  status      String   // 'todo' | 'in-progress' | 'completed'
+  dueDate     DateTime
+  assignee    String
+  tags        String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  completedAt DateTime?
+
+  // User relation
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([assignee])
+  @@index([userId])
+}
+
+model WhatsAppConversation {
+  id              String   @id @default(uuid())
+  contactName     String
+  contactPhone    String   // WhatsApp number with country code
+  contactId       String?  // Reference to Contact if exists
+  lastMessage     String?  @db.Text
+  lastMessageAt   DateTime?
+  unreadCount     Int      @default(0)
+  filePath        String   // Path to conversation file (e.g., "conversations/user123/+919876543210.json")
+  aiEnabled       Boolean  @default(true) // AI assistant enabled for this conversation
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User relation - who owns this conversation
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relations
+  messages        WhatsAppMessage[]
+
+  @@unique([userId, contactPhone])
+  @@index([userId])
+  @@index([contactPhone])
+  @@index([lastMessageAt])
+}
+
+model WhatsAppMessage {
+  id              String   @id @default(uuid())
+  message         String   @db.Text
+  sender          String   // 'user' | 'contact' | 'ai'
+  senderName      String   // Name of who sent the message
+  status          String   @default("sent") // 'sent' | 'delivered' | 'read' | 'failed'
+  messageType     String   @default("text") // 'text' | 'image' | 'document' | 'template'
+  isAiGenerated   Boolean  @default(false) // True if message was generated by AI
+  metadata        Json?    // Additional data (messageId from WhatsApp, etc.)
+  createdAt       DateTime @default(now())
+
+  // Conversation relation
+  conversationId  String
+  conversation    WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+model CalendarEvent {
+  id                String   @id @default(uuid())
+  title             String
+  description       String?  @db.Text
+  startTime         DateTime
+  endTime           DateTime
+  location          String?
+  attendees         String[] // Array of email addresses
+  googleEventId     String?  // Google Calendar event ID
+  isAllDay          Boolean  @default(false)
+  color             String   @default("blue") // Event color for UI
+  reminders         Json?    // Reminder settings
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // User relation
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([startTime])
+  @@index([googleEventId])
+}
+
+model EmailLog {
+  id              String   @id @default(uuid())
+  to              String[] // Array of recipient email addresses
+  cc              String[] @default([])
+  bcc             String[] @default([])
+  from            String   // Sender email
+  subject         String
+  body            String   @db.Text
+  htmlBody        String?  @db.Text
+  status          String   // 'sent' | 'failed' | 'pending' | 'queued'
+  errorMessage    String?  @db.Text
+  messageId       String?  // Email provider message ID
+  gmailMessageId  String?  // Gmail API message ID
+  gmailThreadId   String?  // Gmail thread ID for grouping replies
+  entityType      String?  // 'Lead' | 'Contact' | 'Deal' | 'PasswordReset' | 'Manual'
+  entityId        String?  // ID of related entity
+  attachments     Json?    // Array of attachment metadata
+  sentAt          DateTime?
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  replyCount      Int      @default(0) // Number of replies received
+  lastReplyAt     DateTime? // When last reply was received
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User relation - who sent the email
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Reply relation
+  parentEmailId   String?  // If this is a reply, reference to parent email
+  parentEmail     EmailLog? @relation("EmailReplies", fields: [parentEmailId], references: [id], onDelete: SetNull)
+  replies         EmailLog[] @relation("EmailReplies")
+
+  @@index([userId])
+  @@index([status])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([to])
+  @@index([gmailThreadId])
+  @@index([parentEmailId])
+}

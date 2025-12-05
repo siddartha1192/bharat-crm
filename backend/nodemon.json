@@ -1,0 +1,17 @@
+{
+  "watch": [
+    "**/*.js",
+    "**/*.json"
+  ],
+  "ignore": [
+    "node_modules/**",
+    "conversations/**",
+    "uploads/**",
+    "*.log",
+    "test-*.js",
+    "fix-*.js"
+  ],
+  "ext": "js,json",
+  "verbose": false,
+  "delay": "1000"
+}
