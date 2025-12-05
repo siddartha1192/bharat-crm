@@ -43,7 +43,7 @@ class DatabaseToolsService {
               },
               sortBy: {
                 type: 'string',
-                enum: ['createdAt', 'value', 'name', 'updatedAt'],
+                enum: ['createdAt', 'estimatedValue', 'name', 'updatedAt'],
                 description: 'Field to sort by',
               },
               sortOrder: {
@@ -327,7 +327,9 @@ class DatabaseToolsService {
         company: true,
         status: true,
         source: true,
-        value: true,
+        priority: true,
+        estimatedValue: true,
+        assignedTo: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -464,7 +466,7 @@ class DatabaseToolsService {
     const where = {};
 
     if (args.status) where.status = args.status;
-    if (args.minAmount) where.totalAmount = { gte: args.minAmount };
+    if (args.minAmount) where.total = { gte: args.minAmount };
     if (args.dateFrom) where.createdAt = { gte: new Date(args.dateFrom) };
 
     const invoices = await prisma.invoice.findMany({
@@ -474,14 +476,15 @@ class DatabaseToolsService {
       select: {
         id: true,
         invoiceNumber: true,
+        customerName: true,
         status: true,
-        totalAmount: true,
+        total: true,
         dueDate: true,
         createdAt: true,
       },
     });
 
-    const totalAmount = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+    const totalAmount = invoices.reduce((sum, inv) => sum + inv.total, 0);
 
     return {
       count: invoices.length,
@@ -588,7 +591,7 @@ class DatabaseToolsService {
 
       case 'total_revenue':
         const revenue = await prisma.invoice.aggregate({
-          _sum: { totalAmount: true },
+          _sum: { total: true },
           where: {
             status: 'paid',
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
@@ -597,7 +600,7 @@ class DatabaseToolsService {
         return {
           metric: 'total_revenue',
           data: {
-            totalRevenue: revenue._sum.totalAmount || 0,
+            totalRevenue: revenue._sum.total || 0,
           },
         };
 
