@@ -55,11 +55,22 @@ export default function CalendarCallback() {
         console.log('✅ All checks passed, sending to backend...');
         console.log('📡 API URL:', `${API_URL}/calendar/auth/callback`);
 
+        // Get auth token
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('❌ No authentication token found');
+          setStatus('error');
+          setMessage('Authentication token not found. Please log in again.');
+          setTimeout(() => navigate('/login'), 3000);
+          return;
+        }
+
         // Send code to backend
         const response = await fetch(`${API_URL}/calendar/auth/callback`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({
             code,
