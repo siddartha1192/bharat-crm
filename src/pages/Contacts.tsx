@@ -22,6 +22,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { ContactType } from '@/types/contact';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 
 export default function Contacts() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -66,14 +67,18 @@ export default function Contacts() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Contact
-              </Button>
+              <ProtectedFeature permission="contacts:export">
+                <Button variant="outline">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </ProtectedFeature>
+              <ProtectedFeature permission="contacts:create">
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Contact
+                </Button>
+              </ProtectedFeature>
             </div>
           </div>
         </div>

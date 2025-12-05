@@ -17,6 +17,7 @@ import {
 import { Plus, Search, FileText, DollarSign, AlertCircle, CheckCircle, Loader2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { exportInvoicesToCSV } from "@/lib/csvUtils";
+import { ProtectedFeature } from "@/components/auth/ProtectedFeature";
 
 const Invoices = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -443,14 +444,18 @@ const Invoices = () => {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleExportCSV}>
-                <Download className="w-4 h-4 mr-2" />
-                Export CSV
-              </Button>
-              <Button onClick={handleCreateInvoice} size="lg" className="gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90">
-                <Plus className="h-5 w-5" />
-                Create Invoice
-              </Button>
+              <ProtectedFeature permission="invoices:export">
+                <Button variant="outline" onClick={handleExportCSV}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export CSV
+                </Button>
+              </ProtectedFeature>
+              <ProtectedFeature permission="invoices:create">
+                <Button onClick={handleCreateInvoice} size="lg" className="gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90">
+                  <Plus className="h-5 w-5" />
+                  Create Invoice
+                </Button>
+              </ProtectedFeature>
             </div>
           </div>
         </div>

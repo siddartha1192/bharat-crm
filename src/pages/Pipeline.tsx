@@ -12,6 +12,7 @@ import {
   Target,
   Trophy,
 } from 'lucide-react';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 
 export default function Pipeline() {
   const stats = {
@@ -62,14 +63,18 @@ export default function Pipeline() {
                 <Filter className="w-4 h-4 mr-2" />
                 Filter
               </Button>
-              <Button variant="outline">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Deal
-              </Button>
+              <ProtectedFeature permission="deals:export">
+                <Button variant="outline">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </ProtectedFeature>
+              <ProtectedFeature permission="deals:create">
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Deal
+                </Button>
+              </ProtectedFeature>
             </div>
           </div>
         </div>
@@ -166,14 +171,16 @@ export default function Pipeline() {
                       )}
                     </div>
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full mt-3 text-muted-foreground hover:text-foreground"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Deal
-                    </Button>
+                    <ProtectedFeature permission="deals:create">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full mt-3 text-muted-foreground hover:text-foreground"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Deal
+                      </Button>
+                    </ProtectedFeature>
                   </Card>
                 </div>
               );

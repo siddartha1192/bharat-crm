@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Filter } from 'lucide-react';
 import { toast } from 'sonner';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>(mockTasks);
@@ -46,10 +47,12 @@ export default function Tasks() {
           <h1 className="text-3xl font-bold text-foreground mb-2">Tasks</h1>
           <p className="text-muted-foreground">Manage your follow-ups and to-dos</p>
         </div>
-        <Button onClick={handleCreateTask} size="lg" className="shadow-primary">
-          <Plus className="w-5 h-5 mr-2" />
-          New Task
-        </Button>
+        <ProtectedFeature permission="tasks:create">
+          <Button onClick={handleCreateTask} size="lg" className="shadow-primary">
+            <Plus className="w-5 h-5 mr-2" />
+            New Task
+          </Button>
+        </ProtectedFeature>
       </div>
 
       <Tabs value={filter} onValueChange={(v) => setFilter(v as any)} className="w-full">

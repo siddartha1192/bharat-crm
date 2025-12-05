@@ -69,7 +69,16 @@ export function UserManagement() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        if (response.status === 403) {
+          toast({
+            title: 'Access Denied',
+            description: 'You need MANAGER or ADMIN role to view all users',
+            variant: 'destructive',
+          });
+        } else {
+          throw new Error('Failed to fetch users');
+        }
+        return;
       }
 
       const data = await response.json();
@@ -78,7 +87,7 @@ export function UserManagement() {
       console.error('Error fetching users:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load users',
+        description: 'Failed to load users. Please check if the backend is running.',
         variant: 'destructive',
       });
     } finally {

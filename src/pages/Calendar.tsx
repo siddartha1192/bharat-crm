@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import {
   Dialog,
   DialogContent,
@@ -410,27 +411,29 @@ export default function Calendar() {
             </Button>
           )}
 
-          <Button
-            onClick={() => {
-              setSelectedEvent(null);
-              setIsEditMode(false);
-              setFormData({
-                title: '',
-                description: '',
-                startTime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-                endTime: format(addHours(new Date(), 1), "yyyy-MM-dd'T'HH:mm"),
-                location: '',
-                attendees: '',
-                isAllDay: false,
-                color: 'blue',
-                syncWithGoogle: isConnected,
-              });
-              setShowEventDialog(true);
-            }}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            New Event
-          </Button>
+          <ProtectedFeature permission="calendar:create">
+            <Button
+              onClick={() => {
+                setSelectedEvent(null);
+                setIsEditMode(false);
+                setFormData({
+                  title: '',
+                  description: '',
+                  startTime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+                  endTime: format(addHours(new Date(), 1), "yyyy-MM-dd'T'HH:mm"),
+                  location: '',
+                  attendees: '',
+                  isAllDay: false,
+                  color: 'blue',
+                  syncWithGoogle: isConnected,
+                });
+                setShowEventDialog(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Event
+            </Button>
+          </ProtectedFeature>
         </div>
       </div>
 

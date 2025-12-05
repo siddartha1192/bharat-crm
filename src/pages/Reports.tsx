@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import {
   BarChart,
   Bar,
@@ -156,10 +157,12 @@ export default function Reports() {
                   <SelectItem value="year">This Year</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline">
-                <Download className="w-4 h-4 mr-2" />
-                Export Report
-              </Button>
+              <ProtectedFeature permission="reports:export">
+                <Button variant="outline">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Report
+                </Button>
+              </ProtectedFeature>
             </div>
           </div>
         </div>
