@@ -1,28 +1,84 @@
-import { mockDeals } from '@/lib/mockData';
-import { defaultPipelineStages, PipelineStage } from '@/types/pipeline';
+import { useState, useEffect, useRef } from 'react';
+import { dealsAPI } from '@/lib/api';
+import { defaultPipelineStages, PipelineStage, Deal } from '@/types/pipeline';
 import { DealCard } from '@/components/pipeline/DealCard';
+import { DealListView } from '@/components/pipeline/DealListView';
+import { StageColumn } from '@/components/pipeline/StageColumn';
+import { DealDialog } from '@/components/pipeline/DealDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { exportDealsToCSV, importDealsFromCSV } from '@/lib/csvUtils';
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCorners,
+} from '@dnd-kit/core';
 import {
   Plus,
-  Filter,
   Download,
+  Upload,
   IndianRupee,
   TrendingUp,
   Target,
   Trophy,
+  Loader2,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 
 export default function Pipeline() {
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
+  const [originalDealStage, setOriginalDealStage] = useState<PipelineStage | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [selectedStage, setSelectedStage] = useState<PipelineStage>('lead');
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch deals from API
+  useEffect(() => {
+    fetchDeals();
+  }, []);
+
+  const fetchDeals = async () => {
+    try {
+      setLoading(true);
+      const data = await dealsAPI.getAll();
+      setDeals(data);
+    } catch (error) {
+      toast.error('Failed to load deals. Please check if the backend is running.');
+      console.error('Error fetching deals:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
   const stats = {
-    totalValue: mockDeals
+    totalValue: deals
       .filter(d => !['closed-lost'].includes(d.stage))
       .reduce((sum, d) => sum + d.value, 0),
-    wonValue: mockDeals
+    wonValue: deals
       .filter(d => d.stage === 'closed-won')
       .reduce((sum, d) => sum + d.value, 0),
-    activeDeals: mockDeals.filter(d => !['closed-won', 'closed-lost'].includes(d.stage)).length,
-    closingThisMonth: mockDeals.filter(
+    activeDeals: deals.filter(d => !['closed-won', 'closed-lost'].includes(d.stage)).length,
+    closingThisMonth: deals.filter(
       d =>
         !['closed-won', 'closed-lost'].includes(d.stage) &&
         d.expectedCloseDate.getTime() < Date.now() + 30 * 24 * 60 * 60 * 1000
@@ -30,43 +86,217 @@ export default function Pipeline() {
   };
 
   const getDealsByStage = (stage: PipelineStage) => {
-    return mockDeals.filter(deal => deal.stage === stage);
+    return deals.filter(deal => deal.stage === stage);
   };
 
-  const getStageValue = (stage: PipelineStage) => {
-    return getDealsByStage(stage).reduce((sum, deal) => sum + deal.value, 0);
+  const handleDragStart = (event: DragStartEvent) => {
+    const deal = deals.find(d => d.id === event.active.id);
+    setActiveDeal(deal || null);
+    // Store the original stage before dragging
+    if (deal) {
+      setOriginalDealStage(deal.stage);
+    }
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeDeal = deals.find(d => d.id === active.id);
+    if (!activeDeal) return;
+
+    let targetStage: PipelineStage | null = null;
+
+    // Check if we're over a stage column directly
+    if (defaultPipelineStages.some(s => s.id === over.id)) {
+      targetStage = over.id as PipelineStage;
+    } else {
+      // We're over a deal, find which stage it belongs to
+      const overDeal = deals.find(d => d.id === over.id);
+      if (overDeal) {
+        targetStage = overDeal.stage;
+      }
+    }
+
+    // Update the deal's stage if it's different
+    if (targetStage && activeDeal.stage !== targetStage) {
+      setDeals(prevDeals =>
+        prevDeals.map(d =>
+          d.id === activeDeal.id ? { ...d, stage: targetStage, updatedAt: new Date() } : d
+        )
+      );
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    // Get the deal that was dragged
+    const activeDeal = deals.find(d => d.id === active.id);
+
+    // Reset drag state
+    setActiveDeal(null);
+
+    if (!over || !activeDeal || !originalDealStage) {
+      setOriginalDealStage(null);
+      return;
+    }
+
+    let targetStage: PipelineStage | null = null;
+
+    // Check if we're over a stage column directly
+    if (defaultPipelineStages.some(s => s.id === over.id)) {
+      targetStage = over.id as PipelineStage;
+    } else {
+      // We're over a deal, find which stage it belongs to
+      const overDeal = deals.find(d => d.id === over.id);
+      if (overDeal) {
+        targetStage = overDeal.stage;
+      }
+    }
+
+    // Update the deal's stage if it changed from the original
+    if (targetStage && originalDealStage !== targetStage) {
+      const stageName = defaultPipelineStages.find(s => s.id === targetStage)?.name;
+
+      try {
+        // Update in backend
+        await dealsAPI.update(activeDeal.id, { stage: targetStage });
+        toast.success(`Deal moved to ${stageName}!`);
+      } catch (error) {
+        // Revert on error - restore to original stage
+        setDeals(prevDeals =>
+          prevDeals.map(d =>
+            d.id === activeDeal.id ? { ...d, stage: originalDealStage } : d
+          )
+        );
+        toast.error('Failed to update deal. Please try again.');
+        console.error('Error updating deal stage:', error);
+      }
+    }
+
+    // Reset original stage
+    setOriginalDealStage(null);
+  };
+
+  const handleAddDeal = (stage: PipelineStage) => {
+    setSelectedDeal(null);
+    setSelectedStage(stage);
+    setDialogOpen(true);
+  };
+
+  const handleEditDeal = (deal: Deal) => {
+    setSelectedDeal(deal);
+    setDialogOpen(true);
+  };
+
+  const handleDeleteDeal = async (deal: Deal) => {
+    if (window.confirm(`Are you sure you want to delete "${deal.title}"?`)) {
+      try {
+        await dealsAPI.delete(deal.id);
+        toast.success('Deal deleted successfully!');
+        fetchDeals();
+      } catch (error) {
+        toast.error('Failed to delete deal. Please try again.');
+        console.error('Error deleting deal:', error);
+      }
+    }
+  };
+
+  const handleSaveDeal = async (dealData: Partial<Deal>) => {
+    try {
+      if (selectedDeal) {
+        // Update existing deal
+        await dealsAPI.update(selectedDeal.id, dealData);
+        toast.success('Deal updated successfully!');
+      } else {
+        // Create new deal
+        const newDeal: Partial<Deal> = {
+          title: dealData.title || '',
+          company: dealData.company || '',
+          contactName: dealData.contactName || '',
+          stage: dealData.stage || selectedStage,
+          value: dealData.value || 0,
+          probability: dealData.probability || 50,
+          expectedCloseDate: dealData.expectedCloseDate || new Date(),
+          assignedTo: dealData.assignedTo || 'Priya Sharma',
+          notes: dealData.notes || '',
+          tags: dealData.tags || [],
+        };
+        await dealsAPI.create(newDeal);
+        toast.success('Deal created successfully!');
+      }
+      // Refresh the deals list
+      fetchDeals();
+    } catch (error) {
+      toast.error('Failed to save deal. Please try again.');
+      console.error('Error saving deal:', error);
+    }
+  };
+
+  const handleExport = () => {
+    exportDealsToCSV(deals, `pipeline-export-${new Date().toISOString().split('T')[0]}.csv`);
+    toast.success(`${deals.length} deals exported successfully!`);
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const importedDeals = await importDealsFromCSV(file);
+
+      // Create all imported deals in the backend
+      for (const deal of importedDeals) {
+        await dealsAPI.create(deal);
+      }
+
+      toast.success(`${importedDeals.length} deals imported successfully!`);
+
+      // Refresh the deals list
+      fetchDeals();
+    } catch (error) {
+      toast.error('Failed to import deals. Please check the file format.');
+      console.error('Import error:', error);
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
-    <div className="min-h-screen relative">
-      {/* Tricolor Background */}
-      <div className="absolute inset-0 opacity-5 pointer-events-none">
-        <div className="h-1/3 bg-gradient-to-b from-primary to-primary/50" />
-        <div className="h-1/3 bg-gradient-to-b from-background/80 to-background" />
-        <div className="h-1/3 bg-gradient-to-t from-success to-success/50" />
-      </div>
+    <div className="min-h-screen bg-background">
 
       <div className="relative p-6 max-w-[1800px] mx-auto space-y-6">
         {/* Header */}
         <div className="relative">
-          <div className="absolute -left-6 top-0 bottom-0 w-1 bg-gradient-to-b from-primary via-background to-success rounded-r" />
+          <div className="absolute -left-6 top-0 bottom-0 w-1 bg-primary rounded-r" />
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">Sales Pipeline</h1>
               <p className="text-muted-foreground">
-                Manage deals through customizable sales stages
+                Drag and drop deals between stages to update your pipeline
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline">
-                <Filter className="w-4 h-4 mr-2" />
-                Filter
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImport}
+                accept=".csv"
+                className="hidden"
+              />
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="w-4 h-4 mr-2" />
+                Import CSV
               </Button>
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleExport}>
                 <Download className="w-4 h-4 mr-2" />
-                Export
+                Export CSV
               </Button>
-              <Button>
+              <Button onClick={() => handleAddDeal('lead')}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Deal
               </Button>
@@ -129,57 +359,80 @@ export default function Pipeline() {
           </Card>
         </div>
 
-        {/* Pipeline Board */}
-        <div className="overflow-x-auto">
-          <div className="flex gap-4 min-w-max pb-4">
-            {defaultPipelineStages.map(stage => {
-              const deals = getDealsByStage(stage.id);
-              const stageValue = getStageValue(stage.id);
-
-              return (
-                <div key={stage.id} className="flex-shrink-0 w-[320px]">
-                  <Card className="p-4">
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${stage.color}`} />
-                          <h3 className="font-semibold text-foreground">{stage.name}</h3>
-                          <Badge variant="secondary" className="text-xs">
-                            {deals.length}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <IndianRupee className="w-3 h-3" />
-                        <span>₹{(stageValue / 100000).toFixed(1)}L</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 max-h-[calc(100vh-400px)] overflow-y-auto">
-                      {deals.map(deal => (
-                        <DealCard key={deal.id} deal={deal} />
-                      ))}
-                      {deals.length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground text-sm">
-                          No deals in this stage
-                        </div>
-                      )}
-                    </div>
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full mt-3 text-muted-foreground hover:text-foreground"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Deal
-                    </Button>
-                  </Card>
-                </div>
-              );
-            })}
+        {/* View Toggle */}
+        <div className="flex justify-end">
+          <div className="flex gap-1 border rounded-md p-1">
+            <Button
+              variant={viewMode === 'board' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('board')}
+            >
+              <LayoutGrid className="w-4 h-4 mr-2" />
+              Board
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+            >
+              <List className="w-4 h-4 mr-2" />
+              List
+            </Button>
           </div>
         </div>
+
+        {/* Pipeline Board/List View */}
+        {loading ? (
+          <Card className="p-12 text-center">
+            <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Loading pipeline...</h3>
+            <p className="text-muted-foreground">
+              Please wait while we fetch your deals
+            </p>
+          </Card>
+        ) : viewMode === 'board' ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="overflow-x-auto">
+              <div className="flex gap-4 min-w-max pb-4">
+                {defaultPipelineStages.map(stage => (
+                  <StageColumn
+                    key={stage.id}
+                    stage={stage}
+                    deals={getDealsByStage(stage.id)}
+                    onAddDeal={() => handleAddDeal(stage.id)}
+                    onEditDeal={handleEditDeal}
+                    onDeleteDeal={handleDeleteDeal}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <DragOverlay>
+              {activeDeal ? <DealCard deal={activeDeal} /> : null}
+            </DragOverlay>
+          </DndContext>
+        ) : (
+          <DealListView
+            deals={deals}
+            onDealClick={handleEditDeal}
+            onDeleteDeal={handleDeleteDeal}
+          />
+        )}
+
+        {/* Deal Dialog */}
+        <DealDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onSave={handleSaveDeal}
+          initialStage={selectedStage}
+          deal={selectedDeal}
+        />
       </div>
     </div>
   );

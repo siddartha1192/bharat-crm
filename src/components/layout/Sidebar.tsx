@@ -6,10 +6,13 @@ import {
   Target,
   Calendar,
   Settings,
-  CheckCircle2,
   UserPlus,
   MessageCircle,
   BarChart3,
+  FileText,
+  Sparkles,
+  Mail,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -20,47 +23,64 @@ const navigation = [
   { name: 'Pipeline', href: '/pipeline', icon: Target },
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
   { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
+  { name: 'Emails', href: '/emails', icon: Mail },
+  { name: 'Invoices', href: '/invoices', icon: FileText },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'Calendar', href: '/calendar', icon: Calendar },
+  { name: 'AI Assistant', href: '/ai-assistant', icon: Bot, badge: 'New' },
 ];
 
 export function Sidebar() {
   return (
-    <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r lg:border-border bg-card">
-      <div className="flex items-center gap-2 p-6 border-b border-border">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-          <CheckCircle2 className="w-5 h-5 text-primary-foreground" />
+    <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 shadow-2xl">
+      {/* Logo Header */}
+      <div className="flex items-center gap-3 p-6 border-b border-blue-500/30">
+        <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center shadow-lg ring-2 ring-white/20">
+          <Sparkles className="w-6 h-6 text-white" />
         </div>
-        <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          Bharat CRM
-        </span>
+        <div className="flex flex-col">
+          <span className="text-xl font-bold text-white">Bharat CRM</span>
+          <span className="text-xs text-blue-200">Business Management</span>
+        </div>
       </div>
-      
-      <nav className="flex-1 p-4 space-y-1">
+
+      {/* Navigation */}
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500/30 scrollbar-track-transparent">
         {navigation.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
-              "hover:bg-muted text-muted-foreground"
+              "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+              "text-blue-100 hover:bg-white/10 hover:text-white hover:shadow-md",
+              "group relative overflow-hidden"
             )}
-            activeClassName="bg-primary text-primary-foreground hover:bg-primary shadow-primary"
+            activeClassName="bg-white text-blue-600 hover:bg-white shadow-lg"
           >
-            <item.icon className="w-5 h-5" />
-            {item.name}
+            {/* Active indicator */}
+            <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+            <item.icon className="w-5 h-5 relative z-10" />
+            <span className="relative z-10">{item.name}</span>
+            {item.badge && (
+              <span className="ml-auto px-2 py-0.5 text-xs font-semibold bg-green-500 text-white rounded-full relative z-10">
+                {item.badge}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
 
-      <div className="p-4 border-t border-border">
+      {/* Settings Footer */}
+      <div className="p-4 border-t border-blue-500/30">
         <NavLink
           to="/settings"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all hover:bg-muted text-muted-foreground"
-          activeClassName="bg-muted"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-blue-100 hover:bg-white/10 hover:text-white group relative overflow-hidden"
+          activeClassName="bg-white text-blue-600 shadow-lg"
         >
-          <Settings className="w-5 h-5" />
-          Settings
+          <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <Settings className="w-5 h-5 relative z-10" />
+          <span className="relative z-10">Settings</span>
         </NavLink>
       </div>
     </aside>

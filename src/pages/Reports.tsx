@@ -1,7 +1,10 @@
-import { mockLeads } from '@/lib/mockData';
-import { mockDeals } from '@/lib/mockData';
+import { useState, useEffect } from 'react';
+import { leadsAPI, dealsAPI } from '@/lib/api';
+import { Lead } from '@/types/lead';
+import { Deal } from '@/types/pipeline';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { exportLeadsToCSV, exportDealsToCSV } from '@/lib/csvUtils';
 import {
   Select,
   SelectContent,
@@ -31,39 +34,66 @@ import {
   Target,
   Users,
   Calendar,
+  Loader2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function Reports() {
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch data from API
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [leadsData, dealsData] = await Promise.all([
+        leadsAPI.getAll(),
+        dealsAPI.getAll()
+      ]);
+      setLeads(leadsData);
+      setDeals(dealsData);
+    } catch (error) {
+      toast.error('Failed to load report data. Please check if the backend is running.');
+      console.error('Error fetching report data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
   // Lead Source Distribution
   const leadSourceData = [
     {
       name: 'Web Form',
-      value: mockLeads.filter(l => l.source === 'web-form').length,
+      value: leads.filter(l => l.source === 'web-form').length,
       color: '#FF9933',
     },
     {
       name: 'WhatsApp',
-      value: mockLeads.filter(l => l.source === 'whatsapp').length,
+      value: leads.filter(l => l.source === 'whatsapp').length,
       color: '#25D366',
     },
     {
       name: 'Call',
-      value: mockLeads.filter(l => l.source === 'call').length,
+      value: leads.filter(l => l.source === 'call').length,
       color: '#000080',
     },
     {
       name: 'Email',
-      value: mockLeads.filter(l => l.source === 'email').length,
+      value: leads.filter(l => l.source === 'email').length,
       color: '#138808',
     },
     {
       name: 'Referral',
-      value: mockLeads.filter(l => l.source === 'referral').length,
+      value: leads.filter(l => l.source === 'referral').length,
       color: '#FFA500',
     },
     {
       name: 'Missed Call',
-      value: mockLeads.filter(l => l.source === 'missed-call').length,
+      value: leads.filter(l => l.source === 'missed-call').length,
       color: '#800080',
     },
   ];
@@ -72,70 +102,120 @@ export default function Reports() {
   const pipelineData = [
     {
       stage: 'Lead',
-      value: mockDeals.filter(d => d.stage === 'lead').reduce((sum, d) => sum + d.value, 0) / 100000,
-      count: mockDeals.filter(d => d.stage === 'lead').length,
+      value: deals.filter(d => d.stage === 'lead').reduce((sum, d) => sum + d.value, 0) / 100000,
+      count: deals.filter(d => d.stage === 'lead').length,
     },
     {
       stage: 'Qualified',
-      value: mockDeals.filter(d => d.stage === 'qualified').reduce((sum, d) => sum + d.value, 0) / 100000,
-      count: mockDeals.filter(d => d.stage === 'qualified').length,
+      value: deals.filter(d => d.stage === 'qualified').reduce((sum, d) => sum + d.value, 0) / 100000,
+      count: deals.filter(d => d.stage === 'qualified').length,
     },
     {
       stage: 'Proposal',
-      value: mockDeals.filter(d => d.stage === 'proposal').reduce((sum, d) => sum + d.value, 0) / 100000,
-      count: mockDeals.filter(d => d.stage === 'proposal').length,
+      value: deals.filter(d => d.stage === 'proposal').reduce((sum, d) => sum + d.value, 0) / 100000,
+      count: deals.filter(d => d.stage === 'proposal').length,
     },
     {
       stage: 'Negotiation',
-      value: mockDeals.filter(d => d.stage === 'negotiation').reduce((sum, d) => sum + d.value, 0) / 100000,
-      count: mockDeals.filter(d => d.stage === 'negotiation').length,
+      value: deals.filter(d => d.stage === 'negotiation').reduce((sum, d) => sum + d.value, 0) / 100000,
+      count: deals.filter(d => d.stage === 'negotiation').length,
     },
     {
       stage: 'Won',
-      value: mockDeals.filter(d => d.stage === 'closed-won').reduce((sum, d) => sum + d.value, 0) / 100000,
-      count: mockDeals.filter(d => d.stage === 'closed-won').length,
+      value: deals.filter(d => d.stage === 'closed-won').reduce((sum, d) => sum + d.value, 0) / 100000,
+      count: deals.filter(d => d.stage === 'closed-won').length,
     },
   ];
 
   // Lead Status Distribution
   const leadStatusData = [
-    { name: 'New', value: mockLeads.filter(l => l.status === 'new').length, color: '#3b82f6' },
-    { name: 'Contacted', value: mockLeads.filter(l => l.status === 'contacted').length, color: '#8b5cf6' },
-    { name: 'Qualified', value: mockLeads.filter(l => l.status === 'qualified').length, color: '#06b6d4' },
-    { name: 'Proposal', value: mockLeads.filter(l => l.status === 'proposal').length, color: '#f59e0b' },
-    { name: 'Won', value: mockLeads.filter(l => l.status === 'won').length, color: '#138808' },
+    { name: 'New', value: leads.filter(l => l.status === 'new').length, color: '#3b82f6' },
+    { name: 'Contacted', value: leads.filter(l => l.status === 'contacted').length, color: '#8b5cf6' },
+    { name: 'Qualified', value: leads.filter(l => l.status === 'qualified').length, color: '#06b6d4' },
+    { name: 'Proposal', value: leads.filter(l => l.status === 'proposal').length, color: '#f59e0b' },
+    { name: 'Won', value: leads.filter(l => l.status === 'won').length, color: '#138808' },
   ];
 
-  // Monthly Performance (mock data for trend)
-  const monthlyData = [
-    { month: 'Jan', leads: 12, deals: 5, revenue: 8.5 },
-    { month: 'Feb', leads: 19, deals: 7, revenue: 12.3 },
-    { month: 'Mar', leads: 15, deals: 6, revenue: 10.1 },
-    { month: 'Apr', leads: 22, deals: 9, revenue: 15.8 },
-    { month: 'May', leads: 18, deals: 8, revenue: 13.2 },
-    { month: 'Jun', leads: 25, deals: 11, revenue: 18.5 },
-  ];
+  // Monthly Performance - Calculate from real data
+  const getMonthlyData = () => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const last6Months: any[] = [];
+
+    // Generate last 6 months data
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthName = monthNames[date.getMonth()];
+
+      // Count leads created in this month
+      const monthLeads = leads.filter(l => {
+        const leadDate = new Date(l.createdAt);
+        return leadDate.getFullYear() === date.getFullYear() &&
+               leadDate.getMonth() === date.getMonth();
+      }).length;
+
+      // Count won deals in this month (closed-won)
+      const monthDeals = deals.filter(d => {
+        if (d.stage !== 'closed-won') return false;
+        const dealDate = new Date(d.updatedAt);
+        return dealDate.getFullYear() === date.getFullYear() &&
+               dealDate.getMonth() === date.getMonth();
+      }).length;
+
+      // Calculate revenue from won deals in this month
+      const monthRevenue = deals
+        .filter(d => {
+          if (d.stage !== 'closed-won') return false;
+          const dealDate = new Date(d.updatedAt);
+          return dealDate.getFullYear() === date.getFullYear() &&
+                 dealDate.getMonth() === date.getMonth();
+        })
+        .reduce((sum, d) => sum + d.value, 0) / 100000;
+
+      last6Months.push({
+        month: monthName,
+        leads: monthLeads,
+        deals: monthDeals,
+        revenue: parseFloat(monthRevenue.toFixed(1)),
+      });
+    }
+
+    return last6Months;
+  };
+
+  const monthlyData = getMonthlyData();
 
   const stats = {
-    totalLeads: mockLeads.length,
-    conversionRate: ((mockLeads.filter(l => l.status === 'won').length / mockLeads.length) * 100).toFixed(1),
-    avgDealSize: (mockDeals.reduce((sum, d) => sum + d.value, 0) / mockDeals.length / 100000).toFixed(1),
-    totalRevenue: (mockDeals.filter(d => d.stage === 'closed-won').reduce((sum, d) => sum + d.value, 0) / 100000).toFixed(1),
+    totalLeads: leads.length,
+    conversionRate: leads.length > 0 ? ((leads.filter(l => l.status === 'won').length / leads.length) * 100).toFixed(1) : '0.0',
+    avgDealSize: deals.length > 0 ? (deals.reduce((sum, d) => sum + d.value, 0) / deals.length / 100000).toFixed(1) : '0.0',
+    totalRevenue: (deals.filter(d => d.stage === 'closed-won').reduce((sum, d) => sum + d.value, 0) / 100000).toFixed(1),
+  };
+
+  const handleExportLeads = () => {
+    exportLeadsToCSV(leads, `leads-report-${new Date().toISOString().split('T')[0]}.csv`);
+    toast.success(`${leads.length} leads exported successfully!`);
+  };
+
+  const handleExportDeals = () => {
+    exportDealsToCSV(deals, `deals-report-${new Date().toISOString().split('T')[0]}.csv`);
+    toast.success(`${deals.length} deals exported successfully!`);
+  };
+
+  const handleExportAll = () => {
+    handleExportLeads();
+    handleExportDeals();
+    toast.success('All reports exported successfully!');
   };
 
   return (
-    <div className="min-h-screen relative">
-      {/* Tricolor Background */}
-      <div className="absolute inset-0 opacity-5 pointer-events-none">
-        <div className="h-1/3 bg-gradient-to-b from-primary to-primary/50" />
-        <div className="h-1/3 bg-gradient-to-b from-background/80 to-background" />
-        <div className="h-1/3 bg-gradient-to-t from-success to-success/50" />
-      </div>
+    <div className="min-h-screen bg-background">
 
-      <div className="relative p-6 max-w-7xl mx-auto space-y-6">
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="relative">
-          <div className="absolute -left-6 top-0 bottom-0 w-1 bg-gradient-to-b from-primary via-background to-success rounded-r" />
+          <div className="absolute -left-6 top-0 bottom-0 w-1 bg-primary rounded-r" />
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">Reports & Analytics</h1>
@@ -156,16 +236,30 @@ export default function Reports() {
                   <SelectItem value="year">This Year</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleExportLeads}>
                 <Download className="w-4 h-4 mr-2" />
-                Export Report
+                Export Leads
+              </Button>
+              <Button variant="outline" onClick={handleExportDeals}>
+                <Download className="w-4 h-4 mr-2" />
+                Export Deals
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Key Metrics */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {loading ? (
+          <Card className="p-12 text-center">
+            <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Loading report data...</h3>
+            <p className="text-muted-foreground">
+              Please wait while we analyze your data
+            </p>
+          </Card>
+        ) : (
+          <>
+            {/* Key Metrics */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -333,6 +427,8 @@ export default function Reports() {
             </ResponsiveContainer>
           </Card>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

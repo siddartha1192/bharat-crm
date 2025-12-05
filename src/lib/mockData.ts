@@ -2,6 +2,7 @@ import { Task, TaskStats } from '@/types/task';
 import { Lead } from '@/types/lead';
 import { Contact } from '@/types/contact';
 import { Deal } from '@/types/pipeline';
+import { calculateInvoiceTotal } from '@/types/invoice';
 
 export const mockTasks: Task[] = [
   {
@@ -88,6 +89,7 @@ export const mockLeads: Lead[] = [
     company: 'Tech Innovations Pvt Ltd',
     email: 'rajesh.kumar@techinnovations.in',
     phone: '+91 98765 43210',
+    whatsapp: '+91 98765 43210',
     source: 'web-form',
     status: 'new',
     priority: 'high',
@@ -97,6 +99,9 @@ export const mockLeads: Lead[] = [
     createdAt: new Date(Date.now() - 3600000),
     nextFollowUpAt: new Date(Date.now() + 86400000),
     tags: ['enterprise', 'hot-lead'],
+    website: 'https://techinnovations.in',
+    linkedIn: 'https://linkedin.com/in/rajeshkumar',
+    twitter: 'https://twitter.com/rajeshkumar',
   },
   {
     id: 'L002',
@@ -104,6 +109,7 @@ export const mockLeads: Lead[] = [
     company: 'Mumbai Traders',
     email: 'amit@mumbaitraders.com',
     phone: '+91 98234 56789',
+    whatsapp: '+91 98234 56789',
     source: 'whatsapp',
     status: 'contacted',
     priority: 'medium',
@@ -114,6 +120,8 @@ export const mockLeads: Lead[] = [
     lastContactedAt: new Date(Date.now() - 86400000),
     nextFollowUpAt: new Date(Date.now() + 172800000),
     tags: ['gst', 'invoicing'],
+    website: 'https://mumbaitraders.com',
+    linkedIn: 'https://linkedin.com/in/amitpatel',
   },
   {
     id: 'L003',
@@ -121,6 +129,7 @@ export const mockLeads: Lead[] = [
     company: 'Hyderabad Exports',
     email: 'sunita@hyderabadexports.in',
     phone: '+91 99876 54321',
+    whatsapp: '+91 99876 54321',
     source: 'call',
     status: 'qualified',
     priority: 'urgent',
@@ -131,6 +140,9 @@ export const mockLeads: Lead[] = [
     lastContactedAt: new Date(Date.now() - 43200000),
     nextFollowUpAt: new Date(Date.now() + 43200000),
     tags: ['qualified', 'multi-language', 'export'],
+    website: 'https://hyderabadexports.in',
+    linkedIn: 'https://linkedin.com/in/sunitareddy',
+    facebook: 'https://facebook.com/hyderabadexports',
   },
   {
     id: 'L004',
@@ -559,3 +571,187 @@ export const mockDeals: Deal[] = [
     source: 'inbound',
   },
 ];
+
+export const mockInvoices = (() => {
+  const companyDetails = {
+    companyName: "Bharat CRM Solutions Pvt Ltd",
+    companyGSTIN: "29XYZAB5678C1D2",
+    companyAddress: "456, MG Road, Bangalore",
+    companyState: "Karnataka",
+    companyPincode: "560001",
+  };
+
+  // Invoice 1: Intra-state (Karnataka to Karnataka) - CGST + SGST
+  const inv1Items = [
+    {
+      id: "li-1",
+      description: "CRM License - Professional Plan (Annual)",
+      hsnSac: "998314",
+      quantity: 10,
+      unit: "users",
+      rate: 1499,
+      discount: 10,
+      amount: 0,
+      taxRate: 18 as const,
+    },
+    {
+      id: "li-2",
+      description: "WhatsApp Business API Setup",
+      hsnSac: "998313",
+      quantity: 1,
+      unit: "service",
+      rate: 25000,
+      discount: 0,
+      amount: 0,
+      taxRate: 18 as const,
+    },
+  ];
+  const inv1Calc = calculateInvoiceTotal(inv1Items, "Karnataka", "Karnataka");
+
+  // Invoice 2: Inter-state (Karnataka to Telangana) - IGST
+  const inv2Items = [
+    {
+      id: "li-3",
+      description: "CRM Implementation Services",
+      hsnSac: "998313",
+      quantity: 1,
+      unit: "service",
+      rate: 75000,
+      discount: 0,
+      amount: 0,
+      taxRate: 18 as const,
+    },
+    {
+      id: "li-4",
+      description: "Training and Support (3 months)",
+      hsnSac: "999293",
+      quantity: 3,
+      unit: "months",
+      rate: 5000,
+      discount: 5,
+      amount: 0,
+      taxRate: 18 as const,
+    },
+  ];
+  const inv2Calc = calculateInvoiceTotal(inv2Items, "Karnataka", "Telangana");
+
+  // Invoice 3: Inter-state (Karnataka to Delhi) - IGST
+  const inv3Items = [
+    {
+      id: "li-5",
+      description: "CRM License - Enterprise Plan (Annual)",
+      hsnSac: "998314",
+      quantity: 50,
+      unit: "users",
+      rate: 2999,
+      discount: 15,
+      amount: 0,
+      taxRate: 18 as const,
+    },
+  ];
+  const inv3Calc = calculateInvoiceTotal(inv3Items, "Karnataka", "Delhi");
+
+  // Invoice 4: Intra-state (Karnataka to Karnataka) - CGST + SGST
+  const inv4Items = [
+    {
+      id: "li-6",
+      description: "Custom Integration Development",
+      hsnSac: "998313",
+      quantity: 40,
+      unit: "hours",
+      rate: 2500,
+      discount: 0,
+      amount: 0,
+      taxRate: 18 as const,
+    },
+  ];
+  const inv4Calc = calculateInvoiceTotal(inv4Items, "Karnataka", "Karnataka");
+
+  return [
+    {
+      id: "inv-001",
+      invoiceNumber: "INV-2025-001",
+      ...companyDetails,
+      customerId: "C001",
+      customerName: "Tech Innovations Pvt Ltd",
+      customerEmail: "finance@techinnovations.in",
+      customerAddress: "123, Electronic City, Bangalore",
+      customerState: "Karnataka",
+      customerPincode: "560100",
+      customerGSTIN: "29ABCDE1234F1Z5",
+      issueDate: "2025-01-15",
+      dueDate: "2025-02-14",
+      status: "sent" as const,
+      lineItems: inv1Items,
+      ...inv1Calc,
+      notes: "Thank you for your business! Payment due within 30 days.",
+      termsAndConditions: "Late payment charges applicable after due date.",
+    },
+    {
+      id: "inv-002",
+      invoiceNumber: "INV-2025-002",
+      ...companyDetails,
+      customerId: "C002",
+      customerName: "Hyderabad Exports",
+      customerEmail: "accounts@hyderabadexports.in",
+      customerAddress: "456, Hitech City, Hyderabad",
+      customerState: "Telangana",
+      customerPincode: "500081",
+      customerGSTIN: "36FGHIJ5678K1L2",
+      issueDate: "2025-01-18",
+      dueDate: "2025-02-17",
+      status: "paid" as const,
+      paymentMethod: "upi" as const,
+      paymentDate: "2025-01-20",
+      lineItems: inv2Items,
+      ...inv2Calc,
+      notes: "Paid via UPI - Thank you!",
+      termsAndConditions: "Payment received. Invoice closed.",
+    },
+    {
+      id: "inv-003",
+      invoiceNumber: "INV-2025-003",
+      ...companyDetails,
+      customerId: "C004",
+      customerName: "Delhi Retail Chain",
+      customerEmail: "billing@delhiretail.co.in",
+      customerAddress: "321, Connaught Place, New Delhi",
+      customerState: "Delhi",
+      customerPincode: "110001",
+      customerGSTIN: "07RSTUV3456W1X4",
+      issueDate: "2024-12-20",
+      dueDate: "2025-01-19",
+      status: "overdue" as const,
+      lineItems: inv3Items,
+      ...inv3Calc,
+      notes: "Payment overdue - please remit immediately",
+      termsAndConditions: "Late payment interest @ 2% per month applicable.",
+    },
+    {
+      id: "inv-004",
+      invoiceNumber: "INV-2025-004",
+      ...companyDetails,
+      customerId: "C001",
+      customerName: "Tech Innovations Pvt Ltd",
+      customerEmail: "finance@techinnovations.in",
+      customerAddress: "123, Electronic City, Bangalore",
+      customerState: "Karnataka",
+      customerPincode: "560100",
+      customerGSTIN: "29ABCDE1234F1Z5",
+      issueDate: "2025-01-22",
+      dueDate: "2025-02-21",
+      status: "draft" as const,
+      lineItems: inv4Items,
+      ...inv4Calc,
+      notes: "Draft - pending approval",
+      termsAndConditions: "Payment due within 30 days of invoice date.",
+    },
+  ];
+})();
+
+export const mockInvoiceStats = {
+  totalInvoices: mockInvoices.length,
+  paidAmount: mockInvoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + inv.total, 0),
+  pendingAmount: mockInvoices.filter(inv => inv.status === 'sent').reduce((sum, inv) => sum + inv.total, 0),
+  overdueAmount: mockInvoices.filter(inv => inv.status === 'overdue').reduce((sum, inv) => sum + inv.total, 0),
+};
