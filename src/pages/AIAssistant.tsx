@@ -39,25 +39,35 @@ export default function AIAssistant() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  const token = localStorage.getItem('token');
-
   useEffect(() => {
     fetchAIStatus();
     // Add welcome message
     setMessages([
       {
         role: 'assistant',
-        content: `👋 Hello! I'm your enterprise AI assistant for Bharat CRM.
+        content: `👋 Hello! I'm your enterprise AI assistant with **full database access**.
 
-I have **full access** to your CRM database and documentation. I can help you with:
+I can query your CRM data in real-time and provide insights:
 
-📊 **Analytics & Reports** - "Show me top leads this month"
-🔍 **Data Queries** - "Find all contacts from Mumbai"
-📚 **Documentation** - "How do I use the WhatsApp API?"
-💡 **Insights** - "What's my conversion rate?"
-📈 **Forecasting** - "Revenue projection for Q4"
+**🔍 Query Data:**
+- "Show me top 5 leads from last week"
+- "List all high priority pending tasks"
+- "Find contacts added this month"
 
-Ask me anything!`,
+**📊 Get Analytics:**
+- "What's our conversion rate this month?"
+- "Show me total pipeline value"
+- "How many deals are in negotiation?"
+
+**💼 Search Deals & Invoices:**
+- "Show deals worth over $10,000"
+- "List all paid invoices from this quarter"
+
+**📅 Check Calendar:**
+- "What meetings do I have today?"
+- "Show upcoming events this week"
+
+Try the quick action buttons below or ask me anything!`,
         timestamp: new Date(),
       },
     ]);
@@ -73,6 +83,9 @@ Ask me anything!`,
 
   const fetchAIStatus = async () => {
     try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
       const response = await fetch(`${API_URL}/ai/status`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -87,6 +100,16 @@ Ask me anything!`,
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast({
+        title: 'Authentication Error',
+        description: 'Please log in to use the AI assistant',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     const userMessage: Message = {
       role: 'user',
@@ -160,10 +183,12 @@ Ask me anything!`,
   };
 
   const quickActions = [
-    { label: 'Show top leads', query: 'Show me the top 5 leads from last week with their values' },
+    { label: 'Show top leads', query: 'Show me the top 5 leads from last week sorted by value' },
     { label: 'Conversion rate', query: 'What is our lead to deal conversion rate this month?' },
-    { label: 'Pending tasks', query: 'List all pending tasks assigned to me' },
-    { label: 'API documentation', query: 'How do I use the WhatsApp API?' },
+    { label: 'Pipeline value', query: 'What is our total pipeline value right now?' },
+    { label: 'Recent contacts', query: 'Show me the 10 most recent contacts added to the system' },
+    { label: 'Won deals', query: 'Show me all deals that were won this month with their values' },
+    { label: 'Pending tasks', query: 'List all high priority tasks that are pending' },
   ];
 
   return (
@@ -227,22 +252,92 @@ Ask me anything!`,
                 </div>
 
                 {/* Show data if available */}
-                {message.data && message.data.success && message.data.data && (
-                  <div className="mt-3 p-3 bg-accent rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Database className="w-4 h-4" />
-                      <span className="text-sm font-medium">
-                        Query Results ({message.data.count} items)
-                      </span>
-                    </div>
-                    <pre className="text-xs overflow-x-auto">
-                      {JSON.stringify(message.data.data.slice(0, 3), null, 2)}
-                    </pre>
-                    {message.data.data.length > 3 && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        ... and {message.data.data.length - 3} more
-                      </p>
-                    )}
+                {message.data && Array.isArray(message.data) && message.data.length > 0 && (
+                  <div className="mt-3 space-y-3">
+                    {message.data.map((funcCall: any, idx: number) => {
+                      const result = funcCall.result;
+                      const functionName = funcCall.function;
+
+                      // Skip if error
+                      if (result.error) return null;
+
+                      // Determine what to display based on result structure
+                      let itemsToShow = [];
+                      let totalCount = 0;
+                      let displayData: any = null;
+
+                      if (result.leads) {
+                        itemsToShow = result.leads;
+                        totalCount = result.count || result.leads.length;
+                      } else if (result.contacts) {
+                        itemsToShow = result.contacts;
+                        totalCount = result.count || result.contacts.length;
+                      } else if (result.deals) {
+                        itemsToShow = result.deals;
+                        totalCount = result.count || result.deals.length;
+                      } else if (result.tasks) {
+                        itemsToShow = result.tasks;
+                        totalCount = result.count || result.tasks.length;
+                      } else if (result.invoices) {
+                        itemsToShow = result.invoices;
+                        totalCount = result.count || result.invoices.length;
+                      } else if (result.events) {
+                        itemsToShow = result.events;
+                        totalCount = result.count || result.events.length;
+                      } else if (result.data) {
+                        // Analytics result
+                        displayData = result.data;
+                      }
+
+                      return (
+                        <div key={idx} className="p-3 bg-accent rounded-lg">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Database className="w-4 h-4" />
+                            <span className="text-sm font-medium">
+                              {functionName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                              {totalCount > 0 && ` (${totalCount} items)`}
+                            </span>
+                          </div>
+
+                          {itemsToShow.length > 0 && (
+                            <>
+                              <pre className="text-xs overflow-x-auto">
+                                {JSON.stringify(itemsToShow.slice(0, 3), null, 2)}
+                              </pre>
+                              {itemsToShow.length > 3 && (
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  ... and {itemsToShow.length - 3} more
+                                </p>
+                              )}
+                            </>
+                          )}
+
+                          {displayData && (
+                            <div className="text-sm space-y-1">
+                              {Object.entries(displayData).map(([key, value]) => (
+                                <div key={key} className="flex justify-between">
+                                  <span className="text-muted-foreground">
+                                    {key.replace(/([A-Z])/g, ' $1').trim()}:
+                                  </span>
+                                  <strong>{typeof value === 'number' ? value.toLocaleString() : String(value)}</strong>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {result.totalValue !== undefined && (
+                            <div className="text-xs text-muted-foreground mt-2">
+                              Total Value: <strong>₹{result.totalValue.toLocaleString()}</strong>
+                            </div>
+                          )}
+                          {result.totalAmount !== undefined && (
+                            <div className="text-xs text-muted-foreground mt-2">
+                              Total Amount: <strong>₹{result.totalAmount.toLocaleString()}</strong>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
