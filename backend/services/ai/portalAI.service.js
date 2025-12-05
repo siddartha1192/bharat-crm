@@ -9,6 +9,7 @@ const { HumanMessage, SystemMessage, AIMessage } = require('@langchain/core/mess
 const { PrismaClient } = require('@prisma/client');
 const aiConfig = require('../../config/ai.config');
 const vectorDBService = require('./vectorDB.service');
+const databaseTools = require('./databaseTools.service');
 
 const prisma = new PrismaClient();
 
@@ -54,12 +55,14 @@ class PortalAIService {
     return `You are an enterprise-grade AI assistant for ${aiConfig.company.name} CRM Portal.
 
 **YOUR CAPABILITIES:**
-You have FULL ACCESS to:
-1. ✅ Complete CRM database (leads, contacts, deals, tasks, calendar, invoices, etc.)
-2. ✅ All product documentation and API docs
-3. ✅ User activity logs and analytics
-4. ✅ Email threads and WhatsApp conversations
-5. ✅ Business intelligence and reporting
+You have FULL DATABASE ACCESS through function calling tools:
+1. ✅ query_leads - Query and filter leads
+2. ✅ query_contacts - Query and filter contacts
+3. ✅ query_deals - Query and filter deals/opportunities
+4. ✅ query_tasks - Query and filter tasks
+5. ✅ query_invoices - Query and filter invoices
+6. ✅ query_calendar_events - Query calendar events
+7. ✅ get_analytics - Get aggregated metrics (conversion rates, revenue, pipeline value, etc.)
 
 **CURRENT USER:**
 User ID: ${userId}
@@ -68,52 +71,41 @@ Access Level: Full (Internal User)
 **DATABASE STATISTICS:**
 ${JSON.stringify(dbStats, null, 2)}
 
-**YOUR ROLE:**
-- Answer ANY question about the CRM data
-- Provide insights and analytics
-- Help with complex queries
-- Explain features and API usage
-- Generate reports and summaries
-- Suggest optimizations and improvements
+**HOW TO USE FUNCTIONS:**
+When users ask about CRM data, you MUST use the appropriate function to query the database.
 
-**RESPONSE GUIDELINES:**
-1. Be comprehensive and detailed (you have more token budget than WhatsApp AI)
-2. Use markdown formatting for better readability
-3. Include relevant data and statistics
-4. Provide actionable insights
-5. If you need more context, ask specific questions
-6. For data queries, explain what data you found and what it means
-
-**AVAILABLE DATA MODELS:**
-- Lead: Sales leads with pipeline stages
-- Contact: Customer contacts with full details
-- Deal: Sales opportunities with values
-- Task: To-do items with assignments
-- CalendarEvent: Scheduled appointments
-- Invoice: Generated invoices with line items
-- WhatsAppConversation: WhatsApp chat history
-- WhatsAppMessage: Individual messages
-- EmailLog: Email communications
-- User: CRM users and their roles
-- Department & Team: Organizational structure
-
-**QUERY EXAMPLES:**
+Examples:
 ❓ "Show me top 5 leads from last week"
-✅ I'll query the Lead model, filter by createdAt in the last 7 days, order by value, and return top 5 with details.
+✅ Call query_leads with: { dateFrom: "7 days ago", sortBy: "value", sortOrder: "desc", limit: 5 }
 
 ❓ "What's the conversion rate this month?"
-✅ I'll calculate: (Deals won this month / Total leads this month) * 100 and show you the breakdown.
+✅ Call get_analytics with: { metric: "conversion_rate", dateFrom: "start of month" }
 
-❓ "How do I use the WhatsApp API?"
-✅ I'll search the documentation and provide a detailed guide with code examples.
+❓ "List all pending tasks"
+✅ Call query_tasks with: { status: "pending", limit: 50 }
+
+❓ "Show deals in negotiation stage worth over $10,000"
+✅ Call query_deals with: { stage: "negotiation", minValue: 10000 }
+
+❓ "What's our total pipeline value?"
+✅ Call get_analytics with: { metric: "pipeline_value" }
+
+**RESPONSE GUIDELINES:**
+1. ALWAYS use functions to fetch data - don't make up data
+2. After getting function results, format them in a readable way with markdown
+3. Provide insights and context about the data
+4. If data is empty, explain possible reasons
+5. For analytics, explain what the numbers mean
+6. For large result sets, summarize key highlights
 
 **IMPORTANT:**
-- You can see ALL data but respect user privacy in responses
-- For sensitive queries, remind about data privacy
-- If you're uncertain about data, say so
-- Provide sources when referencing documentation
+- You MUST call functions to get actual data from the database
+- Never fabricate data or statistics
+- If a function returns an error, explain it to the user
+- Respect data privacy in responses
+- Always provide actionable insights along with data
 
-Remember: You're the most powerful AI assistant in this CRM. Use your full capabilities!`;
+Remember: Use your functions! You have direct database access - use it to provide accurate, real-time data.`;
   }
 
   /**
@@ -151,99 +143,9 @@ Remember: You're the most powerful AI assistant in this CRM. Use your full capab
     }
   }
 
-  /**
-   * Query CRM database based on natural language
-   * @param {string} query - Natural language query
-   * @param {string} userId - User making the query
-   * @returns {Object} Query results with explanation
-   */
-  async queryDatabase(query, userId) {
-    try {
-      console.log(`🔍 Database Query: "${query}"`);
-
-      // Determine intent and extract parameters
-      const intentResponse = await this.llm.invoke([
-        new SystemMessage(`Analyze this CRM database query and extract:
-1. Entity type (Lead, Contact, Deal, Task, CalendarEvent, Invoice, etc.)
-2. Filters needed (date range, status, value, etc.)
-3. Sort order
-4. Limit
-
-Return as JSON: { entity, filters, sort, limit }
-
-Query: "${query}"`),
-      ]);
-
-      const intent = JSON.parse(intentResponse.content);
-      console.log('📊 Query intent:', intent);
-
-      // Execute Prisma query based on intent
-      let results = [];
-      const modelName = intent.entity.toLowerCase();
-
-      if (prisma[modelName]) {
-        const where = this.buildWhereClause(intent.filters);
-        const orderBy = this.buildOrderBy(intent.sort);
-
-        results = await prisma[modelName].findMany({
-          where,
-          orderBy,
-          take: intent.limit || 10,
-        });
-      }
-
-      return {
-        success: true,
-        count: results.length,
-        data: results,
-        query: intent,
-      };
-    } catch (error) {
-      console.error('Error querying database:', error);
-      return {
-        success: false,
-        error: error.message,
-        data: [],
-      };
-    }
-  }
 
   /**
-   * Build Prisma where clause from filters
-   */
-  buildWhereClause(filters) {
-    const where = {};
-
-    if (!filters) return where;
-
-    for (const [key, value] of Object.entries(filters)) {
-      if (key === 'dateRange') {
-        where.createdAt = {
-          gte: new Date(value.start),
-          lte: new Date(value.end),
-        };
-      } else if (typeof value === 'string') {
-        where[key] = { contains: value, mode: 'insensitive' };
-      } else {
-        where[key] = value;
-      }
-    }
-
-    return where;
-  }
-
-  /**
-   * Build Prisma orderBy from sort specification
-   */
-  buildOrderBy(sort) {
-    if (!sort) return { createdAt: 'desc' };
-
-    const [field, direction] = sort.split(':');
-    return { [field]: direction || 'desc' };
-  }
-
-  /**
-   * Process chat message in Portal
+   * Process chat message in Portal with function calling
    * @param {string} userMessage - User's message
    * @param {string} userId - User ID
    * @param {Array} conversationHistory - Previous messages
@@ -261,49 +163,95 @@ Query: "${query}"`),
       const dbStats = await this.getDatabaseStats();
 
       // Search vector DB for relevant documentation
-      const relevantDocs = await vectorDBService.search(userMessage, 5);
+      const relevantDocs = await vectorDBService.search(userMessage, 3);
       const docContext = relevantDocs.length > 0
-        ? `\n\n**RELEVANT DOCUMENTATION:**\n${relevantDocs.map((doc, i) => `${i + 1}. ${doc.content}`).join('\n\n')}`
+        ? `\n\n**RELEVANT DOCUMENTATION:**\n${relevantDocs.map((doc, i) => `${i + 1}. ${doc.content.substring(0, 500)}...`).join('\n\n')}`
         : '';
 
-      // Check if this is a data query
-      let dataResults = null;
-      const isDataQuery = /show|list|get|find|count|search|how many/i.test(userMessage);
-
-      if (isDataQuery) {
-        dataResults = await this.queryDatabase(userMessage, userId);
-      }
-
-      // Build messages
+      // Build messages array
       const messages = [
         new SystemMessage(this.getSystemPrompt(userId, dbStats) + docContext),
       ];
 
       // Add conversation history
-      for (const msg of conversationHistory) {
+      for (const msg of conversationHistory.slice(-10)) { // Keep last 10 messages
         if (msg.role === 'user') {
           messages.push(new HumanMessage(msg.content));
-        } else {
+        } else if (msg.role === 'assistant') {
           messages.push(new AIMessage(msg.content));
         }
       }
 
-      // Add current message with data context
-      let messageWithContext = userMessage;
-      if (dataResults && dataResults.success) {
-        messageWithContext += `\n\n**DATABASE QUERY RESULTS:**\n${JSON.stringify(dataResults, null, 2)}`;
+      // Add current user message
+      messages.push(new HumanMessage(userMessage));
+
+      // Get available tools
+      const tools = databaseTools.getTools();
+
+      // Call OpenAI with function calling (up to 3 iterations)
+      const maxIterations = 3;
+      let iteration = 0;
+      let finalResponse = null;
+      let functionCallResults = [];
+
+      while (iteration < maxIterations) {
+        console.log(`\n🔄 Iteration ${iteration + 1}`);
+
+        // Invoke LLM with tools
+        const response = await this.llm.invoke(messages, {
+          tools,
+          tool_choice: iteration === 0 ? 'auto' : 'auto',
+        });
+
+        // Check if AI wants to call functions
+        if (response.additional_kwargs?.tool_calls) {
+          const toolCalls = response.additional_kwargs.tool_calls;
+          console.log(`🔧 AI wants to call ${toolCalls.length} function(s)`);
+
+          // Add assistant message with tool calls
+          messages.push(new AIMessage({
+            content: response.content || '',
+            additional_kwargs: { tool_calls: toolCalls },
+          }));
+
+          // Execute each tool call
+          for (const toolCall of toolCalls) {
+            const functionName = toolCall.function.name;
+            const functionArgs = JSON.parse(toolCall.function.arguments);
+
+            console.log(`🔧 Calling: ${functionName}`, functionArgs);
+
+            // Execute the function
+            const result = await databaseTools.executeTool(functionName, functionArgs);
+            functionCallResults.push({ function: functionName, result });
+
+            // Add function result to messages
+            messages.push({
+              role: 'tool',
+              content: JSON.stringify(result),
+              tool_call_id: toolCall.id,
+            });
+          }
+
+          iteration++;
+        } else {
+          // No more function calls, this is the final response
+          finalResponse = response.content;
+          break;
+        }
       }
 
-      messages.push(new HumanMessage(messageWithContext));
-
-      // Get AI response
-      const response = await this.llm.invoke(messages);
+      // If we hit max iterations, get a final response
+      if (!finalResponse) {
+        const finalResponseObj = await this.llm.invoke(messages);
+        finalResponse = finalResponseObj.content;
+      }
 
       console.log('✅ Portal AI Response generated');
 
       return {
-        message: response.content,
-        data: dataResults,
+        message: finalResponse,
+        data: functionCallResults,
         sources: relevantDocs.map(doc => doc.metadata),
         stats: dbStats,
       };
