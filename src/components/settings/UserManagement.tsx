@@ -75,10 +75,18 @@ export function UserManagement() {
             description: 'You need MANAGER or ADMIN role to view all users',
             variant: 'destructive',
           });
+          return;
+        } else if (response.status === 401) {
+          toast({
+            title: 'Authentication Required',
+            description: 'Your session has expired. Please log in again.',
+            variant: 'destructive',
+          });
+          return;
         } else {
-          throw new Error('Failed to fetch users');
+          const errorData = await response.json().catch(() => null);
+          throw new Error(errorData?.error || 'Failed to fetch users');
         }
-        return;
       }
 
       const data = await response.json();
