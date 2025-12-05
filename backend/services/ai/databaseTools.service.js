@@ -131,7 +131,7 @@ class DatabaseToolsService {
             properties: {
               status: {
                 type: 'string',
-                enum: ['pending', 'in_progress', 'completed', 'cancelled'],
+                enum: ['todo', 'in-progress', 'completed'],
                 description: 'Filter by task status',
               },
               priority: {
@@ -139,7 +139,7 @@ class DatabaseToolsService {
                 enum: ['low', 'medium', 'high', 'urgent'],
                 description: 'Filter by priority',
               },
-              assignedTo: {
+              assignee: {
                 type: 'string',
                 description: 'Filter by assigned user name',
               },
@@ -428,8 +428,8 @@ class DatabaseToolsService {
 
     if (args.status) where.status = args.status;
     if (args.priority) where.priority = args.priority;
-    if (args.assignedTo) {
-      where.assignedTo = { contains: args.assignedTo, mode: 'insensitive' };
+    if (args.assignee) {
+      where.assignee = { contains: args.assignee, mode: 'insensitive' };
     }
     if (args.dueDateFrom || args.dueDateTo) {
       where.dueDate = {};
@@ -447,9 +447,10 @@ class DatabaseToolsService {
         description: true,
         status: true,
         priority: true,
-        assignedTo: true,
+        assignee: true,
         dueDate: true,
         createdAt: true,
+        completedAt: true,
       },
     });
 

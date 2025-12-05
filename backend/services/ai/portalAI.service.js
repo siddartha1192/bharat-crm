@@ -82,7 +82,7 @@ Examples:
 ✅ Call get_analytics with: { metric: "conversion_rate", dateFrom: "start of month" }
 
 ❓ "List all pending tasks"
-✅ Call query_tasks with: { status: "pending", limit: 50 }
+✅ Call query_tasks with: { status: "todo", limit: 50 }
 
 ❓ "Show deals in negotiation stage worth over $10,000"
 ✅ Call query_deals with: { stage: "negotiation", minValue: 10000 }
