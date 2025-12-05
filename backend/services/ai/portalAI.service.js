@@ -76,7 +76,7 @@ When users ask about CRM data, you MUST use the appropriate function to query th
 
 Examples:
 ❓ "Show me top 5 leads from last week"
-✅ Call query_leads with: { dateFrom: "7 days ago", sortBy: "value", sortOrder: "desc", limit: 5 }
+✅ Call query_leads with: { dateFrom: "7 days ago", sortBy: "estimatedValue", sortOrder: "desc", limit: 5 }
 
 ❓ "What's the conversion rate this month?"
 ✅ Call get_analytics with: { metric: "conversion_rate", dateFrom: "start of month" }
