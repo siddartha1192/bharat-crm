@@ -604,13 +604,26 @@ class DatabaseToolsService {
 
     if (args.startDate || args.endDate) {
       where.startTime = {};
+
+      let startParsed = null;
+      let endParsed = null;
+
       if (args.startDate) {
-        const parsedDate = this.parseDate(args.startDate);
-        if (parsedDate) where.startTime.gte = parsedDate;
+        startParsed = this.parseDate(args.startDate);
+        if (startParsed) where.startTime.gte = startParsed;
       }
+
       if (args.endDate) {
-        const parsedDate = this.parseDate(args.endDate);
-        if (parsedDate) where.startTime.lte = parsedDate;
+        endParsed = this.parseDate(args.endDate);
+        if (endParsed) where.startTime.lte = endParsed;
+      }
+
+      // If only startDate is provided and it's a single day (like "today"),
+      // automatically set end to end of that day
+      if (startParsed && !endParsed) {
+        const endOfDay = new Date(startParsed);
+        endOfDay.setHours(23, 59, 59, 999);
+        where.startTime.lte = endOfDay;
       }
     }
     if (args.searchTerm) {
