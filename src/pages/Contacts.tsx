@@ -29,8 +29,10 @@ import {
   LayoutGrid,
   List,
 } from 'lucide-react';
-import { ContactType } from '@/types/contact';
+import { Contact, ContactType } from '@/types/contact';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
+import { useToast } from '@/hooks/use-toast';
+import { exportContactsToCSV, importContactsFromCSV } from '@/lib/csvUtils';
 
 export default function Contacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
