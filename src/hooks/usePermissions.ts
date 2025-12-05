@@ -3,7 +3,7 @@
  * Use throughout the app to check user permissions
  */
 
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
   UserRole,
   Permission,
@@ -25,16 +25,19 @@ interface User {
  * Hook to check permissions for the current user
  */
 export function usePermissions() {
-  // Get current user from localStorage
-  const user: User | null = useMemo(() => {
+  // Use state to make the component reactive to localStorage changes
+  const [user, setUser] = useState<User | null>(() => {
     const userStr = localStorage.getItem('user');
-    if (!userStr) return null;
+    if (!userStr) {
+      console.log('[usePermissions] No user found in localStorage on init');
+      return null;
+    }
     try {
       const parsed = JSON.parse(userStr);
+      console.log('[usePermissions] User loaded on init:', { id: parsed.id, role: parsed.role, email: parsed.email });
       return parsed;
     } catch (error) {
       console.error('Failed to parse user from localStorage, clearing corrupted data:', error);
-      // Clear corrupted data
       localStorage.removeItem('user');
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
@@ -42,9 +45,39 @@ export function usePermissions() {
       localStorage.removeItem('userRole');
       return null;
     }
+  });
+
+  // Listen for storage events and custom user update events
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        console.log('[usePermissions] User removed from localStorage');
+        setUser(null);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(userStr);
+        console.log('[usePermissions] User updated:', { id: parsed.id, role: parsed.role, email: parsed.email });
+        setUser(parsed);
+      } catch (error) {
+        console.error('Failed to parse user on storage change:', error);
+        setUser(null);
+      }
+    };
+
+    // Listen for both storage events and a custom event we'll dispatch
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('user-updated', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('user-updated', handleStorageChange);
+    };
   }, []);
 
   const role = user?.role ?? 'VIEWER';
+  console.log('[usePermissions] Current role:', role);
 
   return {
     user,

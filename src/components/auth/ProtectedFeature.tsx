@@ -38,15 +38,18 @@ export function ProtectedFeature({
   fallback = null,
   requireAll = false,
 }: ProtectedFeatureProps) {
-  const { can, canAny, canAll } = usePermissions();
+  const { can, canAny, canAll, role } = usePermissions();
 
   // Single permission
   if (typeof permission === 'string') {
-    return can(permission) ? <>{children}</> : <>{fallback}</>;
+    const hasPermission = can(permission);
+    console.log(`[ProtectedFeature] Checking permission "${permission}" for role "${role}":`, hasPermission);
+    return hasPermission ? <>{children}</> : <>{fallback}</>;
   }
 
   // Multiple permissions
   const hasPermission = requireAll ? canAll(permission) : canAny(permission);
+  console.log(`[ProtectedFeature] Checking permissions ${JSON.stringify(permission)} (requireAll: ${requireAll}) for role "${role}":`, hasPermission);
   return hasPermission ? <>{children}</> : <>{fallback}</>;
 }
 
