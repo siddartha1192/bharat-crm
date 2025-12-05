@@ -8,6 +8,87 @@ const prisma = new PrismaClient();
 
 class DatabaseToolsService {
   /**
+   * Parse natural language date strings into Date objects
+   */
+  parseDate(dateString) {
+    if (!dateString) return null;
+
+    // If it's already a valid ISO date string, use it
+    const isoDate = new Date(dateString);
+    if (!isNaN(isoDate.getTime())) {
+      return isoDate;
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Handle common date strings
+    const lowerStr = dateString.toLowerCase().trim();
+
+    // "start of month" or "beginning of month"
+    if (lowerStr.includes('start of month') || lowerStr.includes('beginning of month')) {
+      return new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+
+    // "end of month"
+    if (lowerStr.includes('end of month')) {
+      return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    }
+
+    // "start of week" or "beginning of week"
+    if (lowerStr.includes('start of week') || lowerStr.includes('beginning of week')) {
+      const dayOfWeek = now.getDay();
+      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Monday as start of week
+      return new Date(today.getTime() + diff * 24 * 60 * 60 * 1000);
+    }
+
+    // "start of year"
+    if (lowerStr.includes('start of year') || lowerStr.includes('beginning of year')) {
+      return new Date(now.getFullYear(), 0, 1);
+    }
+
+    // "X days ago"
+    const daysAgoMatch = lowerStr.match(/(\d+)\s*days?\s*ago/);
+    if (daysAgoMatch) {
+      const days = parseInt(daysAgoMatch[1]);
+      return new Date(today.getTime() - days * 24 * 60 * 60 * 1000);
+    }
+
+    // "X weeks ago"
+    const weeksAgoMatch = lowerStr.match(/(\d+)\s*weeks?\s*ago/);
+    if (weeksAgoMatch) {
+      const weeks = parseInt(weeksAgoMatch[1]);
+      return new Date(today.getTime() - weeks * 7 * 24 * 60 * 60 * 1000);
+    }
+
+    // "X months ago"
+    const monthsAgoMatch = lowerStr.match(/(\d+)\s*months?\s*ago/);
+    if (monthsAgoMatch) {
+      const months = parseInt(monthsAgoMatch[1]);
+      return new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
+    }
+
+    // "yesterday"
+    if (lowerStr === 'yesterday') {
+      return new Date(today.getTime() - 24 * 60 * 60 * 1000);
+    }
+
+    // "today"
+    if (lowerStr === 'today') {
+      return today;
+    }
+
+    // "tomorrow"
+    if (lowerStr === 'tomorrow') {
+      return new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    }
+
+    // If we can't parse it, return null
+    console.warn(`Could not parse date string: "${dateString}"`);
+    return null;
+  }
+
+  /**
    * Get all available tools/functions for the AI
    */
   getTools() {
@@ -300,8 +381,14 @@ class DatabaseToolsService {
     if (args.source) where.source = { contains: args.source, mode: 'insensitive' };
     if (args.dateFrom || args.dateTo) {
       where.createdAt = {};
-      if (args.dateFrom) where.createdAt.gte = new Date(args.dateFrom);
-      if (args.dateTo) where.createdAt.lte = new Date(args.dateTo);
+      if (args.dateFrom) {
+        const parsedDate = this.parseDate(args.dateFrom);
+        if (parsedDate) where.createdAt.gte = parsedDate;
+      }
+      if (args.dateTo) {
+        const parsedDate = this.parseDate(args.dateTo);
+        if (parsedDate) where.createdAt.lte = parsedDate;
+      }
     }
     if (args.searchTerm) {
       where.OR = [
@@ -349,7 +436,10 @@ class DatabaseToolsService {
     const where = {};
 
     if (args.type) where.type = args.type;
-    if (args.dateFrom) where.createdAt = { gte: new Date(args.dateFrom) };
+    if (args.dateFrom) {
+      const parsedDate = this.parseDate(args.dateFrom);
+      if (parsedDate) where.createdAt = { gte: parsedDate };
+    }
     if (args.searchTerm) {
       where.OR = [
         { name: { contains: args.searchTerm, mode: 'insensitive' } },
@@ -392,7 +482,10 @@ class DatabaseToolsService {
       if (args.minValue) where.value.gte = args.minValue;
       if (args.maxValue) where.value.lte = args.maxValue;
     }
-    if (args.dateFrom) where.createdAt = { gte: new Date(args.dateFrom) };
+    if (args.dateFrom) {
+      const parsedDate = this.parseDate(args.dateFrom);
+      if (parsedDate) where.createdAt = { gte: parsedDate };
+    }
 
     const deals = await prisma.deal.findMany({
       where,
@@ -433,8 +526,14 @@ class DatabaseToolsService {
     }
     if (args.dueDateFrom || args.dueDateTo) {
       where.dueDate = {};
-      if (args.dueDateFrom) where.dueDate.gte = new Date(args.dueDateFrom);
-      if (args.dueDateTo) where.dueDate.lte = new Date(args.dueDateTo);
+      if (args.dueDateFrom) {
+        const parsedDate = this.parseDate(args.dueDateFrom);
+        if (parsedDate) where.dueDate.gte = parsedDate;
+      }
+      if (args.dueDateTo) {
+        const parsedDate = this.parseDate(args.dueDateTo);
+        if (parsedDate) where.dueDate.lte = parsedDate;
+      }
     }
 
     const tasks = await prisma.task.findMany({
@@ -468,7 +567,10 @@ class DatabaseToolsService {
 
     if (args.status) where.status = args.status;
     if (args.minAmount) where.total = { gte: args.minAmount };
-    if (args.dateFrom) where.createdAt = { gte: new Date(args.dateFrom) };
+    if (args.dateFrom) {
+      const parsedDate = this.parseDate(args.dateFrom);
+      if (parsedDate) where.createdAt = { gte: parsedDate };
+    }
 
     const invoices = await prisma.invoice.findMany({
       where,
@@ -502,8 +604,14 @@ class DatabaseToolsService {
 
     if (args.startDate || args.endDate) {
       where.startTime = {};
-      if (args.startDate) where.startTime.gte = new Date(args.startDate);
-      if (args.endDate) where.startTime.lte = new Date(args.endDate);
+      if (args.startDate) {
+        const parsedDate = this.parseDate(args.startDate);
+        if (parsedDate) where.startTime.gte = parsedDate;
+      }
+      if (args.endDate) {
+        const parsedDate = this.parseDate(args.endDate);
+        if (parsedDate) where.startTime.lte = parsedDate;
+      }
     }
     if (args.searchTerm) {
       where.OR = [
@@ -540,8 +648,14 @@ class DatabaseToolsService {
     const { metric, dateFrom, dateTo, groupBy } = args;
 
     const dateFilter = {};
-    if (dateFrom) dateFilter.gte = new Date(dateFrom);
-    if (dateTo) dateFilter.lte = new Date(dateTo);
+    if (dateFrom) {
+      const parsedDate = this.parseDate(dateFrom);
+      if (parsedDate) dateFilter.gte = parsedDate;
+    }
+    if (dateTo) {
+      const parsedDate = this.parseDate(dateTo);
+      if (parsedDate) dateFilter.lte = parsedDate;
+    }
 
     switch (metric) {
       case 'leads_by_status':
