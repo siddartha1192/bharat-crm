@@ -31,6 +31,7 @@ export type Permission =
   | 'deals:update'
   | 'deals:delete'
   | 'deals:assign'
+  | 'deals:export'
   // Task Management
   | 'tasks:create'
   | 'tasks:read'
@@ -48,6 +49,11 @@ export type Permission =
   | 'invoices:update'
   | 'invoices:delete'
   | 'invoices:send'
+  | 'invoices:export'
+  // Email Management
+  | 'emails:read'
+  | 'emails:send'
+  | 'emails:delete'
   // WhatsApp
   | 'whatsapp:read'
   | 'whatsapp:send'
@@ -92,6 +98,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'deals:update',
     'deals:delete',
     'deals:assign',
+    'deals:export',
     'tasks:create',
     'tasks:read',
     'tasks:update',
@@ -106,6 +113,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'invoices:update',
     'invoices:delete',
     'invoices:send',
+    'invoices:export',
+    'emails:read',
+    'emails:send',
+    'emails:delete',
     'whatsapp:read',
     'whatsapp:send',
     'whatsapp:ai_toggle',
@@ -138,6 +149,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'deals:update',
     'deals:delete',
     'deals:assign',
+    'deals:export',
     'tasks:create',
     'tasks:read',
     'tasks:update',
@@ -152,6 +164,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'invoices:update',
     'invoices:delete',
     'invoices:send',
+    'invoices:export',
+    'emails:read',
+    'emails:send',
+    'emails:delete',
     'whatsapp:read',
     'whatsapp:send',
     'whatsapp:ai_toggle',
@@ -182,6 +198,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'calendar:delete',
     'invoices:read',
     'invoices:create',
+    'emails:read',
+    'emails:send',
     'whatsapp:read',
     'whatsapp:send',
     'ai:use_portal',
@@ -195,6 +213,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'tasks:read',
     'calendar:read',
     'invoices:read',
+    'emails:read',
     'whatsapp:read',
     'analytics:view',
   ],
