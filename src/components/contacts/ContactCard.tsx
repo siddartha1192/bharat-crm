@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import {
   Building2,
   Mail,
@@ -178,17 +179,21 @@ export function ContactCard({ contact, onViewProfile, onEdit, onDelete }: Contac
           <span>{contact.assignedTo}</span>
         </div>
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-            onClick={() => onDelete?.(contact)}
-          >
-            <Trash2 className="w-3 h-3" />
-          </Button>
-          <Button size="sm" variant="outline" className="hover:bg-primary/10" onClick={() => onEdit?.(contact)}>
-            <Edit className="w-3 h-3" />
-          </Button>
+          <ProtectedFeature permission="contacts:delete">
+            <Button
+              size="sm"
+              variant="outline"
+              className="hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+              onClick={() => onDelete?.(contact)}
+            >
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          </ProtectedFeature>
+          <ProtectedFeature permission="contacts:update">
+            <Button size="sm" variant="outline" className="hover:bg-primary/10" onClick={() => onEdit?.(contact)}>
+              <Edit className="w-3 h-3" />
+            </Button>
+          </ProtectedFeature>
           <Button size="sm" onClick={() => onViewProfile?.(contact)} className="bg-gradient-to-r from-primary to-primary/80">
             <ExternalLink className="w-4 h-4" />
           </Button>

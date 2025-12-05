@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -73,17 +74,19 @@ export function DealCard({ deal, onClick, onDelete }: DealCardProps) {
               </div>
             </div>
             {onDelete && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(deal);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <ProtectedFeature permission="deals:delete">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(deal);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </ProtectedFeature>
             )}
           </div>
 

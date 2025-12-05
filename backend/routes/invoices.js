@@ -1,11 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize, authorizeOwnerOrAdmin } = require('../middleware/auth');
 const prisma = new PrismaClient();
 
 // Apply authentication to all routes
 router.use(authenticate);
+
+// Helper function to check if user can access all invoices
+const canViewAllInvoices = (role) => {
+  return ['ADMIN', 'MANAGER'].includes(role);
+};
 
 // Helper function to transform invoice for frontend
 const transformInvoiceForFrontend = (invoice) => {
@@ -23,7 +28,8 @@ router.get('/', async (req, res) => {
     const { status } = req.query;
     const userId = req.user.id;
 
-    const where = { userId };
+    // ADMIN and MANAGER can see all invoices, others see only their own
+    const where = canViewAllInvoices(req.user.role) ? {} : { userId };
 
     if (status && status !== 'all') where.status = status;
 
@@ -66,8 +72,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST create new invoice
-router.post('/', async (req, res) => {
+// POST create new invoice (requires AGENT or higher - VIEWER cannot create)
+router.post('/', authorize('AGENT', 'MANAGER', 'ADMIN'), async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -119,21 +125,20 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT update invoice
-router.put('/:id', async (req, res) => {
+// PUT update invoice (owner or ADMIN/MANAGER)
+router.put('/:id', authorize('AGENT', 'MANAGER', 'ADMIN'), async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // First verify the invoice belongs to the user
-    const existingInvoice = await prisma.invoice.findFirst({
-      where: {
-        id: req.params.id,
-        userId
-      }
-    });
+    // ADMIN and MANAGER can update any invoice, AGENT can only update their own
+    const where = canViewAllInvoices(req.user.role)
+      ? { id: req.params.id }
+      : { id: req.params.id, userId };
+
+    const existingInvoice = await prisma.invoice.findFirst({ where });
 
     if (!existingInvoice) {
-      return res.status(404).json({ error: 'Invoice not found' });
+      return res.status(404).json({ error: 'Invoice not found or access denied' });
     }
 
     // Remove auto-generated fields and transform data
@@ -178,17 +183,12 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE invoice
-router.delete('/:id', async (req, res) => {
+// DELETE invoice (only ADMIN and MANAGER)
+router.delete('/:id', authorize('MANAGER', 'ADMIN'), async (req, res) => {
   try {
-    const userId = req.user.id;
-
-    // First verify the invoice belongs to the user
+    // ADMIN and MANAGER can delete any invoice
     const existingInvoice = await prisma.invoice.findFirst({
-      where: {
-        id: req.params.id,
-        userId
-      }
+      where: { id: req.params.id }
     });
 
     if (!existingInvoice) {

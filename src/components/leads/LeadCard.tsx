@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import {
   Building2,
   Mail,
@@ -210,17 +211,21 @@ export function LeadCard({ lead, onViewDetails, onEdit, onDelete }: LeadCardProp
           <span>{lead.assignedTo || 'Unassigned'}</span>
         </div>
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-            onClick={() => onDelete?.(lead)}
-          >
-            <Trash2 className="w-3 h-3" />
-          </Button>
-          <Button size="sm" variant="outline" className="hover:bg-primary/10" onClick={() => onEdit?.(lead)}>
-            <Edit className="w-3 h-3" />
-          </Button>
+          <ProtectedFeature permission="leads:delete">
+            <Button
+              size="sm"
+              variant="outline"
+              className="hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+              onClick={() => onDelete?.(lead)}
+            >
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          </ProtectedFeature>
+          <ProtectedFeature permission="leads:update">
+            <Button size="sm" variant="outline" className="hover:bg-primary/10" onClick={() => onEdit?.(lead)}>
+              <Edit className="w-3 h-3" />
+            </Button>
+          </ProtectedFeature>
           <Button size="sm" onClick={() => onViewDetails?.(lead)} className="bg-gradient-to-r from-primary to-primary/80">
             <ExternalLink className="w-4 h-4" />
           </Button>
