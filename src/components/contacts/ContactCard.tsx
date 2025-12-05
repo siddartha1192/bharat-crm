@@ -14,10 +14,18 @@ import {
   IndianRupee,
   User,
   FileText,
+  ExternalLink,
+  Sparkles,
+  Award,
+  Edit,
+  Trash2,
 } from 'lucide-react';
 
 interface ContactCardProps {
   contact: Contact;
+  onViewProfile?: (contact: Contact) => void;
+  onEdit?: (contact: Contact) => void;
+  onDelete?: (contact: Contact) => void;
 }
 
 const typeColors = {
@@ -39,22 +47,25 @@ const industryIcons = {
   'other': '🏢',
 };
 
-export function ContactCard({ contact }: ContactCardProps) {
+export function ContactCard({ contact, onViewProfile, onEdit, onDelete }: ContactCardProps) {
   return (
-    <Card className="p-5 hover:shadow-md transition-all">
+    <Card className="p-5 hover:shadow-lg transition-all border-l-4 border-l-primary/20 hover:border-l-primary">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <Avatar className="h-12 w-12">
-            <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-lg">
+          <Avatar className="h-14 w-14 ring-2 ring-primary/10">
+            <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground font-semibold text-lg">
               {contact.name.split(' ').map(n => n[0]).join('')}
             </AvatarFallback>
           </Avatar>
           <div>
             <h3 className="font-semibold text-foreground text-lg">{contact.name}</h3>
-            <p className="text-sm text-muted-foreground">{contact.designation}</p>
+            <p className="text-sm text-muted-foreground flex items-center gap-1">
+              <Award className="w-3 h-3" />
+              {contact.designation}
+            </p>
           </div>
         </div>
-        <Badge className={`${typeColors[contact.type]} border`}>
+        <Badge className={`${typeColors[contact.type]} border font-medium`}>
           {contact.type}
         </Badge>
       </div>
@@ -80,10 +91,18 @@ export function ContactCard({ contact }: ContactCardProps) {
           <span>{contact.phone}</span>
         </div>
         {contact.whatsapp && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <MessageCircle className="w-4 h-4 text-green-600" />
+          <button
+            className="flex items-center gap-2 text-sm text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              const whatsappUrl = `https://wa.me/${contact.whatsapp.replace(/\D/g, '')}`;
+              window.open(whatsappUrl, '_blank');
+            }}
+            title="Open WhatsApp"
+          >
+            <MessageCircle className="w-4 h-4" />
             <span>{contact.whatsapp}</span>
-          </div>
+          </button>
         )}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <MapPin className="w-4 h-4" />
@@ -123,24 +142,55 @@ export function ContactCard({ contact }: ContactCardProps) {
         ))}
       </div>
 
+      {/* Social Media Links */}
+      {(contact.website || contact.linkedIn) && (
+        <div className="flex gap-2 mb-4 pt-2 border-t border-border/50">
+          {contact.website && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 hover:bg-primary/10"
+              asChild
+            >
+              <a href={contact.website} target="_blank" rel="noopener noreferrer">
+                <Globe className="w-4 h-4" />
+              </a>
+            </Button>
+          )}
+          {contact.linkedIn && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 hover:bg-blue-500/10 hover:text-blue-500"
+              asChild
+            >
+              <a href={contact.linkedIn} target="_blank" rel="noopener noreferrer">
+                <Linkedin className="w-4 h-4" />
+              </a>
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between pt-4 border-t border-border">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <User className="w-4 h-4" />
           <span>{contact.assignedTo}</span>
         </div>
         <div className="flex gap-2">
-          {contact.website && (
-            <Button size="sm" variant="outline">
-              <Globe className="w-4 h-4" />
-            </Button>
-          )}
-          {contact.linkedIn && (
-            <Button size="sm" variant="outline">
-              <Linkedin className="w-4 h-4" />
-            </Button>
-          )}
-          <Button size="sm">
-            View Profile
+          <Button
+            size="sm"
+            variant="outline"
+            className="hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+            onClick={() => onDelete?.(contact)}
+          >
+            <Trash2 className="w-3 h-3" />
+          </Button>
+          <Button size="sm" variant="outline" className="hover:bg-primary/10" onClick={() => onEdit?.(contact)}>
+            <Edit className="w-3 h-3" />
+          </Button>
+          <Button size="sm" onClick={() => onViewProfile?.(contact)} className="bg-gradient-to-r from-primary to-primary/80">
+            <ExternalLink className="w-4 h-4" />
           </Button>
         </div>
       </div>
