@@ -74,6 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = await response.json();
       localStorage.setItem('user', JSON.stringify(userData)); // Store for RBAC
       setUser(userData);
+      // Dispatch custom event to notify usePermissions hook
+      window.dispatchEvent(new Event('user-updated'));
     } catch (error) {
       console.error('Error fetching user details:', error);
       // Clear invalid token
@@ -113,6 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setToken(data.token);
       setUser(data.user);
+      // Dispatch custom event to notify usePermissions hook
+      window.dispatchEvent(new Event('user-updated'));
     } catch (error) {
       throw error;
     }
@@ -159,6 +163,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setToken(data.token);
       setUser(data.user);
+      // Dispatch custom event to notify usePermissions hook
+      window.dispatchEvent(new Event('user-updated'));
     } catch (error) {
       throw error;
     }
