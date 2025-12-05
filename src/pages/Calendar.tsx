@@ -172,17 +172,36 @@ export default function Calendar() {
 
   const connectGoogleCalendar = async () => {
     try {
-      const response = await fetch(`${API_URL}/calendar/auth/url`);
+      const response = await fetch(`${API_URL}/calendar/auth/url`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-      if (!response.ok) throw new Error('Failed to get auth URL');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error response:', errorData);
+        throw new Error(errorData.message || errorData.error || 'Failed to get auth URL');
+      }
 
       const data = await response.json();
+
+      // Check if Google Calendar is configured on the backend
+      if (data.error) {
+        toast({
+          title: 'Configuration Error',
+          description: data.message || 'Google Calendar is not configured on the server',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       window.location.href = data.authUrl;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error connecting Google Calendar:', error);
       toast({
         title: 'Error',
-        description: 'Failed to connect Google Calendar',
+        description: error.message || 'Failed to connect Google Calendar',
         variant: 'destructive',
       });
     }
