@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { PipelineStageConfig } from '@/types/pipeline';
-import { pipelineStagesAPI } from '@/lib/api';
+import { pipelineStagesAPI, dealsAPI } from '@/lib/api';
 import {
   Dialog,
   DialogContent,
@@ -52,6 +52,7 @@ const AVAILABLE_COLORS = [
 
 export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSettingsProps) {
   const [stages, setStages] = useState<PipelineStageConfig[]>([]);
+  const [dealsCounts, setDealsCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [editingStage, setEditingStage] = useState<PipelineStageConfig | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -71,16 +72,32 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
   const fetchStages = async () => {
     setLoading(true);
     try {
-      const data = await pipelineStagesAPI.getAll();
-      console.log('Fetched stages:', data);
-      const stagesWithDates = data.map(s => ({
+      const [stagesData, dealsData] = await Promise.all([
+        pipelineStagesAPI.getAll(),
+        dealsAPI.getAll()
+      ]);
+
+      console.log('Fetched stages:', stagesData);
+      console.log('Fetched deals:', dealsData);
+
+      const stagesWithDates = stagesData.map(s => ({
         ...s,
         createdAt: new Date(s.createdAt),
         updatedAt: new Date(s.updatedAt),
       }));
       const sortedStages = stagesWithDates.sort((a, b) => a.order - b.order);
+
+      // Count deals per stage
+      const counts: Record<string, number> = {};
+      sortedStages.forEach(stage => {
+        counts[stage.slug] = dealsData.filter(deal => deal.stage === stage.slug).length;
+      });
+
       console.log('Sorted stages:', sortedStages);
+      console.log('Deals counts:', counts);
+
       setStages(sortedStages);
+      setDealsCounts(counts);
     } catch (error) {
       toast.error('Failed to fetch stages');
       console.error('Error fetching stages:', error);
@@ -121,6 +138,12 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
     console.log('Delete clicked for stage:', stage);
     if (stage.isDefault) {
       toast.error('Cannot delete default stages');
+      return;
+    }
+
+    const dealsCount = dealsCounts[stage.slug] || 0;
+    if (dealsCount > 0) {
+      toast.error(`Cannot delete "${stage.name}" because it has ${dealsCount} active deal${dealsCount > 1 ? 's' : ''}. Please move these deals to another stage first.`);
       return;
     }
 
@@ -239,13 +262,18 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
                                 Default
                               </Badge>
                             )}
+                            {dealsCounts[stage.slug] > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                {dealsCounts[stage.slug]} deal{dealsCounts[stage.slug] > 1 ? 's' : ''}
+                              </Badge>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             Slug: {stage.slug} • Order: {stage.order}
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 items-center">
                         {!stage.isDefault ? (
                           <>
                             <Button
@@ -260,14 +288,19 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDelete(stage)}
-                              title="Delete stage"
+                              title={
+                                dealsCounts[stage.slug] > 0
+                                  ? `Cannot delete - ${dealsCounts[stage.slug]} deal${dealsCounts[stage.slug] > 1 ? 's' : ''} using this stage`
+                                  : 'Delete stage'
+                              }
+                              className={dealsCounts[stage.slug] > 0 ? 'opacity-50 cursor-not-allowed' : ''}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </>
                         ) : (
                           <span className="text-xs text-muted-foreground px-2">
-                            Protected
+                            System Default
                           </span>
                         )}
                       </div>
