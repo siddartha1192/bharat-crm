@@ -8,7 +8,8 @@
 4. [Deals APIs](#deals-apis)
 5. [Tasks APIs](#tasks-apis)
 6. [Calendar Events APIs](#calendar-events-apis)
-7. [Guide: Adding New Field to Leads Form](#guide-adding-new-field-to-leads-form)
+7. [WhatsApp APIs](#whatsapp-apis)
+8. [Guide: Adding New Field to Leads Form](#guide-adding-new-field-to-leads-form)
 
 ---
 
@@ -1429,6 +1430,572 @@ Authorization: Bearer <token>
   "message": "Google Calendar disconnected"
 }
 ```
+
+---
+
+## WhatsApp APIs
+
+### 1. Send WhatsApp Message
+
+**Endpoint:** `POST /whatsapp/send`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "message": "Hello! Thank you for your interest in our products.",
+  "phoneNumber": "+91 98765 43210",
+  "contactId": "contact-uuid"
+}
+```
+
+**Parameters:**
+- `message` (String, **required**): The message text to send
+- `phoneNumber` (String, optional): Phone number with country code (e.g., "+91 9876543210")
+- `contactId` (String, optional): If provided, phone number will be taken from contact record
+
+**Note:** Either `phoneNumber` or `contactId` must be provided. If `contactId` is provided, the system will use the contact's WhatsApp number or phone number.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "messageId": "wamid.HBgLMT....",
+  "recipient": "Rajesh Kumar",
+  "phone": "+91 98765 43210",
+  "message": "Message sent successfully",
+  "conversationId": "conversation-uuid"
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "Message is required"
+}
+```
+
+**Error Response (404 Not Found):**
+```json
+{
+  "error": "Contact not found"
+}
+```
+
+**Error Response (503 Service Unavailable):**
+```json
+{
+  "error": "WhatsApp is not configured",
+  "message": "Please configure WHATSAPP_TOKEN and WHATSAPP_PHONE_ID in environment variables"
+}
+```
+
+---
+
+### 2. Send Template Message
+
+**Endpoint:** `POST /whatsapp/send-template`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "templateName": "welcome_message",
+  "phoneNumber": "+91 98765 43210",
+  "contactId": "contact-uuid",
+  "parameters": ["John", "December 5, 2024"]
+}
+```
+
+**Parameters:**
+- `templateName` (String, **required**): The name of the approved WhatsApp template
+- `phoneNumber` (String, optional): Phone number with country code
+- `contactId` (String, optional): Contact ID to get phone number from
+- `parameters` (Array of Strings, optional): Parameters for template placeholders
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "messageId": "wamid.HBgLMT....",
+  "message": "Template message sent successfully"
+}
+```
+
+**Note:** WhatsApp templates must be pre-approved by Meta. Templates are used for:
+- Welcome messages
+- Order confirmations
+- Appointment reminders
+- Transaction alerts
+
+---
+
+### 3. Get All Conversations
+
+**Endpoint:** `GET /whatsapp/conversations`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `search` (optional): Search by contact name or phone number
+- `limit` (optional): Number of conversations to return (default: 50)
+- `offset` (optional): Offset for pagination (default: 0)
+
+**Example Request:**
+```
+GET /whatsapp/conversations?search=rajesh&limit=20&offset=0
+```
+
+**Response (200 OK):**
+```json
+{
+  "conversations": [
+    {
+      "id": "conversation-uuid",
+      "contactName": "Rajesh Kumar",
+      "contactPhone": "+91 98765 43210",
+      "contactId": "contact-uuid",
+      "lastMessage": "Thank you for the information",
+      "lastMessageAt": "2024-12-05T14:30:00Z",
+      "unreadCount": 3,
+      "aiEnabled": true,
+      "filePath": "conversations/user-uuid/+919876543210.json",
+      "createdAt": "2024-12-01T10:00:00Z",
+      "updatedAt": "2024-12-05T14:30:00Z",
+      "messages": [
+        {
+          "id": "message-uuid",
+          "message": "Thank you for the information",
+          "sender": "contact",
+          "senderName": "Rajesh Kumar",
+          "status": "received",
+          "messageType": "text",
+          "isAiGenerated": false,
+          "createdAt": "2024-12-05T14:30:00Z"
+        }
+      ]
+    }
+  ],
+  "total": 150,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+---
+
+### 4. Get Single Conversation with Messages
+
+**Endpoint:** `GET /whatsapp/conversations/:conversationId`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `limit` (optional): Number of messages to return (default: 100)
+- `offset` (optional): Offset for pagination (default: 0)
+
+**Example Request:**
+```
+GET /whatsapp/conversations/conv-uuid-123?limit=50&offset=0
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "conversation-uuid",
+  "contactName": "Rajesh Kumar",
+  "contactPhone": "+91 98765 43210",
+  "contactId": "contact-uuid",
+  "lastMessage": "Thank you for the information",
+  "lastMessageAt": "2024-12-05T14:30:00Z",
+  "unreadCount": 0,
+  "aiEnabled": true,
+  "filePath": "conversations/user-uuid/+919876543210.json",
+  "createdAt": "2024-12-01T10:00:00Z",
+  "updatedAt": "2024-12-05T14:30:00Z",
+  "messages": [
+    {
+      "id": "message-uuid-1",
+      "message": "Thank you for the information",
+      "sender": "contact",
+      "senderName": "Rajesh Kumar",
+      "status": "received",
+      "messageType": "text",
+      "isAiGenerated": false,
+      "metadata": {
+        "whatsappMessageId": "wamid.HBg...",
+        "timestamp": "1701783000"
+      },
+      "createdAt": "2024-12-05T14:30:00Z"
+    },
+    {
+      "id": "message-uuid-2",
+      "message": "You're welcome! Is there anything else I can help you with?",
+      "sender": "ai",
+      "senderName": "AI Assistant",
+      "status": "sent",
+      "messageType": "text",
+      "isAiGenerated": true,
+      "metadata": {
+        "whatsappMessageId": "wamid.HBg...",
+        "intent": "provide_support",
+        "sentiment": "neutral"
+      },
+      "createdAt": "2024-12-05T14:31:00Z"
+    }
+  ]
+}
+```
+
+**Note:** This endpoint automatically marks the conversation as read (unreadCount reset to 0).
+
+---
+
+### 5. Start New Conversation
+
+**Endpoint:** `POST /whatsapp/conversations/start`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "contactPhone": "+91 98765 43210",
+  "contactName": "Rajesh Kumar",
+  "contactId": "contact-uuid"
+}
+```
+
+**Parameters:**
+- `contactPhone` (String, **required**): Phone number with country code
+- `contactName` (String, optional): Display name for the contact
+- `contactId` (String, optional): Link to existing contact record
+
+**Response (200 OK):**
+```json
+{
+  "id": "conversation-uuid",
+  "contactName": "Rajesh Kumar",
+  "contactPhone": "+91 98765 43210",
+  "contactId": "contact-uuid",
+  "lastMessage": null,
+  "lastMessageAt": null,
+  "unreadCount": 0,
+  "aiEnabled": true,
+  "filePath": "conversations/user-uuid/+919876543210.json",
+  "createdAt": "2024-12-05T14:30:00Z",
+  "updatedAt": "2024-12-05T14:30:00Z",
+  "messages": []
+}
+```
+
+**Note:** If a conversation already exists with this phone number, it returns the existing conversation.
+
+---
+
+### 6. Search Contacts for WhatsApp
+
+**Endpoint:** `GET /whatsapp/search-contacts`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `query` (required): Search term (minimum 2 characters)
+
+**Example Request:**
+```
+GET /whatsapp/search-contacts?query=rajesh
+```
+
+**Response (200 OK):**
+```json
+{
+  "contacts": [
+    {
+      "id": "contact-uuid",
+      "name": "Rajesh Kumar",
+      "company": "Tech Solutions Pvt Ltd",
+      "phone": "+91 98765 43210",
+      "whatsapp": "+91 98765 43210",
+      "email": "rajesh@techsolutions.com"
+    },
+    {
+      "id": "contact-uuid-2",
+      "name": "Rajesh Sharma",
+      "company": "Digital India Corp",
+      "phone": "+91 87654 32109",
+      "whatsapp": "+91 87654 32109",
+      "email": "rajesh.sharma@digitalindia.com"
+    }
+  ]
+}
+```
+
+**Note:** Searches across contact name, company, phone, WhatsApp number, and email. Returns maximum 10 results.
+
+---
+
+### 7. Delete Conversation
+
+**Endpoint:** `DELETE /whatsapp/conversations/:conversationId`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Conversation deleted successfully"
+}
+```
+
+**Note:** This permanently deletes the conversation and all associated messages from both the database and file storage.
+
+---
+
+### 8. Toggle AI Assistant for Conversation
+
+**Endpoint:** `PATCH /whatsapp/conversations/:conversationId/ai-toggle`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "enabled": true
+}
+```
+
+**Parameters:**
+- `enabled` (Boolean, **required**): `true` to enable AI, `false` to disable
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "AI assistant enabled for this conversation",
+  "aiEnabled": true
+}
+```
+
+**Note:** When AI is enabled, incoming WhatsApp messages will automatically receive AI-generated responses.
+
+---
+
+### 9. Check WhatsApp Configuration Status
+
+**Endpoint:** `GET /whatsapp/status`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "configured": true,
+  "message": "WhatsApp is configured and ready to use"
+}
+```
+
+**Response when not configured:**
+```json
+{
+  "configured": false,
+  "message": "WhatsApp is not configured. Please set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID"
+}
+```
+
+---
+
+### 10. WhatsApp Webhook (For Meta/Facebook)
+
+#### Webhook Verification (GET)
+
+**Endpoint:** `GET /whatsapp/webhook`
+
+**Query Parameters:**
+- `hub.mode`: "subscribe"
+- `hub.verify_token`: Your verification token
+- `hub.challenge`: Challenge string from Meta
+
+**Response:** Returns the challenge string if verification token matches.
+
+**Note:** This endpoint is called by Meta to verify your webhook URL. Set `WHATSAPP_WEBHOOK_VERIFY_TOKEN` in your environment variables.
+
+---
+
+#### Receive Messages (POST)
+
+**Endpoint:** `POST /whatsapp/webhook`
+
+**Note:** This endpoint is called by Meta when:
+- A new message is received
+- A message status changes (sent → delivered → read)
+- This is a public endpoint (no authentication required)
+
+**Request Body Example:**
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15551234567",
+              "phone_number_id": "PHONE_NUMBER_ID"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Rajesh Kumar"
+                },
+                "wa_id": "919876543210"
+              }
+            ],
+            "messages": [
+              {
+                "from": "919876543210",
+                "id": "wamid.HBgLMT...",
+                "timestamp": "1701783000",
+                "type": "text",
+                "text": {
+                  "body": "Hi, I'm interested in your products"
+                }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Response:** `200 OK` with "EVENT_RECEIVED"
+
+**Webhook Processing:**
+1. System receives incoming WhatsApp message
+2. Finds or creates conversation in CRM
+3. Saves message to database and file storage
+4. If AI is enabled for conversation, generates AI response
+5. Sends AI response back via WhatsApp API
+6. Saves AI response to conversation
+
+---
+
+## WhatsApp Integration Setup
+
+### Environment Variables
+
+Add these to your `.env` file:
+
+```env
+# WhatsApp Business API Credentials
+WHATSAPP_TOKEN=your_whatsapp_business_api_token
+WHATSAPP_PHONE_ID=your_phone_number_id
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=your_custom_verify_token
+
+# AI Features (Optional)
+ENABLE_AI_FEATURE=true
+OPENAI_API_KEY=your_openai_api_key
+```
+
+### Getting WhatsApp Credentials
+
+1. **Create Meta Developer Account:**
+   - Go to https://developers.facebook.com
+   - Create a new app with WhatsApp Business API
+
+2. **Get Phone Number ID:**
+   - Navigate to WhatsApp → API Setup
+   - Copy the "Phone number ID"
+
+3. **Get Access Token:**
+   - In API Setup, copy the temporary access token
+   - For production, generate a permanent token
+
+4. **Setup Webhook:**
+   - Add webhook URL: `https://your-domain.com/api/whatsapp/webhook`
+   - Set verify token (same as `WHATSAPP_WEBHOOK_VERIFY_TOKEN`)
+   - Subscribe to `messages` events
+
+### Message Types Supported
+
+- **Text Messages**: Plain text messages
+- **Image**: Images with optional captions
+- **Document**: PDF, Excel, Word files with optional captions
+- **Audio**: Voice messages
+- **Video**: Video files with optional captions
+- **Location**: GPS coordinates
+
+### Template Message Guidelines
+
+WhatsApp requires pre-approved templates for:
+- Messages sent outside 24-hour customer service window
+- Proactive business-initiated conversations
+
+**Template Categories:**
+- **UTILITY**: Account updates, order updates, appointment reminders
+- **MARKETING**: Promotional offers, newsletters (requires opt-in)
+- **AUTHENTICATION**: OTP, verification codes
+
+---
+
+## WhatsApp AI Features
+
+The system includes AI-powered WhatsApp assistant that can:
+
+✅ **Automatically respond** to customer inquiries
+✅ **Detect intent** (product inquiry, support request, lead generation)
+✅ **Analyze sentiment** (positive, negative, neutral)
+✅ **Execute actions** (create leads, schedule tasks, update contacts)
+✅ **Provide context-aware** responses based on conversation history
+✅ **Maintain conversation** context across multiple messages
+
+### AI Actions
+
+The AI assistant can automatically:
+- **Create leads** from interested customers
+- **Schedule follow-up tasks** based on conversation
+- **Update contact information** when customers provide details
+- **Answer FAQs** using company knowledge base
+- **Escalate to human** when necessary
 
 ---
 

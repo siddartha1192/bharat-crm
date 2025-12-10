@@ -1,17 +1,27 @@
-export type PipelineStage =
-  | 'lead'
-  | 'qualified'
-  | 'proposal'
-  | 'negotiation'
-  | 'closed-won'
-  | 'closed-lost';
+// PipelineStage type for backward compatibility
+export type PipelineStage = string;
+
+export interface PipelineStageConfig {
+  id: string; // UUID from database
+  name: string;
+  slug: string; // Used as stage value (e.g., 'lead', 'qualified')
+  color: string; // Tailwind color name (e.g., 'blue', 'green')
+  order: number;
+  isDefault: boolean;
+  isActive: boolean;
+  userId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface Deal {
   id: string;
   title: string;
   company: string;
   contactName: string;
-  stage: PipelineStage;
+  contactId?: string; // Link to Contact
+  stage: string; // References PipelineStageConfig.slug
+  stageId?: string; // Direct reference to PipelineStageConfig.id
   value: number;
   probability: number; // 0-100
   expectedCloseDate: Date;
@@ -22,18 +32,78 @@ export interface Deal {
   tags: string[];
 }
 
-export interface PipelineStageConfig {
-  id: PipelineStage;
-  name: string;
-  color: string;
-  order: number;
-}
-
+// Default stages - kept for backward compatibility
 export const defaultPipelineStages: PipelineStageConfig[] = [
-  { id: 'lead', name: 'Lead', color: 'bg-blue-500', order: 1 },
-  { id: 'qualified', name: 'Qualified', color: 'bg-cyan-500', order: 2 },
-  { id: 'proposal', name: 'Proposal', color: 'bg-amber-500', order: 3 },
-  { id: 'negotiation', name: 'Negotiation', color: 'bg-orange-500', order: 4 },
-  { id: 'closed-won', name: 'Closed Won', color: 'bg-green-500', order: 5 },
-  { id: 'closed-lost', name: 'Closed Lost', color: 'bg-red-500', order: 6 },
+  {
+    id: 'default-lead',
+    name: 'Lead',
+    slug: 'lead',
+    color: 'blue',
+    order: 1,
+    isDefault: true,
+    isActive: true,
+    userId: null,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: 'default-qualified',
+    name: 'Qualified',
+    slug: 'qualified',
+    color: 'cyan',
+    order: 2,
+    isDefault: true,
+    isActive: true,
+    userId: null,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: 'default-proposal',
+    name: 'Proposal',
+    slug: 'proposal',
+    color: 'amber',
+    order: 3,
+    isDefault: true,
+    isActive: true,
+    userId: null,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: 'default-negotiation',
+    name: 'Negotiation',
+    slug: 'negotiation',
+    color: 'orange',
+    order: 4,
+    isDefault: true,
+    isActive: true,
+    userId: null,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: 'default-closed-won',
+    name: 'Closed Won',
+    slug: 'closed-won',
+    color: 'green',
+    order: 5,
+    isDefault: true,
+    isActive: true,
+    userId: null,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    id: 'default-closed-lost',
+    name: 'Closed Lost',
+    slug: 'closed-lost',
+    color: 'red',
+    order: 6,
+    isDefault: true,
+    isActive: true,
+    userId: null,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
 ];

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { dealsAPI } from '@/lib/api';
-import { defaultPipelineStages, PipelineStage, Deal } from '@/types/pipeline';
+import { dealsAPI, pipelineStagesAPI } from '@/lib/api';
+import { defaultPipelineStages, PipelineStage, PipelineStageConfig, Deal } from '@/types/pipeline';
 import { DealCard } from '@/components/pipeline/DealCard';
 import { DealListView } from '@/components/pipeline/DealListView';
 import { StageColumn } from '@/components/pipeline/StageColumn';
@@ -37,30 +37,53 @@ import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 
 export default function Pipeline() {
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [stages, setStages] = useState<PipelineStageConfig[]>(defaultPipelineStages);
   const [loading, setLoading] = useState(true);
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
-  const [originalDealStage, setOriginalDealStage] = useState<PipelineStage | null>(null);
+  const [originalDealStage, setOriginalDealStage] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
-  const [selectedStage, setSelectedStage] = useState<PipelineStage>('lead');
+  const [selectedStage, setSelectedStage] = useState<string>('lead');
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch deals from API
+  // Fetch stages and deals from API
   useEffect(() => {
-    fetchDeals();
+    fetchStagesAndDeals();
   }, []);
+
+  const fetchStagesAndDeals = async () => {
+    try {
+      setLoading(true);
+      const [stagesData, dealsData] = await Promise.all([
+        pipelineStagesAPI.getAll().catch(() => defaultPipelineStages),
+        dealsAPI.getAll()
+      ]);
+
+      // Convert date strings to Date objects for stages
+      const stagesWithDates = stagesData.map(s => ({
+        ...s,
+        createdAt: new Date(s.createdAt),
+        updatedAt: new Date(s.updatedAt)
+      }));
+
+      setStages(stagesWithDates.sort((a, b) => a.order - b.order));
+      setDeals(dealsData);
+    } catch (error) {
+      toast.error('Failed to load pipeline data');
+      console.error('Error fetching pipeline data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchDeals = async () => {
     try {
-      setLoading(true);
       const data = await dealsAPI.getAll();
       setDeals(data);
     } catch (error) {
-      toast.error('Failed to load deals. Please check if the backend is running.');
+      toast.error('Failed to load deals');
       console.error('Error fetching deals:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -87,13 +110,13 @@ export default function Pipeline() {
     ).length,
   };
 
-  const getDealsByStage = (stage: PipelineStage) => {
-    return deals.filter(deal => deal.stage === stage);
+  const getDealsByStage = (slug: string) => {
+    return deals.filter(deal => deal.stage === slug);
   };
 
-  const getStageValue = (stage: PipelineStage) => {
+  const getStageValue = (slug: string) => {
     return deals
-      .filter(deal => deal.stage === stage)
+      .filter(deal => deal.stage === slug)
       .reduce((sum, deal) => sum + deal.value, 0);
   };
 
@@ -113,11 +136,12 @@ export default function Pipeline() {
     const activeDeal = deals.find(d => d.id === active.id);
     if (!activeDeal) return;
 
-    let targetStage: PipelineStage | null = null;
+    let targetStage: string | null = null;
 
     // Check if we're over a stage column directly
-    if (defaultPipelineStages.some(s => s.id === over.id)) {
-      targetStage = over.id as PipelineStage;
+    const stageConfig = stages.find(s => s.id === over.id);
+    if (stageConfig) {
+      targetStage = stageConfig.slug;
     } else {
       // We're over a deal, find which stage it belongs to
       const overDeal = deals.find(d => d.id === over.id);
@@ -150,11 +174,12 @@ export default function Pipeline() {
       return;
     }
 
-    let targetStage: PipelineStage | null = null;
+    let targetStage: string | null = null;
 
     // Check if we're over a stage column directly
-    if (defaultPipelineStages.some(s => s.id === over.id)) {
-      targetStage = over.id as PipelineStage;
+    const stageConfig = stages.find(s => s.id === over.id);
+    if (stageConfig) {
+      targetStage = stageConfig.slug;
     } else {
       // We're over a deal, find which stage it belongs to
       const overDeal = deals.find(d => d.id === over.id);
@@ -165,7 +190,7 @@ export default function Pipeline() {
 
     // Update the deal's stage if it changed from the original
     if (targetStage && originalDealStage !== targetStage) {
-      const stageName = defaultPipelineStages.find(s => s.id === targetStage)?.name;
+      const stageName = stages.find(s => s.slug === targetStage)?.name;
 
       try {
         // Update in backend
@@ -187,9 +212,9 @@ export default function Pipeline() {
     setOriginalDealStage(null);
   };
 
-  const handleAddDeal = (stage: PipelineStage) => {
+  const handleAddDeal = (slug: string) => {
     setSelectedDeal(null);
-    setSelectedStage(stage);
+    setSelectedStage(slug);
     setDialogOpen(true);
   };
 
@@ -276,8 +301,7 @@ export default function Pipeline() {
 
   return (
     <div className="min-h-screen bg-background">
-
-      <div className="relative p-6 max-w-[1800px] mx-auto space-y-6">
+      <div className="relative p-6 space-y-6 max-w-full overflow-hidden">
         {/* Header */}
         <div className="relative">
           <div className="absolute -left-6 top-0 bottom-0 w-1 bg-primary rounded-r" />
@@ -388,14 +412,14 @@ export default function Pipeline() {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="overflow-x-auto">
-              <div className="flex gap-4 min-w-max pb-4">
-                {defaultPipelineStages.map(stage => (
+            <div className="overflow-x-auto -mx-6 px-6">
+              <div className="flex gap-4 pb-4" style={{ width: 'fit-content' }}>
+                {stages.map(stage => (
                   <StageColumn
                     key={stage.id}
                     stage={stage}
-                    deals={getDealsByStage(stage.id)}
-                    onAddDeal={() => handleAddDeal(stage.id)}
+                    deals={getDealsByStage(stage.slug)}
+                    onAddDeal={() => handleAddDeal(stage.slug)}
                     onEditDeal={handleEditDeal}
                     onDeleteDeal={handleDeleteDeal}
                   />

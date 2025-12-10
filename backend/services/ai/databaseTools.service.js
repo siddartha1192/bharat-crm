@@ -173,14 +173,13 @@ class DatabaseToolsService {
         type: 'function',
         function: {
           name: 'query_deals',
-          description: 'Query deals/opportunities from the pipeline',
+          description: 'Query deals/opportunities from the pipeline. Pipeline stages are customizable - common stages include lead, qualified, proposal, negotiation, closed-won, closed-lost, but users may have custom stages.',
           parameters: {
             type: 'object',
             properties: {
               stage: {
                 type: 'string',
-                enum: ['lead', 'qualified', 'proposal', 'negotiation', 'closed-won', 'closed-lost'],
-                description: 'Filter by pipeline stage',
+                description: 'Filter by pipeline stage name (e.g., lead, qualified, proposal, negotiation, closed-won, closed-lost, or any custom stage). Case-sensitive slug format with lowercase and hyphens.',
               },
               minValue: {
                 type: 'number',
@@ -683,6 +682,7 @@ class DatabaseToolsService {
         };
 
       case 'deals_by_stage':
+        // Pipeline stages are customizable - this will group by whatever stages exist in the database
         const dealsByStage = await prisma.deal.groupBy({
           by: ['stage'],
           _count: { id: true },

@@ -182,6 +182,15 @@ export const contactsAPI = {
   }> => {
     return fetchAPI('/contacts/stats/summary');
   },
+
+  // Search contacts (for dropdown/autocomplete)
+  search: async (query: string): Promise<Contact[]> => {
+    if (!query || query.trim().length < 2) {
+      return [];
+    }
+    const params = new URLSearchParams({ search: query.trim() });
+    return fetchAPI<Contact[]>(`/contacts?${params.toString()}`);
+  },
 };
 
 // ============ INVOICES API ============
@@ -337,6 +346,60 @@ export const tasksAPI = {
   delete: async (id: string): Promise<void> => {
     return fetchAPI<void>(`/tasks/${id}`, {
       method: 'DELETE',
+    });
+  },
+};
+
+// ============ PIPELINE STAGES API ============
+export const pipelineStagesAPI = {
+  // Get all active pipeline stages (user's custom + defaults)
+  getAll: async (): Promise<any[]> => {
+    return fetchAPI<any[]>('/pipeline-stages');
+  },
+
+  // Get single pipeline stage
+  getById: async (id: string): Promise<any> => {
+    return fetchAPI<any>(`/pipeline-stages/${id}`);
+  },
+
+  // Create new custom pipeline stage
+  create: async (stage: {
+    name: string;
+    slug: string;
+    color?: string;
+    order?: number;
+  }): Promise<any> => {
+    return fetchAPI<any>('/pipeline-stages', {
+      method: 'POST',
+      body: JSON.stringify(stage),
+    });
+  },
+
+  // Update pipeline stage
+  update: async (id: string, stage: {
+    name?: string;
+    color?: string;
+    order?: number;
+    isActive?: boolean;
+  }): Promise<any> => {
+    return fetchAPI<any>(`/pipeline-stages/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(stage),
+    });
+  },
+
+  // Delete pipeline stage (soft delete)
+  delete: async (id: string): Promise<void> => {
+    return fetchAPI<void>(`/pipeline-stages/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Reorder pipeline stages
+  reorder: async (stageOrders: { id: string; order: number }[]): Promise<void> => {
+    return fetchAPI<void>('/pipeline-stages/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ stageOrders }),
     });
   },
 };

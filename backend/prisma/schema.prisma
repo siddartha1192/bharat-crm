@@ -59,6 +59,7 @@ model User {
   activityLogs            ActivityLog[]
   sessions                Session[]
   emailLogs               EmailLog[]
+  pipelineStages          PipelineStage[]
 
   @@index([email])
   @@index([googleId])
@@ -256,6 +257,30 @@ model Invoice {
   @@index([userId])
 }
 
+model PipelineStage {
+  id          String   @id @default(uuid())
+  name        String   // 'Lead', 'Qualified', 'Proposal', etc.
+  slug        String   // 'lead', 'qualified', 'proposal', etc. (used as stage value in Deal)
+  color       String   @default("blue") // Tailwind color class (e.g., 'blue', 'green', 'red')
+  order       Int      // Display order (1, 2, 3, etc.)
+  isDefault   Boolean  @default(false) // True for system default stages
+  isActive    Boolean  @default(true) // Soft delete
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // User relation (null for default stages, user-specific for custom)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Deals using this stage
+  deals       Deal[]
+
+  @@unique([userId, slug]) // Each user can have only one stage with a specific slug
+  @@index([userId])
+  @@index([order])
+  @@index([isActive])
+}
+
 model Deal {
   id              String   @id @default(uuid())
   title           String
@@ -263,7 +288,8 @@ model Deal {
   contactName     String
   contactId       String?  // Optional link to Contact
   value           Float
-  stage           String   // 'lead' | 'qualified' | 'proposal' | 'negotiation' | 'closed-won' | 'closed-lost'
+  stage           String   // References PipelineStage.slug
+  stageId         String?  // Direct reference to PipelineStage
   probability     Int      // 0-100
   expectedCloseDate DateTime
   assignedTo      String
@@ -279,7 +305,11 @@ model Deal {
   // Contact relation (optional)
   contact         Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
+  // Pipeline stage relation (optional, for custom stages)
+  pipelineStage   PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+
   @@index([stage])
+  @@index([stageId])
   @@index([assignedTo])
   @@index([userId])
   @@index([contactId])

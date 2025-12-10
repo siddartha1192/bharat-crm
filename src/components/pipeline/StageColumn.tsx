@@ -22,6 +22,23 @@ export function StageColumn({ stage, deals, onAddDeal, onEditDeal, onDeleteDeal 
 
   const stageValue = deals.reduce((sum, deal) => sum + deal.value, 0);
 
+  // Convert color name to Tailwind class
+  const getColorClass = (color: string) => {
+    const colorMap: Record<string, string> = {
+      blue: 'bg-blue-500',
+      cyan: 'bg-cyan-500',
+      amber: 'bg-amber-500',
+      orange: 'bg-orange-500',
+      green: 'bg-green-500',
+      red: 'bg-red-500',
+      purple: 'bg-purple-500',
+      pink: 'bg-pink-500',
+      indigo: 'bg-indigo-500',
+      teal: 'bg-teal-500',
+    };
+    return colorMap[color] || 'bg-gray-500';
+  };
+
   return (
     <div className="flex-shrink-0 w-[320px]">
       <Card
@@ -33,7 +50,7 @@ export function StageColumn({ stage, deals, onAddDeal, onEditDeal, onDeleteDeal 
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${stage.color}`} />
+              <div className={`w-3 h-3 rounded-full ${getColorClass(stage.color)}`} />
               <h3 className="font-semibold text-foreground">{stage.name}</h3>
               <Badge variant="secondary" className="text-xs">
                 {deals.length}
