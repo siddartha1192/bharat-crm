@@ -20,15 +20,21 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
+      console.log('📧 Sending forgot password request for email:', email);
+      const payload = { email };
+      console.log('📤 Payload:', JSON.stringify(payload));
+
       const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(payload),
       });
 
+      console.log('📥 Response status:', response.status);
       const data = await response.json();
+      console.log('📥 Response data:', data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to send reset email');
@@ -40,7 +46,8 @@ export default function ForgotPassword() {
         description: 'Check your email for password reset instructions.',
       });
     } catch (error: any) {
-      console.error('Forgot password error:', error);
+      console.error('❌ Forgot password error:', error);
+      console.error('❌ Error details:', error.message, error.stack);
       toast({
         title: 'Error',
         description: error.message || 'Failed to send reset email. Please try again.',
