@@ -82,6 +82,64 @@ router.get('/google/url', (req, res) => {
 });
 
 /**
+ * Update current user's Google OAuth tokens (for re-authentication)
+ * POST /api/auth/google/reauth
+ * Requires authentication
+ */
+router.post('/google/reauth', authenticate, async (req, res) => {
+  try {
+    const { code } = req.body;
+    const userId = req.user.id;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code is required' });
+    }
+
+    console.log('🔄 Re-authenticating user with Google:', userId);
+
+    // Get tokens from code
+    const { OAuth2Client } = require('google-auth-library');
+    const googleClient = new OAuth2Client(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_AUTH_REDIRECT_URI || 'http://localhost:8080/auth/google/callback'
+    );
+
+    const { tokens } = await googleClient.getToken(code);
+    googleClient.setCredentials(tokens);
+
+    // Get user info
+    const ticket = await googleClient.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const googleEmail = payload.email;
+
+    // Update user's Google tokens
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        googleAccessToken: tokens.access_token,
+        googleRefreshToken: tokens.refresh_token || undefined, // Only update if new refresh token provided
+        googleEmail: googleEmail,
+      },
+    });
+
+    console.log('✅ Successfully updated Google tokens for user:', userId);
+
+    res.json({
+      message: 'Google authentication updated successfully',
+      email: googleEmail
+    });
+  } catch (error) {
+    console.error('Google re-auth error:', error);
+    res.status(500).json({ error: 'Failed to update Google authentication' });
+  }
+});
+
+/**
  * Google OAuth - Handle callback
  * POST /api/auth/google/callback
  */
