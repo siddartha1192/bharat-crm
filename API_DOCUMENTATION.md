@@ -16,7 +16,7 @@
 ## Base URL
 
 ```
-Development: http://localhost:3000/api
+Development: http://localhost:3001/api
 Production: https://your-domain.com/api
 ```
 
