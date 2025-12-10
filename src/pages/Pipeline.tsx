@@ -197,6 +197,8 @@ export default function Pipeline() {
 
       try {
         // Update in backend
+        console.log('🎯 Updating deal via drag-and-drop:', activeDeal.id);
+        console.log('📤 Stage update:', originalDealStage, '→', targetStage);
         await dealsAPI.update(activeDeal.id, { stage: targetStage });
         toast.success(`Deal moved to ${stageName}!`);
       } catch (error) {
@@ -243,6 +245,9 @@ export default function Pipeline() {
     try {
       if (selectedDeal) {
         // Update existing deal
+        console.log('🎯 Updating deal via dialog:', selectedDeal.id);
+        console.log('📤 Deal data being sent:', dealData);
+        console.log('🔄 Stage in update:', dealData.stage);
         await dealsAPI.update(selectedDeal.id, dealData);
         toast.success('Deal updated successfully!');
       } else {

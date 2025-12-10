@@ -98,6 +98,9 @@ router.put('/:id', async (req, res) => {
     const userId = req.user.id;
     const updateData = req.body;
 
+    console.log('📝 Updating deal:', req.params.id);
+    console.log('📊 Update data:', JSON.stringify(updateData, null, 2));
+
     // First verify the deal belongs to the user
     const existingDeal = await prisma.deal.findFirst({
       where: {
@@ -110,6 +113,12 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Deal not found' });
     }
 
+    console.log('📌 Existing deal stage:', existingDeal.stage, '→ New stage:', updateData.stage);
+
+    // Check if stage is actually changing (store this before filtering fields)
+    const isStageChanging = updateData.stage && updateData.stage !== existingDeal.stage;
+    console.log('🔍 Stage changing?', isStageChanging, '(from', existingDeal.stage, 'to', updateData.stage, ')');
+
     // Remove fields that shouldn't be updated
     const { id, createdAt, updatedAt, nextAction, source, ...dealData } = updateData;
 
@@ -121,18 +130,28 @@ router.put('/:id', async (req, res) => {
         data: dealData
       });
 
+      console.log('✅ Deal updated to stage:', deal.stage);
+
       // Check if there's a linked Lead (find lead where dealId matches this deal)
       const linkedLead = await tx.lead.findFirst({
         where: { dealId: deal.id }
       });
+
+      if (linkedLead) {
+        console.log('🔗 Found linked lead:', linkedLead.id, 'current status:', linkedLead.status);
+      } else {
+        console.log('ℹ️  No linked lead found for deal:', deal.id);
+      }
 
       // If Deal has a linked Lead, update it too
       if (linkedLead) {
         const leadUpdateData = {};
 
         // Sync stage/status if changed
-        if (updateData.stage) {
-          leadUpdateData.status = mapDealStageToLeadStatus(updateData.stage);
+        if (isStageChanging) {
+          const newLeadStatus = mapDealStageToLeadStatus(updateData.stage);
+          leadUpdateData.status = newLeadStatus;
+          console.log('🔄 Syncing lead status from', linkedLead.status, 'to', newLeadStatus);
         }
 
         // Sync other fields
@@ -145,20 +164,44 @@ router.put('/:id', async (req, res) => {
 
         // Update the linked Lead if there are changes
         if (Object.keys(leadUpdateData).length > 0) {
-          await tx.lead.update({
+          const updatedLead = await tx.lead.update({
             where: { id: linkedLead.id },
             data: leadUpdateData
           });
-          console.log(`Synced Lead ${linkedLead.id} with Deal ${deal.id} updates`);
+          console.log('✅ Synced Lead', linkedLead.id, 'with updates:', JSON.stringify(leadUpdateData, null, 2));
+          console.log('✅ Lead final status:', updatedLead.status);
+        } else {
+          console.log('ℹ️  No lead updates needed (no changes detected)');
         }
+      } else {
+        console.log('ℹ️  No linked lead to sync');
       }
 
       return deal;
     });
 
+    console.log('✅ Deal update transaction completed successfully');
+
+    // Verify sync by fetching the linked lead (for debugging)
+    const verifyLead = await prisma.lead.findFirst({
+      where: { dealId: result.id },
+      select: { id: true, name: true, status: true, company: true }
+    });
+
+    if (verifyLead) {
+      console.log('🔍 Verification - Linked lead after update:', {
+        leadId: verifyLead.id,
+        leadName: verifyLead.name,
+        leadStatus: verifyLead.status,
+        dealStage: result.stage
+      });
+    } else {
+      console.log('⚠️  Verification - No linked lead found for this deal');
+    }
+
     res.json(result);
   } catch (error) {
-    console.error('Error updating deal:', error);
+    console.error('❌ Error updating deal:', error);
     res.status(500).json({ error: 'Failed to update deal', message: error.message });
   }
 });
