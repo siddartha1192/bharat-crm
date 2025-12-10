@@ -55,16 +55,51 @@ class EmailService {
   /**
 
    * Get nodemailer transporter with Gmail OAuth2
+   * Can use either user-specific tokens or fallback to global .env token
 
    */
 
-  async getTransporter() {
+  async getTransporter(userEmail = null, userAccessToken = null, userRefreshToken = null) {
 
     try {
+      // Try to use user-specific tokens first (from database)
+      if (userEmail && userAccessToken && userRefreshToken) {
+        console.log('📧 Using user-specific Gmail tokens for:', userEmail);
+
+        const userOAuth2Client = new google.auth.OAuth2(
+          GMAIL_CLIENT_ID,
+          GMAIL_CLIENT_SECRET,
+          GMAIL_REDIRECT_URI
+        );
+
+        userOAuth2Client.setCredentials({
+          access_token: userAccessToken,
+          refresh_token: userRefreshToken
+        });
+
+        // Get fresh access token (will auto-refresh if needed)
+        const accessToken = await userOAuth2Client.getAccessToken();
+
+        return nodemailer.createTransport({
+          service: 'gmail',
+          auth: {
+            type: 'OAuth2',
+            user: userEmail,
+            clientId: GMAIL_CLIENT_ID,
+            clientSecret: GMAIL_CLIENT_SECRET,
+            refreshToken: userRefreshToken,
+            accessToken: accessToken.token,
+          },
+        });
+      }
+
+      // Fallback to global .env credentials
+      console.log('📧 Using global Gmail credentials from .env');
+      if (!GMAIL_USER || !GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN) {
+        throw new Error('Gmail OAuth credentials not configured in .env and no user tokens provided.');
+      }
 
       const accessToken = await oauth2Client.getAccessToken();
-
- 
 
       return nodemailer.createTransport({
 
@@ -90,9 +125,16 @@ class EmailService {
 
     } catch (error) {
 
-      console.error('Error creating email transporter:', error);
+      console.error('❌ Error creating email transporter:', error.message);
 
-      throw new Error('Failed to create email transporter');
+      // Check for specific OAuth errors
+      if (error.message && error.message.includes('invalid_grant')) {
+        console.error('🔑 Gmail OAuth token has expired or been revoked.');
+        console.error('📝 To fix this: User needs to re-authenticate with Google to grant Gmail permissions.');
+        throw new Error('Gmail OAuth token expired. Please re-authenticate with Google.');
+      }
+
+      throw new Error('Failed to create email transporter: ' + error.message);
 
     }
 
@@ -214,13 +256,29 @@ class EmailService {
       throw new Error('userId is required to send email');
     }
 
+    // Fetch user's Google OAuth tokens from database
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        googleEmail: true,
+        googleAccessToken: true,
+        googleRefreshToken: true
+      }
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
     const toArray = Array.isArray(to) ? to : [to];
 
     const ccArray = Array.isArray(cc) ? cc : (cc ? [cc] : []);
 
     const bccArray = Array.isArray(bcc) ? bcc : (bcc ? [bcc] : []);
 
- 
+    // Determine sender email (use Google email if available, otherwise fallback)
+    const senderEmail = user.googleEmail || user.email || GMAIL_USER;
 
     // Create email log entry
 
@@ -234,7 +292,7 @@ class EmailService {
 
         bcc: bccArray,
 
-        from: GMAIL_USER,
+        from: senderEmail,
 
         subject,
 
@@ -256,17 +314,22 @@ class EmailService {
 
     });
 
- 
+
 
     try {
 
-      const transporter = await this.getTransporter();
+      // Use user's Google tokens if available, otherwise fallback to .env
+      const transporter = await this.getTransporter(
+        user.googleEmail,
+        user.googleAccessToken,
+        user.googleRefreshToken
+      );
 
  
 
       const mailOptions = {
 
-        from: `Bharat CRM <${GMAIL_USER}>`,
+        from: `Bharat CRM <${senderEmail}>`,
 
         to: toArray.join(', '),
 

@@ -187,6 +187,8 @@ class AuthService {
       scope: [
         'https://www.googleapis.com/auth/userinfo.profile',
         'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/gmail.send', // Send emails via Gmail
+        'https://mail.google.com/', // Full Gmail access (for reading replies, etc.)
       ],
       prompt: 'consent',
     });
