@@ -181,6 +181,24 @@ router.put('/:id', async (req, res) => {
     });
 
     console.log('✅ Deal update transaction completed successfully');
+
+    // Verify sync by fetching the linked lead (for debugging)
+    const verifyLead = await prisma.lead.findFirst({
+      where: { dealId: result.id },
+      select: { id: true, name: true, status: true, company: true }
+    });
+
+    if (verifyLead) {
+      console.log('🔍 Verification - Linked lead after update:', {
+        leadId: verifyLead.id,
+        leadName: verifyLead.name,
+        leadStatus: verifyLead.status,
+        dealStage: result.stage
+      });
+    } else {
+      console.log('⚠️  Verification - No linked lead found for this deal');
+    }
+
     res.json(result);
   } catch (error) {
     console.error('❌ Error updating deal:', error);
