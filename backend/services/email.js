@@ -64,33 +64,41 @@ class EmailService {
     try {
       // Try to use user-specific tokens first (from database)
       if (userEmail && userAccessToken && userRefreshToken) {
-        console.log('📧 Using user-specific Gmail tokens for:', userEmail);
+        console.log('📧 Attempting to use user-specific Gmail tokens for:', userEmail);
 
-        const userOAuth2Client = new google.auth.OAuth2(
-          GMAIL_CLIENT_ID,
-          GMAIL_CLIENT_SECRET,
-          GMAIL_REDIRECT_URI
-        );
+        try {
+          const userOAuth2Client = new google.auth.OAuth2(
+            GMAIL_CLIENT_ID,
+            GMAIL_CLIENT_SECRET,
+            GMAIL_REDIRECT_URI
+          );
 
-        userOAuth2Client.setCredentials({
-          access_token: userAccessToken,
-          refresh_token: userRefreshToken
-        });
+          userOAuth2Client.setCredentials({
+            access_token: userAccessToken,
+            refresh_token: userRefreshToken
+          });
 
-        // Get fresh access token (will auto-refresh if needed)
-        const accessToken = await userOAuth2Client.getAccessToken();
+          // Get fresh access token (will auto-refresh if needed)
+          const accessToken = await userOAuth2Client.getAccessToken();
 
-        return nodemailer.createTransport({
-          service: 'gmail',
-          auth: {
-            type: 'OAuth2',
-            user: userEmail,
-            clientId: GMAIL_CLIENT_ID,
-            clientSecret: GMAIL_CLIENT_SECRET,
-            refreshToken: userRefreshToken,
-            accessToken: accessToken.token,
-          },
-        });
+          console.log('✅ Successfully obtained access token for user');
+
+          return nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+              type: 'OAuth2',
+              user: userEmail,
+              clientId: GMAIL_CLIENT_ID,
+              clientSecret: GMAIL_CLIENT_SECRET,
+              refreshToken: userRefreshToken,
+              accessToken: accessToken.token,
+            },
+          });
+        } catch (userTokenError) {
+          console.warn('⚠️  User tokens failed, likely missing Gmail scope. Error:', userTokenError.message);
+          console.warn('🔄 Falling back to global .env credentials');
+          // Fall through to try .env credentials
+        }
       }
 
       // Fallback to global .env credentials
