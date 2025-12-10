@@ -115,6 +115,10 @@ router.put('/:id', async (req, res) => {
 
     console.log('📌 Existing deal stage:', existingDeal.stage, '→ New stage:', updateData.stage);
 
+    // Check if stage is actually changing (store this before filtering fields)
+    const isStageChanging = updateData.stage && updateData.stage !== existingDeal.stage;
+    console.log('🔍 Stage changing?', isStageChanging, '(from', existingDeal.stage, 'to', updateData.stage, ')');
+
     // Remove fields that shouldn't be updated
     const { id, createdAt, updatedAt, nextAction, source, ...dealData } = updateData;
 
@@ -144,7 +148,7 @@ router.put('/:id', async (req, res) => {
         const leadUpdateData = {};
 
         // Sync stage/status if changed
-        if (updateData.stage && updateData.stage !== existingDeal.stage) {
+        if (isStageChanging) {
           const newLeadStatus = mapDealStageToLeadStatus(updateData.stage);
           leadUpdateData.status = newLeadStatus;
           console.log('🔄 Syncing lead status from', linkedLead.status, 'to', newLeadStatus);
@@ -160,19 +164,23 @@ router.put('/:id', async (req, res) => {
 
         // Update the linked Lead if there are changes
         if (Object.keys(leadUpdateData).length > 0) {
-          await tx.lead.update({
+          const updatedLead = await tx.lead.update({
             where: { id: linkedLead.id },
             data: leadUpdateData
           });
           console.log('✅ Synced Lead', linkedLead.id, 'with updates:', JSON.stringify(leadUpdateData, null, 2));
+          console.log('✅ Lead final status:', updatedLead.status);
         } else {
-          console.log('ℹ️  No lead updates needed (stage unchanged)');
+          console.log('ℹ️  No lead updates needed (no changes detected)');
         }
+      } else {
+        console.log('ℹ️  No linked lead to sync');
       }
 
       return deal;
     });
 
+    console.log('✅ Deal update transaction completed successfully');
     res.json(result);
   } catch (error) {
     console.error('❌ Error updating deal:', error);
