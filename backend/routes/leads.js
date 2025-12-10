@@ -4,6 +4,33 @@ const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const prisma = new PrismaClient();
 
+// Helper function: Map lead status to deal stage
+function mapLeadStatusToDealStage(leadStatus) {
+  const statusMapping = {
+    'new': 'lead',
+    'contacted': 'lead',
+    'qualified': 'qualified',
+    'proposal': 'proposal',
+    'negotiation': 'negotiation',
+    'won': 'closed-won',
+    'lost': 'closed-lost'
+  };
+  return statusMapping[leadStatus] || 'lead';
+}
+
+// Helper function: Map deal stage to lead status
+function mapDealStageToLeadStatus(dealStage) {
+  const stageMapping = {
+    'lead': 'contacted',
+    'qualified': 'qualified',
+    'proposal': 'proposal',
+    'negotiation': 'negotiation',
+    'closed-won': 'won',
+    'closed-lost': 'lost'
+  };
+  return stageMapping[dealStage] || 'contacted';
+}
+
 // Apply authentication to all lead routes
 router.use(authenticate);
 
@@ -53,29 +80,56 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST create new lead
+// POST create new lead (automatically creates Deal in pipeline)
 router.post('/', async (req, res) => {
   try {
     const userId = req.user.id;
+    const leadData = req.body;
 
-    const lead = await prisma.lead.create({
-      data: {
-        ...req.body,
-        userId
-      }
+    // Use transaction to ensure both Lead and Deal are created together
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the Deal first in the pipeline
+      const deal = await tx.deal.create({
+        data: {
+          title: `${leadData.company} - ${leadData.name}`,
+          company: leadData.company,
+          contactName: leadData.name,
+          value: leadData.estimatedValue || 0,
+          stage: mapLeadStatusToDealStage(leadData.status || 'new'),
+          probability: leadData.priority === 'urgent' ? 80 : leadData.priority === 'high' ? 60 : leadData.priority === 'medium' ? 40 : 20,
+          expectedCloseDate: leadData.nextFollowUpAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          assignedTo: leadData.assignedTo || req.user.name || 'Unassigned',
+          notes: leadData.notes || '',
+          tags: leadData.tags || [],
+          userId
+        }
+      });
+
+      // Create the Lead and link it to the Deal
+      const lead = await tx.lead.create({
+        data: {
+          ...leadData,
+          userId,
+          dealId: deal.id
+        }
+      });
+
+      return { lead, deal };
     });
 
-    res.status(201).json(lead);
+    console.log(`Lead created with auto-generated Deal: Lead ${result.lead.id} -> Deal ${result.deal.id}`);
+    res.status(201).json(result.lead);
   } catch (error) {
     console.error('Error creating lead:', error);
-    res.status(500).json({ error: 'Failed to create lead' });
+    res.status(500).json({ error: 'Failed to create lead', message: error.message });
   }
 });
 
-// PUT update lead
+// PUT update lead (syncs with Deal if linked)
 router.put('/:id', async (req, res) => {
   try {
     const userId = req.user.id;
+    const updateData = req.body;
 
     // First verify the lead belongs to the user
     const existingLead = await prisma.lead.findFirst({
@@ -89,15 +143,53 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Lead not found' });
     }
 
-    const lead = await prisma.lead.update({
-      where: { id: req.params.id },
-      data: req.body
+    // Update Lead and sync with Deal in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Update the Lead
+      const lead = await tx.lead.update({
+        where: { id: req.params.id },
+        data: updateData
+      });
+
+      // If Lead has a linked Deal, update it too
+      if (lead.dealId) {
+        const dealUpdateData = {};
+
+        // Sync status/stage if changed
+        if (updateData.status) {
+          dealUpdateData.stage = mapLeadStatusToDealStage(updateData.status);
+        }
+
+        // Sync other fields
+        if (updateData.name) dealUpdateData.contactName = updateData.name;
+        if (updateData.company) dealUpdateData.company = updateData.company;
+        if (updateData.estimatedValue !== undefined) dealUpdateData.value = updateData.estimatedValue;
+        if (updateData.notes) dealUpdateData.notes = updateData.notes;
+        if (updateData.tags) dealUpdateData.tags = updateData.tags;
+        if (updateData.assignedTo) dealUpdateData.assignedTo = updateData.assignedTo;
+
+        // Update Deal title if name or company changed
+        if (updateData.name || updateData.company) {
+          dealUpdateData.title = `${lead.company} - ${lead.name}`;
+        }
+
+        // Update the linked Deal if there are changes
+        if (Object.keys(dealUpdateData).length > 0) {
+          await tx.deal.update({
+            where: { id: lead.dealId },
+            data: dealUpdateData
+          });
+          console.log(`Synced Deal ${lead.dealId} with Lead ${lead.id} updates`);
+        }
+      }
+
+      return lead;
     });
 
-    res.json(lead);
+    res.json(result);
   } catch (error) {
     console.error('Error updating lead:', error);
-    res.status(500).json({ error: 'Failed to update lead' });
+    res.status(500).json({ error: 'Failed to update lead', message: error.message });
   }
 });
 
