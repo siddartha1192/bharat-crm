@@ -72,15 +72,18 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
     setLoading(true);
     try {
       const data = await pipelineStagesAPI.getAll();
+      console.log('Fetched stages:', data);
       const stagesWithDates = data.map(s => ({
         ...s,
         createdAt: new Date(s.createdAt),
         updatedAt: new Date(s.updatedAt),
       }));
-      setStages(stagesWithDates.sort((a, b) => a.order - b.order));
+      const sortedStages = stagesWithDates.sort((a, b) => a.order - b.order);
+      console.log('Sorted stages:', sortedStages);
+      setStages(sortedStages);
     } catch (error) {
       toast.error('Failed to fetch stages');
-      console.error(error);
+      console.error('Error fetching stages:', error);
     } finally {
       setLoading(false);
     }
@@ -99,6 +102,11 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
   };
 
   const handleEdit = (stage: PipelineStageConfig) => {
+    console.log('Edit clicked for stage:', stage);
+    if (stage.isDefault) {
+      toast.error('Cannot edit default stages');
+      return;
+    }
     setFormData({
       name: stage.name,
       slug: stage.slug,
@@ -110,21 +118,24 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
   };
 
   const handleDelete = async (stage: PipelineStageConfig) => {
+    console.log('Delete clicked for stage:', stage);
     if (stage.isDefault) {
       toast.error('Cannot delete default stages');
       return;
     }
 
-    if (!confirm(`Are you sure you want to delete "${stage.name}"?`)) {
+    if (!confirm(`Are you sure you want to delete "${stage.name}"? This action cannot be undone.`)) {
       return;
     }
 
     try {
+      console.log('Deleting stage with ID:', stage.id);
       await pipelineStagesAPI.delete(stage.id);
       toast.success('Stage deleted successfully');
       fetchStages();
       onUpdate?.();
     } catch (error: any) {
+      console.error('Delete error:', error);
       toast.error(error.message || 'Failed to delete stage');
     }
   };
@@ -149,6 +160,7 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
     try {
       if (editingStage) {
         // Update existing stage
+        console.log('Updating stage:', editingStage.id, formData);
         await pipelineStagesAPI.update(editingStage.id, {
           name: formData.name,
           slug,
@@ -158,6 +170,7 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
         toast.success('Stage updated successfully');
       } else {
         // Create new stage
+        console.log('Creating stage:', formData);
         await pipelineStagesAPI.create({
           name: formData.name,
           slug,
@@ -170,6 +183,7 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
       fetchStages();
       onUpdate?.();
     } catch (error: any) {
+      console.error('Save error:', error);
       toast.error(error.message || 'Failed to save stage');
     }
   };
@@ -232,22 +246,30 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEdit(stage)}
-                          disabled={stage.isDefault}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(stage)}
-                          disabled={stage.isDefault}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {!stage.isDefault ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(stage)}
+                              title="Edit stage"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(stage)}
+                              title="Delete stage"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground px-2">
+                            Protected
+                          </span>
+                        )}
                       </div>
                     </div>
                   </Card>
