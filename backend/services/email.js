@@ -207,6 +207,12 @@ class EmailService {
     attachments = [],
 
   }) {
+    console.log('📨 sendEmail called with params:', { to, userId, entityType, subject: subject?.substring(0, 50) });
+
+    if (!userId) {
+      console.error('❌ userId is missing in sendEmail');
+      throw new Error('userId is required to send email');
+    }
 
     const toArray = Array.isArray(to) ? to : [to];
 
@@ -383,10 +389,11 @@ class EmailService {
    */
 
   async sendPasswordResetEmail(email, resetToken, userId) {
+    console.log('📧 Sending password reset email:', { email, userId, hasToken: !!resetToken });
 
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:8080'}/reset-password?token=${resetToken}`;
 
- 
+
 
     const html = `
 
