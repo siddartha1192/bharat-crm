@@ -156,6 +156,9 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('📝 DealDialog submitting formData:', formData);
+    console.log('📝 Stage value in formData:', formData.stage);
+    console.log('📝 Is editing existing deal?', !!deal);
     onSave(formData);
     onOpenChange(false);
   };
@@ -336,7 +339,10 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
               <Label htmlFor="stage">Stage *</Label>
               <Select
                 value={formData.stage}
-                onValueChange={(value) => updateField('stage', value)}
+                onValueChange={(value) => {
+                  console.log('🔄 Stage dropdown changed from', formData.stage, 'to', value);
+                  updateField('stage', value);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
