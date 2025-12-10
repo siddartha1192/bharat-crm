@@ -62,46 +62,15 @@ class EmailService {
   async getTransporter(userEmail = null, userAccessToken = null, userRefreshToken = null) {
 
     try {
-      // Try to use user-specific tokens first (from database)
+      // TEMPORARY FIX: Skip user tokens and use .env directly until user re-authenticates
+      // This ensures emails work immediately with the working .env token
       if (userEmail && userAccessToken && userRefreshToken) {
-        console.log('📧 Attempting to use user-specific Gmail tokens for:', userEmail);
-
-        try {
-          const userOAuth2Client = new google.auth.OAuth2(
-            GMAIL_CLIENT_ID,
-            GMAIL_CLIENT_SECRET,
-            GMAIL_REDIRECT_URI
-          );
-
-          userOAuth2Client.setCredentials({
-            access_token: userAccessToken,
-            refresh_token: userRefreshToken
-          });
-
-          // Get fresh access token (will auto-refresh if needed)
-          const accessToken = await userOAuth2Client.getAccessToken();
-
-          console.log('✅ Successfully obtained access token for user');
-
-          return nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-              type: 'OAuth2',
-              user: userEmail,
-              clientId: GMAIL_CLIENT_ID,
-              clientSecret: GMAIL_CLIENT_SECRET,
-              refreshToken: userRefreshToken,
-              accessToken: accessToken.token,
-            },
-          });
-        } catch (userTokenError) {
-          console.warn('⚠️  User tokens failed, likely missing Gmail scope. Error:', userTokenError.message);
-          console.warn('🔄 Falling back to global .env credentials');
-          // Fall through to try .env credentials
-        }
+        console.log('📧 User has tokens but skipping for now - using .env credentials instead');
+        console.log('⚠️  To use your Gmail account, re-authenticate at: http://localhost:3001/reauth-gmail.html');
+        // Skip user tokens and fall through to .env
       }
 
-      // Fallback to global .env credentials
+      // Use global .env credentials (these work for reading/sending)
       console.log('📧 Using global Gmail credentials from .env');
       if (!GMAIL_USER || !GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN) {
         throw new Error('Gmail OAuth credentials not configured in .env and no user tokens provided.');
