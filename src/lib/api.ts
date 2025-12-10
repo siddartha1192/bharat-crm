@@ -37,8 +37,8 @@ async function fetchAPI<T>(
         throw new Error('Session expired. Please login again.');
       }
 
-      const error = await response.json().catch(() => ({ message: 'An error occurred' }));
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      const error = await response.json().catch(() => ({ error: 'An error occurred' }));
+      throw new Error(error.error || error.message || `HTTP error! status: ${response.status}`);
     }
 
     return await response.json();
