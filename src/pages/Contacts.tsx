@@ -234,6 +234,17 @@ export default function Contacts() {
               </p>
             </div>
             <div className="flex gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImport}
+                accept=".csv"
+                className="hidden"
+              />
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="w-4 h-4 mr-2" />
+                Import CSV
+              </Button>
               <ProtectedFeature permission="contacts:export">
                 <Button variant="outline" onClick={handleExport}>
                   <Download className="w-4 h-4 mr-2" />

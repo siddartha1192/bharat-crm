@@ -212,15 +212,12 @@ router.delete('/:id', async (req, res) => {
     }
 
     // Soft delete
-    const stage = await prisma.pipelineStage.update({
+    await prisma.pipelineStage.update({
       where: { id },
       data: { isActive: false }
     });
 
-    res.json({
-      message: 'Pipeline stage deleted successfully',
-      stage
-    });
+    res.status(200).json({ message: 'Pipeline stage deleted successfully' });
   } catch (error) {
     console.error('Error deleting pipeline stage:', error);
     res.status(500).json({
