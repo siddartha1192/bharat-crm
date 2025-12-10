@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Filter, Loader2, Download, Upload, LayoutGrid, List } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
+import { exportTasksToCSV, importTasksFromCSV } from '@/lib/csvUtils';
 
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -154,6 +155,23 @@ export default function Tasks() {
           </TabsList>
 
           <div className="flex gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImport}
+              accept=".csv"
+              className="hidden"
+            />
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="w-4 h-4 mr-2" />
+              Import
+            </Button>
+            <ProtectedFeature permission="tasks:export">
+              <Button variant="outline" size="sm" onClick={handleExport}>
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+            </ProtectedFeature>
             <div className="flex gap-1 border rounded-md p-1">
               <Button
                 variant={viewMode === 'card' ? 'default' : 'ghost'}
