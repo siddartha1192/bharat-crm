@@ -61,10 +61,14 @@ class EmailService {
   async getTransporter() {
 
     try {
+      // Check if Gmail credentials are configured
+      if (!GMAIL_USER || !GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN) {
+        throw new Error('Gmail OAuth credentials not configured. Please check your .env file.');
+      }
 
       const accessToken = await oauth2Client.getAccessToken();
 
- 
+
 
       return nodemailer.createTransport({
 
@@ -90,9 +94,21 @@ class EmailService {
 
     } catch (error) {
 
-      console.error('Error creating email transporter:', error);
+      console.error('❌ Error creating email transporter:', error.message);
 
-      throw new Error('Failed to create email transporter');
+      // Check for specific OAuth errors
+      if (error.message && error.message.includes('invalid_grant')) {
+        console.error('🔑 Gmail OAuth token has expired or been revoked.');
+        console.error('📝 To fix this:');
+        console.error('   1. Go to https://developers.google.com/oauthplayground/');
+        console.error('   2. Select Gmail API v1 scope: https://mail.google.com/');
+        console.error('   3. Click "Authorize APIs" and login with your Gmail account');
+        console.error('   4. Click "Exchange authorization code for tokens"');
+        console.error('   5. Copy the refresh_token and update GMAIL_REFRESH_TOKEN in .env');
+        throw new Error('Gmail OAuth token expired. Please regenerate your refresh token. See console for instructions.');
+      }
+
+      throw new Error('Failed to create email transporter: ' + error.message);
 
     }
 
