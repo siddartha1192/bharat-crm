@@ -97,7 +97,7 @@ class DatabaseToolsService {
         type: 'function',
         function: {
           name: 'query_leads',
-          description: 'Query leads from the CRM database with filters, sorting, and pagination',
+          description: 'Query leads from the CRM database. IMPORTANT: Every lead automatically creates a linked deal in the pipeline. When a lead status changes, the linked deal stage updates automatically. Lead statuses map to deal stages: new/contacted->lead, qualified->qualified, proposal->proposal, negotiation->negotiation, won->closed-won, lost->closed-lost.',
           parameters: {
             type: 'object',
             properties: {
@@ -173,7 +173,7 @@ class DatabaseToolsService {
         type: 'function',
         function: {
           name: 'query_deals',
-          description: 'Query deals/opportunities from the pipeline. Pipeline stages are customizable - common stages include lead, qualified, proposal, negotiation, closed-won, closed-lost, but users may have custom stages.',
+          description: 'Query deals/opportunities from the pipeline. IMPORTANT: Deals are automatically created when leads are created - each lead has a linked deal. Pipeline stages are customizable - common stages include lead, qualified, proposal, negotiation, closed-won, closed-lost. When deal stages change, linked lead statuses update automatically.',
           parameters: {
             type: 'object',
             properties: {

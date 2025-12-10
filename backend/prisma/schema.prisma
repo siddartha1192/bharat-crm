@@ -170,9 +170,14 @@ model Lead {
   userId            String
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Deal relation (auto-created when lead is created)
+  dealId            String?  @unique
+  deal              Deal?    @relation("LeadToDeal", fields: [dealId], references: [id], onDelete: SetNull)
+
   @@index([status, priority])
   @@index([assignedTo])
   @@index([userId])
+  @@index([dealId])
 }
 
 model Contact {
@@ -307,6 +312,9 @@ model Deal {
 
   // Pipeline stage relation (optional, for custom stages)
   pipelineStage   PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+
+  // Lead relation (backref from Lead)
+  lead            Lead?    @relation("LeadToDeal")
 
   @@index([stage])
   @@index([stageId])

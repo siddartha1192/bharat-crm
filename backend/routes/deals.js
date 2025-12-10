@@ -4,6 +4,19 @@ const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const prisma = new PrismaClient();
 
+// Helper function: Map deal stage to lead status
+function mapDealStageToLeadStatus(dealStage) {
+  const stageMapping = {
+    'lead': 'contacted',
+    'qualified': 'qualified',
+    'proposal': 'proposal',
+    'negotiation': 'negotiation',
+    'closed-won': 'won',
+    'closed-lost': 'lost'
+  };
+  return stageMapping[dealStage] || 'contacted';
+}
+
 // Apply authentication to all routes
 router.use(authenticate);
 
@@ -79,10 +92,11 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT update deal
+// PUT update deal (syncs with Lead if linked)
 router.put('/:id', async (req, res) => {
   try {
     const userId = req.user.id;
+    const updateData = req.body;
 
     // First verify the deal belongs to the user
     const existingDeal = await prisma.deal.findFirst({
@@ -97,14 +111,52 @@ router.put('/:id', async (req, res) => {
     }
 
     // Remove fields that shouldn't be updated
-    const { id, createdAt, updatedAt, nextAction, source, ...dealData } = req.body;
+    const { id, createdAt, updatedAt, nextAction, source, ...dealData } = updateData;
 
-    const deal = await prisma.deal.update({
-      where: { id: req.params.id },
-      data: dealData
+    // Update Deal and sync with Lead in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Update the Deal
+      const deal = await tx.deal.update({
+        where: { id: req.params.id },
+        data: dealData
+      });
+
+      // Check if there's a linked Lead (find lead where dealId matches this deal)
+      const linkedLead = await tx.lead.findFirst({
+        where: { dealId: deal.id }
+      });
+
+      // If Deal has a linked Lead, update it too
+      if (linkedLead) {
+        const leadUpdateData = {};
+
+        // Sync stage/status if changed
+        if (updateData.stage) {
+          leadUpdateData.status = mapDealStageToLeadStatus(updateData.stage);
+        }
+
+        // Sync other fields
+        if (updateData.contactName) leadUpdateData.name = updateData.contactName;
+        if (updateData.company) leadUpdateData.company = updateData.company;
+        if (updateData.value !== undefined) leadUpdateData.estimatedValue = updateData.value;
+        if (updateData.notes) leadUpdateData.notes = updateData.notes;
+        if (updateData.tags) leadUpdateData.tags = updateData.tags;
+        if (updateData.assignedTo) leadUpdateData.assignedTo = updateData.assignedTo;
+
+        // Update the linked Lead if there are changes
+        if (Object.keys(leadUpdateData).length > 0) {
+          await tx.lead.update({
+            where: { id: linkedLead.id },
+            data: leadUpdateData
+          });
+          console.log(`Synced Lead ${linkedLead.id} with Deal ${deal.id} updates`);
+        }
+      }
+
+      return deal;
     });
 
-    res.json(deal);
+    res.json(result);
   } catch (error) {
     console.error('Error updating deal:', error);
     res.status(500).json({ error: 'Failed to update deal', message: error.message });
