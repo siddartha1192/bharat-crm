@@ -231,7 +231,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
                       value={contactSearch}
                       onValueChange={setContactSearch}
                     />
-                    <CommandList>
+                    <CommandList className="max-h-[300px] overflow-y-auto">
                       {loadingContacts ? (
                         <CommandEmpty>Searching...</CommandEmpty>
                       ) : contacts.length === 0 && contactSearch.length >= 2 ? (

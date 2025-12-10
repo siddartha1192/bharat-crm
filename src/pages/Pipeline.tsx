@@ -5,6 +5,7 @@ import { DealCard } from '@/components/pipeline/DealCard';
 import { DealListView } from '@/components/pipeline/DealListView';
 import { StageColumn } from '@/components/pipeline/StageColumn';
 import { DealDialog } from '@/components/pipeline/DealDialog';
+import { PipelineSettings } from '@/components/pipeline/PipelineSettings';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,7 @@ import {
   Loader2,
   LayoutGrid,
   List,
+  Settings,
 } from 'lucide-react';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 
@@ -45,6 +47,7 @@ export default function Pipeline() {
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [selectedStage, setSelectedStage] = useState<string>('lead');
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch stages and deals from API
@@ -313,6 +316,10 @@ export default function Pipeline() {
               </p>
             </div>
             <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+                <Settings className="w-4 h-4 mr-2" />
+                Manage Stages
+              </Button>
               <input
                 type="file"
                 ref={fileInputRef}
@@ -446,6 +453,12 @@ export default function Pipeline() {
           onSave={handleSaveDeal}
           initialStage={selectedStage}
           deal={selectedDeal}
+        />
+
+        <PipelineSettings
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          onUpdate={fetchStagesAndDeals}
         />
       </div>
     </div>
