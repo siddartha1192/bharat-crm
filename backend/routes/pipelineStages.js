@@ -197,14 +197,17 @@ router.delete('/:id', async (req, res) => {
     // Check if any deals are using this stage
     const dealsCount = await prisma.deal.count({
       where: {
-        stageId: id,
+        OR: [
+          { stageId: id },
+          { stage: existingStage.slug }
+        ],
         userId
       }
     });
 
     if (dealsCount > 0) {
       return res.status(400).json({
-        error: `Cannot delete stage with ${dealsCount} active deals. Please move deals to another stage first.`
+        error: `Cannot delete stage "${existingStage.name}" because it has ${dealsCount} active deal${dealsCount > 1 ? 's' : ''}. Please move these deals to another stage first.`
       });
     }
 
