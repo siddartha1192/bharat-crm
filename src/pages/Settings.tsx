@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Users, Bell, Lock } from 'lucide-react';
+import { Shield, Users, Bell, Lock, Zap, Database } from 'lucide-react';
 import { UserManagement } from '@/components/settings/UserManagement';
+import AutomationSettings from '@/components/settings/AutomationSettings';
+import VectorDataUpload from '@/components/settings/VectorDataUpload';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -24,7 +26,7 @@ export default function Settings() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
+        <TabsList className="grid w-full grid-cols-6 lg:w-[900px]">
           <TabsTrigger value="general">
             <Shield className="w-4 h-4 mr-2" />
             General
@@ -33,7 +35,19 @@ export default function Settings() {
           <ProtectedFeature permission="users:read">
             <TabsTrigger value="users">
               <Users className="w-4 h-4 mr-2" />
-              User Management
+              Users
+            </TabsTrigger>
+          </ProtectedFeature>
+
+          <TabsTrigger value="automation">
+            <Zap className="w-4 h-4 mr-2" />
+            Automation
+          </TabsTrigger>
+
+          <ProtectedFeature permission="users:read">
+            <TabsTrigger value="vector-data">
+              <Database className="w-4 h-4 mr-2" />
+              Vector DB
             </TabsTrigger>
           </ProtectedFeature>
 
@@ -71,6 +85,18 @@ export default function Settings() {
         <ProtectedFeature permission="users:read">
           <TabsContent value="users" className="space-y-4">
             <UserManagement />
+          </TabsContent>
+        </ProtectedFeature>
+
+        {/* Automation */}
+        <TabsContent value="automation" className="space-y-4">
+          <AutomationSettings />
+        </TabsContent>
+
+        {/* Vector Data Upload (Admin/Manager Only) */}
+        <ProtectedFeature permission="users:read">
+          <TabsContent value="vector-data" className="space-y-4">
+            <VectorDataUpload />
           </TabsContent>
         </ProtectedFeature>
 

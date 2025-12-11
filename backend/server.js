@@ -36,6 +36,10 @@ const searchRoutes = require('./routes/search');
 const teamsRoutes = require('./routes/teams');
 const emailRoutes = require('./routes/emails');
 const aiRoutes = require('./routes/ai');
+const salesForecastRoutes = require('./routes/salesForecast');
+const automationRoutes = require('./routes/automation');
+const documentsRoutes = require('./routes/documents');
+const vectorDataRoutes = require('./routes/vectorData');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -52,6 +56,10 @@ app.use('/api/search', searchRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/emails', emailRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/forecast', salesForecastRoutes);
+app.use('/api/automation', automationRoutes);
+app.use('/api/documents', documentsRoutes);
+app.use('/api/vector-data', vectorDataRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

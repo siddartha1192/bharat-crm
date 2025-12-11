@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import { Lead } from '@/types/lead';
 import {
   Dialog,
@@ -9,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { api } from '@/lib/api';
 import {
   Building2,
   Mail,
@@ -26,8 +28,14 @@ import {
   ExternalLink,
   PhoneCall,
   Video,
+  FileText,
+  Upload,
+  Download,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
 interface LeadDetailDialogProps {
   lead: Lead | null;
@@ -62,7 +70,122 @@ const priorityColors = {
   'urgent': 'bg-red-500/10 text-red-600 border-red-500/20',
 };
 
+interface Document {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  formattedSize: string;
+  mimeType: string;
+  createdAt: string;
+  user: {
+    name: string;
+  };
+}
+
 export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogProps) {
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (lead && open) {
+      loadDocuments();
+    }
+  }, [lead, open]);
+
+  const loadDocuments = async () => {
+    if (!lead) return;
+
+    try {
+      const response = await api.get(`/documents/Lead/${lead.id}`);
+      setDocuments(response.data);
+    } catch (error) {
+      console.error('Error loading documents:', error);
+    }
+  };
+
+  const handleFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !lead) return;
+
+    // Validate file size (100MB)
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error(`File size must be less than 100MB. Selected file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+      return;
+    }
+
+    try {
+      setUploading(true);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('entityType', 'Lead');
+      formData.append('entityId', lead.id);
+
+      await api.post('/documents/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      toast.success('Document uploaded successfully');
+      loadDocuments();
+
+      // Clear file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error: any) {
+      console.error('Error uploading document:', error);
+      toast.error(error.response?.data?.error || 'Failed to upload document');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownloadDocument = async (documentId: string) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/documents/download/${documentId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Download failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = documents.find(d => d.id === documentId)?.fileName || 'document';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      toast.error('Failed to download document');
+    }
+  };
+
+  const handleDeleteDocument = async (documentId: string) => {
+    if (!confirm('Are you sure you want to delete this document?')) return;
+
+    try {
+      await api.delete(`/documents/${documentId}`);
+      toast.success('Document deleted');
+      loadDocuments();
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      toast.error('Failed to delete document');
+    }
+  };
+
   if (!lead) return null;
 
   const SourceIcon = sourceIcons[lead.source];
@@ -318,6 +441,69 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
               </div>
             </>
           )}
+
+          {/* Documents */}
+          <Separator />
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-foreground flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Documents ({documents.length})
+              </h3>
+              <Button size="sm" onClick={handleFileSelect} disabled={uploading}>
+                {uploading ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Uploading...</>
+                ) : (
+                  <><Upload className="w-4 h-4 mr-2" />Upload</>
+                )}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+            </div>
+            {documents.length === 0 ? (
+              <div className="text-center py-8 bg-secondary/20 rounded-lg">
+                <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p className="text-sm text-muted-foreground">No documents uploaded yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {documents.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg hover:bg-secondary/30 transition-colors">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <FileText className="w-5 h-5 text-primary flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{doc.fileName}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {doc.formattedSize} • Uploaded by {doc.user.name} • {format(new Date(doc.createdAt), 'PPp')}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDownloadDocument(doc.id)}
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteDocument(doc.id)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4">
