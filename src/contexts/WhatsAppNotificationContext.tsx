@@ -41,7 +41,7 @@ export function WhatsAppNotificationProvider({ children }: { children: ReactNode
   const [previousUnreadCount, setPreviousUnreadCount] = useState(0);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [lastNotifiedMessages, setLastNotifiedMessages] = useState<Set<string>>(new Set());
+  const lastNotifiedMessagesRef = useRef<Set<string>>(new Set());
   const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
@@ -195,14 +195,23 @@ export function WhatsAppNotificationProvider({ children }: { children: ReactNode
         // Find conversations with messages we haven't notified about yet
         const newUnreadConvs = unreadConversations.filter(conv => {
           const messageKey = `${conv.id}-${conv.lastMessageAt}`;
-          return !lastNotifiedMessages.has(messageKey);
+          return !lastNotifiedMessagesRef.current.has(messageKey);
         });
 
         if (newUnreadConvs.length > 0) {
           const firstUnread = newUnreadConvs[0];
           const messageKey = `${firstUnread.id}-${firstUnread.lastMessageAt}`;
 
-          // Play notification sound
+          // Mark this message as notified FIRST (synchronously) to prevent duplicates
+          lastNotifiedMessagesRef.current.add(messageKey);
+
+          // Keep only last 20 messages in the set to prevent memory growth
+          if (lastNotifiedMessagesRef.current.size > 20) {
+            const arr = Array.from(lastNotifiedMessagesRef.current);
+            lastNotifiedMessagesRef.current = new Set(arr.slice(-20));
+          }
+
+          // Now trigger all notifications (after marking as notified)
           playNotificationSound();
 
           // Show desktop notification
@@ -222,19 +231,6 @@ export function WhatsAppNotificationProvider({ children }: { children: ReactNode
           toast({
             title: `New message from ${firstUnread.contactName}`,
             description: firstUnread.lastMessage?.substring(0, 50) + (firstUnread.lastMessage && firstUnread.lastMessage.length > 50 ? '...' : ''),
-          });
-
-          // Mark this message as notified
-          setLastNotifiedMessages(prev => {
-            const updated = new Set(prev);
-            // Add new message
-            updated.add(messageKey);
-            // Keep only last 20 messages in the set to prevent memory growth
-            if (updated.size > 20) {
-              const arr = Array.from(updated);
-              return new Set(arr.slice(-20));
-            }
-            return updated;
           });
         }
       }
