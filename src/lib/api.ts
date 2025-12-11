@@ -403,3 +403,46 @@ export const pipelineStagesAPI = {
     });
   },
 };
+
+// ============ GENERIC API CLIENT ============
+// Generic API client for custom endpoints
+export const api = {
+  get: async <T = any>(endpoint: string): Promise<{ data: T }> => {
+    const data = await fetchAPI<T>(endpoint);
+    return { data };
+  },
+
+  post: async <T = any>(endpoint: string, body?: any, options?: RequestInit): Promise<{ data: T }> => {
+    const data = await fetchAPI<T>(endpoint, {
+      method: 'POST',
+      body: body instanceof FormData ? body : JSON.stringify(body),
+      headers: body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
+      ...options,
+    });
+    return { data };
+  },
+
+  put: async <T = any>(endpoint: string, body?: any): Promise<{ data: T }> => {
+    const data = await fetchAPI<T>(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+    return { data };
+  },
+
+  patch: async <T = any>(endpoint: string, body?: any): Promise<{ data: T }> => {
+    const data = await fetchAPI<T>(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+    return { data };
+  },
+
+  delete: async <T = any>(endpoint: string): Promise<{ data: T }> => {
+    const data = await fetchAPI<T>(endpoint, {
+      method: 'DELETE',
+    });
+    return { data };
+  },
+};
+
