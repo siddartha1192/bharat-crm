@@ -3,6 +3,7 @@ const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
 const { uploadVectorData, deleteFile, formatFileSize } = require('../middleware/upload');
 const { PrismaClient } = require('@prisma/client');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -246,6 +247,67 @@ router.delete('/uploads/:id', authenticate, authorize('ADMIN'), async (req, res)
   } catch (error) {
     console.error('Error deleting upload:', error);
     res.status(500).json({ error: 'Failed to delete upload' });
+  }
+});
+
+/**
+ * Run ingest script to process knowledge base into vector database
+ * POST /api/vector-data/ingest
+ * Admin only
+ */
+router.post('/ingest', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const scriptPath = path.join(__dirname, '../scripts/ingestDocuments.js');
+
+    // Check if script exists
+    if (!fs.existsSync(scriptPath)) {
+      return res.status(404).json({ error: 'Ingest script not found' });
+    }
+
+    // Send immediate response
+    res.json({
+      message: 'Ingest process started in background',
+      status: 'processing'
+    });
+
+    // Run script in background
+    const ingestProcess = spawn('node', [scriptPath, '--clear'], {
+      cwd: path.join(__dirname, '..'),
+      detached: true,
+      stdio: 'ignore'
+    });
+
+    // Detach the process so it continues running
+    ingestProcess.unref();
+
+    console.log('Ingest script started with PID:', ingestProcess.pid);
+  } catch (error) {
+    console.error('Error starting ingest script:', error);
+    res.status(500).json({ error: 'Failed to start ingest process' });
+  }
+});
+
+/**
+ * Restart backend server
+ * POST /api/vector-data/restart-backend
+ * Admin only
+ */
+router.post('/restart-backend', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    // Send response before restarting
+    res.json({
+      message: 'Backend restart initiated. Server will be back online in a few seconds.',
+      status: 'restarting'
+    });
+
+    // Close response and restart after a short delay
+    setTimeout(() => {
+      console.log('Restarting backend server...');
+      process.exit(0); // Exit cleanly - assuming a process manager (pm2, nodemon, etc.) will restart
+    }, 1000);
+  } catch (error) {
+    console.error('Error restarting backend:', error);
+    res.status(500).json({ error: 'Failed to restart backend' });
   }
 });
 

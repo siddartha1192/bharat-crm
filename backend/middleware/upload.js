@@ -11,10 +11,10 @@ const { v4: uuidv4 } = require('uuid');
 // Ensure upload directories exist
 const UPLOAD_BASE_DIR = path.join(__dirname, '../uploads');
 const DOCUMENTS_DIR = path.join(UPLOAD_BASE_DIR, 'documents');
-const VECTOR_DATA_DIR = path.join(UPLOAD_BASE_DIR, 'vector-data');
+const KNOWLEDGE_BASE_DIR = path.join(__dirname, '../knowledge_base');
 
 // Create directories if they don't exist
-[UPLOAD_BASE_DIR, DOCUMENTS_DIR, VECTOR_DATA_DIR].forEach(dir => {
+[UPLOAD_BASE_DIR, DOCUMENTS_DIR, KNOWLEDGE_BASE_DIR].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -54,16 +54,15 @@ const documentStorage = multer.diskStorage({
  */
 const vectorDataStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, VECTOR_DATA_DIR);
+    cb(null, KNOWLEDGE_BASE_DIR);
   },
   filename: function (req, file, cb) {
-    // Generate unique filename with timestamp
-    const timestamp = Date.now();
+    // Keep original filename for knowledge base (ingestDocuments.js expects it)
     const ext = path.extname(file.originalname);
     const baseName = path.basename(file.originalname, ext);
     const sanitizedBaseName = baseName.replace(/[^a-zA-Z0-9-_]/g, '_');
 
-    cb(null, `${sanitizedBaseName}_${timestamp}${ext}`);
+    cb(null, `${sanitizedBaseName}${ext}`);
   }
 });
 
@@ -188,5 +187,5 @@ module.exports = {
   getFileSize,
   formatFileSize,
   DOCUMENTS_DIR,
-  VECTOR_DATA_DIR
+  KNOWLEDGE_BASE_DIR
 };

@@ -13,7 +13,9 @@ import {
   Clock,
   Loader2,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  Database,
+  RotateCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -41,6 +43,8 @@ export default function VectorDataUpload() {
   const [uploads, setUploads] = useState<VectorUpload[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [ingesting, setIngesting] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -118,6 +122,42 @@ export default function VectorDataUpload() {
     } catch (error) {
       console.error('Error deleting upload:', error);
       toast.error('Failed to delete upload');
+    }
+  };
+
+  const handleRunIngest = async () => {
+    if (!confirm('This will process all files in the knowledge_base folder and update the vector database. Continue?')) return;
+
+    try {
+      setIngesting(true);
+      const response = await api.post('/vector-data/ingest');
+      toast.success(response.data.message || 'Ingest process started successfully');
+    } catch (error: any) {
+      console.error('Error running ingest:', error);
+      toast.error(error.response?.data?.error || 'Failed to run ingest process');
+    } finally {
+      setTimeout(() => setIngesting(false), 3000);
+    }
+  };
+
+  const handleRestartBackend = async () => {
+    if (!confirm('This will restart the backend server. All users will be disconnected briefly. Continue?')) return;
+
+    try {
+      setRestarting(true);
+      await api.post('/vector-data/restart-backend');
+      toast.success('Backend restart initiated. Please wait a moment...');
+
+      // Show loading toast for longer
+      setTimeout(() => {
+        toast.info('Backend should be back online now. Refresh the page if needed.');
+        setRestarting(false);
+      }, 10000);
+    } catch (error: any) {
+      console.error('Error restarting backend:', error);
+      // Even if error, backend might be restarting
+      toast.info('Backend is restarting. Page will reconnect shortly.');
+      setTimeout(() => setRestarting(false), 10000);
     }
   };
 
@@ -203,8 +243,8 @@ export default function VectorDataUpload() {
               <div className="text-sm">
                 <p className="font-semibold text-blue-900 mb-1">Important Notes:</p>
                 <ul className="list-disc list-inside text-blue-800 space-y-1">
-                  <li>Files are automatically processed and added to the vector database</li>
-                  <li>Processing may take a few minutes depending on file size</li>
+                  <li>Files are saved to the <code className="bg-blue-100 px-1 rounded">knowledge_base</code> folder</li>
+                  <li>After uploading, click "Run Ingest Script" to process files into vector database</li>
                   <li>The AI assistant will use this data to provide better responses</li>
                   <li>Maximum file size is 50MB per upload</li>
                 </ul>
@@ -283,6 +323,93 @@ export default function VectorDataUpload() {
           )}
         </CardContent>
       </Card>
+
+      {/* Admin Actions */}
+      {user?.role === 'ADMIN' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Admin Actions</CardTitle>
+            <CardDescription>
+              Advanced operations for managing the vector database and backend server
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Run Ingest Button */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Database className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold">Process Knowledge Base</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Run the ingest script to process all files in the knowledge_base folder and update the vector database.
+                </p>
+                <Button
+                  onClick={handleRunIngest}
+                  disabled={ingesting}
+                  className="w-full"
+                  variant="default"
+                >
+                  {ingesting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Database className="h-4 w-4 mr-2" />
+                      Run Ingest Script
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Restart Backend Button */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <RotateCw className="h-5 w-5 text-orange-500" />
+                  <h3 className="font-semibold">Restart Backend</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Restart the backend server. All users will be disconnected briefly.
+                </p>
+                <Button
+                  onClick={handleRestartBackend}
+                  disabled={restarting}
+                  className="w-full"
+                  variant="destructive"
+                >
+                  {restarting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Restarting...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCw className="h-4 w-4 mr-2" />
+                      Restart Server
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex gap-2">
+                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-semibold text-amber-900 mb-1">Warning:</p>
+                  <ul className="list-disc list-inside text-amber-800 space-y-1">
+                    <li><strong>Run Ingest Script:</strong> Processes files from knowledge_base folder with --clear flag</li>
+                    <li><strong>Restart Backend:</strong> All active users will be disconnected during restart</li>
+                    <li>Both operations run in the background and may take a few minutes</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
