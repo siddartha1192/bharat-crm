@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Building2, Mail, Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
@@ -23,8 +23,9 @@ export default function ForgotPassword() {
       console.log('📧 Sending forgot password request for email:', email);
       const payload = { email };
       console.log('📤 Payload:', JSON.stringify(payload));
+      console.log('🌐 API URL:', API_URL);
 
-      const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
+      const response = await fetch(`${API_URL}/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
