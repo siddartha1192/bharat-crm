@@ -3,13 +3,20 @@
 ## Table of Contents
 
 1. [Authentication APIs](#authentication-apis)
-2. [Leads APIs](#leads-apis)
-3. [Contacts APIs](#contacts-apis)
-4. [Deals APIs](#deals-apis)
-5. [Tasks APIs](#tasks-apis)
-6. [Calendar Events APIs](#calendar-events-apis)
-7. [WhatsApp APIs](#whatsapp-apis)
-8. [Guide: Adding New Field to Leads Form](#guide-adding-new-field-to-leads-form)
+2. [User Management APIs](#user-management-apis)
+3. [Leads APIs](#leads-apis)
+4. [Contacts APIs](#contacts-apis)
+5. [Deals APIs](#deals-apis)
+6. [Tasks APIs](#tasks-apis)
+7. [Invoices APIs](#invoices-apis)
+8. [Pipeline Stage APIs](#pipeline-stage-apis)
+9. [Email APIs](#email-apis)
+10. [Calendar Events APIs](#calendar-events-apis)
+11. [WhatsApp APIs](#whatsapp-apis)
+12. [AI Assistant APIs](#ai-assistant-apis)
+13. [Search APIs](#search-apis)
+14. [Teams & Departments APIs](#teams-departments-apis)
+15. [Guide: Adding New Field to Leads Form](#guide-adding-new-field-to-leads-form)
 
 ---
 
@@ -179,6 +186,326 @@ Authorization: Bearer <token>
 ```json
 {
   "message": "Logged out successfully"
+}
+```
+
+---
+
+## User Management APIs
+
+### 1. Get All Users
+
+**Endpoint:** `GET /users`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Required Role:** MANAGER or higher
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": "user-uuid-1",
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "role": "AGENT",
+    "isActive": true,
+    "createdAt": "2024-12-05T10:30:00Z",
+    "updatedAt": "2024-12-05T10:30:00Z"
+  }
+]
+```
+
+**Note:** Returns all users in the system. Ordered by creation date (newest first).
+
+---
+
+### 2. Get Single User
+
+**Endpoint:** `GET /users/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Permissions:**
+- Users can view their own profile (any role)
+- MANAGER and ADMIN can view any user profile
+
+**Response (200 OK):**
+```json
+{
+  "id": "user-uuid-1",
+  "name": "John Doe",
+  "email": "john.doe@example.com",
+  "role": "AGENT",
+  "isActive": true,
+  "createdAt": "2024-12-05T10:30:00Z",
+  "updatedAt": "2024-12-05T10:30:00Z"
+}
+```
+
+**Error Response (403 Forbidden):**
+```json
+{
+  "error": "Insufficient permissions"
+}
+```
+
+---
+
+### 3. Create New User
+
+**Endpoint:** `POST /users`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Required Role:** ADMIN only
+
+**Request Body:**
+```json
+{
+  "name": "Jane Smith",
+  "email": "jane.smith@example.com",
+  "role": "AGENT"
+}
+```
+
+**Required Fields:**
+- `name` (String): Full name of the user
+- `email` (String): Unique email address
+- `role` (String): ADMIN | MANAGER | AGENT | VIEWER
+
+**Response (201 Created):**
+```json
+{
+  "message": "User created successfully. Welcome email sent with instructions.",
+  "user": {
+    "id": "user-uuid-2",
+    "name": "Jane Smith",
+    "email": "jane.smith@example.com",
+    "role": "AGENT",
+    "isActive": true,
+    "createdAt": "2024-12-05T11:00:00Z",
+    "updatedAt": "2024-12-05T11:00:00Z"
+  }
+}
+```
+
+**Important Notes:**
+- User is created without a password initially
+- A welcome email is automatically sent with instructions to set password via "Forgot Password" flow
+- Welcome email includes role description and getting started instructions
+- Email service failures do not prevent user creation
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "User with this email already exists"
+}
+```
+
+---
+
+### 4. Update User Profile
+
+**Endpoint:** `PUT /users/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Permissions:**
+- Users can update their own profile (name, email)
+- ADMIN can update any user profile
+
+**Request Body:**
+```json
+{
+  "name": "John Smith",
+  "email": "john.smith@example.com"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "User updated successfully",
+  "user": {
+    "id": "user-uuid-1",
+    "name": "John Smith",
+    "email": "john.smith@example.com",
+    "role": "AGENT",
+    "isActive": true,
+    "createdAt": "2024-12-05T10:30:00Z",
+    "updatedAt": "2024-12-05T12:00:00Z"
+  }
+}
+```
+
+**Error Response (403 Forbidden):**
+```json
+{
+  "error": "You can only update your own profile"
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "Email already in use"
+}
+```
+
+---
+
+### 5. Update User Role
+
+**Endpoint:** `PUT /users/:id/role`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Required Role:** ADMIN only
+
+**Request Body:**
+```json
+{
+  "role": "MANAGER"
+}
+```
+
+**Valid Roles:**
+- `ADMIN` - Full system access
+- `MANAGER` - Manage teams and view analytics
+- `AGENT` - Create and manage CRM data
+- `VIEWER` - Read-only access
+
+**Response (200 OK):**
+```json
+{
+  "message": "User role updated successfully",
+  "user": {
+    "id": "user-uuid-1",
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "role": "MANAGER",
+    "isActive": true,
+    "createdAt": "2024-12-05T10:30:00Z",
+    "updatedAt": "2024-12-05T12:30:00Z"
+  }
+}
+```
+
+**Error Response (403 Forbidden):**
+```json
+{
+  "error": "You cannot change your own role"
+}
+```
+
+---
+
+### 6. Update User Active Status
+
+**Endpoint:** `PUT /users/:id/status`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Required Role:** ADMIN only
+
+**Request Body:**
+```json
+{
+  "isActive": false
+}
+```
+
+**Parameters:**
+- `isActive` (Boolean, **required**): `true` to activate, `false` to deactivate
+
+**Response (200 OK):**
+```json
+{
+  "message": "User deactivated successfully",
+  "user": {
+    "id": "user-uuid-1",
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "role": "AGENT",
+    "isActive": false,
+    "createdAt": "2024-12-05T10:30:00Z",
+    "updatedAt": "2024-12-05T13:00:00Z"
+  }
+}
+```
+
+**Important Notes:**
+- Deactivated users cannot login
+- Cannot deactivate your own account
+- User data is preserved (not deleted)
+
+**Error Response (403 Forbidden):**
+```json
+{
+  "error": "You cannot deactivate your own account"
+}
+```
+
+---
+
+### 7. Delete User
+
+**Endpoint:** `DELETE /users/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Required Role:** ADMIN only
+
+**Response (200 OK):**
+```json
+{
+  "message": "User deleted successfully"
+}
+```
+
+**Important Notes:**
+- **Permanent deletion** - This action cannot be undone
+- **Cascade delete** - All user's CRM data (leads, contacts, deals, tasks, etc.) will be deleted
+- Cannot delete your own account
+- Consider deactivating users instead of deleting them to preserve data
+
+**Error Response (403 Forbidden):**
+```json
+{
+  "error": "You cannot delete your own account"
+}
+```
+
+**Error Response (404 Not Found):**
+```json
+{
+  "error": "User not found"
 }
 ```
 
@@ -1145,6 +1472,936 @@ Authorization: Bearer <token>
 
 ---
 
+## Invoices APIs
+
+### 1. Get All Invoices
+
+**Endpoint:** `GET /invoices`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `status` (optional): draft | sent | paid | overdue | cancelled | all
+
+**Example Request:**
+```
+GET /invoices?status=sent
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": "invoice-uuid-1",
+    "invoiceNumber": "INV-2024-001",
+    "customerName": "Tech Solutions Pvt Ltd",
+    "customerEmail": "billing@techsolutions.com",
+    "customerPhone": "+91 98765 43210",
+    "customerGSTIN": "29ABCDE1234F1Z5",
+    "customerAddress": "123 MG Road, Bangalore, Karnataka 560001",
+    "companyName": "My Company",
+    "companyGSTIN": "29XYZAB5678C1D2",
+    "companyPAN": "ABCDE1234F",
+    "companyAddress": "456 Church Street, Bangalore, Karnataka 560002",
+    "items": [
+      {
+        "description": "Software License - Annual",
+        "quantity": 1,
+        "rate": 100000,
+        "amount": 100000
+      }
+    ],
+    "subtotal": 100000,
+    "totalDiscount": 0,
+    "cgst": 9000,
+    "sgst": 9000,
+    "igst": 0,
+    "roundOff": 0,
+    "totalTax": 18000,
+    "total": 118000,
+    "status": "sent",
+    "dueDate": "2024-12-20T00:00:00Z",
+    "paymentDate": null,
+    "notes": "Payment terms: 15 days",
+    "createdAt": "2024-12-05T10:30:00Z",
+    "updatedAt": "2024-12-05T10:30:00Z",
+    "userId": "user-uuid"
+  }
+]
+```
+
+**Permissions:**
+- ADMIN and MANAGER can view all invoices
+- AGENT and VIEWER can only view their own invoices
+
+---
+
+### 2. Get Single Invoice
+
+**Endpoint:** `GET /invoices/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "invoice-uuid-1",
+  "invoiceNumber": "INV-2024-001",
+  "customerName": "Tech Solutions Pvt Ltd",
+  "customerEmail": "billing@techsolutions.com",
+  "customerPhone": "+91 98765 43210",
+  "customerGSTIN": "29ABCDE1234F1Z5",
+  "customerAddress": "123 MG Road, Bangalore, Karnataka 560001",
+  "companyName": "My Company",
+  "companyGSTIN": "29XYZAB5678C1D2",
+  "companyPAN": "ABCDE1234F",
+  "companyAddress": "456 Church Street, Bangalore, Karnataka 560002",
+  "items": [
+    {
+      "description": "Software License - Annual",
+      "quantity": 1,
+      "rate": 100000,
+      "amount": 100000
+    }
+  ],
+  "subtotal": 100000,
+  "totalDiscount": 0,
+  "cgst": 9000,
+  "sgst": 9000,
+  "igst": 0,
+  "roundOff": 0,
+  "totalTax": 18000,
+  "total": 118000,
+  "status": "sent",
+  "dueDate": "2024-12-20T00:00:00Z",
+  "paymentDate": null,
+  "notes": "Payment terms: 15 days",
+  "createdAt": "2024-12-05T10:30:00Z",
+  "updatedAt": "2024-12-05T10:30:00Z",
+  "userId": "user-uuid"
+}
+```
+
+**Error Response (404 Not Found):**
+```json
+{
+  "error": "Invoice not found"
+}
+```
+
+---
+
+### 3. Create New Invoice
+
+**Endpoint:** `POST /invoices`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Required Role:** AGENT or higher (VIEWER cannot create)
+
+**Request Body:**
+```json
+{
+  "invoiceNumber": "INV-2024-001",
+  "customerName": "Tech Solutions Pvt Ltd",
+  "customerEmail": "billing@techsolutions.com",
+  "customerPhone": "+91 98765 43210",
+  "customerGSTIN": "29ABCDE1234F1Z5",
+  "customerAddress": "123 MG Road, Bangalore, Karnataka 560001",
+  "companyName": "My Company",
+  "companyGSTIN": "29XYZAB5678C1D2",
+  "companyPAN": "ABCDE1234F",
+  "companyAddress": "456 Church Street, Bangalore, Karnataka 560002",
+  "items": [
+    {
+      "description": "Software License - Annual",
+      "quantity": 1,
+      "rate": 100000,
+      "amount": 100000
+    }
+  ],
+  "subtotal": 100000,
+  "totalDiscount": 0,
+  "cgst": 9000,
+  "sgst": 9000,
+  "igst": 0,
+  "roundOff": 0,
+  "totalTax": 18000,
+  "total": 118000,
+  "status": "draft",
+  "dueDate": "2024-12-20T00:00:00Z",
+  "notes": "Payment terms: 15 days"
+}
+```
+
+**Required Fields:**
+- `invoiceNumber` (String): Unique invoice number
+- `customerName` (String): Customer's business name
+- `customerEmail` (String): Customer's email address
+- `customerAddress` (String): Customer's billing address
+- `companyName` (String): Your company name
+- `companyAddress` (String): Your company address
+- `items` (Array): Array of line items with description, quantity, rate, amount
+- `subtotal` (Number): Sum of all items before tax
+- `total` (Number): Final amount including tax
+- `status` (String): draft | sent | paid | overdue | cancelled
+- `dueDate` (DateTime): Payment due date
+
+**Optional Fields:**
+- `customerPhone` (String)
+- `customerGSTIN` (String): Customer's GST number
+- `companyGSTIN` (String): Your company's GST number
+- `companyPAN` (String): Your company's PAN number
+- `totalDiscount` (Number, default: 0)
+- `cgst` (Number, default: 0): Central GST
+- `sgst` (Number, default: 0): State GST
+- `igst` (Number, default: 0): Integrated GST
+- `roundOff` (Number, default: 0)
+- `totalTax` (Number): Auto-calculated if not provided
+- `paymentDate` (DateTime): Date when payment received
+- `notes` (String): Additional notes or terms
+
+**Response (201 Created):**
+```json
+{
+  "id": "invoice-uuid-1",
+  "invoiceNumber": "INV-2024-001",
+  "...": "..."
+}
+```
+
+**Note:** The invoice uses Indian GST fields (CGST, SGST, IGST, GST numbers, PAN).
+
+---
+
+### 4. Update Invoice
+
+**Endpoint:** `PUT /invoices/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Required Role:** AGENT or higher
+
+**Permissions:**
+- ADMIN and MANAGER can update any invoice
+- AGENT can only update their own invoices
+
+**Request Body:** (Partial update supported)
+```json
+{
+  "status": "paid",
+  "paymentDate": "2024-12-10T00:00:00Z"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "invoice-uuid-1",
+  "invoiceNumber": "INV-2024-001",
+  "status": "paid",
+  "paymentDate": "2024-12-10T00:00:00Z",
+  "...": "..."
+}
+```
+
+---
+
+### 5. Delete Invoice
+
+**Endpoint:** `DELETE /invoices/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Required Role:** MANAGER or higher (AGENT cannot delete)
+
+**Response (200 OK):**
+```json
+{
+  "message": "Invoice deleted successfully"
+}
+```
+
+---
+
+### 6. Get Invoice Stats
+
+**Endpoint:** `GET /invoices/stats/summary`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "totalInvoices": 45,
+  "paidAmount": 2500000,
+  "pendingAmount": 500000,
+  "overdueAmount": 150000
+}
+```
+
+**Note:** Returns statistics for the logged-in user's invoices only.
+
+---
+
+## Pipeline Stage APIs
+
+### 1. Get All Pipeline Stages
+
+**Endpoint:** `GET /pipelineStages`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": "stage-uuid-1",
+    "name": "Lead",
+    "slug": "lead",
+    "color": "blue",
+    "order": 1,
+    "isDefault": true,
+    "isActive": true,
+    "userId": null,
+    "createdAt": "2024-12-01T00:00:00Z",
+    "updatedAt": "2024-12-01T00:00:00Z"
+  },
+  {
+    "id": "stage-uuid-6",
+    "name": "Discovery Call",
+    "slug": "discovery-call",
+    "color": "purple",
+    "order": 6,
+    "isDefault": false,
+    "isActive": true,
+    "userId": "user-uuid",
+    "createdAt": "2024-12-05T10:30:00Z",
+    "updatedAt": "2024-12-05T10:30:00Z"
+  }
+]
+```
+
+**Note:** Returns both default system stages (userId: null) and user's custom stages (userId: user-id). Only active stages are returned.
+
+---
+
+### 2. Get Single Pipeline Stage
+
+**Endpoint:** `GET /pipelineStages/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "stage-uuid-1",
+  "name": "Lead",
+  "slug": "lead",
+  "color": "blue",
+  "order": 1,
+  "isDefault": true,
+  "isActive": true,
+  "userId": null,
+  "createdAt": "2024-12-01T00:00:00Z",
+  "updatedAt": "2024-12-01T00:00:00Z"
+}
+```
+
+---
+
+### 3. Create Custom Pipeline Stage
+
+**Endpoint:** `POST /pipelineStages`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "name": "Discovery Call",
+  "slug": "discovery-call",
+  "color": "purple",
+  "order": 6
+}
+```
+
+**Required Fields:**
+- `name` (String): Display name for the stage
+- `slug` (String): Unique identifier (lowercase, hyphenated)
+
+**Optional Fields:**
+- `color` (String, default: "blue"): Color for visual identification
+- `order` (Number): Display order (auto-assigned if not provided)
+
+**Response (201 Created):**
+```json
+{
+  "id": "stage-uuid-6",
+  "name": "Discovery Call",
+  "slug": "discovery-call",
+  "color": "purple",
+  "order": 6,
+  "isDefault": false,
+  "isActive": true,
+  "userId": "user-uuid",
+  "createdAt": "2024-12-05T10:30:00Z",
+  "updatedAt": "2024-12-05T10:30:00Z"
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "A stage with this slug already exists"
+}
+```
+
+---
+
+### 4. Update Pipeline Stage
+
+**Endpoint:** `PUT /pipelineStages/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:** (Partial update supported)
+```json
+{
+  "name": "Initial Discovery Call",
+  "color": "indigo",
+  "order": 5
+}
+```
+
+**Updatable Fields:**
+- `name` (String)
+- `color` (String)
+- `order` (Number)
+- `isActive` (Boolean)
+
+**Response (200 OK):**
+```json
+{
+  "id": "stage-uuid-6",
+  "name": "Initial Discovery Call",
+  "slug": "discovery-call",
+  "color": "indigo",
+  "order": 5,
+  "isDefault": false,
+  "isActive": true,
+  "userId": "user-uuid",
+  "createdAt": "2024-12-05T10:30:00Z",
+  "updatedAt": "2024-12-05T11:00:00Z"
+}
+```
+
+**Important Notes:**
+- Can only update your own custom stages
+- Cannot update default system stages
+- Cannot change the `slug` field after creation
+
+**Error Response (403 Forbidden):**
+```json
+{
+  "error": "Cannot modify default pipeline stages"
+}
+```
+
+---
+
+### 5. Delete Pipeline Stage
+
+**Endpoint:** `DELETE /pipelineStages/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Pipeline stage deleted successfully"
+}
+```
+
+**Important Notes:**
+- **Soft delete** - Stage is marked as inactive (isActive: false), not permanently deleted
+- Cannot delete default system stages
+- Cannot delete if any deals are currently in this stage
+- Can only delete your own custom stages
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "Cannot delete stage \"Discovery Call\" because it has 5 active deals. Please move these deals to another stage first."
+}
+```
+
+**Error Response (403 Forbidden):**
+```json
+{
+  "error": "Cannot delete default pipeline stages"
+}
+```
+
+---
+
+### 6. Reorder Pipeline Stages
+
+**Endpoint:** `POST /pipelineStages/reorder`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "stageOrders": [
+    { "id": "stage-uuid-1", "order": 1 },
+    { "id": "stage-uuid-2", "order": 2 },
+    { "id": "stage-uuid-6", "order": 3 },
+    { "id": "stage-uuid-3", "order": 4 }
+  ]
+}
+```
+
+**Parameters:**
+- `stageOrders` (Array, **required**): Array of objects with `id` and `order` fields
+
+**Response (200 OK):**
+```json
+{
+  "message": "Pipeline stages reordered successfully"
+}
+```
+
+**Note:** Can only reorder your own custom stages, not default system stages.
+
+---
+
+### 7. Initialize Default Stages
+
+**Endpoint:** `POST /pipelineStages/initialize-defaults`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Default pipeline stages are available for use",
+  "stages": [
+    {
+      "id": "default-stage-1",
+      "name": "Lead",
+      "slug": "lead",
+      "...": "..."
+    }
+  ]
+}
+```
+
+**Note:** This endpoint is mainly informational. Default stages are automatically available to all users.
+
+---
+
+## Email APIs
+
+### 1. Send Email to Lead
+
+**Endpoint:** `POST /emails/lead/:leadId`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "subject": "Follow-up on your inquiry",
+  "text": "Hi, thank you for your interest in our product...",
+  "html": "<p>Hi, thank you for your interest in our product...</p>",
+  "cc": ["manager@company.com"],
+  "bcc": ["records@company.com"],
+  "attachments": [
+    {
+      "filename": "brochure.pdf",
+      "path": "/path/to/brochure.pdf"
+    }
+  ]
+}
+```
+
+**Required Fields:**
+- `subject` (String): Email subject
+- `text` (String): Plain text version of email
+
+**Optional Fields:**
+- `html` (String): HTML version of email
+- `cc` (Array of Strings): CC recipients
+- `bcc` (Array of Strings): BCC recipients
+- `attachments` (Array): File attachments
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "emailLogId": "email-log-uuid",
+  "messageId": "<message-id@gmail.com>",
+  "message": "Email sent successfully"
+}
+```
+
+**Error Response (404 Not Found):**
+```json
+{
+  "error": "Lead not found"
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "Lead has no email address"
+}
+```
+
+---
+
+### 2. Send Email to Contact
+
+**Endpoint:** `POST /emails/contact/:contactId`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:** (Same as lead email)
+```json
+{
+  "subject": "Monthly newsletter",
+  "text": "Dear valued customer...",
+  "html": "<p>Dear valued customer...</p>"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "emailLogId": "email-log-uuid",
+  "messageId": "<message-id@gmail.com>",
+  "message": "Email sent successfully"
+}
+```
+
+---
+
+### 3. Send Email for Deal
+
+**Endpoint:** `POST /emails/deal/:dealId`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "to": "customer@company.com",
+  "subject": "Proposal for Enterprise License",
+  "text": "Please find attached our proposal...",
+  "html": "<p>Please find attached our proposal...</p>",
+  "attachments": [
+    {
+      "filename": "proposal.pdf",
+      "path": "/path/to/proposal.pdf"
+    }
+  ]
+}
+```
+
+**Required Fields:**
+- `to` (String): Recipient email address
+- `subject` (String): Email subject
+- `text` (String): Plain text content
+
+**Note:** Unlike lead/contact emails, deal emails require explicit `to` address since deals may not have a direct email.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "emailLogId": "email-log-uuid",
+  "messageId": "<message-id@gmail.com>",
+  "message": "Email sent successfully"
+}
+```
+
+---
+
+### 4. Send Manual Email
+
+**Endpoint:** `POST /emails/send`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "to": "customer@example.com",
+  "subject": "Custom email",
+  "text": "Email content here...",
+  "html": "<p>Email content here...</p>",
+  "cc": ["cc@example.com"],
+  "bcc": ["bcc@example.com"]
+}
+```
+
+**Required Fields:**
+- `to` (String): Recipient email
+- `subject` (String): Email subject
+- `text` (String): Plain text content
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "emailLogId": "email-log-uuid",
+  "messageId": "<message-id@gmail.com>",
+  "message": "Email sent successfully"
+}
+```
+
+---
+
+### 5. Get Email Logs
+
+**Endpoint:** `GET /emails`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `status` (optional): sent | failed | pending
+- `entityType` (optional): Lead | Contact | Deal | Manual
+- `limit` (optional, default: 50): Number of results
+- `offset` (optional, default: 0): Pagination offset
+
+**Example Request:**
+```
+GET /emails?status=sent&entityType=Lead&limit=20&offset=0
+```
+
+**Response (200 OK):**
+```json
+{
+  "emails": [
+    {
+      "id": "email-log-uuid",
+      "to": "customer@example.com",
+      "from": "you@company.com",
+      "subject": "Follow-up on your inquiry",
+      "status": "sent",
+      "entityType": "Lead",
+      "entityId": "lead-uuid",
+      "messageId": "<message-id@gmail.com>",
+      "errorMessage": null,
+      "sentAt": "2024-12-05T10:30:00Z",
+      "createdAt": "2024-12-05T10:30:00Z",
+      "userId": "user-uuid"
+    }
+  ],
+  "total": 45,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+---
+
+### 6. Get Single Email Log
+
+**Endpoint:** `GET /emails/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "email-log-uuid",
+  "to": "customer@example.com",
+  "from": "you@company.com",
+  "subject": "Follow-up on your inquiry",
+  "text": "Email text content...",
+  "html": "<p>Email HTML content...</p>",
+  "status": "sent",
+  "entityType": "Lead",
+  "entityId": "lead-uuid",
+  "messageId": "<message-id@gmail.com>",
+  "threadId": "<thread-id@gmail.com>",
+  "cc": [],
+  "bcc": [],
+  "attachments": [],
+  "errorMessage": null,
+  "sentAt": "2024-12-05T10:30:00Z",
+  "createdAt": "2024-12-05T10:30:00Z",
+  "userId": "user-uuid"
+}
+```
+
+---
+
+### 7. Get Email Stats
+
+**Endpoint:** `GET /emails/stats/summary`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "totalSent": 156,
+  "totalFailed": 3,
+  "sentToday": 12,
+  "sentThisWeek": 45,
+  "sentThisMonth": 156
+}
+```
+
+---
+
+### 8. Delete Email Log
+
+**Endpoint:** `DELETE /emails/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Email deleted successfully"
+}
+```
+
+**Note:** Only deletes the log record, not the actual sent email.
+
+---
+
+### 9. Check for Email Replies
+
+**Endpoint:** `POST /emails/check-replies`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "repliesFound": 3,
+  "message": "Checked for email replies"
+}
+```
+
+**Note:** Checks Gmail inbox for replies to sent emails and updates email logs with reply information.
+
+---
+
+### 10. Get Email with Replies
+
+**Endpoint:** `GET /emails/:id/replies`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "email": {
+    "id": "email-log-uuid",
+    "subject": "Follow-up on your inquiry",
+    "...": "..."
+  },
+  "replies": [
+    {
+      "from": "customer@example.com",
+      "subject": "Re: Follow-up on your inquiry",
+      "body": "Thank you for reaching out...",
+      "receivedAt": "2024-12-05T14:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
 ## Calendar Events APIs
 
 ### 1. Get All Calendar Events
@@ -1996,6 +3253,813 @@ The AI assistant can automatically:
 - **Update contact information** when customers provide details
 - **Answer FAQs** using company knowledge base
 - **Escalate to human** when necessary
+
+---
+
+## AI Assistant APIs
+
+### 1. AI Chat
+
+**Endpoint:** `POST /ai/chat`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "message": "What are the top deals in my pipeline?",
+  "conversationHistory": [
+    {
+      "role": "user",
+      "content": "Hello"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi! How can I help you today?"
+    }
+  ]
+}
+```
+
+**Required Fields:**
+- `message` (String): User's question or query
+
+**Optional Fields:**
+- `conversationHistory` (Array): Array of previous messages for context
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "response": "Here are your top deals:\n\n1. **Enterprise Software License** - Tech Solutions Pvt Ltd\n   - Value: ₹5,00,000\n   - Stage: Negotiation\n   - Probability: 75%\n\n2. **Annual Subscription** - Digital India Corp\n   - Value: ₹3,50,000\n   - Stage: Proposal\n   - Probability: 60%",
+  "data": [
+    {
+      "tool": "query_deals",
+      "result": {
+        "deals": [
+          {
+            "id": "deal-1",
+            "title": "Enterprise Software License",
+            "company": "Tech Solutions Pvt Ltd",
+            "value": 500000,
+            "stage": "negotiation",
+            "probability": 75
+          }
+        ],
+        "count": 2
+      }
+    }
+  ],
+  "sources": [
+    {
+      "title": "CRM User Guide",
+      "content": "How to manage deals in pipeline...",
+      "score": 0.85
+    }
+  ],
+  "stats": {
+    "tokensUsed": 1250,
+    "processingTime": "2.3s"
+  }
+}
+```
+
+**Features:**
+- Natural language queries about CRM data
+- Context-aware responses using conversation history
+- Automatic database queries (leads, contacts, deals, tasks, etc.)
+- Document search integration via vector database
+- Support for custom pipeline stages
+- User data isolation (only queries logged-in user's data)
+
+**Example Queries:**
+- "What are my top deals?"
+- "Show me all leads from last week"
+- "How many tasks are overdue?"
+- "What's my total revenue this month?"
+- "Create a follow-up task for Tech Solutions"
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "Message is required"
+}
+```
+
+---
+
+### 2. Get AI System Status
+
+**Endpoint:** `GET /ai/status`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "whatsapp": {
+    "enabled": true,
+    "model": "gpt-4o-mini",
+    "temperature": 0.3
+  },
+  "portal": {
+    "enabled": true,
+    "model": "gpt-4o",
+    "temperature": 0.7
+  },
+  "vectorDatabase": {
+    "initialized": true,
+    "documentCount": 45,
+    "collectionName": "crm_docs"
+  }
+}
+```
+
+**Note:** Returns configuration and status of AI features including WhatsApp AI and Portal AI.
+
+---
+
+### 3. Search Vector Database
+
+**Endpoint:** `POST /ai/search`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "query": "how to create a new lead",
+  "limit": 5,
+  "minScore": 0.7
+}
+```
+
+**Required Fields:**
+- `query` (String): Search query
+
+**Optional Fields:**
+- `limit` (Number, default: 5): Maximum results to return
+- `minScore` (Number, default: 0.7): Minimum similarity score (0-1)
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "query": "how to create a new lead",
+  "results": [
+    {
+      "id": "doc-1",
+      "content": "To create a new lead, navigate to the Leads page and click the 'Add Lead' button...",
+      "metadata": {
+        "title": "CRM User Guide - Leads",
+        "category": "documentation"
+      },
+      "score": 0.92
+    },
+    {
+      "id": "doc-2",
+      "content": "Leads can be created manually or imported from CSV files...",
+      "metadata": {
+        "title": "Lead Management",
+        "category": "tutorial"
+      },
+      "score": 0.85
+    }
+  ],
+  "count": 2
+}
+```
+
+**Note:** Searches the vector database for relevant documentation using semantic similarity.
+
+---
+
+### 4. Ingest Documents
+
+**Endpoint:** `POST /ai/ingest`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "documents": [
+    {
+      "content": "This is documentation about CRM features...",
+      "metadata": {
+        "title": "CRM Features",
+        "category": "documentation",
+        "author": "Admin"
+      }
+    },
+    {
+      "content": "How to use the dashboard...",
+      "metadata": {
+        "title": "Dashboard Guide",
+        "category": "tutorial"
+      }
+    }
+  ]
+}
+```
+
+**Required Fields:**
+- `documents` (Array): Array of document objects
+  - `content` (String, **required**): Document text content
+  - `metadata` (Object, optional): Additional document information
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Successfully ingested 15 document chunks",
+  "chunksAdded": 15
+}
+```
+
+**Note:** Documents are automatically chunked and embedded for semantic search. Useful for adding company knowledge base, FAQs, or documentation to the AI system.
+
+---
+
+### 5. Get Vector DB Stats
+
+**Endpoint:** `GET /ai/stats`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "stats": {
+    "initialized": true,
+    "documentCount": 45,
+    "collectionName": "crm_docs",
+    "embeddingModel": "text-embedding-3-small"
+  }
+}
+```
+
+---
+
+### 6. Clear Vector Database
+
+**Endpoint:** `DELETE /ai/clear`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Required Role:** ADMIN (TODO: Add permission check)
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Vector database cleared successfully"
+}
+```
+
+**Warning:** This permanently deletes all documents from the vector database. Use with caution.
+
+---
+
+## Search APIs
+
+### Global Search
+
+**Endpoint:** `GET /search`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `q` (required): Search query (minimum 2 characters)
+
+**Example Request:**
+```
+GET /search?q=tech
+```
+
+**Response (200 OK):**
+```json
+{
+  "results": [
+    {
+      "id": "contact-uuid-1",
+      "type": "contact",
+      "title": "Rajesh Kumar",
+      "subtitle": "Tech Solutions Pvt Ltd · CEO",
+      "metadata": "rajesh@techsolutions.com"
+    },
+    {
+      "id": "lead-uuid-1",
+      "type": "lead",
+      "title": "Jane Smith",
+      "subtitle": "Tech Corp · new",
+      "metadata": "₹50,000 · high priority"
+    },
+    {
+      "id": "deal-uuid-1",
+      "type": "deal",
+      "title": "Enterprise Software License",
+      "subtitle": "Tech Solutions Pvt Ltd · negotiation",
+      "metadata": "₹5,00,000 · 75% probability"
+    },
+    {
+      "id": "task-uuid-1",
+      "type": "task",
+      "title": "Follow up with Tech Solutions",
+      "subtitle": "Discuss payment terms for enterprise license",
+      "metadata": "todo · high priority · Due: 12/6/2024"
+    },
+    {
+      "id": "invoice-uuid-1",
+      "type": "invoice",
+      "title": "INV-2024-001",
+      "subtitle": "Tech Solutions Pvt Ltd · sent",
+      "metadata": "₹1,18,000 · Due: 12/20/2024"
+    },
+    {
+      "id": "event-uuid-1",
+      "type": "event",
+      "title": "Client Meeting - Tech Solutions",
+      "subtitle": "Discuss enterprise license requirements",
+      "metadata": "12/6/2024, 10:00:00 AM · Office Conference Room A"
+    }
+  ],
+  "total": 6
+}
+```
+
+**Searchable Entities:**
+- **Contacts**: Name, company, email, phone, designation
+- **Leads**: Name, company, email, phone
+- **Deals**: Title, company, contact name
+- **Tasks**: Title, description
+- **Invoices**: Invoice number, customer name, customer email
+- **Calendar Events**: Title, description, location
+
+**Search Features:**
+- Case-insensitive search
+- Searches across multiple fields per entity
+- Returns maximum 5 results per entity type
+- Unified result format with type, title, subtitle, metadata
+- User data isolation (only searches logged-in user's data)
+
+**Response when query too short:**
+```json
+{
+  "results": []
+}
+```
+
+**Note:** Requires minimum 2 characters for search query.
+
+---
+
+## Teams & Departments APIs
+
+### Departments
+
+#### 1. Get All Departments
+
+**Endpoint:** `GET /teams/departments`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `includeInactive` (optional, default: "false"): "true" | "false"
+
+**Example Request:**
+```
+GET /teams/departments?includeInactive=false
+```
+
+**Response (200 OK):**
+```json
+{
+  "departments": [
+    {
+      "id": "dept-uuid-1",
+      "name": "Sales",
+      "description": "Sales and business development team",
+      "managerId": "user-uuid-manager",
+      "isActive": true,
+      "createdAt": "2024-12-01T00:00:00Z",
+      "updatedAt": "2024-12-01T00:00:00Z",
+      "users": [
+        {
+          "id": "user-uuid-1",
+          "name": "John Doe",
+          "email": "john@company.com",
+          "role": "AGENT"
+        }
+      ],
+      "teams": [
+        {
+          "id": "team-uuid-1",
+          "name": "Enterprise Sales",
+          "description": "Handles enterprise deals",
+          "isActive": true,
+          "users": [
+            {
+              "id": "user-uuid-1",
+              "name": "John Doe"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+#### 2. Create Department
+
+**Endpoint:** `POST /teams/departments`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Required Role:** MANAGER or higher
+
+**Request Body:**
+```json
+{
+  "name": "Marketing",
+  "description": "Marketing and communications team",
+  "managerId": "user-uuid-manager"
+}
+```
+
+**Required Fields:**
+- `name` (String): Department name
+
+**Optional Fields:**
+- `description` (String): Department description
+- `managerId` (String): User ID of department manager
+
+**Response (201 Created):**
+```json
+{
+  "department": {
+    "id": "dept-uuid-2",
+    "name": "Marketing",
+    "description": "Marketing and communications team",
+    "managerId": "user-uuid-manager",
+    "isActive": true,
+    "createdAt": "2024-12-05T10:30:00Z",
+    "updatedAt": "2024-12-05T10:30:00Z",
+    "users": [],
+    "teams": []
+  }
+}
+```
+
+---
+
+#### 3. Update Department
+
+**Endpoint:** `PUT /teams/departments/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Required Role:** MANAGER or higher
+
+**Request Body:** (Partial update supported)
+```json
+{
+  "name": "Sales & Marketing",
+  "description": "Combined sales and marketing department",
+  "managerId": "user-uuid-new-manager",
+  "isActive": true
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "department": {
+    "id": "dept-uuid-1",
+    "name": "Sales & Marketing",
+    "...": "..."
+  }
+}
+```
+
+---
+
+#### 4. Delete Department
+
+**Endpoint:** `DELETE /teams/departments/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Required Role:** ADMIN only
+
+**Response (200 OK):**
+```json
+{
+  "message": "Department deleted successfully"
+}
+```
+
+---
+
+### Teams
+
+#### 5. Get All Teams
+
+**Endpoint:** `GET /teams`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `departmentId` (optional): Filter by department ID
+- `includeInactive` (optional, default: "false"): "true" | "false"
+
+**Example Request:**
+```
+GET /teams?departmentId=dept-uuid-1&includeInactive=false
+```
+
+**Response (200 OK):**
+```json
+{
+  "teams": [
+    {
+      "id": "team-uuid-1",
+      "name": "Enterprise Sales",
+      "description": "Handles enterprise deals",
+      "departmentId": "dept-uuid-1",
+      "managerId": "user-uuid-manager",
+      "isActive": true,
+      "createdAt": "2024-12-01T00:00:00Z",
+      "updatedAt": "2024-12-01T00:00:00Z",
+      "department": {
+        "id": "dept-uuid-1",
+        "name": "Sales"
+      },
+      "users": [
+        {
+          "id": "user-uuid-1",
+          "name": "John Doe",
+          "email": "john@company.com",
+          "role": "AGENT"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+#### 6. Create Team
+
+**Endpoint:** `POST /teams`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Required Role:** MANAGER or higher
+
+**Request Body:**
+```json
+{
+  "name": "SMB Sales",
+  "description": "Small and medium business sales team",
+  "departmentId": "dept-uuid-1",
+  "managerId": "user-uuid-manager"
+}
+```
+
+**Required Fields:**
+- `name` (String): Team name
+
+**Optional Fields:**
+- `description` (String): Team description
+- `departmentId` (String): Parent department ID
+- `managerId` (String): Team manager user ID
+
+**Response (201 Created):**
+```json
+{
+  "team": {
+    "id": "team-uuid-2",
+    "name": "SMB Sales",
+    "description": "Small and medium business sales team",
+    "departmentId": "dept-uuid-1",
+    "managerId": "user-uuid-manager",
+    "isActive": true,
+    "createdAt": "2024-12-05T10:30:00Z",
+    "updatedAt": "2024-12-05T10:30:00Z",
+    "department": {
+      "id": "dept-uuid-1",
+      "name": "Sales"
+    },
+    "users": []
+  }
+}
+```
+
+---
+
+#### 7. Update Team
+
+**Endpoint:** `PUT /teams/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Required Role:** MANAGER or higher
+
+**Request Body:** (Partial update supported)
+```json
+{
+  "name": "Enterprise & SMB Sales",
+  "description": "Combined enterprise and SMB sales",
+  "isActive": true
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "team": {
+    "id": "team-uuid-1",
+    "name": "Enterprise & SMB Sales",
+    "...": "..."
+  }
+}
+```
+
+---
+
+#### 8. Delete Team
+
+**Endpoint:** `DELETE /teams/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Required Role:** ADMIN only
+
+**Response (200 OK):**
+```json
+{
+  "message": "Team deleted successfully"
+}
+```
+
+---
+
+### Team Member Management
+
+#### 9. Assign User to Team
+
+**Endpoint:** `POST /teams/:teamId/users/:userId`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Required Role:** MANAGER or higher
+
+**Response (200 OK):**
+```json
+{
+  "user": {
+    "id": "user-uuid-1",
+    "name": "John Doe",
+    "email": "john@company.com",
+    "role": "AGENT",
+    "teamId": "team-uuid-1",
+    "team": {
+      "id": "team-uuid-1",
+      "name": "Enterprise Sales"
+    },
+    "department": {
+      "id": "dept-uuid-1",
+      "name": "Sales"
+    }
+  }
+}
+```
+
+---
+
+#### 10. Remove User from Team
+
+**Endpoint:** `DELETE /teams/:teamId/users/:userId`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Required Role:** MANAGER or higher
+
+**Response (200 OK):**
+```json
+{
+  "user": {
+    "id": "user-uuid-1",
+    "name": "John Doe",
+    "email": "john@company.com",
+    "role": "AGENT",
+    "teamId": null,
+    "team": null,
+    "department": null
+  }
+}
+```
+
+**Note:** Sets user's teamId to null, removing them from the team.
+
+---
+
+#### 11. Get Team Members
+
+**Endpoint:** `GET /teams/:id/users`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "users": [
+    {
+      "id": "user-uuid-1",
+      "name": "John Doe",
+      "email": "john@company.com",
+      "role": "AGENT",
+      "createdAt": "2024-12-01T00:00:00Z"
+    },
+    {
+      "id": "user-uuid-2",
+      "name": "Jane Smith",
+      "email": "jane@company.com",
+      "role": "AGENT",
+      "createdAt": "2024-12-02T00:00:00Z"
+    }
+  ]
+}
+```
+
+**Note:** Returns only active users assigned to the team, ordered by name.
 
 ---
 
