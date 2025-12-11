@@ -181,9 +181,21 @@ async function triggerAutomation(event, data, user) {
  */
 async function executeEmailAction(rule, data, user) {
   try {
+    console.log('🔍 Executing email action with data:', JSON.stringify(data, null, 2));
+    console.log('🔍 Rule type:', rule.type);
+
     // Get email template (use custom or default)
-    let emailSubject = rule.emailSubject || DEFAULT_TEMPLATES[rule.type]?.subject || 'Notification';
-    let emailTemplate = rule.emailTemplate || DEFAULT_TEMPLATES[rule.type]?.html || '<p>{{message}}</p>';
+    // Handle both null and empty strings by using trim()
+    const hasCustomSubject = rule.emailSubject && rule.emailSubject.trim() !== '';
+    const hasCustomTemplate = rule.emailTemplate && rule.emailTemplate.trim() !== '';
+
+    let emailSubject = hasCustomSubject
+      ? rule.emailSubject.trim()
+      : (DEFAULT_TEMPLATES[rule.type]?.subject || 'Notification');
+
+    let emailTemplate = hasCustomTemplate
+      ? rule.emailTemplate.trim()
+      : (DEFAULT_TEMPLATES[rule.type]?.html || '<p>{{message}}</p>');
 
     // Prepare template variables
     const variables = {
@@ -196,9 +208,14 @@ async function executeEmailAction(rule, data, user) {
       message: data.message || ''
     };
 
+    console.log('🔍 Template variables:', JSON.stringify(variables, null, 2));
+    console.log('🔍 Template before replacement:', emailTemplate.substring(0, 200));
+
     // Replace variables in subject and template
     emailSubject = replaceTemplateVariables(emailSubject, variables);
     const emailHtml = replaceTemplateVariables(emailTemplate, variables);
+
+    console.log('🔍 Template after replacement:', emailHtml.substring(0, 200));
 
     // Send email
     if (data.email) {
@@ -275,40 +292,41 @@ async function executeAssignAction(rule, data, user) {
  */
 async function saveAutomationRule(userId, ruleData) {
   try {
+    // Helper to convert empty strings to null
+    const sanitizeField = (value) => {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed === '' ? null : trimmed;
+      }
+      return value || null;
+    };
+
+    const cleanData = {
+      name: ruleData.name,
+      type: ruleData.type,
+      isEnabled: ruleData.isEnabled !== undefined ? ruleData.isEnabled : true,
+      triggerEvent: ruleData.triggerEvent,
+      triggerConditions: ruleData.triggerConditions || null,
+      actionType: ruleData.actionType,
+      actionConfig: ruleData.actionConfig || {},
+      emailSubject: sanitizeField(ruleData.emailSubject),
+      emailTemplate: sanitizeField(ruleData.emailTemplate),
+      fromStage: sanitizeField(ruleData.fromStage),
+      toStage: sanitizeField(ruleData.toStage)
+    };
+
     if (ruleData.id) {
       // Update existing rule
       return await prisma.automationRule.update({
         where: { id: ruleData.id },
-        data: {
-          name: ruleData.name,
-          type: ruleData.type,
-          isEnabled: ruleData.isEnabled !== undefined ? ruleData.isEnabled : true,
-          triggerEvent: ruleData.triggerEvent,
-          triggerConditions: ruleData.triggerConditions || null,
-          actionType: ruleData.actionType,
-          actionConfig: ruleData.actionConfig || {},
-          emailSubject: ruleData.emailSubject || null,
-          emailTemplate: ruleData.emailTemplate || null,
-          fromStage: ruleData.fromStage || null,
-          toStage: ruleData.toStage || null
-        }
+        data: cleanData
       });
     } else {
       // Create new rule
       return await prisma.automationRule.create({
         data: {
           userId,
-          name: ruleData.name,
-          type: ruleData.type,
-          isEnabled: ruleData.isEnabled !== undefined ? ruleData.isEnabled : true,
-          triggerEvent: ruleData.triggerEvent,
-          triggerConditions: ruleData.triggerConditions || null,
-          actionType: ruleData.actionType,
-          actionConfig: ruleData.actionConfig || {},
-          emailSubject: ruleData.emailSubject || null,
-          emailTemplate: ruleData.emailTemplate || null,
-          fromStage: ruleData.fromStage || null,
-          toStage: ruleData.toStage || null
+          ...cleanData
         }
       });
     }
