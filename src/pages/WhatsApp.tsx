@@ -450,11 +450,11 @@ export default function WhatsApp() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-background">
+    <div className="flex h-[calc(100vh-4rem)] bg-background p-4 gap-4">
       {/* Conversations List */}
-      <div className="w-96 border-r border-border flex flex-col">
+      <div className="w-96 flex flex-col bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
         {/* Header */}
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <MessageCircle className="w-6 h-6 text-green-600" />
@@ -497,8 +497,8 @@ export default function WhatsApp() {
             conversations.map(conv => (
               <div
                 key={conv.id}
-                className={`p-4 border-b border-border cursor-pointer hover:bg-accent/50 transition-colors ${
-                  selectedConversation?.id === conv.id ? 'bg-accent' : ''
+                className={`p-4 mx-2 my-1 cursor-pointer hover:bg-accent/50 transition-all duration-200 rounded-xl ${
+                  selectedConversation?.id === conv.id ? 'bg-accent shadow-md' : ''
                 }`}
                 onClick={() => loadConversation(conv)}
               >
@@ -537,9 +537,9 @@ export default function WhatsApp() {
 
       {/* Chat Area */}
       {selectedConversation ? (
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
           {/* Chat Header */}
-          <div className="p-4 border-b border-border flex items-center justify-between">
+          <div className="p-4 border-b border-border flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
                 <AvatarFallback className="bg-green-500/10 text-green-600">
@@ -604,12 +604,12 @@ export default function WhatsApp() {
                   className={`flex ${msg.sender === 'user' || msg.sender === 'ai' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[70%] rounded-lg p-3 ${
+                    className={`max-w-[70%] rounded-2xl p-3 shadow-md ${
                       msg.sender === 'user'
-                        ? 'bg-green-600 text-white'
+                        ? 'bg-green-600 text-white rounded-br-md'
                         : msg.isAiGenerated || msg.sender === 'ai'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-accent text-foreground'
+                        ? 'bg-blue-600 text-white rounded-bl-md'
+                        : 'bg-accent text-foreground rounded-bl-md shadow-sm'
                     }`}
                   >
                     {(msg.sender === 'contact' || msg.isAiGenerated || msg.sender === 'ai') && (
@@ -641,7 +641,7 @@ export default function WhatsApp() {
           </ScrollArea>
 
           {/* Message Input */}
-          <div className="p-4 border-t border-border">
+          <div className="p-4 border-t border-border bg-muted/30">
             <div className="flex items-end gap-2">
               <Textarea
                 placeholder="Type a message..."
@@ -654,7 +654,7 @@ export default function WhatsApp() {
                   }
                 }}
                 rows={1}
-                className="resize-none"
+                className="resize-none rounded-xl shadow-sm"
               />
               <Button
                 onClick={sendMessage}
@@ -719,7 +719,7 @@ export default function WhatsApp() {
                   {searchResults.map(contact => (
                     <Card
                       key={contact.id}
-                      className="p-3 cursor-pointer hover:bg-accent transition-colors"
+                      className="p-3 cursor-pointer hover:bg-accent transition-all duration-200 hover:shadow-md rounded-xl"
                       onClick={() => startNewConversation(contact)}
                     >
                       <div className="flex items-center gap-3">

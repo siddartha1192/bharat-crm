@@ -194,9 +194,9 @@ Try the quick action buttons below or ask me anything!`,
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
+    <div className="flex flex-col h-[calc(100vh-8rem)] p-4">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-6 px-2">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">AI Assistant</h1>
@@ -222,16 +222,16 @@ Try the quick action buttons below or ask me anything!`,
       </div>
 
       {/* Chat Container */}
-      <Card className="flex-1 flex flex-col">
+      <Card className="flex-1 flex flex-col rounded-2xl shadow-xl border-border overflow-hidden">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gradient-to-b from-background to-muted/10">
           {messages.map((message, index) => (
             <div
               key={index}
               className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : ''}`}
             >
               {message.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md">
                   <Bot className="w-5 h-5 text-white" />
                 </div>
               )}
@@ -242,10 +242,10 @@ Try the quick action buttons below or ask me anything!`,
                 }`}
               >
                 <div
-                  className={`inline-block rounded-lg px-4 py-3 ${
+                  className={`inline-block rounded-2xl px-4 py-3 shadow-md ${
                     message.role === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-muted'
+                      ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-br-md'
+                      : 'bg-muted rounded-bl-md'
                   }`}
                 >
                   {message.role === 'user' ? (
@@ -291,7 +291,7 @@ Try the quick action buttons below or ask me anything!`,
               </div>
 
               {message.role === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-600 to-emerald-600 flex items-center justify-center flex-shrink-0 shadow-md">
                   <User className="w-5 h-5 text-white" />
                 </div>
               )}
@@ -300,11 +300,11 @@ Try the quick action buttons below or ask me anything!`,
 
           {loading && (
             <div className="flex gap-4">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md">
                 <Bot className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1">
-                <div className="inline-block rounded-lg px-4 py-3 bg-muted">
+                <div className="inline-block rounded-2xl rounded-bl-md px-4 py-3 bg-muted shadow-md">
                   <Loader2 className="w-5 h-5 animate-spin" />
                 </div>
               </div>
@@ -316,7 +316,7 @@ Try the quick action buttons below or ask me anything!`,
 
         {/* Quick Actions */}
         {messages.length === 1 && !loading && (
-          <div className="px-6 py-3 border-t">
+          <div className="px-6 py-3 border-t bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20">
             <p className="text-sm text-muted-foreground mb-2">Quick actions:</p>
             <div className="flex flex-wrap gap-2">
               {quickActions.map((action, index) => (
@@ -324,6 +324,7 @@ Try the quick action buttons below or ask me anything!`,
                   key={index}
                   variant="outline"
                   size="sm"
+                  className="rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
                   onClick={() => {
                     setInput(action.query);
                   }}
@@ -336,21 +337,21 @@ Try the quick action buttons below or ask me anything!`,
         )}
 
         {/* Input */}
-        <div className="p-6 border-t">
+        <div className="p-6 border-t bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20">
           <div className="flex gap-2">
             <Textarea
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder="Ask anything about your CRM data, features, or documentation..."
-              className="min-h-[60px] resize-none"
+              className="min-h-[60px] resize-none rounded-xl shadow-sm"
               disabled={loading}
             />
             <Button
               onClick={sendMessage}
               disabled={!input.trim() || loading}
               size="lg"
-              className="px-6"
+              className="px-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
