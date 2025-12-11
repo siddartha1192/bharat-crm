@@ -5,6 +5,7 @@ import { Deal } from '@/types/pipeline';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { exportLeadsToCSV, exportDealsToCSV } from '@/lib/csvUtils';
+import { downloadHTMLReport } from '@/lib/htmlReportUtils';
 import {
   Select,
   SelectContent,
@@ -210,6 +211,15 @@ export default function Reports() {
     toast.success('All reports exported successfully!');
   };
 
+  const handleExportHTML = () => {
+    const reportDate = new Date().toISOString().split('T')[0];
+    downloadHTMLReport(
+      { leads, deals, dateRange: 'Last 30 Days' },
+      `sales-analytics-report-${reportDate}.html`
+    );
+    toast.success('HTML report generated successfully!');
+  };
+
   return (
     <div className="min-h-screen bg-background">
 
@@ -238,9 +248,9 @@ export default function Reports() {
                 </SelectContent>
               </Select>
               <ProtectedFeature permission="reports:export">
-                <Button variant="outline">
+                <Button variant="outline" onClick={handleExportHTML}>
                   <Download className="w-4 h-4 mr-2" />
-                  Export Report
+                  Export HTML Report
                 </Button>
               </ProtectedFeature>
             </div>
