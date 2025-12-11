@@ -21,6 +21,8 @@ import {
   User,
   Bot,
   BotOff,
+  Bell,
+  BellOff,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
@@ -81,10 +83,33 @@ export default function WhatsApp() {
   const [searchResults, setSearchResults] = useState<Contact[]>([]);
   const [searchingContacts, setSearchingContacts] = useState(false);
   const [aiFeatureAvailable, setAiFeatureAvailable] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+  const [previousUnreadCount, setPreviousUnreadCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
 
   const token = localStorage.getItem('token');
+
+  // Request notification permission on mount and cleanup on unmount
+  useEffect(() => {
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          setNotificationPermission(permission);
+        });
+      }
+    }
+
+    // Create notification sound (using a data URL for a simple beep)
+    notificationSoundRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSyAzvLZiTYIGWi77eeeTRAMUKfi8LZjHAY4ktfyy3ksBSN2x/HemT8KE2Cz6eyrVRQJRp/g8r9sIAUsgs/y14o2BxlruvHsn0wQC1Cn4+--3AA');
+
+    // Cleanup: Reset document title when component unmounts
+    return () => {
+      document.title = 'CRM';
+    };
+  }, []);
 
   // Fetch conversations on mount
   useEffect(() => {
@@ -130,6 +155,50 @@ export default function WhatsApp() {
     return () => clearTimeout(timer);
   }, [contactSearch]);
 
+  // Update document title with unread count
+  const updateDocumentTitle = (totalUnread: number) => {
+    if (totalUnread > 0) {
+      document.title = `(${totalUnread}) WhatsApp - CRM`;
+    } else {
+      document.title = 'WhatsApp - CRM';
+    }
+  };
+
+  // Play notification sound
+  const playNotificationSound = () => {
+    if (notificationSoundRef.current) {
+      notificationSoundRef.current.volume = 0.5;
+      notificationSoundRef.current.play().catch(err => {
+        console.log('Could not play notification sound:', err);
+      });
+    }
+  };
+
+  // Show desktop notification
+  const showDesktopNotification = (title: string, body: string, icon?: string) => {
+    if (notificationPermission === 'granted' && 'Notification' in window) {
+      try {
+        const notification = new Notification(title, {
+          body,
+          icon: icon || '/logo.png',
+          badge: '/logo.png',
+          tag: 'whatsapp-message',
+          requireInteraction: false,
+        });
+
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+
+        // Auto close after 5 seconds
+        setTimeout(() => notification.close(), 5000);
+      } catch (error) {
+        console.error('Error showing notification:', error);
+      }
+    }
+  };
+
   const fetchConversations = async (showLoading = true) => {
     try {
       if (showLoading) setLoading(true);
@@ -142,7 +211,37 @@ export default function WhatsApp() {
       if (!response.ok) throw new Error('Failed to fetch conversations');
 
       const data = await response.json();
-      setConversations(data.conversations);
+      const newConversations = data.conversations;
+
+      // Calculate total unread count
+      const totalUnread = newConversations.reduce((sum: number, conv: Conversation) => sum + conv.unreadCount, 0);
+
+      // Check for new messages (increased unread count)
+      if (!showLoading && totalUnread > previousUnreadCount) {
+        const unreadConversations = newConversations.filter((conv: Conversation) => conv.unreadCount > 0);
+
+        if (unreadConversations.length > 0) {
+          // Play notification sound
+          playNotificationSound();
+
+          // Show desktop notification for the first unread conversation
+          const firstUnread = unreadConversations[0];
+          showDesktopNotification(
+            `New message from ${firstUnread.contactName}`,
+            firstUnread.lastMessage || 'New message received',
+          );
+
+          // Show toast notification
+          toast({
+            title: `New message from ${firstUnread.contactName}`,
+            description: firstUnread.lastMessage?.substring(0, 50) + (firstUnread.lastMessage && firstUnread.lastMessage.length > 50 ? '...' : ''),
+          });
+        }
+      }
+
+      setPreviousUnreadCount(totalUnread);
+      updateDocumentTitle(totalUnread);
+      setConversations(newConversations);
     } catch (error) {
       console.error('Error fetching conversations:', error);
       if (showLoading) {
@@ -195,8 +294,28 @@ export default function WhatsApp() {
       const data = await response.json();
       const newMessages = data.messages.reverse();
 
-      // Only update if there are new messages
-      if (newMessages.length !== messages.length) {
+      // Check if there are new messages from the contact (not from us)
+      if (newMessages.length > messages.length) {
+        const latestMessage = newMessages[newMessages.length - 1];
+
+        // Only notify if the latest message is from the contact (not from user or AI)
+        if (latestMessage.sender === 'contact') {
+          // Play notification sound
+          playNotificationSound();
+
+          // Show desktop notification
+          showDesktopNotification(
+            `${selectedConversation.contactName}`,
+            latestMessage.message,
+          );
+
+          // Show toast notification
+          toast({
+            title: selectedConversation.contactName,
+            description: latestMessage.message.substring(0, 100) + (latestMessage.message.length > 100 ? '...' : ''),
+          });
+        }
+
         setMessages(newMessages);
 
         // Update conversation in list
@@ -426,6 +545,25 @@ export default function WhatsApp() {
     }
   };
 
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window) {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission === 'granted') {
+        toast({
+          title: 'Notifications Enabled',
+          description: 'You will now receive notifications for new messages',
+        });
+      } else if (permission === 'denied') {
+        toast({
+          title: 'Notifications Blocked',
+          description: 'Please enable notifications in your browser settings',
+          variant: 'destructive',
+        });
+      }
+    }
+  };
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -460,14 +598,34 @@ export default function WhatsApp() {
               <MessageCircle className="w-6 h-6 text-green-600" />
               WhatsApp
             </h2>
-            <Button
-              size="sm"
-              onClick={() => setShowNewChatDialog(true)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              New Chat
-            </Button>
+            <div className="flex items-center gap-2">
+              {notificationPermission !== 'granted' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={requestNotificationPermission}
+                  title="Enable notifications"
+                  className="text-xs"
+                >
+                  <BellOff className="w-4 h-4 mr-1" />
+                  Enable
+                </Button>
+              )}
+              {notificationPermission === 'granted' && (
+                <Badge variant="secondary" className="text-xs">
+                  <Bell className="w-3 h-3 mr-1" />
+                  Notifications On
+                </Badge>
+              )}
+              <Button
+                size="sm"
+                onClick={() => setShowNewChatDialog(true)}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                New Chat
+              </Button>
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
