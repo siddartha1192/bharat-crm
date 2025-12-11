@@ -41,6 +41,7 @@ export function WhatsAppNotificationProvider({ children }: { children: ReactNode
   const [previousUnreadCount, setPreviousUnreadCount] = useState(0);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [lastNotifiedMessages, setLastNotifiedMessages] = useState<Set<string>>(new Set());
   const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
@@ -185,15 +186,24 @@ export function WhatsAppNotificationProvider({ children }: { children: ReactNode
       const totalUnread = newConversations.reduce((sum: number, conv: Conversation) => sum + conv.unreadCount, 0);
       setUnreadCount(totalUnread);
 
-      // Check for new messages (increased unread count)
-      if (!showLoading && totalUnread > previousUnreadCount) {
-        const unreadConversations = newConversations.filter((conv: Conversation) => conv.unreadCount > 0);
+      // Check for NEW unread messages that haven't been notified yet
+      if (!showLoading) {
+        const unreadConversations = newConversations.filter(
+          (conv: Conversation) => conv.unreadCount > 0 && conv.lastMessageAt
+        );
 
-        if (unreadConversations.length > 0) {
+        // Find conversations with messages we haven't notified about yet
+        const newUnreadConvs = unreadConversations.filter(conv => {
+          const messageKey = `${conv.id}-${conv.lastMessageAt}`;
+          return !lastNotifiedMessages.has(messageKey);
+        });
+
+        if (newUnreadConvs.length > 0) {
+          const firstUnread = newUnreadConvs[0];
+          const messageKey = `${firstUnread.id}-${firstUnread.lastMessageAt}`;
+
           // Play notification sound
           playNotificationSound();
-
-          const firstUnread = unreadConversations[0];
 
           // Show desktop notification
           showDesktopNotification(
@@ -212,6 +222,19 @@ export function WhatsAppNotificationProvider({ children }: { children: ReactNode
           toast({
             title: `New message from ${firstUnread.contactName}`,
             description: firstUnread.lastMessage?.substring(0, 50) + (firstUnread.lastMessage && firstUnread.lastMessage.length > 50 ? '...' : ''),
+          });
+
+          // Mark this message as notified
+          setLastNotifiedMessages(prev => {
+            const updated = new Set(prev);
+            // Add new message
+            updated.add(messageKey);
+            // Keep only last 20 messages in the set to prevent memory growth
+            if (updated.size > 20) {
+              const arr = Array.from(updated);
+              return new Set(arr.slice(-20));
+            }
+            return updated;
           });
         }
       }
