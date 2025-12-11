@@ -204,10 +204,9 @@ async function executeEmailAction(rule, data, user) {
     if (data.email) {
       await emailService.sendEmail({
         to: [data.email],
-        from: user.email || process.env.GMAIL_USER,
         subject: emailSubject,
-        body: emailHtml,
-        htmlBody: emailHtml,
+        text: emailHtml, // Plain text version (using HTML as fallback)
+        html: emailHtml, // HTML version
         userId: user.id,
         entityType: data.entityType || 'Lead',
         entityId: data.id
