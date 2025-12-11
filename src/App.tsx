@@ -19,6 +19,7 @@ import Leads from "./pages/Leads";
 import Contacts from "./pages/Contacts";
 import Pipeline from "./pages/Pipeline";
 import Reports from "./pages/Reports";
+import SalesForecast from "./pages/SalesForecast";
 import WhatsApp from "./pages/WhatsApp";
 import Emails from "./pages/Emails";
 import Invoices from "./pages/Invoices";
@@ -74,6 +75,7 @@ const App = () => (
               <Route path="/emails" element={<ProtectedLayout><Emails /></ProtectedLayout>} />
               <Route path="/invoices" element={<ProtectedLayout><Invoices /></ProtectedLayout>} />
               <Route path="/reports" element={<ProtectedLayout><Reports /></ProtectedLayout>} />
+              <Route path="/forecast" element={<ProtectedLayout><SalesForecast /></ProtectedLayout>} />
               <Route path="/calendar" element={<ProtectedLayout><Calendar /></ProtectedLayout>} />
               <Route path="/calendar/callback" element={<ProtectedRoute><CalendarCallback /></ProtectedRoute>} />
               <Route path="/ai-assistant" element={<ProtectedLayout><AIAssistant /></ProtectedLayout>} />

@@ -14,6 +14,7 @@ import {
   Mail,
   Bot,
   Shield,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +28,7 @@ const navigation = [
   { name: 'Emails', href: '/emails', icon: Mail },
   { name: 'Invoices', href: '/invoices', icon: FileText },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
+  { name: 'Sales Forecast', href: '/forecast', icon: TrendingUp, badge: 'New' },
   { name: 'Calendar', href: '/calendar', icon: Calendar },
   { name: 'AI Assistant', href: '/ai-assistant', icon: Bot, badge: 'New' },
 ];

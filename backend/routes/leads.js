@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
+const automationService = require('../services/automation');
 const prisma = new PrismaClient();
 
 // Helper function: Map lead status to deal stage
@@ -118,6 +119,22 @@ router.post('/', async (req, res) => {
     });
 
     console.log(`Lead created with auto-generated Deal: Lead ${result.lead.id} -> Deal ${result.deal.id}`);
+
+    // Trigger automation for lead creation
+    try {
+      await automationService.triggerAutomation('lead.created', {
+        id: result.lead.id,
+        name: result.lead.name,
+        email: result.lead.email,
+        company: result.lead.company,
+        status: result.lead.status,
+        entityType: 'Lead'
+      }, req.user);
+    } catch (automationError) {
+      console.error('Error triggering lead creation automation:', automationError);
+      // Don't fail the request if automation fails
+    }
+
     res.status(201).json(result.lead);
   } catch (error) {
     console.error('Error creating lead:', error);
@@ -185,6 +202,24 @@ router.put('/:id', async (req, res) => {
 
       return lead;
     });
+
+    // Trigger automation for status change
+    if (updateData.status && updateData.status !== existingLead.status) {
+      try {
+        await automationService.triggerAutomation('lead.stage_changed', {
+          id: result.id,
+          name: result.name,
+          email: result.email,
+          company: result.company,
+          fromStage: existingLead.status,
+          toStage: updateData.status,
+          entityType: 'Lead'
+        }, req.user);
+      } catch (automationError) {
+        console.error('Error triggering lead status change automation:', automationError);
+        // Don't fail the request if automation fails
+      }
+    }
 
     res.json(result);
   } catch (error) {

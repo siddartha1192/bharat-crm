@@ -60,6 +60,10 @@ model User {
   sessions                Session[]
   emailLogs               EmailLog[]
   pipelineStages          PipelineStage[]
+  automationRules         AutomationRule[]
+  documents               Document[]
+  salesForecasts          SalesForecast[]
+  vectorDataUploads       VectorDataUpload[]
 
   @@index([email])
   @@index([googleId])
@@ -455,4 +459,128 @@ model EmailLog {
   @@index([to])
   @@index([gmailThreadId])
   @@index([parentEmailId])
+}
+
+model AutomationRule {
+  id              String   @id @default(uuid())
+  name            String   // Rule name (e.g., "Lead Created Email", "Stage Change Notification")
+  type            String   // 'lead_created' | 'stage_change' | 'custom'
+  isEnabled       Boolean  @default(true)
+
+  // Trigger configuration
+  triggerEvent    String   // 'lead.created' | 'lead.stage_changed' | 'deal.stage_changed'
+  triggerConditions Json?  // Additional conditions (e.g., {fromStage: 'new', toStage: 'contacted'})
+
+  // Action configuration
+  actionType      String   // 'send_email' | 'create_task' | 'assign_lead' | 'webhook'
+  actionConfig    Json     // Email template, task details, etc.
+
+  // Email template for email actions
+  emailSubject    String?
+  emailTemplate   String?  @db.Text
+
+  // Stage change specific config
+  fromStage       String?  // Source stage for stage change triggers
+  toStage         String?  // Destination stage for stage change triggers
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User relation - who created this rule
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([isEnabled])
+  @@index([triggerEvent])
+}
+
+model Document {
+  id              String   @id @default(uuid())
+  fileName        String   // Original file name
+  fileSize        Int      // Size in bytes
+  mimeType        String   // File MIME type
+  filePath        String   // Relative path to stored file
+
+  // Entity association
+  entityType      String   // 'Lead' | 'Contact' | 'Deal' | 'Task'
+  entityId        String   // ID of the associated entity
+
+  // Metadata
+  description     String?  @db.Text
+  uploadedBy      String   // User who uploaded
+  tags            String[] @default([])
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User relation
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([uploadedBy])
+  @@index([createdAt])
+}
+
+model SalesForecast {
+  id              String   @id @default(uuid())
+  forecastDate    DateTime // Date for this forecast period
+  forecastPeriod  String   // 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+
+  // Forecast metrics
+  expectedRevenue Float    @default(0)
+  pipelineValue   Float    @default(0)
+  weightedValue   Float    @default(0) // Pipeline value weighted by probability
+  leadCount       Int      @default(0)
+  dealCount       Int      @default(0)
+  wonCount        Int      @default(0)
+  lostCount       Int      @default(0)
+  conversionRate  Float    @default(0) // Percentage
+
+  // Breakdown by stage
+  stageBreakdown  Json?    // {stage: {count, value, probability}}
+
+  // Breakdown by user/team
+  userBreakdown   Json?    // {userId: {revenue, deals, leads}}
+
+  // Historical comparison
+  previousPeriodRevenue Float? @default(0)
+  growthRate      Float?   @default(0) // Percentage growth
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User/organization relation (null for org-wide forecasts)
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([forecastDate])
+  @@index([forecastPeriod])
+}
+
+model VectorDataUpload {
+  id              String   @id @default(uuid())
+  fileName        String   // Original file name
+  fileSize        Int      // Size in bytes
+  filePath        String   // Path to stored file
+  status          String   // 'pending' | 'processing' | 'completed' | 'failed'
+  recordsProcessed Int     @default(0)
+  errorMessage    String?  @db.Text
+
+  uploadedBy      String   // User who uploaded
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User relation
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
 }
