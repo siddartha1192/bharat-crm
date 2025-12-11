@@ -81,33 +81,10 @@ export default function WhatsApp() {
   const [searchResults, setSearchResults] = useState<Contact[]>([]);
   const [searchingContacts, setSearchingContacts] = useState(false);
   const [aiFeatureAvailable, setAiFeatureAvailable] = useState(false);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
-  const [previousUnreadCount, setPreviousUnreadCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
 
   const token = localStorage.getItem('token');
-
-  // Request notification permission on mount and cleanup on unmount
-  useEffect(() => {
-    if ('Notification' in window) {
-      setNotificationPermission(Notification.permission);
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().then(permission => {
-          setNotificationPermission(permission);
-        });
-      }
-    }
-
-    // Create notification sound (using a data URL for a simple beep)
-    notificationSoundRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSyAzvLZiTYIGWi77eeeTRAMUKfi8LZjHAY4ktfyy3ksBSN2x/HemT8KE2Cz6eyrVRQJRp/g8r9sIAUsgs/y14o2BxlruvHsn0wQC1Cn4+--3AA');
-
-    // Cleanup: Reset document title when component unmounts
-    return () => {
-      document.title = 'CRM';
-    };
-  }, []);
 
   // Fetch conversations on mount
   useEffect(() => {
@@ -153,50 +130,6 @@ export default function WhatsApp() {
     return () => clearTimeout(timer);
   }, [contactSearch]);
 
-  // Update document title with unread count
-  const updateDocumentTitle = (totalUnread: number) => {
-    if (totalUnread > 0) {
-      document.title = `(${totalUnread}) WhatsApp - CRM`;
-    } else {
-      document.title = 'WhatsApp - CRM';
-    }
-  };
-
-  // Play notification sound
-  const playNotificationSound = () => {
-    if (notificationSoundRef.current) {
-      notificationSoundRef.current.volume = 0.5;
-      notificationSoundRef.current.play().catch(err => {
-        console.log('Could not play notification sound:', err);
-      });
-    }
-  };
-
-  // Show desktop notification
-  const showDesktopNotification = (title: string, body: string, icon?: string) => {
-    if (notificationPermission === 'granted' && 'Notification' in window) {
-      try {
-        const notification = new Notification(title, {
-          body,
-          icon: icon || '/logo.png',
-          badge: '/logo.png',
-          tag: 'whatsapp-message',
-          requireInteraction: false,
-        });
-
-        notification.onclick = () => {
-          window.focus();
-          notification.close();
-        };
-
-        // Auto close after 5 seconds
-        setTimeout(() => notification.close(), 5000);
-      } catch (error) {
-        console.error('Error showing notification:', error);
-      }
-    }
-  };
-
   const fetchConversations = async (showLoading = true) => {
     try {
       if (showLoading) setLoading(true);
@@ -211,36 +144,7 @@ export default function WhatsApp() {
       const data = await response.json();
       const newConversations = data.conversations;
 
-      // Calculate total unread count
-      const totalUnread = newConversations.reduce((sum: number, conv: Conversation) => sum + conv.unreadCount, 0);
-
-      // Check for new messages (increased unread count)
-      if (!showLoading && totalUnread > previousUnreadCount) {
-        const unreadConversations = newConversations.filter((conv: Conversation) => conv.unreadCount > 0);
-
-        if (unreadConversations.length > 0) {
-          // Play notification sound
-          playNotificationSound();
-
-          // Show desktop notification for the first unread conversation
-          const firstUnread = unreadConversations[0];
-          showDesktopNotification(
-            `New message from ${firstUnread.contactName}`,
-            firstUnread.lastMessage || 'New message received',
-          );
-
-          // Only show toast if NOT currently viewing this conversation
-          if (selectedConversation?.id !== firstUnread.id) {
-            toast({
-              title: `New message from ${firstUnread.contactName}`,
-              description: firstUnread.lastMessage?.substring(0, 50) + (firstUnread.lastMessage && firstUnread.lastMessage.length > 50 ? '...' : ''),
-            });
-          }
-        }
-      }
-
-      setPreviousUnreadCount(totalUnread);
-      updateDocumentTitle(totalUnread);
+      // Just update the conversations list - notifications are handled by global context
       setConversations(newConversations);
     } catch (error) {
       console.error('Error fetching conversations:', error);
@@ -294,25 +198,8 @@ export default function WhatsApp() {
       const data = await response.json();
       const newMessages = data.messages.reverse();
 
-      // Check if there are new messages from the contact (not from us)
+      // Update messages if there are new ones
       if (newMessages.length > messages.length) {
-        const latestMessage = newMessages[newMessages.length - 1];
-
-        // Only notify if the latest message is from the contact (not from user or AI)
-        if (latestMessage.sender === 'contact') {
-          // Play notification sound (subtle notification even when chatting)
-          playNotificationSound();
-
-          // Show desktop notification
-          showDesktopNotification(
-            `${selectedConversation.contactName}`,
-            latestMessage.message,
-          );
-
-          // DO NOT show toast notification when actively viewing this conversation
-          // This fixes the annoying toast popup issue mentioned by the user
-        }
-
         setMessages(newMessages);
 
         // Update conversation in list
