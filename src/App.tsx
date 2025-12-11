@@ -25,6 +25,7 @@ import Calendar from "./pages/Calendar";
 import CalendarCallback from "./pages/CalendarCallback";
 import AIAssistant from "./pages/AIAssistant";
 import Settings from "./pages/Settings";
+import UserManagement from "./pages/UserManagement";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 
@@ -77,6 +78,10 @@ const App = () => (
             <Route
               path="/settings"
               element={<ProtectedLayout><Settings /></ProtectedLayout>}
+            />
+            <Route
+              path="/users"
+              element={<ProtectedLayout><UserManagement /></ProtectedLayout>}
             />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
