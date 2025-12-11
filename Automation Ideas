@@ -1,0 +1,4497 @@
+# CRM Automation Implementation Guide
+
+ 
+
+## Table of Contents
+
+1. [Lead Capture & Auto-Assignment](#1-lead-capture--auto-assignment)
+
+2. [Email Drip Campaigns](#2-email-drip-campaigns)
+
+3. [WhatsApp Business Automation](#3-whatsapp-business-automation)
+
+4. [Lead Scoring & Qualification](#4-lead-scoring--qualification)
+
+5. [Follow-up Reminders & Task Automation](#5-follow-up-reminders--task-automation)
+
+6. [Deal Pipeline Automation](#6-deal-pipeline-automation)
+
+7. [AI-Powered Response Generation](#7-ai-powered-response-generation)
+
+8. [Document & Proposal Automation](#8-document--proposal-automation)
+
+9. [Analytics & Reporting Automation](#9-analytics--reporting-automation)
+
+10. [Multi-Channel Communication Sync](#10-multi-channel-communication-sync)
+
+ 
+
+---
+
+ 
+
+## 1. Lead Capture & Auto-Assignment
+
+ 
+
+### Overview
+
+Automatically capture leads from multiple sources (web forms, WhatsApp, email, social media) and assign them to the right sales representative based on predefined rules.
+
+ 
+
+### Market Need
+
+- **67%** of leads are lost due to delayed response
+
+- Businesses receive leads from **5+ different channels**
+
+- Manual assignment causes **30-40% inefficiency**
+
+ 
+
+### Implementation Strategy
+
+ 
+
+#### Step 1: Multi-Source Lead Capture
+
+```javascript
+
+// backend/routes/leadCapture.js
+
+const express = require('express');
+
+const router = express.Router();
+
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
+
+ 
+
+// Webhook endpoint for web forms
+
+router.post('/webhook/webform', async (req, res) => {
+
+  const { name, email, phone, source, campaign } = req.body;
+
+ 
+
+  try {
+
+    const lead = await prisma.lead.create({
+
+      data: {
+
+        name,
+
+        email,
+
+        phone,
+
+        source: 'web-form',
+
+        status: 'new',
+
+        campaign,
+
+        capturedAt: new Date(),
+
+      }
+
+    });
+
+ 
+
+    // Trigger auto-assignment
+
+    await autoAssignLead(lead);
+
+ 
+
+    res.json({ success: true, leadId: lead.id });
+
+  } catch (error) {
+
+    res.status(500).json({ error: error.message });
+
+  }
+
+});
+
+ 
+
+// Auto-assignment logic
+
+async function autoAssignLead(lead) {
+
+  // Rule 1: Round-robin assignment
+
+  const agents = await prisma.user.findMany({
+
+    where: { role: 'AGENT', isActive: true },
+
+    include: { _count: { select: { leads: true } } }
+
+  });
+
+ 
+
+  // Find agent with least leads
+
+  const assignedAgent = agents.reduce((prev, current) =>
+
+    (prev._count.leads < current._count.leads) ? prev : current
+
+  );
+
+ 
+
+  // Rule 2: Geo-based assignment
+
+  if (lead.location) {
+
+    const territoryAgent = agents.find(a => a.territory === lead.location);
+
+    if (territoryAgent) assignedAgent = territoryAgent;
+
+  }
+
+ 
+
+  // Rule 3: Source-based assignment
+
+  if (lead.source === 'premium-campaign') {
+
+    const seniorAgent = agents.find(a => a.seniority === 'senior');
+
+    if (seniorAgent) assignedAgent = seniorAgent;
+
+  }
+
+ 
+
+  // Update lead with assignment
+
+  await prisma.lead.update({
+
+    where: { id: lead.id },
+
+    data: {
+
+      assignedToId: assignedAgent.id,
+
+      assignedAt: new Date()
+
+    }
+
+  });
+
+ 
+
+  // Send notification to assigned agent
+
+  await sendNotification(assignedAgent.id, {
+
+    type: 'new_lead',
+
+    leadId: lead.id,
+
+    message: `New lead assigned: ${lead.name}`
+
+  });
+
+}
+
+```
+
+ 
+
+#### Step 2: Integration with External Tools
+
+ 
+
+**Zapier Integration:**
+
+```javascript
+
+// backend/routes/integrations/zapier.js
+
+router.post('/zapier/webhook', async (req, res) => {
+
+  const { trigger_type, data } = req.body;
+
+ 
+
+  switch(trigger_type) {
+
+    case 'facebook_lead':
+
+      await createLeadFromFacebook(data);
+
+      break;
+
+    case 'google_ads':
+
+      await createLeadFromGoogleAds(data);
+
+      break;
+
+    case 'linkedin':
+
+      await createLeadFromLinkedIn(data);
+
+      break;
+
+  }
+
+ 
+
+  res.json({ success: true });
+
+});
+
+```
+
+ 
+
+**Facebook Lead Ads Integration:**
+
+```bash
+
+# Install Facebook SDK
+
+npm install facebook-nodejs-business-sdk
+
+```
+
+ 
+
+```javascript
+
+// backend/services/facebookLeads.js
+
+const bizSdk = require('facebook-nodejs-business-sdk');
+
+ 
+
+async function setupFacebookWebhook() {
+
+  const Page = bizSdk.Page;
+
+  const LeadgenForm = bizSdk.LeadgenForm;
+
+ 
+
+  // Subscribe to leadgen webhook
+
+  const page = new Page(process.env.FACEBOOK_PAGE_ID);
+
+ 
+
+  page.subscribeToWebhook({
+
+    object: 'leadgen',
+
+    callback_url: `${process.env.APP_URL}/api/webhook/facebook`,
+
+    verify_token: process.env.FACEBOOK_VERIFY_TOKEN,
+
+    fields: ['leadgen']
+
+  });
+
+}
+
+ 
+
+// Webhook handler
+
+router.post('/webhook/facebook', async (req, res) => {
+
+  if (req.body.object === 'page') {
+
+    req.body.entry.forEach(async entry => {
+
+      entry.changes.forEach(async change => {
+
+        if (change.field === 'leadgen') {
+
+          const leadId = change.value.leadgen_id;
+
+          await fetchAndCreateLead(leadId);
+
+        }
+
+      });
+
+    });
+
+  }
+
+  res.sendStatus(200);
+
+});
+
+```
+
+ 
+
+### Tools to Integrate
+
+- **Zapier** - Multi-channel integration
+
+- **Make (Integromat)** - Complex automation workflows
+
+- **Facebook Lead Ads API** - Direct Facebook integration
+
+- **Google Ads API** - Google campaign leads
+
+- **Calendly** - Meeting bookings as leads
+
+ 
+
+---
+
+ 
+
+## 2. Email Drip Campaigns
+
+ 
+
+### Overview
+
+Automatically send personalized email sequences based on lead behavior, stage, or time triggers.
+
+ 
+
+### Market Need
+
+- Email campaigns generate **$42 ROI** for every $1 spent
+
+- **80%** of sales require 5+ follow-up emails
+
+- Personalized emails deliver **6x higher** transaction rates
+
+ 
+
+### Implementation Strategy
+
+ 
+
+#### Step 1: Campaign Workflow Engine
+
+```javascript
+
+// backend/services/emailCampaign.js
+
+const nodemailer = require('nodemailer');
+
+const prisma = new PrismaClient();
+
+ 
+
+// Email campaign schema (add to Prisma)
+
+/*
+
+model EmailCampaign {
+
+  id          String   @id @default(uuid())
+
+  name        String
+
+  trigger     String   // 'new_lead', 'stage_change', 'time_based'
+
+  status      String   // 'active', 'paused', 'completed'
+
+  emails      Email[]
+
+  createdAt   DateTime @default(now())
+
+}
+
+ 
+
+model Email {
+
+  id          String   @id @default(uuid())
+
+  campaignId  String
+
+  campaign    EmailCampaign @relation(fields: [campaignId], references: [id])
+
+  subject     String
+
+  body        String
+
+  delay       Int      // Days to wait before sending
+
+  order       Int      // Sequence order
+
+}
+
+ 
+
+model EmailLog {
+
+  id          String   @id @default(uuid())
+
+  leadId      String
+
+  emailId     String
+
+  sentAt      DateTime @default(now())
+
+  opened      Boolean  @default(false)
+
+  clicked     Boolean  @default(false)
+
+}
+
+*/
+
+ 
+
+class EmailCampaignService {
+
+  constructor() {
+
+    this.transporter = nodemailer.createTransport({
+
+      host: process.env.SMTP_HOST,
+
+      port: process.env.SMTP_PORT,
+
+      auth: {
+
+        user: process.env.SMTP_USER,
+
+        pass: process.env.SMTP_PASS
+
+      }
+
+    });
+
+  }
+
+ 
+
+  // Enroll lead in campaign
+
+  async enrollLead(leadId, campaignId) {
+
+    const campaign = await prisma.emailCampaign.findUnique({
+
+      where: { id: campaignId },
+
+      include: { emails: { orderBy: { order: 'asc' } } }
+
+    });
+
+ 
+
+    // Schedule all emails in sequence
+
+    for (const email of campaign.emails) {
+
+      const sendDate = new Date();
+
+      sendDate.setDate(sendDate.getDate() + email.delay);
+
+ 
+
+      await this.scheduleEmail(leadId, email.id, sendDate);
+
+    }
+
+  }
+
+ 
+
+  // Send personalized email
+
+  async sendEmail(leadId, emailId) {
+
+    const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+
+    const email = await prisma.email.findUnique({ where: { id: emailId } });
+
+ 
+
+    // Personalize content
+
+    const personalizedBody = this.personalize(email.body, lead);
+
+    const trackingPixel = `<img src="${process.env.APP_URL}/api/track/email/${leadId}/${emailId}" width="1" height="1" />`;
+
+ 
+
+    await this.transporter.sendMail({
+
+      from: process.env.SMTP_FROM,
+
+      to: lead.email,
+
+      subject: this.personalize(email.subject, lead),
+
+      html: personalizedBody + trackingPixel,
+
+    });
+
+ 
+
+    // Log email sent
+
+    await prisma.emailLog.create({
+
+      data: { leadId, emailId, sentAt: new Date() }
+
+    });
+
+  }
+
+ 
+
+  // Personalization engine
+
+  personalize(template, lead) {
+
+    return template
+
+      .replace('{{name}}', lead.name)
+
+      .replace('{{company}}', lead.company || '')
+
+      .replace('{{phone}}', lead.phone)
+
+      .replace('{{source}}', lead.source);
+
+  }
+
+ 
+
+  // Track email opens
+
+  async trackOpen(leadId, emailId) {
+
+    await prisma.emailLog.updateMany({
+
+      where: { leadId, emailId },
+
+      data: { opened: true }
+
+    });
+
+  }
+
+}
+
+ 
+
+// Cron job to process scheduled emails
+
+const cron = require('node-cron');
+
+ 
+
+cron.schedule('*/5 * * * *', async () => {
+
+  const now = new Date();
+
+  const scheduledEmails = await prisma.scheduledEmail.findMany({
+
+    where: {
+
+      scheduledFor: { lte: now },
+
+      sent: false
+
+    }
+
+  });
+
+ 
+
+  for (const scheduled of scheduledEmails) {
+
+    await emailCampaignService.sendEmail(scheduled.leadId, scheduled.emailId);
+
+    await prisma.scheduledEmail.update({
+
+      where: { id: scheduled.id },
+
+      data: { sent: true }
+
+    });
+
+  }
+
+});
+
+```
+
+ 
+
+#### Step 2: Integration with Email Services
+
+ 
+
+**SendGrid Integration:**
+
+```bash
+
+npm install @sendgrid/mail
+
+```
+
+ 
+
+```javascript
+
+// backend/services/sendgrid.js
+
+const sgMail = require('@sendgrid/mail');
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+ 
+
+async function sendEmailViaSendGrid(to, subject, html) {
+
+  const msg = {
+
+    to,
+
+    from: process.env.SENDGRID_FROM,
+
+    subject,
+
+    html,
+
+    trackingSettings: {
+
+      clickTracking: { enable: true },
+
+      openTracking: { enable: true }
+
+    }
+
+  };
+
+ 
+
+  await sgMail.send(msg);
+
+}
+
+ 
+
+// Webhook to receive SendGrid events
+
+router.post('/webhook/sendgrid', async (req, res) => {
+
+  const events = req.body;
+
+ 
+
+  for (const event of events) {
+
+    switch(event.event) {
+
+      case 'open':
+
+        await trackEmailOpen(event.email, event.timestamp);
+
+        break;
+
+      case 'click':
+
+        await trackEmailClick(event.email, event.url);
+
+        break;
+
+      case 'bounce':
+
+        await handleBounce(event.email, event.reason);
+
+        break;
+
+    }
+
+  }
+
+ 
+
+  res.sendStatus(200);
+
+});
+
+```
+
+ 
+
+### Tools to Integrate
+
+- **SendGrid** - Transactional emails with tracking
+
+- **Mailchimp** - Marketing automation
+
+- **Brevo (Sendinblue)** - Email + SMS campaigns
+
+- **Customer.io** - Behavior-based emails
+
+- **Postmark** - High-deliverability transactional emails
+
+ 
+
+---
+
+ 
+
+## 3. WhatsApp Business Automation
+
+ 
+
+### Overview
+
+Automate WhatsApp responses, send bulk messages, and create chatbot flows for customer engagement.
+
+ 
+
+### Market Need
+
+- **98%** open rate on WhatsApp (vs 20% email)
+
+- **45-60%** response rate
+
+- Businesses report **25% higher** conversion with WhatsApp
+
+ 
+
+### Implementation Strategy
+
+ 
+
+#### Step 1: WhatsApp Business API Integration
+
+ 
+
+**Already Implemented in Your CRM:**
+
+- `backend/routes/whatsapp.js` - WhatsApp endpoints
+
+- `src/pages/WhatsApp.tsx` - WhatsApp UI
+
+ 
+
+**Enhancement: Auto-Responder:**
+
+```javascript
+
+// backend/services/whatsappAutomation.js
+
+class WhatsAppAutomation {
+
+  // Auto-reply to new messages
+
+  async handleIncomingMessage(from, message, conversationId) {
+
+    const conversation = await prisma.whatsAppConversation.findUnique({
+
+      where: { id: conversationId },
+
+      include: { contact: true }
+
+    });
+
+ 
+
+    // Check if AI is enabled for this conversation
+
+    if (conversation.aiEnabled) {
+
+      const aiResponse = await this.generateAIResponse(message, conversation);
+
+      await this.sendMessage(from, aiResponse);
+
+      return;
+
+    }
+
+ 
+
+    // Check for keyword-based auto-replies
+
+    const autoReply = await this.matchKeyword(message);
+
+    if (autoReply) {
+
+      await this.sendMessage(from, autoReply.response);
+
+    }
+
+ 
+
+    // Business hours auto-reply
+
+    if (!this.isBusinessHours()) {
+
+      await this.sendMessage(from,
+
+        `Thank you for contacting us! We're currently offline. Our business hours are 9 AM - 6 PM. We'll respond as soon as possible.`
+
+      );
+
+    }
+
+  }
+
+ 
+
+  // Keyword matching
+
+  async matchKeyword(message) {
+
+    const keywords = await prisma.autoReplyKeyword.findMany();
+
+ 
+
+    for (const keyword of keywords) {
+
+      if (message.toLowerCase().includes(keyword.trigger.toLowerCase())) {
+
+        return keyword;
+
+      }
+
+    }
+
+ 
+
+    return null;
+
+  }
+
+ 
+
+  // Bulk WhatsApp campaigns
+
+  async sendBulkCampaign(campaignId) {
+
+    const campaign = await prisma.whatsAppCampaign.findUnique({
+
+      where: { id: campaignId },
+
+      include: { recipients: true }
+
+    });
+
+ 
+
+    for (const recipient of campaign.recipients) {
+
+      const personalizedMessage = this.personalize(
+
+        campaign.messageTemplate,
+
+        recipient
+
+      );
+
+ 
+
+      await this.sendMessage(recipient.phone, personalizedMessage);
+
+ 
+
+      // Rate limiting: 80 messages per second
+
+      await this.delay(13); // ~75 messages/sec to be safe
+
+    }
+
+  }
+
+ 
+
+  // Send template messages (approved by WhatsApp)
+
+  async sendTemplateMessage(to, templateName, parameters) {
+
+    // WhatsApp Business API template message
+
+    const response = await axios.post(
+
+      `${process.env.WHATSAPP_API_URL}/messages`,
+
+      {
+
+        messaging_product: 'whatsapp',
+
+        to,
+
+        type: 'template',
+
+        template: {
+
+          name: templateName,
+
+          language: { code: 'en' },
+
+          components: [
+
+            {
+
+              type: 'body',
+
+              parameters
+
+            }
+
+          ]
+
+        }
+
+      },
+
+      {
+
+        headers: {
+
+          'Authorization': `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
+
+          'Content-Type': 'application/json'
+
+        }
+
+      }
+
+    );
+
+  }
+
+}
+
+ 
+
+// Schema additions for Prisma
+
+/*
+
+model AutoReplyKeyword {
+
+  id        String @id @default(uuid())
+
+  trigger   String
+
+  response  String
+
+  isActive  Boolean @default(true)
+
+}
+
+ 
+
+model WhatsAppCampaign {
+
+  id              String @id @default(uuid())
+
+  name            String
+
+  messageTemplate String
+
+  scheduledFor    DateTime?
+
+  sentAt          DateTime?
+
+  recipients      Contact[]
+
+}
+
+*/
+
+```
+
+ 
+
+#### Step 2: Chatbot Flow Builder
+
+ 
+
+```javascript
+
+// backend/services/chatbotFlow.js
+
+class ChatbotFlow {
+
+  async processFlow(from, message, currentStep) {
+
+    const flow = await prisma.chatbotFlow.findUnique({
+
+      where: { id: currentStep.flowId },
+
+      include: { steps: true }
+
+    });
+
+ 
+
+    // Find next step based on user response
+
+    const nextStep = this.findNextStep(currentStep, message);
+
+ 
+
+    if (nextStep.type === 'question') {
+
+      await this.sendMessage(from, nextStep.message);
+
+      return nextStep;
+
+    }
+
+ 
+
+    if (nextStep.type === 'action') {
+
+      await this.executeAction(nextStep.action, from, message);
+
+    }
+
+ 
+
+    if (nextStep.type === 'end') {
+
+      await this.sendMessage(from, nextStep.message);
+
+      return null; // Flow completed
+
+    }
+
+  }
+
+ 
+
+  findNextStep(currentStep, userResponse) {
+
+    // Match user response to conditions
+
+    for (const condition of currentStep.conditions) {
+
+      if (this.matchesCondition(userResponse, condition)) {
+
+        return condition.nextStep;
+
+      }
+
+    }
+
+ 
+
+    // Default next step
+
+    return currentStep.defaultNextStep;
+
+  }
+
+ 
+
+  async executeAction(action, from, data) {
+
+    switch(action.type) {
+
+      case 'create_lead':
+
+        await this.createLeadFromChat(from, data);
+
+        break;
+
+      case 'schedule_meeting':
+
+        await this.scheduleMeeting(from, data);
+
+        break;
+
+      case 'send_catalog':
+
+        await this.sendCatalog(from);
+
+        break;
+
+    }
+
+  }
+
+}
+
+ 
+
+/*
+
+model ChatbotFlow {
+
+  id    String @id @default(uuid())
+
+  name  String
+
+  steps ChatbotStep[]
+
+}
+
+ 
+
+model ChatbotStep {
+
+  id          String @id @default(uuid())
+
+  flowId      String
+
+  type        String // 'question', 'action', 'end'
+
+  message     String
+
+  conditions  Json
+
+  order       Int
+
+}
+
+*/
+
+```
+
+ 
+
+### Tools to Integrate
+
+- **Twilio WhatsApp API** - WhatsApp Business integration
+
+- **Meta WhatsApp Business API** - Official API
+
+- **Wati.io** - WhatsApp automation platform
+
+- **Interakt** - WhatsApp marketing automation
+
+- **AiSensy** - WhatsApp campaigns
+
+ 
+
+---
+
+ 
+
+## 4. Lead Scoring & Qualification
+
+ 
+
+### Overview
+
+Automatically score leads based on behavior, demographics, and engagement to prioritize sales efforts.
+
+ 
+
+### Market Need
+
+- **79%** of marketing leads never convert (due to poor qualification)
+
+- Lead scoring improves sales productivity by **20%**
+
+- Increases conversion rates by **30%**
+
+ 
+
+### Implementation Strategy
+
+ 
+
+```javascript
+
+// backend/services/leadScoring.js
+
+class LeadScoringEngine {
+
+  async calculateScore(leadId) {
+
+    const lead = await prisma.lead.findUnique({
+
+      where: { id: leadId },
+
+      include: {
+
+        activities: true,
+
+        emailLogs: true,
+
+        whatsappMessages: true
+
+      }
+
+    });
+
+ 
+
+    let score = 0;
+
+ 
+
+    // Demographic scoring
+
+    score += this.scoreDemographics(lead);
+
+ 
+
+    // Behavioral scoring
+
+    score += this.scoreBehavior(lead);
+
+ 
+
+    // Engagement scoring
+
+    score += this.scoreEngagement(lead);
+
+ 
+
+    // Update lead score
+
+    await prisma.lead.update({
+
+      where: { id: leadId },
+
+      data: {
+
+        score,
+
+        scoredAt: new Date(),
+
+        grade: this.assignGrade(score)
+
+      }
+
+    });
+
+ 
+
+    // Auto-qualify if score threshold met
+
+    if (score >= 80 && lead.status === 'new') {
+
+      await this.autoQualifyLead(leadId);
+
+    }
+
+ 
+
+    return score;
+
+  }
+
+ 
+
+  scoreDemographics(lead) {
+
+    let points = 0;
+
+ 
+
+    // Company size
+
+    if (lead.companySize === 'enterprise') points += 20;
+
+    else if (lead.companySize === 'mid-market') points += 15;
+
+    else if (lead.companySize === 'smb') points += 10;
+
+ 
+
+    // Industry fit
+
+    const targetIndustries = ['technology', 'finance', 'healthcare'];
+
+    if (targetIndustries.includes(lead.industry)) points += 15;
+
+ 
+
+    // Job title
+
+    const decisionMakers = ['CEO', 'CTO', 'VP', 'Director', 'Head'];
+
+    if (decisionMakers.some(title => lead.jobTitle?.includes(title))) {
+
+      points += 15;
+
+    }
+
+ 
+
+    // Budget indication
+
+    if (lead.budget === 'high') points += 20;
+
+    else if (lead.budget === 'medium') points += 10;
+
+ 
+
+    return points;
+
+  }
+
+ 
+
+  scoreBehavior(lead) {
+
+    let points = 0;
+
+ 
+
+    // Website visits
+
+    points += Math.min(lead.activities.filter(a => a.type === 'website_visit').length * 2, 10);
+
+ 
+
+    // Page views
+
+    const pricingPageViews = lead.activities.filter(a =>
+
+      a.type === 'page_view' && a.page === 'pricing'
+
+    ).length;
+
+    points += pricingPageViews * 5;
+
+ 
+
+    // Form submissions
+
+    points += lead.activities.filter(a => a.type === 'form_submit').length * 10;
+
+ 
+
+    // Content downloads
+
+    points += lead.activities.filter(a => a.type === 'download').length * 8;
+
+ 
+
+    return points;
+
+  }
+
+ 
+
+  scoreEngagement(lead) {
+
+    let points = 0;
+
+ 
+
+    // Email engagement
+
+    const emailOpens = lead.emailLogs.filter(e => e.opened).length;
+
+    const emailClicks = lead.emailLogs.filter(e => e.clicked).length;
+
+    points += emailOpens * 2;
+
+    points += emailClicks * 5;
+
+ 
+
+    // WhatsApp engagement
+
+    const whatsappReplies = lead.whatsappMessages.filter(m =>
+
+      m.sender === 'contact'
+
+    ).length;
+
+    points += whatsappReplies * 3;
+
+ 
+
+    // Response time (faster = hotter lead)
+
+    const avgResponseTime = this.calculateAvgResponseTime(lead);
+
+    if (avgResponseTime < 3600) points += 10; // < 1 hour
+
+    else if (avgResponseTime < 86400) points += 5; // < 24 hours
+
+ 
+
+    return points;
+
+  }
+
+ 
+
+  assignGrade(score) {
+
+    if (score >= 80) return 'A'; // Hot lead
+
+    if (score >= 60) return 'B'; // Warm lead
+
+    if (score >= 40) return 'C'; // Cold lead
+
+    return 'D'; // Very cold lead
+
+  }
+
+ 
+
+  async autoQualifyLead(leadId) {
+
+    await prisma.lead.update({
+
+      where: { id: leadId },
+
+      data: {
+
+        status: 'qualified',
+
+        qualifiedAt: new Date()
+
+      }
+
+    });
+
+ 
+
+    // Create deal automatically
+
+    await prisma.deal.create({
+
+      data: {
+
+        leadId,
+
+        stage: 'qualified',
+
+        value: 0,
+
+        probability: 25
+
+      }
+
+    });
+
+ 
+
+    // Notify sales team
+
+    await this.notifySalesTeam(leadId, 'hot_lead');
+
+  }
+
+}
+
+ 
+
+// Run scoring on schedule
+
+cron.schedule('0 */4 * * *', async () => {
+
+  const leads = await prisma.lead.findMany({
+
+    where: { status: { in: ['new', 'contacted'] } }
+
+  });
+
+ 
+
+  for (const lead of leads) {
+
+    await leadScoringEngine.calculateScore(lead.id);
+
+  }
+
+});
+
+ 
+
+/*
+
+// Add to Lead model in Prisma
+
+model Lead {
+
+  score       Int?
+
+  grade       String? // 'A', 'B', 'C', 'D'
+
+  scoredAt    DateTime?
+
+  activities  Activity[]
+
+}
+
+ 
+
+model Activity {
+
+  id        String @id @default(uuid())
+
+  leadId    String
+
+  type      String // 'website_visit', 'page_view', 'form_submit', 'download'
+
+  page      String?
+
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+}
+
+*/
+
+```
+
+ 
+
+### Tools to Integrate
+
+- **Segment** - Customer data platform for tracking
+
+- **Mixpanel** - Product analytics
+
+- **Google Analytics** - Website behavior tracking
+
+- **Hotjar** - User behavior insights
+
+- **Clearbit** - Company data enrichment
+
+ 
+
+---
+
+ 
+
+## 5. Follow-up Reminders & Task Automation
+
+ 
+
+### Overview
+
+Automatically create and assign follow-up tasks based on lead activity, time since last contact, or deal stage.
+
+ 
+
+### Market Need
+
+- **48%** of salespeople never make follow-up attempts
+
+- **80%** of sales require 5+ follow-ups
+
+- Timely follow-ups increase conversion by **70%**
+
+ 
+
+### Implementation Strategy
+
+ 
+
+```javascript
+
+// backend/services/taskAutomation.js
+
+class TaskAutomationService {
+
+  // Auto-create tasks based on triggers
+
+  async createAutomatedTask(trigger, entityId, entityType) {
+
+    const automation = await prisma.taskAutomation.findFirst({
+
+      where: { trigger, isActive: true }
+
+    });
+
+ 
+
+    if (!automation) return;
+
+ 
+
+    const assignee = await this.determineAssignee(entityId, entityType);
+
+ 
+
+    const task = await prisma.task.create({
+
+      data: {
+
+        title: this.personalize(automation.taskTemplate.title, entityId),
+
+        description: this.personalize(automation.taskTemplate.description, entityId),
+
+        dueDate: this.calculateDueDate(automation.delay),
+
+        priority: automation.priority,
+
+        assignedToId: assignee.id,
+
+        entityId,
+
+        entityType,
+
+        status: 'pending'
+
+      }
+
+    });
+
+ 
+
+    // Send notification
+
+    await this.notifyAssignee(assignee.id, task);
+
+ 
+
+    return task;
+
+  }
+
+ 
+
+  // Monitor stale leads and create follow-up tasks
+
+  async monitorStaleLeads() {
+
+    const threeDaysAgo = new Date();
+
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+ 
+
+    const staleLeads = await prisma.lead.findMany({
+
+      where: {
+
+        status: 'contacted',
+
+        lastContactedAt: { lt: threeDaysAgo },
+
+        assignedToId: { not: null }
+
+      }
+
+    });
+
+ 
+
+    for (const lead of staleLeads) {
+
+      // Check if task already exists
+
+      const existingTask = await prisma.task.findFirst({
+
+        where: {
+
+          entityId: lead.id,
+
+          entityType: 'lead',
+
+          status: { in: ['pending', 'in_progress'] },
+
+          type: 'follow_up'
+
+        }
+
+      });
+
+ 
+
+      if (!existingTask) {
+
+        await prisma.task.create({
+
+          data: {
+
+            title: `Follow up with ${lead.name}`,
+
+            description: `It's been 3 days since last contact. Reach out to keep the conversation going.`,
+
+            dueDate: new Date(),
+
+            priority: 'high',
+
+            assignedToId: lead.assignedToId,
+
+            entityId: lead.id,
+
+            entityType: 'lead',
+
+            type: 'follow_up',
+
+            status: 'pending'
+
+          }
+
+        });
+
+      }
+
+    }
+
+  }
+
+ 
+
+  // Recurring task automation
+
+  async createRecurringTasks() {
+
+    const automations = await prisma.recurringTaskAutomation.findMany({
+
+      where: { isActive: true }
+
+    });
+
+ 
+
+    for (const automation of automations) {
+
+      const lastRun = automation.lastRunAt;
+
+      const shouldRun = this.shouldRunRecurring(
+
+        automation.frequency,
+
+        lastRun
+
+      );
+
+ 
+
+      if (shouldRun) {
+
+        await this.executeRecurringAutomation(automation);
+
+        await prisma.recurringTaskAutomation.update({
+
+          where: { id: automation.id },
+
+          data: { lastRunAt: new Date() }
+
+        });
+
+      }
+
+    }
+
+  }
+
+ 
+
+  // Deal stage change automation
+
+  async onDealStageChange(dealId, oldStage, newStage) {
+
+    const stageTasks = {
+
+      'qualified': [
+
+        { title: 'Send pricing proposal', delay: 0, priority: 'high' },
+
+        { title: 'Schedule demo call', delay: 1, priority: 'high' }
+
+      ],
+
+      'proposal': [
+
+        { title: 'Follow up on proposal', delay: 2, priority: 'medium' },
+
+        { title: 'Address objections', delay: 3, priority: 'medium' }
+
+      ],
+
+      'negotiation': [
+
+        { title: 'Prepare contract', delay: 0, priority: 'high' },
+
+        { title: 'Schedule closing call', delay: 1, priority: 'high' }
+
+      ]
+
+    };
+
+ 
+
+    const tasks = stageTasks[newStage] || [];
+
+ 
+
+    for (const taskTemplate of tasks) {
+
+      const dueDate = new Date();
+
+      dueDate.setDate(dueDate.getDate() + taskTemplate.delay);
+
+ 
+
+      await prisma.task.create({
+
+        data: {
+
+          title: taskTemplate.title,
+
+          dueDate,
+
+          priority: taskTemplate.priority,
+
+          entityId: dealId,
+
+          entityType: 'deal',
+
+          status: 'pending'
+
+        }
+
+      });
+
+    }
+
+  }
+
+}
+
+ 
+
+// Scheduled jobs
+
+cron.schedule('0 9 * * *', async () => {
+
+  await taskAutomationService.monitorStaleLeads();
+
+  await taskAutomationService.createRecurringTasks();
+
+});
+
+ 
+
+/*
+
+model TaskAutomation {
+
+  id           String @id @default(uuid())
+
+  name         String
+
+  trigger      String // 'lead_created', 'no_activity_3days', 'deal_stage_change'
+
+  taskTemplate Json
+
+  delay        Int // Days to wait
+
+  priority     String
+
+  isActive     Boolean @default(true)
+
+}
+
+ 
+
+model RecurringTaskAutomation {
+
+  id          String @id @default(uuid())
+
+  name        String
+
+  frequency   String // 'daily', 'weekly', 'monthly'
+
+  taskTemplate Json
+
+  isActive    Boolean @default(true)
+
+  lastRunAt   DateTime?
+
+}
+
+*/
+
+```
+
+ 
+
+### Tools to Integrate
+
+- **Asana** - Task management
+
+- **Trello** - Kanban-style task tracking
+
+- **Monday.com** - Work management platform
+
+- **ClickUp** - All-in-one productivity
+
+- **Google Calendar** - Meeting scheduling
+
+ 
+
+---
+
+ 
+
+## 6. Deal Pipeline Automation
+
+ 
+
+### Overview
+
+Automatically move deals through pipeline stages based on activities, time elapsed, or deal value.
+
+ 
+
+### Market Need
+
+- Sales teams spend **21%** of their time on manual data entry
+
+- **65%** of deals are lost due to poor follow-up
+
+- Pipeline automation increases close rates by **28%**
+
+ 
+
+### Implementation Strategy
+
+ 
+
+```javascript
+
+// backend/services/pipelineAutomation.js
+
+class PipelineAutomationService {
+
+  // Auto-advance deals based on activities
+
+  async checkDealProgression(dealId) {
+
+    const deal = await prisma.deal.findUnique({
+
+      where: { id: dealId },
+
+      include: {
+
+        activities: { orderBy: { createdAt: 'desc' } },
+
+        tasks: true
+
+      }
+
+    });
+
+ 
+
+    const rules = await this.getAdvancementRules(deal.stage);
+
+ 
+
+    for (const rule of rules) {
+
+      if (await this.meetsConditions(deal, rule.conditions)) {
+
+        await this.advanceDeal(dealId, rule.nextStage);
+
+        break;
+
+      }
+
+    }
+
+  }
+
+ 
+
+  async meetsConditions(deal, conditions) {
+
+    for (const condition of conditions) {
+
+      switch(condition.type) {
+
+        case 'task_completed':
+
+          const taskCompleted = deal.tasks.some(t =>
+
+            t.title.includes(condition.taskName) && t.status === 'completed'
+
+          );
+
+          if (!taskCompleted) return false;
+
+          break;
+
+ 
+
+        case 'email_sent':
+
+          const emailSent = deal.activities.some(a =>
+
+            a.type === 'email_sent' && a.subject?.includes(condition.emailType)
+
+          );
+
+          if (!emailSent) return false;
+
+          break;
+
+ 
+
+        case 'minimum_value':
+
+          if (deal.value < condition.value) return false;
+
+          break;
+
+ 
+
+        case 'time_in_stage':
+
+          const daysInStage = this.getDaysInStage(deal);
+
+          if (daysInStage < condition.days) return false;
+
+          break;
+
+      }
+
+    }
+
+ 
+
+    return true;
+
+  }
+
+ 
+
+  async advanceDeal(dealId, newStage) {
+
+    const deal = await prisma.deal.update({
+
+      where: { id: dealId },
+
+      data: {
+
+        stage: newStage,
+
+        lastStageChangeAt: new Date()
+
+      }
+
+    });
+
+ 
+
+    // Update probability based on stage
+
+    const probability = this.getStageProbability(newStage);
+
+    await prisma.deal.update({
+
+      where: { id: dealId },
+
+      data: { probability }
+
+    });
+
+ 
+
+    // Trigger stage-specific automations
+
+    await this.triggerStageAutomations(dealId, newStage);
+
+ 
+
+    // Send notification
+
+    await this.notifyTeam(dealId, newStage);
+
+  }
+
+ 
+
+  getStageProbability(stage) {
+
+    const probabilities = {
+
+      'lead': 10,
+
+      'qualified': 25,
+
+      'proposal': 50,
+
+      'negotiation': 75,
+
+      'closed-won': 100,
+
+      'closed-lost': 0
+
+    };
+
+    return probabilities[stage] || 25;
+
+  }
+
+ 
+
+  // Auto-disqualify stale deals
+
+  async disqualifyStaleDeals() {
+
+    const thirtyDaysAgo = new Date();
+
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+ 
+
+    const staleDeals = await prisma.deal.findMany({
+
+      where: {
+
+        stage: { in: ['lead', 'qualified'] },
+
+        lastActivityAt: { lt: thirtyDaysAgo },
+
+        status: 'active'
+
+      }
+
+    });
+
+ 
+
+    for (const deal of staleDeals) {
+
+      await prisma.deal.update({
+
+        where: { id: deal.id },
+
+        data: {
+
+          stage: 'closed-lost',
+
+          lostReason: 'No activity for 30 days',
+
+          closedAt: new Date()
+
+        }
+
+      });
+
+    }
+
+  }
+
+ 
+
+  // Win probability prediction using ML
+
+  async predictWinProbability(dealId) {
+
+    const deal = await prisma.deal.findUnique({
+
+      where: { id: dealId },
+
+      include: {
+
+        lead: true,
+
+        activities: true,
+
+        tasks: true
+
+      }
+
+    });
+
+ 
+
+    // Simple scoring algorithm (can be replaced with ML model)
+
+    let probability = 0;
+
+ 
+
+    // Lead score influence
+
+    probability += (deal.lead?.score || 0) * 0.3;
+
+ 
+
+    // Engagement level
+
+    const activityCount = deal.activities.length;
+
+    probability += Math.min(activityCount * 2, 20);
+
+ 
+
+    // Deal value (higher value = more serious)
+
+    if (deal.value > 100000) probability += 15;
+
+    else if (deal.value > 50000) probability += 10;
+
+    else if (deal.value > 10000) probability += 5;
+
+ 
+
+    // Time in pipeline (too long = less likely)
+
+    const daysInPipeline = this.getDaysInPipeline(deal);
+
+    if (daysInPipeline < 30) probability += 10;
+
+    else if (daysInPipeline > 90) probability -= 15;
+
+ 
+
+    // Task completion rate
+
+    const completedTasks = deal.tasks.filter(t => t.status === 'completed').length;
+
+    const totalTasks = deal.tasks.length;
+
+    const completionRate = totalTasks > 0 ? completedTasks / totalTasks : 0;
+
+    probability += completionRate * 15;
+
+ 
+
+    // Cap at 95% (never 100% certain)
+
+    probability = Math.min(probability, 95);
+
+ 
+
+    await prisma.deal.update({
+
+      where: { id: dealId },
+
+      data: { probability: Math.round(probability) }
+
+    });
+
+ 
+
+    return probability;
+
+  }
+
+}
+
+ 
+
+/*
+
+model DealAdvancementRule {
+
+  id         String @id @default(uuid())
+
+  stage      String
+
+  nextStage  String
+
+  conditions Json
+
+  isActive   Boolean @default(true)
+
+}
+
+*/
+
+```
+
+ 
+
+### Tools to Integrate
+
+- **Salesforce** - Enterprise CRM integration
+
+- **HubSpot** - Marketing + Sales CRM
+
+- **Pipedrive** - Sales pipeline CRM
+
+- **Close.com** - Inside sales CRM
+
+ 
+
+---
+
+ 
+
+## 7. AI-Powered Response Generation
+
+ 
+
+### Overview
+
+Use AI to automatically generate personalized responses to emails, WhatsApp messages, and inquiries.
+
+ 
+
+### Market Need
+
+- **40%** of customer inquiries are repetitive
+
+- AI responses reduce response time by **80%**
+
+- **24/7** availability increases customer satisfaction
+
+ 
+
+### Implementation Strategy
+
+ 
+
+**Already Partially Implemented:**
+
+- `backend/routes/ai.js` - AI assistant endpoints
+
+- `src/pages/AIAssistant.tsx` - AI assistant UI
+
+ 
+
+**Enhancement: Context-Aware Responses:**
+
+ 
+
+```javascript
+
+// backend/services/aiResponseGenerator.js
+
+const { OpenAI } = require('openai');
+
+ 
+
+class AIResponseGenerator {
+
+  constructor() {
+
+    this.openai = new OpenAI({
+
+      apiKey: process.env.OPENAI_API_KEY
+
+    });
+
+  }
+
+ 
+
+  // Generate email response
+
+  async generateEmailResponse(inquiry, context) {
+
+    const prompt = `
+
+You are a professional sales representative. Generate a helpful and friendly email response.
+
+ 
+
+Customer Inquiry: ${inquiry.message}
+
+ 
+
+Context:
+
+- Customer Name: ${context.customerName}
+
+- Company: ${context.company}
+
+- Previous Interactions: ${context.previousInteractions}
+
+- Product Interest: ${context.productInterest}
+
+- Lead Score: ${context.leadScore}
+
+ 
+
+Generate a professional, personalized email response that:
+
+1. Addresses the customer by name
+
+2. Answers their question thoroughly
+
+3. Provides relevant information about our products/services
+
+4. Includes a clear call-to-action
+
+5. Maintains a friendly, professional tone
+
+ 
+
+Email Response:`;
+
+ 
+
+    const response = await this.openai.chat.completions.create({
+
+      model: 'gpt-4',
+
+      messages: [{ role: 'user', content: prompt }],
+
+      temperature: 0.7,
+
+      max_tokens: 500
+
+    });
+
+ 
+
+    return response.choices[0].message.content;
+
+  }
+
+ 
+
+  // Generate WhatsApp response
+
+  async generateWhatsAppResponse(message, conversationHistory) {
+
+    const prompt = `
+
+You are a friendly customer service chatbot for WhatsApp. Generate a concise, helpful response.
+
+ 
+
+Conversation History:
+
+${conversationHistory.map(m => `${m.sender}: ${m.message}`).join('\n')}
+
+ 
+
+Latest Message: ${message}
+
+ 
+
+Generate a brief, friendly WhatsApp response (max 2-3 sentences) that:
+
+1. Answers the question
+
+2. Is conversational and warm
+
+3. Uses emojis sparingly
+
+4. Asks a follow-up question if appropriate
+
+ 
+
+Response:`;
+
+ 
+
+    const response = await this.openai.chat.completions.create({
+
+      model: 'gpt-3.5-turbo',
+
+      messages: [{ role: 'user', content: prompt }],
+
+      temperature: 0.8,
+
+      max_tokens: 150
+
+    });
+
+ 
+
+    return response.choices[0].message.content;
+
+  }
+
+ 
+
+  // Sentiment analysis
+
+  async analyzeSentiment(message) {
+
+    const response = await this.openai.chat.completions.create({
+
+      model: 'gpt-3.5-turbo',
+
+      messages: [{
+
+        role: 'user',
+
+        content: `Analyze the sentiment of this message and classify as positive, negative, or neutral. Also provide a brief explanation.
+
+ 
+
+Message: ${message}
+
+ 
+
+Response format: {"sentiment": "positive/negative/neutral", "explanation": "brief explanation"}`
+
+      }],
+
+      temperature: 0.3
+
+    });
+
+ 
+
+    return JSON.parse(response.choices[0].message.content);
+
+  }
+
+ 
+
+  // Intent detection
+
+  async detectIntent(message) {
+
+    const intents = [
+
+      'pricing_inquiry',
+
+      'feature_question',
+
+      'support_request',
+
+      'demo_request',
+
+      'complaint',
+
+      'general_inquiry'
+
+    ];
+
+ 
+
+    const response = await this.openai.chat.completions.create({
+
+      model: 'gpt-3.5-turbo',
+
+      messages: [{
+
+        role: 'user',
+
+        content: `Classify the following customer message into one of these intents: ${intents.join(', ')}
+
+ 
+
+Message: ${message}
+
+ 
+
+Respond with only the intent name.`
+
+      }],
+
+      temperature: 0.2
+
+    });
+
+ 
+
+    return response.choices[0].message.content.trim();
+
+  }
+
+ 
+
+  // Auto-generate meeting summaries
+
+  async generateMeetingSummary(transcript) {
+
+    const response = await this.openai.chat.completions.create({
+
+      model: 'gpt-4',
+
+      messages: [{
+
+        role: 'user',
+
+        content: `Summarize this sales meeting transcript. Include:
+
+1. Key discussion points
+
+2. Customer pain points
+
+3. Product features discussed
+
+4. Next steps
+
+5. Action items
+
+ 
+
+Transcript: ${transcript}
+
+ 
+
+Summary:`
+
+      }],
+
+      temperature: 0.5,
+
+      max_tokens: 500
+
+    });
+
+ 
+
+    return response.choices[0].message.content;
+
+  }
+
+}
+
+ 
+
+// Integration with WhatsApp
+
+router.post('/whatsapp/ai-reply', async (req, res) => {
+
+  const { conversationId, message } = req.body;
+
+ 
+
+  // Get conversation history
+
+  const conversation = await prisma.whatsAppConversation.findUnique({
+
+    where: { id: conversationId },
+
+    include: { messages: { take: 10, orderBy: { createdAt: 'desc' } } }
+
+  });
+
+ 
+
+  // Generate AI response
+
+  const aiResponse = await aiResponseGenerator.generateWhatsAppResponse(
+
+    message,
+
+    conversation.messages
+
+  );
+
+ 
+
+  // Send response
+
+  await whatsappService.sendMessage(
+
+    conversation.contactPhone,
+
+    aiResponse
+
+  );
+
+ 
+
+  res.json({ success: true, response: aiResponse });
+
+});
+
+```
+
+ 
+
+### Tools to Integrate
+
+- **OpenAI GPT-4** - Advanced language model
+
+- **Anthropic Claude** - AI assistant
+
+- **Google Gemini** - Multimodal AI
+
+- **Cohere** - Enterprise AI platform
+
+- **Hugging Face** - Open-source AI models
+
+ 
+
+---
+
+ 
+
+## 8. Document & Proposal Automation
+
+ 
+
+### Overview
+
+Automatically generate proposals, contracts, and invoices with pre-filled data from CRM.
+
+ 
+
+### Market Need
+
+- Sales teams spend **17%** of time on proposal creation
+
+- Document automation saves **5-8 hours** per week per rep
+
+- Faster proposals increase win rates by **15%**
+
+ 
+
+### Implementation Strategy
+
+ 
+
+```javascript
+
+// backend/services/documentAutomation.js
+
+const PDFDocument = require('pdfkit');
+
+const Docxtemplater = require('docxtemplater');
+
+const PizZip = require('pizzip');
+
+const fs = require('fs');
+
+ 
+
+class DocumentAutomationService {
+
+  // Generate proposal from template
+
+  async generateProposal(dealId, templateId) {
+
+    const deal = await prisma.deal.findUnique({
+
+      where: { id: dealId },
+
+      include: {
+
+        lead: { include: { contact: true } },
+
+        products: true
+
+      }
+
+    });
+
+ 
+
+    const template = await prisma.proposalTemplate.findUnique({
+
+      where: { id: templateId }
+
+    });
+
+ 
+
+    // Load template
+
+    const content = fs.readFileSync(template.filePath, 'binary');
+
+    const zip = new PizZip(content);
+
+    const doc = new Docxtemplater(zip);
+
+ 
+
+    // Fill template with data
+
+    doc.setData({
+
+      customerName: deal.lead.name,
+
+      companyName: deal.lead.company,
+
+      email: deal.lead.email,
+
+      phone: deal.lead.phone,
+
+      date: new Date().toLocaleDateString(),
+
+      proposalNumber: `PROP-${Date.now()}`,
+
+      products: deal.products.map(p => ({
+
+        name: p.name,
+
+        description: p.description,
+
+        price: p.price,
+
+        quantity: p.quantity,
+
+        total: p.price * p.quantity
+
+      })),
+
+      subtotal: deal.value,
+
+      tax: deal.value * 0.18,
+
+      total: deal.value * 1.18,
+
+      validUntil: this.getValidUntilDate(30)
+
+    });
+
+ 
+
+    doc.render();
+
+ 
+
+    const buf = doc.getZip().generate({ type: 'nodebuffer' });
+
+ 
+
+    // Save to storage
+
+    const fileName = `proposal-${dealId}-${Date.now()}.docx`;
+
+    const filePath = `./storage/proposals/${fileName}`;
+
+    fs.writeFileSync(filePath, buf);
+
+ 
+
+    // Create document record
+
+    const document = await prisma.document.create({
+
+      data: {
+
+        name: `Proposal for ${deal.lead.name}`,
+
+        type: 'proposal',
+
+        filePath,
+
+        entityId: dealId,
+
+        entityType: 'deal',
+
+        createdById: deal.assignedToId
+
+      }
+
+    });
+
+ 
+
+    return document;
+
+  }
+
+ 
+
+  // Generate invoice (enhanced version)
+
+  async generateInvoice(dealId) {
+
+    const deal = await prisma.deal.findUnique({
+
+      where: { id: dealId },
+
+      include: {
+
+        lead: { include: { contact: true } },
+
+        products: true
+
+      }
+
+    });
+
+ 
+
+    // Create PDF invoice
+
+    const doc = new PDFDocument({ margin: 50 });
+
+    const fileName = `invoice-${dealId}-${Date.now()}.pdf`;
+
+    const stream = fs.createWriteStream(`./storage/invoices/${fileName}`);
+
+ 
+
+    doc.pipe(stream);
+
+ 
+
+    // Header
+
+    doc.fontSize(20).text('INVOICE', 50, 50);
+
+    doc.fontSize(10).text(`Invoice #: INV-${Date.now()}`, 50, 80);
+
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 50, 95);
+
+    doc.text(`Due Date: ${this.getDueDate(30)}`, 50, 110);
+
+ 
+
+    // Company info
+
+    doc.fontSize(12).text('Your Company Name', 350, 50);
+
+    doc.fontSize(10).text('123 Business Street', 350, 70);
+
+    doc.text('City, State 12345', 350, 85);
+
+    doc.text('GST: 12ABCDE3456F7Z8', 350, 100);
+
+ 
+
+    // Customer info
+
+    doc.fontSize(12).text('Bill To:', 50, 150);
+
+    doc.fontSize(10).text(deal.lead.name, 50, 170);
+
+    doc.text(deal.lead.company || '', 50, 185);
+
+    doc.text(deal.lead.email, 50, 200);
+
+ 
+
+    // Line items table
+
+    const tableTop = 250;
+
+    doc.fontSize(10)
+
+      .text('Item', 50, tableTop)
+
+      .text('Quantity', 250, tableTop)
+
+      .text('Price', 350, tableTop)
+
+      .text('Amount', 450, tableTop);
+
+ 
+
+    let y = tableTop + 20;
+
+ 
+
+    deal.products.forEach(product => {
+
+      doc.text(product.name, 50, y)
+
+        .text(product.quantity.toString(), 250, y)
+
+        .text(`₹${product.price}`, 350, y)
+
+        .text(`₹${product.price * product.quantity}`, 450, y);
+
+      y += 20;
+
+    });
+
+ 
+
+    // Totals
+
+    y += 20;
+
+    const subtotal = deal.value;
+
+    const tax = subtotal * 0.18;
+
+    const total = subtotal + tax;
+
+ 
+
+    doc.text('Subtotal:', 350, y)
+
+      .text(`₹${subtotal.toFixed(2)}`, 450, y);
+
+    y += 20;
+
+    doc.text('GST (18%):', 350, y)
+
+      .text(`₹${tax.toFixed(2)}`, 450, y);
+
+    y += 20;
+
+    doc.fontSize(12).text('Total:', 350, y)
+
+      .text(`₹${total.toFixed(2)}`, 450, y);
+
+ 
+
+    // Payment terms
+
+    y += 40;
+
+    doc.fontSize(10).text('Payment Terms: Net 30 days', 50, y);
+
+    doc.text('Bank Details:', 50, y + 20);
+
+    doc.text('Account Name: Your Company', 50, y + 35);
+
+    doc.text('Account Number: 1234567890', 50, y + 50);
+
+    doc.text('IFSC Code: ABCD0123456', 50, y + 65);
+
+ 
+
+    doc.end();
+
+ 
+
+    return new Promise((resolve) => {
+
+      stream.on('finish', async () => {
+
+        const document = await prisma.document.create({
+
+          data: {
+
+            name: `Invoice for ${deal.lead.name}`,
+
+            type: 'invoice',
+
+            filePath: `./storage/invoices/${fileName}`,
+
+            entityId: dealId,
+
+            entityType: 'deal'
+
+          }
+
+        });
+
+        resolve(document);
+
+      });
+
+    });
+
+  }
+
+ 
+
+  // E-signature integration
+
+  async sendForSignature(documentId, signers) {
+
+    const document = await prisma.document.findUnique({
+
+      where: { id: documentId }
+
+    });
+
+ 
+
+    // Integration with DocuSign/HelloSign
+
+    const envelope = await this.docusignService.createEnvelope({
+
+      documents: [{
+
+        documentBase64: fs.readFileSync(document.filePath).toString('base64'),
+
+        name: document.name,
+
+        fileExtension: 'pdf',
+
+        documentId: '1'
+
+      }],
+
+      recipients: {
+
+        signers: signers.map((signer, index) => ({
+
+          email: signer.email,
+
+          name: signer.name,
+
+          recipientId: (index + 1).toString(),
+
+          routingOrder: (index + 1).toString()
+
+        }))
+
+      },
+
+      status: 'sent'
+
+    });
+
+ 
+
+    await prisma.document.update({
+
+      where: { id: documentId },
+
+      data: {
+
+        signatureEnvelopeId: envelope.envelopeId,
+
+        status: 'pending_signature'
+
+      }
+
+    });
+
+ 
+
+    return envelope;
+
+  }
+
+}
+
+ 
+
+/*
+
+model ProposalTemplate {
+
+  id       String @id @default(uuid())
+
+  name     String
+
+  filePath String
+
+  fields   Json // Template variables
+
+}
+
+ 
+
+model Document {
+
+  id                    String @id @default(uuid())
+
+  name                  String
+
+  type                  String // 'proposal', 'contract', 'invoice'
+
+  filePath              String
+
+  entityId              String
+
+  entityType            String
+
+  signatureEnvelopeId   String?
+
+  status                String @default('draft') // 'draft', 'pending_signature', 'signed'
+
+  createdAt             DateTime @default(now())
+
+}
+
+*/
+
+```
+
+ 
+
+### Tools to Integrate
+
+- **DocuSign** - E-signature platform
+
+- **HelloSign** - Simple e-signatures
+
+- **PandaDoc** - Document automation + signatures
+
+- **Proposify** - Proposal software
+
+- **WebMerge** - Document generation
+
+ 
+
+---
+
+ 
+
+## 9. Analytics & Reporting Automation
+
+ 
+
+### Overview
+
+Automatically generate and distribute reports on sales performance, pipeline health, and team productivity.
+
+ 
+
+**Already Implemented:**
+
+- `src/pages/Reports.tsx` - Reports dashboard
+
+- `src/lib/htmlReportUtils.ts` - HTML report export
+
+ 
+
+### Enhancement Strategy
+
+ 
+
+```javascript
+
+// backend/services/reportAutomation.js
+
+class ReportAutomationService {
+
+  // Schedule automated reports
+
+  async scheduleReport(config) {
+
+    const schedule = await prisma.reportSchedule.create({
+
+      data: {
+
+        name: config.name,
+
+        reportType: config.reportType,
+
+        frequency: config.frequency, // 'daily', 'weekly', 'monthly'
+
+        recipients: config.recipients,
+
+        filters: config.filters,
+
+        isActive: true
+
+      }
+
+    });
+
+ 
+
+    return schedule;
+
+  }
+
+ 
+
+  // Generate and send reports
+
+  async generateScheduledReports() {
+
+    const schedules = await prisma.reportSchedule.findMany({
+
+      where: { isActive: true }
+
+    });
+
+ 
+
+    for (const schedule of schedules) {
+
+      if (this.shouldRunReport(schedule)) {
+
+        await this.generateAndSendReport(schedule);
+
+      }
+
+    }
+
+  }
+
+ 
+
+  async generateAndSendReport(schedule) {
+
+    let reportData;
+
+ 
+
+    switch(schedule.reportType) {
+
+      case 'sales_performance':
+
+        reportData = await this.generateSalesReport(schedule.filters);
+
+        break;
+
+      case 'pipeline_health':
+
+        reportData = await this.generatePipelineReport(schedule.filters);
+
+        break;
+
+      case 'team_productivity':
+
+        reportData = await this.generateProductivityReport(schedule.filters);
+
+        break;
+
+      case 'lead_conversion':
+
+        reportData = await this.generateConversionReport(schedule.filters);
+
+        break;
+
+    }
+
+ 
+
+    // Generate PDF
+
+    const pdfBuffer = await this.createPDFReport(reportData);
+
+ 
+
+    // Send email to recipients
+
+    for (const recipient of schedule.recipients) {
+
+      await this.sendReportEmail(recipient, {
+
+        subject: `${schedule.name} - ${new Date().toLocaleDateString()}`,
+
+        pdfBuffer,
+
+        data: reportData
+
+      });
+
+    }
+
+  }
+
+ 
+
+  async generateSalesReport(filters) {
+
+    const { startDate, endDate, teamId } = filters;
+
+ 
+
+    // Revenue metrics
+
+    const wonDeals = await prisma.deal.findMany({
+
+      where: {
+
+        stage: 'closed-won',
+
+        closedAt: { gte: startDate, lte: endDate },
+
+        ...(teamId && { assignedTo: { teamId } })
+
+      }
+
+    });
+
+ 
+
+    const totalRevenue = wonDeals.reduce((sum, d) => sum + d.value, 0);
+
+    const avgDealSize = totalRevenue / wonDeals.length || 0;
+
+ 
+
+    // Win rate
+
+    const totalDeals = await prisma.deal.count({
+
+      where: {
+
+        closedAt: { gte: startDate, lte: endDate },
+
+        stage: { in: ['closed-won', 'closed-lost'] }
+
+      }
+
+    });
+
+ 
+
+    const winRate = (wonDeals.length / totalDeals) * 100 || 0;
+
+ 
+
+    // Top performers
+
+    const performerStats = await prisma.deal.groupBy({
+
+      by: ['assignedToId'],
+
+      where: {
+
+        stage: 'closed-won',
+
+        closedAt: { gte: startDate, lte: endDate }
+
+      },
+
+      _sum: { value: true },
+
+      _count: true
+
+    });
+
+ 
+
+    const topPerformers = await Promise.all(
+
+      performerStats
+
+        .sort((a, b) => b._sum.value - a._sum.value)
+
+        .slice(0, 5)
+
+        .map(async stat => {
+
+          const user = await prisma.user.findUnique({
+
+            where: { id: stat.assignedToId }
+
+          });
+
+          return {
+
+            name: user.name,
+
+            revenue: stat._sum.value,
+
+            deals: stat._count
+
+          };
+
+        })
+
+    );
+
+ 
+
+    return {
+
+      period: { startDate, endDate },
+
+      metrics: {
+
+        totalRevenue,
+
+        dealsWon: wonDeals.length,
+
+        avgDealSize,
+
+        winRate
+
+      },
+
+      topPerformers,
+
+      chartData: await this.getRevenueChartData(startDate, endDate)
+
+    };
+
+  }
+
+ 
+
+  async generatePipelineReport(filters) {
+
+    const pipelineData = await prisma.deal.groupBy({
+
+      by: ['stage'],
+
+      where: { status: 'active' },
+
+      _count: true,
+
+      _sum: { value: true }
+
+    });
+
+ 
+
+    const stages = ['lead', 'qualified', 'proposal', 'negotiation'];
+
+ 
+
+    return {
+
+      stages: stages.map(stage => {
+
+        const stageData = pipelineData.find(p => p.stage === stage);
+
+        return {
+
+          stage,
+
+          count: stageData?._count || 0,
+
+          value: stageData?._sum.value || 0
+
+        };
+
+      }),
+
+      totalPipelineValue: pipelineData.reduce((sum, s) => sum + (s._sum.value || 0), 0),
+
+      staleDeals: await this.getStaleDeals()
+
+    };
+
+  }
+
+}
+
+ 
+
+// Cron job for daily reports
+
+cron.schedule('0 8 * * *', async () => {
+
+  await reportAutomationService.generateScheduledReports();
+
+});
+
+ 
+
+/*
+
+model ReportSchedule {
+
+  id         String @id @default(uuid())
+
+  name       String
+
+  reportType String
+
+  frequency  String
+
+  recipients String[] // Email addresses
+
+  filters    Json
+
+  isActive   Boolean @default(true)
+
+  lastRunAt  DateTime?
+
+}
+
+*/
+
+```
+
+ 
+
+### Tools to Integrate
+
+- **Google Data Studio** - Interactive dashboards
+
+- **Tableau** - Advanced analytics
+
+- **Metabase** - Open-source BI
+
+- **Power BI** - Microsoft business intelligence
+
+- **Looker** - Data exploration platform
+
+ 
+
+---
+
+ 
+
+## 10. Multi-Channel Communication Sync
+
+ 
+
+### Overview
+
+Synchronize conversations across email, WhatsApp, SMS, and social media into a unified inbox.
+
+ 
+
+### Market Need
+
+- Customers use **3-5 different channels** to communicate
+
+- **89%** of customers get frustrated repeating information
+
+- Unified inbox reduces response time by **40%**
+
+ 
+
+### Implementation Strategy
+
+ 
+
+```javascript
+
+// backend/services/omnichannelSync.js
+
+class OmnichannelSyncService {
+
+  // Unified message handler
+
+  async handleIncomingMessage(message) {
+
+    const { channel, from, content, metadata } = message;
+
+ 
+
+    // Find or create contact
+
+    const contact = await this.findOrCreateContact(from, channel);
+
+ 
+
+    // Find or create conversation thread
+
+    const thread = await this.findOrCreateThread(contact.id, channel);
+
+ 
+
+    // Store message in unified format
+
+    const unifiedMessage = await prisma.unifiedMessage.create({
+
+      data: {
+
+        threadId: thread.id,
+
+        contactId: contact.id,
+
+        channel,
+
+        direction: 'inbound',
+
+        content,
+
+        metadata,
+
+        receivedAt: new Date()
+
+      }
+
+    });
+
+ 
+
+    // Trigger AI auto-response if enabled
+
+    if (thread.aiEnabled) {
+
+      await this.generateAndSendResponse(thread.id, content, channel);
+
+    }
+
+ 
+
+    // Notify assigned agent
+
+    if (thread.assignedToId) {
+
+      await this.notifyAgent(thread.assignedToId, unifiedMessage);
+
+    }
+
+ 
+
+    return unifiedMessage;
+
+  }
+
+ 
+
+  // Send message to appropriate channel
+
+  async sendMessage(threadId, content) {
+
+    const thread = await prisma.conversationThread.findUnique({
+
+      where: { id: threadId },
+
+      include: { contact: true }
+
+    });
+
+ 
+
+    switch(thread.channel) {
+
+      case 'whatsapp':
+
+        await whatsappService.sendMessage(thread.contact.phone, content);
+
+        break;
+
+      case 'email':
+
+        await emailService.sendEmail(thread.contact.email, content);
+
+        break;
+
+      case 'sms':
+
+        await smsService.sendSMS(thread.contact.phone, content);
+
+        break;
+
+      case 'facebook':
+
+        await facebookService.sendMessage(thread.contact.facebookId, content);
+
+        break;
+
+    }
+
+ 
+
+    // Store in unified inbox
+
+    await prisma.unifiedMessage.create({
+
+      data: {
+
+        threadId,
+
+        contactId: thread.contactId,
+
+        channel: thread.channel,
+
+        direction: 'outbound',
+
+        content,
+
+        sentAt: new Date()
+
+      }
+
+    });
+
+  }
+
+ 
+
+  // SMS integration (Twilio)
+
+  async setupSMSWebhook() {
+
+    // Twilio webhook handler
+
+    router.post('/webhook/sms', async (req, res) => {
+
+      const { From, Body, MessageSid } = req.body;
+
+ 
+
+      await this.handleIncomingMessage({
+
+        channel: 'sms',
+
+        from: From,
+
+        content: Body,
+
+        metadata: { messageSid: MessageSid }
+
+      });
+
+ 
+
+      res.sendStatus(200);
+
+    });
+
+  }
+
+ 
+
+  // Facebook Messenger integration
+
+  async setupFacebookMessenger() {
+
+    router.post('/webhook/facebook', async (req, res) => {
+
+      const { entry } = req.body;
+
+ 
+
+      entry.forEach(event => {
+
+        event.messaging.forEach(async messaging => {
+
+          if (messaging.message) {
+
+            await this.handleIncomingMessage({
+
+              channel: 'facebook',
+
+              from: messaging.sender.id,
+
+              content: messaging.message.text,
+
+              metadata: { messageId: messaging.message.mid }
+
+            });
+
+          }
+
+        });
+
+      });
+
+ 
+
+      res.sendStatus(200);
+
+    });
+
+  }
+
+ 
+
+  // Instagram DM integration
+
+  async setupInstagramDMs() {
+
+    // Similar to Facebook Messenger
+
+    router.post('/webhook/instagram', async (req, res) => {
+
+      const { entry } = req.body;
+
+ 
+
+      entry.forEach(event => {
+
+        event.messaging.forEach(async messaging => {
+
+          if (messaging.message) {
+
+            await this.handleIncomingMessage({
+
+              channel: 'instagram',
+
+              from: messaging.sender.id,
+
+              content: messaging.message.text,
+
+              metadata: { messageId: messaging.message.mid }
+
+            });
+
+          }
+
+        });
+
+      });
+
+ 
+
+      res.sendStatus(200);
+
+    });
+
+  }
+
+}
+
+ 
+
+/*
+
+model ConversationThread {
+
+  id           String @id @default(uuid())
+
+  contactId    String
+
+  channel      String // 'whatsapp', 'email', 'sms', 'facebook', 'instagram'
+
+  assignedToId String?
+
+  status       String @default('open') // 'open', 'closed'
+
+  aiEnabled    Boolean @default(false)
+
+  messages     UnifiedMessage[]
+
+  createdAt    DateTime @default(now())
+
+  updatedAt    DateTime @updatedAt
+
+}
+
+ 
+
+model UnifiedMessage {
+
+  id         String @id @default(uuid())
+
+  threadId   String
+
+  thread     ConversationThread @relation(fields: [threadId], references: [id])
+
+  contactId  String
+
+  channel    String
+
+  direction  String // 'inbound', 'outbound'
+
+  content    String
+
+  metadata   Json?
+
+  sentAt     DateTime?
+
+  receivedAt DateTime?
+
+  read       Boolean @default(false)
+
+}
+
+*/
+
+```
+
+ 
+
+### Tools to Integrate
+
+- **Twilio** - SMS, WhatsApp, Voice
+
+- **MessageBird** - Omnichannel communication
+
+- **Front** - Shared team inbox
+
+- **Intercom** - Customer messaging platform
+
+- **Zendesk** - Customer service platform
+
+ 
+
+---
+
+ 
+
+## Implementation Roadmap
+
+ 
+
+### Phase 1: Foundation (Weeks 1-2)
+
+1. Set up webhook infrastructure
+
+2. Implement lead capture automation
+
+3. Add basic email campaigns
+
+4. Enable WhatsApp auto-responses
+
+ 
+
+### Phase 2: Intelligence (Weeks 3-4)
+
+5. Implement lead scoring
+
+6. Add AI-powered responses
+
+7. Create task automation
+
+8. Build pipeline automation
+
+ 
+
+### Phase 3: Optimization (Weeks 5-6)
+
+9. Add document automation
+
+10. Implement analytics automation
+
+11. Create omnichannel sync
+
+12. Set up reporting schedules
+
+ 
+
+### Phase 4: Integration (Weeks 7-8)
+
+- Connect external tools (Zapier, SendGrid, Twilio)
+
+- Set up webhooks for all channels
+
+- Test end-to-end automation workflows
+
+- Train team on new features
+
+ 
+
+---
+
+ 
+
+## Database Schema Updates
+
+ 
+
+Add these models to your Prisma schema:
+
+ 
+
+```prisma
+
+// schema.prisma additions
+
+ 
+
+model TaskAutomation {
+
+  id           String  @id @default(uuid())
+
+  name         String
+
+  trigger      String
+
+  taskTemplate Json
+
+  delay        Int
+
+  priority     String
+
+  isActive     Boolean @default(true)
+
+  createdAt    DateTime @default(now())
+
+}
+
+ 
+
+model EmailCampaign {
+
+  id        String   @id @default(uuid())
+
+  name      String
+
+  trigger   String
+
+  status    String
+
+  emails    Email[]
+
+  createdAt DateTime @default(now())
+
+}
+
+ 
+
+model Email {
+
+  id         String        @id @default(uuid())
+
+  campaignId String
+
+  campaign   EmailCampaign @relation(fields: [campaignId], references: [id])
+
+  subject    String
+
+  body       String        @db.Text
+
+  delay      Int
+
+  order      Int
+
+}
+
+ 
+
+model EmailLog {
+
+  id       String   @id @default(uuid())
+
+  leadId   String
+
+  emailId  String
+
+  sentAt   DateTime @default(now())
+
+  opened   Boolean  @default(false)
+
+  clicked  Boolean  @default(false)
+
+}
+
+ 
+
+model Activity {
+
+  id        String   @id @default(uuid())
+
+  leadId    String
+
+  lead      Lead     @relation(fields: [leadId], references: [id])
+
+  type      String
+
+  page      String?
+
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+}
+
+ 
+
+model ConversationThread {
+
+  id           String           @id @default(uuid())
+
+  contactId    String
+
+  contact      Contact          @relation(fields: [contactId], references: [id])
+
+  channel      String
+
+  assignedToId String?
+
+  status       String           @default("open")
+
+  aiEnabled    Boolean          @default(false)
+
+  messages     UnifiedMessage[]
+
+  createdAt    DateTime         @default(now())
+
+  updatedAt    DateTime         @updatedAt
+
+}
+
+ 
+
+model UnifiedMessage {
+
+  id         String             @id @default(uuid())
+
+  threadId   String
+
+  thread     ConversationThread @relation(fields: [threadId], references: [id])
+
+  contactId  String
+
+  channel    String
+
+  direction  String
+
+  content    String             @db.Text
+
+  metadata   Json?
+
+  sentAt     DateTime?
+
+  receivedAt DateTime?
+
+  read       Boolean            @default(false)
+
+}
+
+ 
+
+model ProposalTemplate {
+
+  id       String @id @default(uuid())
+
+  name     String
+
+  filePath String
+
+  fields   Json
+
+}
+
+ 
+
+model Document {
+
+  id                  String   @id @default(uuid())
+
+  name                String
+
+  type                String
+
+  filePath            String
+
+  entityId            String
+
+  entityType          String
+
+  signatureEnvelopeId String?
+
+  status              String   @default("draft")
+
+  createdAt           DateTime @default(now())
+
+}
+
+ 
+
+model ReportSchedule {
+
+  id         String    @id @default(uuid())
+
+  name       String
+
+  reportType String
+
+  frequency  String
+
+  recipients String[]
+
+  filters    Json
+
+  isActive   Boolean   @default(true)
+
+  lastRunAt  DateTime?
+
+}
+
+ 
+
+// Update existing Lead model
+
+model Lead {
+
+  score      Int?
+
+  grade      String?
+
+  scoredAt   DateTime?
+
+  activities Activity[]
+
+  // ... existing fields
+
+}
+
+```
+
+ 
+
+---
+
+ 
+
+## Configuration Guide
+
+ 
+
+### Environment Variables
+
+ 
+
+Add these to your `.env`:
+
+ 
+
+```bash
+
+# Email Services
+
+SMTP_HOST=smtp.gmail.com
+
+SMTP_PORT=587
+
+SMTP_USER=your-email@gmail.com
+
+SMTP_PASS=your-app-password
+
+SENDGRID_API_KEY=SG.xxxxxxxxxxxxx
+
+ 
+
+# WhatsApp
+
+WHATSAPP_API_URL=https://graph.facebook.com/v18.0
+
+WHATSAPP_API_TOKEN=your-whatsapp-token
+
+ 
+
+# SMS (Twilio)
+
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxx
+
+TWILIO_AUTH_TOKEN=your-auth-token
+
+TWILIO_PHONE_NUMBER=+1234567890
+
+ 
+
+# AI Services
+
+OPENAI_API_KEY=sk-xxxxxxxxxxxxx
+
+ 
+
+# Facebook/Instagram
+
+FACEBOOK_PAGE_ID=your-page-id
+
+FACEBOOK_VERIFY_TOKEN=your-verify-token
+
+FACEBOOK_ACCESS_TOKEN=your-access-token
+
+ 
+
+# Document Services
+
+DOCUSIGN_API_KEY=your-docusign-key
+
+DOCUSIGN_ACCOUNT_ID=your-account-id
+
+ 
+
+# Zapier
+
+ZAPIER_WEBHOOK_URL=https://hooks.zapier.com/hooks/catch/xxxxx/xxxxx
+
+```
+
+ 
+
+---
+
+ 
+
+## Monitoring & Optimization
+
+ 
+
+### Key Metrics to Track
+
+ 
+
+1. **Response Time**: Average time to respond to leads
+
+2. **Automation Success Rate**: % of automated tasks completed successfully
+
+3. **Lead Quality**: Conversion rate of auto-assigned leads
+
+4. **Email Open Rates**: Campaign performance
+
+5. **AI Accuracy**: % of AI responses that don't need human intervention
+
+ 
+
+### Monitoring Dashboard
+
+ 
+
+```javascript
+
+// backend/routes/automationMetrics.js
+
+router.get('/metrics/automation', async (req, res) => {
+
+  const metrics = {
+
+    leadsProcessed: await prisma.lead.count({
+
+      where: { createdAt: { gte: thirtyDaysAgo } }
+
+    }),
+
+    emailsSent: await prisma.emailLog.count({
+
+      where: { sentAt: { gte: thirtyDaysAgo } }
+
+    }),
+
+    tasksAutomated: await prisma.task.count({
+
+      where: {
+
+        createdAt: { gte: thirtyDaysAgo },
+
+        isAutomated: true
+
+      }
+
+    }),
+
+    aiResponses: await prisma.unifiedMessage.count({
+
+      where: {
+
+        sentAt: { gte: thirtyDaysAgo },
+
+        isAiGenerated: true
+
+      }
+
+    })
+
+  };
+
+ 
+
+  res.json(metrics);
+
+});
+
+```
+
+ 
+
+---
+
+ 
+
+## Cost Estimation
+
+ 
+
+| Automation | Tool | Monthly Cost | ROI |
+
+|------------|------|--------------|-----|
+
+| Lead Capture | Zapier Pro | $20-50 | 10x |
+
+| Email Campaigns | SendGrid | $15-80 | 42x |
+
+| WhatsApp Automation | Twilio | $50-200 | 8x |
+
+| AI Responses | OpenAI GPT-4 | $30-100 | 15x |
+
+| Document Automation | DocuSign | $25-50 | 12x |
+
+| SMS | Twilio | $20-100 | 6x |
+
+| **Total** | | **$160-580/month** | **Average 15x** |
+
+ 
+
+---
+
+ 
+
+## Next Steps
+
+ 
+
+1. **Review this document** with your team
+
+2. **Prioritize automations** based on your needs
+
+3. **Set up development environment** with required tools
+
+4. **Start with Phase 1** (Foundation)
+
+5. **Iterate and improve** based on feedback
+
+ 
+
+For implementation assistance, refer to the code examples above and adapt them to your specific requirements.
+
+ 
+
+---
+
+ 
+
+**Document Version**: 1.0
+
+**Last Updated**: December 11, 2024
+
+**Author**: CRM Automation Guide
+
+ 
