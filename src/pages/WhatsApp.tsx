@@ -21,8 +21,6 @@ import {
   User,
   Bot,
   BotOff,
-  Bell,
-  BellOff,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
@@ -38,11 +36,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -75,15 +68,6 @@ interface Conversation {
   aiEnabled: boolean;
 }
 
-interface NotificationItem {
-  id: string;
-  conversationId: string;
-  contactName: string;
-  message: string;
-  timestamp: Date;
-  read: boolean;
-}
-
 export default function WhatsApp() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -99,8 +83,6 @@ export default function WhatsApp() {
   const [aiFeatureAvailable, setAiFeatureAvailable] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [previousUnreadCount, setPreviousUnreadCount] = useState(0);
-  const [notificationHistory, setNotificationHistory] = useState<NotificationItem[]>([]);
-  const [notificationPopoverOpen, setNotificationPopoverOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
@@ -190,25 +172,6 @@ export default function WhatsApp() {
     }
   };
 
-  // Add notification to history (keep last 5)
-  const addNotification = (conversationId: string, contactName: string, message: string) => {
-    const newNotification: NotificationItem = {
-      id: `${conversationId}-${Date.now()}`,
-      conversationId,
-      contactName,
-      message,
-      timestamp: new Date(),
-      read: false,
-    };
-
-    setNotificationHistory(prev => [newNotification, ...prev].slice(0, 5));
-  };
-
-  // Mark all notifications as read
-  const markAllNotificationsRead = () => {
-    setNotificationHistory(prev => prev.map(n => ({ ...n, read: true })));
-  };
-
   // Show desktop notification
   const showDesktopNotification = (title: string, body: string, icon?: string) => {
     if (notificationPermission === 'granted' && 'Notification' in window) {
@@ -264,13 +227,6 @@ export default function WhatsApp() {
           showDesktopNotification(
             `New message from ${firstUnread.contactName}`,
             firstUnread.lastMessage || 'New message received',
-          );
-
-          // Add to notification history
-          addNotification(
-            firstUnread.id,
-            firstUnread.contactName,
-            firstUnread.lastMessage || 'New message received'
           );
 
           // Only show toast if NOT currently viewing this conversation
@@ -344,13 +300,6 @@ export default function WhatsApp() {
 
         // Only notify if the latest message is from the contact (not from user or AI)
         if (latestMessage.sender === 'contact') {
-          // Add to notification history
-          addNotification(
-            selectedConversation.id,
-            selectedConversation.contactName,
-            latestMessage.message
-          );
-
           // Play notification sound (subtle notification even when chatting)
           playNotificationSound();
 
@@ -593,25 +542,6 @@ export default function WhatsApp() {
     }
   };
 
-  const requestNotificationPermission = async () => {
-    if ('Notification' in window) {
-      const permission = await Notification.requestPermission();
-      setNotificationPermission(permission);
-      if (permission === 'granted') {
-        toast({
-          title: 'Notifications Enabled',
-          description: 'You will now receive notifications for new messages',
-        });
-      } else if (permission === 'denied') {
-        toast({
-          title: 'Notifications Blocked',
-          description: 'Please enable notifications in your browser settings',
-          variant: 'destructive',
-        });
-      }
-    }
-  };
-
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -646,105 +576,14 @@ export default function WhatsApp() {
               <MessageCircle className="w-6 h-6 text-green-600" />
               WhatsApp
             </h2>
-            <div className="flex items-center gap-2">
-              {notificationPermission !== 'granted' ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={requestNotificationPermission}
-                  title="Enable notifications"
-                  className="text-xs"
-                >
-                  <BellOff className="w-4 h-4 mr-1" />
-                  Enable
-                </Button>
-              ) : (
-                <Popover open={notificationPopoverOpen} onOpenChange={setNotificationPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="relative text-xs"
-                      onClick={() => {
-                        setNotificationPopoverOpen(true);
-                        markAllNotificationsRead();
-                      }}
-                    >
-                      <Bell className="w-4 h-4" />
-                      {notificationHistory.filter(n => !n.read).length > 0 && (
-                        <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-red-600 text-white text-xs">
-                          {notificationHistory.filter(n => !n.read).length}
-                        </Badge>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 p-0" align="end">
-                    <div className="border-b p-3 bg-muted/50">
-                      <h3 className="font-semibold text-sm">Recent Notifications</h3>
-                      <p className="text-xs text-muted-foreground">Last 5 notifications</p>
-                    </div>
-                    <ScrollArea className="max-h-[400px]">
-                      {notificationHistory.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                          <Bell className="w-8 h-8 mb-2 opacity-50" />
-                          <p className="text-sm">No notifications yet</p>
-                        </div>
-                      ) : (
-                        <div className="divide-y">
-                          {notificationHistory.map(notification => (
-                            <div
-                              key={notification.id}
-                              className={`p-3 hover:bg-accent cursor-pointer transition-colors ${
-                                !notification.read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''
-                              }`}
-                              onClick={() => {
-                                const conv = conversations.find(c => c.id === notification.conversationId);
-                                if (conv) {
-                                  loadConversation(conv);
-                                  setNotificationPopoverOpen(false);
-                                }
-                              }}
-                            >
-                              <div className="flex items-start gap-3">
-                                <Avatar className="h-8 w-8 flex-shrink-0">
-                                  <AvatarFallback className="bg-green-500/10 text-green-600 text-xs">
-                                    {getInitials(notification.contactName)}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <p className="font-semibold text-sm truncate">
-                                      {notification.contactName}
-                                    </p>
-                                    {!notification.read && (
-                                      <div className="h-2 w-2 rounded-full bg-blue-600 flex-shrink-0 ml-2" />
-                                    )}
-                                  </div>
-                                  <p className="text-sm text-muted-foreground line-clamp-2">
-                                    {notification.message}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </ScrollArea>
-                  </PopoverContent>
-                </Popover>
-              )}
-              <Button
-                size="sm"
-                onClick={() => setShowNewChatDialog(true)}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                New Chat
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              onClick={() => setShowNewChatDialog(true)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              New Chat
+            </Button>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
