@@ -191,8 +191,15 @@ Remember: Use your functions! You have direct database access - use it to provid
       const pipelineStages = await databaseTools.getPipelineStages(userId);
       console.log(`📊 Found ${pipelineStages.length} pipeline stages for user`);
 
-      // Search vector DB for relevant documentation
-      const relevantDocs = await vectorDBService.search(userMessage, 3);
+      // Search vector DB for relevant documentation with error handling
+      let relevantDocs = [];
+      try {
+        relevantDocs = await vectorDBService.search(userMessage, 3);
+      } catch (error) {
+        console.warn('⚠️  Vector DB search failed (continuing without context):', error.message);
+        // Continue without vector search results - don't fail the entire request
+      }
+
       const docContext = relevantDocs.length > 0
         ? `\n\n**RELEVANT DOCUMENTATION:**\n${relevantDocs.map((doc, i) => `${i + 1}. ${doc.content.substring(0, 500)}...`).join('\n\n')}`
         : '';
