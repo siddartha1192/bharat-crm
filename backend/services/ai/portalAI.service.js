@@ -51,7 +51,7 @@ class PortalAIService {
   /**
    * Get system prompt for Portal AI
    */
-  getSystemPrompt(userId, dbStats = {}) {
+  getSystemPrompt(userId, dbStats = {}, pipelineStages = []) {
     const now = new Date();
     const currentDate = now.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -60,6 +60,11 @@ class PortalAIService {
       day: 'numeric'
     });
     const currentDateTime = now.toISOString();
+
+    // Format pipeline stages for the prompt
+    const stagesDescription = pipelineStages.length > 0
+      ? `\n**AVAILABLE PIPELINE STAGES:**\nThe user has the following pipeline stages configured:\n${pipelineStages.map(s => `- ${s.name} (slug: "${s.slug}")${s.isDefault ? ' [DEFAULT]' : ' [CUSTOM]'}`).join('\n')}\n\nWhen querying deals by stage, use the exact slug values listed above.`
+      : '';
 
     return `You are an enterprise-grade AI assistant for ${aiConfig.company.name} CRM Portal.
 
@@ -84,6 +89,7 @@ Access Level: Full (Internal User)
 
 **DATABASE STATISTICS:**
 ${JSON.stringify(dbStats, null, 2)}
+${stagesDescription}
 
 **HOW TO USE FUNCTIONS:**
 When users ask about CRM data, you MUST use the appropriate function to query the database.
@@ -181,6 +187,10 @@ Remember: Use your functions! You have direct database access - use it to provid
       // Get database stats for context
       const dbStats = await this.getDatabaseStats();
 
+      // Get user's pipeline stages (both default and custom)
+      const pipelineStages = await databaseTools.getPipelineStages(userId);
+      console.log(`📊 Found ${pipelineStages.length} pipeline stages for user`);
+
       // Search vector DB for relevant documentation
       const relevantDocs = await vectorDBService.search(userMessage, 3);
       const docContext = relevantDocs.length > 0
@@ -189,7 +199,7 @@ Remember: Use your functions! You have direct database access - use it to provid
 
       // Build messages array
       const messages = [
-        new SystemMessage(this.getSystemPrompt(userId, dbStats) + docContext),
+        new SystemMessage(this.getSystemPrompt(userId, dbStats, pipelineStages) + docContext),
       ];
 
       // Add conversation history
@@ -240,8 +250,8 @@ Remember: Use your functions! You have direct database access - use it to provid
 
             console.log(`🔧 Calling: ${functionName}`, functionArgs);
 
-            // Execute the function
-            const result = await databaseTools.executeTool(functionName, functionArgs);
+            // Execute the function with userId for data isolation
+            const result = await databaseTools.executeTool(functionName, functionArgs, userId);
             functionCallResults.push({ function: functionName, result });
 
             // Add function result to messages

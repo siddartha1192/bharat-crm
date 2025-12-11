@@ -89,6 +89,38 @@ class DatabaseToolsService {
   }
 
   /**
+   * Get available pipeline stages for a user
+   * Returns both default stages (userId = null) and user-specific custom stages
+   */
+  async getPipelineStages(userId) {
+    try {
+      const stages = await prisma.pipelineStage.findMany({
+        where: {
+          OR: [
+            { userId: null, isDefault: true }, // Default stages
+            { userId }, // User's custom stages
+          ],
+          isActive: true,
+        },
+        orderBy: { order: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          color: true,
+          order: true,
+          isDefault: true,
+        },
+      });
+
+      return stages;
+    } catch (error) {
+      console.error('Error fetching pipeline stages:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get all available tools/functions for the AI
    */
   getTools() {
@@ -342,25 +374,26 @@ class DatabaseToolsService {
   /**
    * Execute a tool function
    */
-  async executeTool(toolName, args) {
+  async executeTool(toolName, args, userId) {
     console.log(`🔧 Executing tool: ${toolName}`, args);
+    console.log(`👤 User ID: ${userId}`);
 
     try {
       switch (toolName) {
         case 'query_leads':
-          return await this.queryLeads(args);
+          return await this.queryLeads(args, userId);
         case 'query_contacts':
-          return await this.queryContacts(args);
+          return await this.queryContacts(args, userId);
         case 'query_deals':
-          return await this.queryDeals(args);
+          return await this.queryDeals(args, userId);
         case 'query_tasks':
-          return await this.queryTasks(args);
+          return await this.queryTasks(args, userId);
         case 'query_invoices':
-          return await this.queryInvoices(args);
+          return await this.queryInvoices(args, userId);
         case 'get_analytics':
-          return await this.getAnalytics(args);
+          return await this.getAnalytics(args, userId);
         case 'query_calendar_events':
-          return await this.queryCalendarEvents(args);
+          return await this.queryCalendarEvents(args, userId);
         default:
           return { error: `Unknown tool: ${toolName}` };
       }
@@ -373,8 +406,10 @@ class DatabaseToolsService {
   /**
    * Query leads with filters
    */
-  async queryLeads(args) {
-    const where = {};
+  async queryLeads(args, userId) {
+    const where = {
+      userId, // Filter by logged-in user
+    };
 
     if (args.status) where.status = args.status;
     if (args.source) where.source = { contains: args.source, mode: 'insensitive' };
@@ -431,8 +466,10 @@ class DatabaseToolsService {
   /**
    * Query contacts with filters
    */
-  async queryContacts(args) {
-    const where = {};
+  async queryContacts(args, userId) {
+    const where = {
+      userId, // Filter by logged-in user
+    };
 
     if (args.type) where.type = args.type;
     if (args.dateFrom) {
@@ -472,8 +509,10 @@ class DatabaseToolsService {
   /**
    * Query deals with filters
    */
-  async queryDeals(args) {
-    const where = {};
+  async queryDeals(args, userId) {
+    const where = {
+      userId, // Filter by logged-in user
+    };
 
     if (args.stage) where.stage = args.stage;
     if (args.minValue || args.maxValue) {
@@ -515,8 +554,10 @@ class DatabaseToolsService {
   /**
    * Query tasks with filters
    */
-  async queryTasks(args) {
-    const where = {};
+  async queryTasks(args, userId) {
+    const where = {
+      userId, // Filter by logged-in user
+    };
 
     if (args.status) where.status = args.status;
     if (args.priority) where.priority = args.priority;
@@ -561,8 +602,10 @@ class DatabaseToolsService {
   /**
    * Query invoices with filters
    */
-  async queryInvoices(args) {
-    const where = {};
+  async queryInvoices(args, userId) {
+    const where = {
+      userId, // Filter by logged-in user
+    };
 
     if (args.status) where.status = args.status;
     if (args.minAmount) where.total = { gte: args.minAmount };
@@ -598,8 +641,10 @@ class DatabaseToolsService {
   /**
    * Query calendar events
    */
-  async queryCalendarEvents(args) {
-    const where = {};
+  async queryCalendarEvents(args, userId) {
+    const where = {
+      userId, // Filter by logged-in user
+    };
 
     if (args.startDate || args.endDate) {
       where.startTime = {};
@@ -656,7 +701,7 @@ class DatabaseToolsService {
   /**
    * Get analytics and aggregated metrics
    */
-  async getAnalytics(args) {
+  async getAnalytics(args, userId) {
     const { metric, dateFrom, dateTo, groupBy } = args;
 
     const dateFilter = {};
@@ -674,7 +719,10 @@ class DatabaseToolsService {
         const leadsByStatus = await prisma.lead.groupBy({
           by: ['status'],
           _count: { id: true },
-          where: dateFrom || dateTo ? { createdAt: dateFilter } : {},
+          where: {
+            userId, // Filter by logged-in user
+            ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
+          },
         });
         return {
           metric: 'leads_by_status',
@@ -687,7 +735,10 @@ class DatabaseToolsService {
           by: ['stage'],
           _count: { id: true },
           _sum: { value: true },
-          where: dateFrom || dateTo ? { createdAt: dateFilter } : {},
+          where: {
+            userId, // Filter by logged-in user
+            ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
+          },
         });
         return {
           metric: 'deals_by_stage',
@@ -700,10 +751,14 @@ class DatabaseToolsService {
 
       case 'conversion_rate':
         const totalLeads = await prisma.lead.count({
-          where: dateFrom || dateTo ? { createdAt: dateFilter } : {},
+          where: {
+            userId, // Filter by logged-in user
+            ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
+          },
         });
         const wonDeals = await prisma.deal.count({
           where: {
+            userId, // Filter by logged-in user
             stage: 'closed-won',
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
@@ -721,6 +776,7 @@ class DatabaseToolsService {
         const revenue = await prisma.invoice.aggregate({
           _sum: { total: true },
           where: {
+            userId, // Filter by logged-in user
             status: 'paid',
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
@@ -736,6 +792,7 @@ class DatabaseToolsService {
         const pipelineValue = await prisma.deal.aggregate({
           _sum: { value: true },
           where: {
+            userId, // Filter by logged-in user
             stage: { notIn: ['closed-won', 'closed-lost'] },
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
@@ -751,7 +808,10 @@ class DatabaseToolsService {
         const tasksByStatus = await prisma.task.groupBy({
           by: ['status'],
           _count: { id: true },
-          where: dateFrom || dateTo ? { createdAt: dateFilter } : {},
+          where: {
+            userId, // Filter by logged-in user
+            ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
+          },
         });
         return {
           metric: 'tasks_by_status',
