@@ -13,6 +13,7 @@ import {
   Sparkles,
   Mail,
   Bot,
+  Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -72,7 +73,16 @@ export function Sidebar() {
       </nav>
 
       {/* Settings Footer */}
-      <div className="p-4 border-t border-blue-500/30">
+      <div className="p-4 border-t border-blue-500/30 space-y-1">
+        <NavLink
+          to="/users"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-blue-100 hover:bg-white/10 hover:text-white group relative overflow-hidden"
+          activeClassName="bg-white text-blue-600 shadow-lg"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <Shield className="w-5 h-5 relative z-10" />
+          <span className="relative z-10">User Management</span>
+        </NavLink>
         <NavLink
           to="/settings"
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-blue-100 hover:bg-white/10 hover:text-white group relative overflow-hidden"
