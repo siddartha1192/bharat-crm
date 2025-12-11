@@ -5,6 +5,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Send, Bot, User, Loader2, Database, BookOpen, TrendingUp } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -246,100 +248,18 @@ Try the quick action buttons below or ask me anything!`,
                       : 'bg-muted'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {message.content}
-                  </div>
+                  {message.role === 'user' ? (
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {message.content}
+                    </div>
+                  ) : (
+                    <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted-foreground/10 prose-pre:text-foreground">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
+                  )}
                 </div>
-
-                {/* Show data if available */}
-                {message.data && Array.isArray(message.data) && message.data.length > 0 && (
-                  <div className="mt-3 space-y-3">
-                    {message.data.map((funcCall: any, idx: number) => {
-                      const result = funcCall.result;
-                      const functionName = funcCall.function;
-
-                      // Skip if error
-                      if (result.error) return null;
-
-                      // Determine what to display based on result structure
-                      let itemsToShow = [];
-                      let totalCount = 0;
-                      let displayData: any = null;
-
-                      if (result.leads) {
-                        itemsToShow = result.leads;
-                        totalCount = result.count || result.leads.length;
-                      } else if (result.contacts) {
-                        itemsToShow = result.contacts;
-                        totalCount = result.count || result.contacts.length;
-                      } else if (result.deals) {
-                        itemsToShow = result.deals;
-                        totalCount = result.count || result.deals.length;
-                      } else if (result.tasks) {
-                        itemsToShow = result.tasks;
-                        totalCount = result.count || result.tasks.length;
-                      } else if (result.invoices) {
-                        itemsToShow = result.invoices;
-                        totalCount = result.count || result.invoices.length;
-                      } else if (result.events) {
-                        itemsToShow = result.events;
-                        totalCount = result.count || result.events.length;
-                      } else if (result.data) {
-                        // Analytics result
-                        displayData = result.data;
-                      }
-
-                      return (
-                        <div key={idx} className="p-3 bg-accent rounded-lg">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Database className="w-4 h-4" />
-                            <span className="text-sm font-medium">
-                              {functionName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                              {totalCount > 0 && ` (${totalCount} items)`}
-                            </span>
-                          </div>
-
-                          {itemsToShow.length > 0 && (
-                            <>
-                              <pre className="text-xs overflow-x-auto">
-                                {JSON.stringify(itemsToShow.slice(0, 3), null, 2)}
-                              </pre>
-                              {itemsToShow.length > 3 && (
-                                <p className="text-xs text-muted-foreground mt-2">
-                                  ... and {itemsToShow.length - 3} more
-                                </p>
-                              )}
-                            </>
-                          )}
-
-                          {displayData && (
-                            <div className="text-sm space-y-1">
-                              {Object.entries(displayData).map(([key, value]) => (
-                                <div key={key} className="flex justify-between">
-                                  <span className="text-muted-foreground">
-                                    {key.replace(/([A-Z])/g, ' $1').trim()}:
-                                  </span>
-                                  <strong>{typeof value === 'number' ? value.toLocaleString() : String(value)}</strong>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {result.totalValue !== undefined && (
-                            <div className="text-xs text-muted-foreground mt-2">
-                              Total Value: <strong>₹{result.totalValue.toLocaleString()}</strong>
-                            </div>
-                          )}
-                          {result.totalAmount !== undefined && (
-                            <div className="text-xs text-muted-foreground mt-2">
-                              Total Amount: <strong>₹{result.totalAmount.toLocaleString()}</strong>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
 
                 {/* Show sources if available */}
                 {message.sources && message.sources.length > 0 && (
