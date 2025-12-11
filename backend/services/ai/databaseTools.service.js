@@ -211,7 +211,7 @@ class DatabaseToolsService {
             properties: {
               stage: {
                 type: 'string',
-                description: 'Filter by pipeline stage name (e.g., lead, qualified, proposal, negotiation, closed-won, closed-lost, or any custom stage). Case-sensitive slug format with lowercase and hyphens.',
+                description: 'OPTIONAL - Filter by specific pipeline stage slug (e.g., "lead", "qualified", "proposal"). IMPORTANT: Omit this parameter entirely to get ALL deals across all stages. Do NOT use "all" or empty string - simply omit the parameter.',
               },
               minValue: {
                 type: 'number',
@@ -225,9 +225,19 @@ class DatabaseToolsService {
                 type: 'string',
                 description: 'Filter deals created after this date',
               },
+              sortBy: {
+                type: 'string',
+                enum: ['value', 'createdAt', 'probability', 'expectedCloseDate'],
+                description: 'Field to sort by (default: value)',
+              },
+              sortOrder: {
+                type: 'string',
+                enum: ['asc', 'desc'],
+                description: 'Sort order (default: desc)',
+              },
               limit: {
                 type: 'number',
-                description: 'Maximum number of results',
+                description: 'Maximum number of results (default: 10, max: 100)',
               },
             },
           },
@@ -514,7 +524,11 @@ class DatabaseToolsService {
       userId, // Filter by logged-in user
     };
 
-    if (args.stage) where.stage = args.stage;
+    // Only filter by stage if it's a valid stage (not 'all' or empty)
+    if (args.stage && args.stage !== 'all' && args.stage.trim() !== '') {
+      where.stage = args.stage;
+    }
+
     if (args.minValue || args.maxValue) {
       where.value = {};
       if (args.minValue) where.value.gte = args.minValue;
@@ -525,10 +539,15 @@ class DatabaseToolsService {
       if (parsedDate) where.createdAt = { gte: parsedDate };
     }
 
+    // Support dynamic sorting based on args
+    const validSortFields = ['value', 'createdAt', 'probability', 'expectedCloseDate'];
+    const sortField = args.sortBy && validSortFields.includes(args.sortBy) ? args.sortBy : 'value';
+    const sortOrder = args.sortOrder === 'asc' ? 'asc' : 'desc';
+
     const deals = await prisma.deal.findMany({
       where,
       take: Math.min(args.limit || 10, 100),
-      orderBy: { value: 'desc' },
+      orderBy: { [sortField]: sortOrder },
       select: {
         id: true,
         title: true,
