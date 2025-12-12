@@ -91,11 +91,8 @@ export default function VectorDataUpload() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await api.post('/vector-data/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      // Don't set Content-Type header - let the browser set it with boundary
+      const response = await api.post('/vector-data/upload', formData);
 
       toast.success('File uploaded successfully and is being processed');
       loadUploads();
