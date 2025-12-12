@@ -127,11 +127,8 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
       formData.append('entityType', 'Lead');
       formData.append('entityId', lead.id);
 
-      await api.post('/documents/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      // Don't set Content-Type header - let the browser set it with boundary
+      await api.post('/documents/upload', formData);
 
       toast.success('Document uploaded successfully');
       loadDocuments();

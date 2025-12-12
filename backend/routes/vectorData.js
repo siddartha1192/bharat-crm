@@ -93,78 +93,102 @@ async function processVectorData(filePath, fileName) {
  * POST /api/vector-data/upload
  * Only admins can upload
  */
-router.post('/upload', authenticate, authorize('ADMIN', 'MANAGER'), uploadVectorData.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+router.post('/upload', authenticate, authorize('ADMIN', 'MANAGER'), (req, res) => {
+  // Use multer with error handling
+  uploadVectorData.single('file')(req, res, async (err) => {
+    // Handle multer errors
+    if (err) {
+      console.error('Multer error:', err);
+
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          error: 'File size too large. Maximum size is 50MB.'
+        });
+      }
+
+      if (err.message && err.message.includes('File type')) {
+        return res.status(400).json({
+          error: err.message
+        });
+      }
+
+      return res.status(400).json({
+        error: err.message || 'Error uploading file'
+      });
     }
 
-    // Create upload record
-    const upload = await prisma.vectorDataUpload.create({
-      data: {
-        fileName: req.file.originalname,
-        fileSize: req.file.size,
-        filePath: req.file.path,
-        status: 'pending',
-        uploadedBy: req.user.id,
-        userId: req.user.id
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
       }
-    });
 
-    // Process file asynchronously
-    setImmediate(async () => {
-      try {
-        // Update status to processing
-        await prisma.vectorDataUpload.update({
-          where: { id: upload.id },
-          data: { status: 'processing' }
-        });
+      // Create upload record
+      const upload = await prisma.vectorDataUpload.create({
+        data: {
+          fileName: req.file.originalname,
+          fileSize: req.file.size,
+          filePath: req.file.path,
+          status: 'pending',
+          uploadedBy: req.user.id,
+          userId: req.user.id
+        }
+      });
 
-        // Process the file
-        const recordsProcessed = await processVectorData(req.file.path, req.file.originalname);
+      // Process file asynchronously
+      setImmediate(async () => {
+        try {
+          // Update status to processing
+          await prisma.vectorDataUpload.update({
+            where: { id: upload.id },
+            data: { status: 'processing' }
+          });
 
-        // Update status to completed
-        await prisma.vectorDataUpload.update({
-          where: { id: upload.id },
-          data: {
-            status: 'completed',
-            recordsProcessed,
-            processedAt: new Date()
-          }
-        });
+          // Process the file
+          const recordsProcessed = await processVectorData(req.file.path, req.file.originalname);
 
-        console.log(`Vector data upload ${upload.id} completed: ${recordsProcessed} records`);
-      } catch (error) {
-        console.error('Error processing vector data:', error);
+          // Update status to completed
+          await prisma.vectorDataUpload.update({
+            where: { id: upload.id },
+            data: {
+              status: 'completed',
+              recordsProcessed,
+              processedAt: new Date()
+            }
+          });
 
-        // Update status to failed
-        await prisma.vectorDataUpload.update({
-          where: { id: upload.id },
-          data: {
-            status: 'failed',
-            errorMessage: error.message
-          }
-        });
+          console.log(`Vector data upload ${upload.id} completed: ${recordsProcessed} records`);
+        } catch (error) {
+          console.error('Error processing vector data:', error);
+
+          // Update status to failed
+          await prisma.vectorDataUpload.update({
+            where: { id: upload.id },
+            data: {
+              status: 'failed',
+              errorMessage: error.message
+            }
+          });
+        }
+      });
+
+      res.json({
+        message: 'File uploaded successfully and is being processed',
+        upload: {
+          ...upload,
+          formattedSize: formatFileSize(upload.fileSize)
+        }
+      });
+    } catch (error) {
+      console.error('Error uploading vector data:', error);
+
+      // Delete uploaded file if database operation failed
+      if (req.file) {
+        deleteFile(req.file.path);
       }
-    });
 
-    res.json({
-      message: 'File uploaded successfully and is being processed',
-      upload: {
-        ...upload,
-        formattedSize: formatFileSize(upload.fileSize)
-      }
-    });
-  } catch (error) {
-    console.error('Error uploading vector data:', error);
-
-    // Delete uploaded file if database operation failed
-    if (req.file) {
-      deleteFile(req.file.path);
+      res.status(500).json({ error: 'Failed to upload vector data' });
     }
-
-    res.status(500).json({ error: 'Failed to upload vector data' });
-  }
+  });
 });
 
 /**
