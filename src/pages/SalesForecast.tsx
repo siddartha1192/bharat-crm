@@ -25,11 +25,14 @@ import { TrendingUp, DollarSign, Target, Users, Calendar, RefreshCw } from 'luci
 import { api } from '../lib/api';
 
 interface ForecastData {
+  actualRevenue: number;          // NEW: Revenue already won
+  projectedRevenue: number;        // NEW: Expected from pipeline
   expectedRevenue: number;
   pipelineValue: number;
   weightedValue: number;
   leadCount: number;
   dealCount: number;
+  activeDeals: number;             // NEW: Count of active deals
   wonCount: number;
   lostCount: number;
   conversionRate: number;
@@ -38,6 +41,12 @@ interface ForecastData {
   previousPeriodRevenue: number;
   growthRate: number;
   wonRevenue: number;
+  revenueGoal?: {                  // NEW: Revenue goal tracking
+    target: number;
+    progress: number;
+    percentage: number;
+    remaining: number;
+  };
 }
 
 interface PipelineHealth {
@@ -164,14 +173,40 @@ export default function SalesForecast() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Expected Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Actual Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(forecast?.expectedRevenue || 0)}</div>
+            <div className="text-2xl font-bold text-green-600">{formatCurrency(forecast?.actualRevenue || 0)}</div>
+            <p className="text-xs text-muted-foreground">
+              {forecast?.wonCount || 0} deals closed
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Projected Revenue</CardTitle>
+            <Target className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{formatCurrency(forecast?.projectedRevenue || 0)}</div>
+            <p className="text-xs text-muted-foreground">
+              {forecast?.activeDeals || 0} active deals
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Forecast</CardTitle>
+            <TrendingUp className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">{formatCurrency(forecast?.expectedRevenue || 0)}</div>
             <p className="text-xs text-muted-foreground">
               {forecast && forecast.growthRate >= 0 ? '+' : ''}
               {formatPercent(forecast?.growthRate || 0)} from last period
@@ -181,42 +216,50 @@ export default function SalesForecast() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pipeline Value</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(forecast?.pipelineValue || 0)}</div>
-            <p className="text-xs text-muted-foreground">
-              Weighted: {formatCurrency(forecast?.weightedValue || 0)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <Target className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatPercent(forecast?.conversionRate || 0)}</div>
+            <div className="text-2xl font-bold text-orange-600">{formatPercent(forecast?.conversionRate || 0)}</div>
             <p className="text-xs text-muted-foreground">
-              {forecast?.wonCount || 0} won / {forecast?.dealCount || 0} total deals
+              {forecast?.wonCount || 0} won / {(forecast?.wonCount || 0) + (forecast?.lostCount || 0)} closed
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Leads</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{forecast?.leadCount || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {forecast?.dealCount || 0} deals in pipeline
-            </p>
-          </CardContent>
-        </Card>
+        {forecast?.revenueGoal ? (
+          <Card className="border-primary/50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Revenue Goal</CardTitle>
+              <Target className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatPercent(forecast.revenueGoal.percentage)}</div>
+              <p className="text-xs text-muted-foreground">
+                {formatCurrency(forecast.revenueGoal.remaining)} remaining
+              </p>
+              <div className="mt-2 w-full bg-secondary rounded-full h-2">
+                <div
+                  className="bg-primary h-2 rounded-full transition-all"
+                  style={{ width: `${Math.min(forecast.revenueGoal.percentage, 100)}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pipeline Value</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(forecast?.pipelineValue || 0)}</div>
+              <p className="text-xs text-muted-foreground">
+                Weighted: {formatCurrency(forecast?.weightedValue || 0)}
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Charts */}
@@ -229,39 +272,94 @@ export default function SalesForecast() {
         </TabsList>
 
         <TabsContent value="revenue" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Revenue Forecast</CardTitle>
-              <CardDescription>Expected vs actual revenue over time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <AreaChart data={trends?.forecasts || []}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="forecastDate" />
-                  <YAxis />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="expectedRevenue"
-                    stroke="#8b5cf6"
-                    fill="#8b5cf6"
-                    fillOpacity={0.6}
-                    name="Expected Revenue"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="wonRevenue"
-                    stroke="#10b981"
-                    fill="#10b981"
-                    fillOpacity={0.6}
-                    name="Actual Revenue"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Revenue Breakdown</CardTitle>
+                <CardDescription>Current period revenue analysis</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-green-600">Actual Revenue (Closed Won)</span>
+                      <span className="text-lg font-bold text-green-600">{formatCurrency(forecast?.actualRevenue || 0)}</span>
+                    </div>
+                    <div className="w-full bg-secondary rounded-full h-3">
+                      <div className="bg-green-600 h-3 rounded-full" style={{ width: `${(forecast?.actualRevenue || 0) / Math.max(forecast?.expectedRevenue || 1, 1) * 100}%` }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-blue-600">Projected Revenue (Pipeline)</span>
+                      <span className="text-lg font-bold text-blue-600">{formatCurrency(forecast?.projectedRevenue || 0)}</span>
+                    </div>
+                    <div className="w-full bg-secondary rounded-full h-3">
+                      <div className="bg-blue-600 h-3 rounded-full" style={{ width: `${(forecast?.projectedRevenue || 0) / Math.max(forecast?.expectedRevenue || 1, 1) * 100}%` }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-purple-600">Total Forecast</span>
+                      <span className="text-lg font-bold text-purple-600">{formatCurrency(forecast?.expectedRevenue || 0)}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Actual + Projected = Total Expected Revenue
+                    </div>
+                  </div>
+                  {forecast?.revenueGoal && (
+                    <div className="pt-4 border-t">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium">Revenue Goal Progress</span>
+                        <span className="text-lg font-bold text-primary">{formatCurrency(forecast.revenueGoal.target)}</span>
+                      </div>
+                      <div className="w-full bg-secondary rounded-full h-3 mb-2">
+                        <div className="bg-primary h-3 rounded-full transition-all" style={{ width: `${Math.min(forecast.revenueGoal.percentage, 100)}%` }} />
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{formatPercent(forecast.revenueGoal.percentage)} complete</span>
+                        <span>{formatCurrency(forecast.revenueGoal.remaining)} remaining</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Historical Performance</CardTitle>
+                <CardDescription>Revenue trends over time</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={trends?.forecasts || []}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="forecastDate" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    <Legend />
+                    <Area
+                      type="monotone"
+                      dataKey="actualRevenue"
+                      stroke="#10b981"
+                      fill="#10b981"
+                      fillOpacity={0.6}
+                      name="Actual Revenue"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="projectedRevenue"
+                      stroke="#3b82f6"
+                      fill="#3b82f6"
+                      fillOpacity={0.3}
+                      name="Projected Revenue"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="pipeline" className="space-y-4">
