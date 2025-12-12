@@ -31,6 +31,10 @@ const io = new Server(httpServer, {
   allowEIO3: true // Support older clients
 });
 
+// Export io and prisma IMMEDIATELY so routes can import them
+// This must happen BEFORE requiring the routes
+module.exports = { prisma, io };
+
 // Serve static files from public directory
 app.use(express.static('public'));
 
@@ -152,5 +156,3 @@ httpServer.listen(PORT, () => {
   console.log(`📊 API endpoints available at http://localhost:${PORT}/api`);
   console.log(`🔌 WebSocket server ready for real-time connections`);
 });
-
-module.exports = { prisma, io };
