@@ -73,15 +73,8 @@ async function processVectorData(filePath, fileName) {
     try {
       const vectorDBService = require('../services/ai/vectorDB.service');
 
-      for (const doc of documents) {
-        await vectorDBService.addDocument({
-          content: doc.content,
-          metadata: {
-            source: fileName,
-            uploadedAt: new Date().toISOString()
-          }
-        });
-      }
+      // addDocuments expects an array of documents
+      await vectorDBService.addDocuments(documents);
 
       return documents.length;
     } catch (error) {
