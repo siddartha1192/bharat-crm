@@ -32,10 +32,12 @@ interface AutomationRule {
   emailTemplate?: string;
   fromStage?: string;
   toStage?: string;
+  entityType?: string; // 'lead' or 'deal'
   createdAt?: string;
 }
 
 const LEAD_STAGES = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
+const DEAL_STAGES = ['lead', 'qualified', 'proposal', 'negotiation', 'closed-won', 'closed-lost'];
 
 export default function AutomationSettings() {
   const { user } = useAuth();
@@ -54,7 +56,8 @@ export default function AutomationSettings() {
     emailSubject: '',
     emailTemplate: '',
     fromStage: '',
-    toStage: ''
+    toStage: '',
+    entityType: 'lead'
   });
 
   useEffect(() => {
@@ -76,7 +79,10 @@ export default function AutomationSettings() {
   const handleOpenDialog = (rule?: AutomationRule) => {
     if (rule) {
       setEditingRule(rule);
-      setFormData(rule);
+      setFormData({
+        ...rule,
+        entityType: rule.entityType || 'lead' // Default to lead for backward compatibility
+      });
     } else {
       setEditingRule(null);
       setFormData({
@@ -88,7 +94,8 @@ export default function AutomationSettings() {
         emailSubject: '',
         emailTemplate: '',
         fromStage: '',
-        toStage: ''
+        toStage: '',
+        entityType: 'lead'
       });
     }
     setDialogOpen(true);
@@ -139,13 +146,29 @@ export default function AutomationSettings() {
   const handleTypeChange = (type: string) => {
     const eventMap: Record<string, string> = {
       'lead_created': 'lead.created',
-      'stage_change': 'lead.stage_changed'
+      'stage_change': formData.entityType === 'deal' ? 'deal.stage_changed' : 'lead.stage_changed'
     };
 
     setFormData({
       ...formData,
       type,
-      triggerEvent: eventMap[type] || 'lead.created'
+      triggerEvent: eventMap[type] || 'lead.created',
+      fromStage: '',
+      toStage: ''
+    });
+  };
+
+  const handleEntityTypeChange = (entityType: string) => {
+    const triggerEvent = formData.type === 'stage_change'
+      ? (entityType === 'deal' ? 'deal.stage_changed' : 'lead.stage_changed')
+      : 'lead.created';
+
+    setFormData({
+      ...formData,
+      entityType,
+      triggerEvent,
+      fromStage: '',
+      toStage: ''
     });
   };
 
@@ -193,6 +216,9 @@ export default function AutomationSettings() {
                       <CardDescription>
                         <Badge variant="outline" className="mr-2">
                           {rule.type === 'lead_created' ? 'Lead Created' : 'Stage Change'}
+                        </Badge>
+                        <Badge variant="secondary" className="mr-2">
+                          {rule.entityType === 'deal' ? 'Deal' : 'Lead'}
                         </Badge>
                         {rule.type === 'stage_change' && rule.fromStage && rule.toStage && (
                           <span className="text-xs">
@@ -268,6 +294,21 @@ export default function AutomationSettings() {
             </div>
 
             {formData.type === 'stage_change' && (
+              <div className="space-y-2">
+                <Label htmlFor="entityType">Entity Type</Label>
+                <Select value={formData.entityType} onValueChange={handleEntityTypeChange}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lead">Lead</SelectItem>
+                    <SelectItem value="deal">Deal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {formData.type === 'stage_change' && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="fromStage">From Stage</Label>
@@ -276,7 +317,7 @@ export default function AutomationSettings() {
                       <SelectValue placeholder="Select stage" />
                     </SelectTrigger>
                     <SelectContent>
-                      {LEAD_STAGES.map((stage) => (
+                      {(formData.entityType === 'deal' ? DEAL_STAGES : LEAD_STAGES).map((stage) => (
                         <SelectItem key={stage} value={stage}>{stage}</SelectItem>
                       ))}
                     </SelectContent>
@@ -290,7 +331,7 @@ export default function AutomationSettings() {
                       <SelectValue placeholder="Select stage" />
                     </SelectTrigger>
                     <SelectContent>
-                      {LEAD_STAGES.map((stage) => (
+                      {(formData.entityType === 'deal' ? DEAL_STAGES : LEAD_STAGES).map((stage) => (
                         <SelectItem key={stage} value={stage}>{stage}</SelectItem>
                       ))}
                     </SelectContent>

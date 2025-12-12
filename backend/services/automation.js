@@ -313,7 +313,8 @@ async function saveAutomationRule(userId, ruleData) {
       emailSubject: sanitizeField(ruleData.emailSubject),
       emailTemplate: sanitizeField(ruleData.emailTemplate),
       fromStage: sanitizeField(ruleData.fromStage),
-      toStage: sanitizeField(ruleData.toStage)
+      toStage: sanitizeField(ruleData.toStage),
+      entityType: ruleData.entityType || 'lead'
     };
 
     if (ruleData.id) {

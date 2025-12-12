@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useSocket } from '@/contexts/SocketContext';
 import {
@@ -22,6 +23,7 @@ import {
   User,
   Bot,
   BotOff,
+  Users,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
@@ -37,6 +39,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import BulkMessaging from '@/components/whatsapp/BulkMessaging';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -494,36 +497,49 @@ export default function WhatsApp() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-background p-4 gap-4">
-      {/* Conversations List */}
-      <div className="w-96 flex flex-col bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
-        {/* Header */}
-        <div className="p-4 border-b border-border bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <MessageCircle className="w-6 h-6 text-green-600" />
-              WhatsApp
-            </h2>
-            <Button
-              size="sm"
-              onClick={() => setShowNewChatDialog(true)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              New Chat
-            </Button>
-          </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search conversations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && fetchConversations()}
-              className="pl-10"
-            />
-          </div>
-        </div>
+    <div className="h-[calc(100vh-4rem)] bg-background p-4">
+      <Tabs defaultValue="chat" className="h-full flex flex-col">
+        <TabsList className="mb-4">
+          <TabsTrigger value="chat" className="flex items-center gap-2">
+            <MessageCircle className="w-4 h-4" />
+            Chat
+          </TabsTrigger>
+          <TabsTrigger value="bulk" className="flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Bulk Messaging
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="chat" className="flex-1 flex gap-4 mt-0">
+          {/* Conversations List */}
+          <div className="w-96 flex flex-col bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-border bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <MessageCircle className="w-6 h-6 text-green-600" />
+                  WhatsApp
+                </h2>
+                <Button
+                  size="sm"
+                  onClick={() => setShowNewChatDialog(true)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  New Chat
+                </Button>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search conversations..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && fetchConversations()}
+                  className="pl-10"
+                />
+              </div>
+            </div>
 
         {/* Conversations */}
         <ScrollArea className="flex-1">
@@ -785,6 +801,12 @@ export default function WhatsApp() {
           </div>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="bulk" className="flex-1 mt-0">
+          <BulkMessaging />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
