@@ -13,16 +13,17 @@ const SocketContext = createContext<SocketContextType | undefined>(undefined);
 export function SocketProvider({ children }: { children: ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [token] = useState(() => localStorage.getItem('token'));
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-
     // Only connect if user is authenticated
     if (!token) {
+      console.log('🔌 No token found, skipping WebSocket connection');
       return;
     }
 
-    console.log('🔌 Initializing WebSocket connection...');
+    console.log('🔌 Initializing WebSocket connection to:', API_URL);
+    console.log('🔌 Token exists:', token ? 'Yes (length: ' + token.length + ')' : 'No');
 
     // Create socket connection
     const newSocket = io(API_URL, {
@@ -31,12 +32,15 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5
+      reconnectionAttempts: 5,
+      transports: ['websocket', 'polling'], // Try WebSocket first, fallback to polling
     });
 
     // Connection event handlers
     newSocket.on('connect', () => {
-      console.log('✅ WebSocket connected:', newSocket.id);
+      console.log('✅ WebSocket connected successfully!');
+      console.log('   - Socket ID:', newSocket.id);
+      console.log('   - Transport:', newSocket.io.engine.transport.name);
       setIsConnected(true);
     });
 
@@ -47,6 +51,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
     newSocket.on('connect_error', (error) => {
       console.error('⚠️ WebSocket connection error:', error.message);
+      console.error('   - Error details:', error);
       setIsConnected(false);
     });
 
@@ -70,8 +75,10 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     return () => {
       console.log('🔌 Disconnecting WebSocket...');
       newSocket.close();
+      setSocket(null);
+      setIsConnected(false);
     };
-  }, []); // Only run once on mount
+  }, [token]); // Recreate socket when token changes
 
   return (
     <SocketContext.Provider value={{ socket, isConnected }}>
