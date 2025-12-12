@@ -127,7 +127,8 @@ router.post('/send', authenticate, async (req, res) => {
         contactName: contactName,
         lastMessage: message,
         lastMessageAt: new Date(),
-        unreadCount: 0
+        unreadCount: 0,
+        aiEnabled: conversation.aiEnabled
       });
 
       console.log(`🔌 WebSocket: Broadcasted sent message to user ${userId}`);
@@ -716,7 +717,8 @@ async function processIncomingMessage(message, value) {
             contactName: conversation.contactName,
             lastMessage: messageText,
             lastMessageAt: conversation.lastMessageAt,
-            unreadCount: conversation.unreadCount
+            unreadCount: conversation.unreadCount,
+            aiEnabled: conversation.aiEnabled
           });
 
           console.log(`🔌 WebSocket: Broadcasted new message to user ${contact.userId}`);
@@ -852,7 +854,8 @@ async function processIncomingMessage(message, value) {
             contactName: contactName,
             lastMessage: messageText,
             lastMessageAt: new Date(parseInt(timestamp) * 1000),
-            unreadCount: conversation.unreadCount + 1
+            unreadCount: conversation.unreadCount + 1,
+            aiEnabled: conversation.aiEnabled
           });
 
           console.log(`🔌 WebSocket: Broadcasted new message to user ${conversation.userId}`);
@@ -939,7 +942,8 @@ async function processIncomingMessage(message, value) {
                   contactName: contactName,
                   lastMessage: aiResult.message,
                   lastMessageAt: new Date(),
-                  unreadCount: 0 // AI messages don't increase unread count
+                  unreadCount: 0, // AI messages don't increase unread count
+                  aiEnabled: conversation.aiEnabled
                 });
 
                 console.log(`🔌 WebSocket: Broadcasted AI message to user ${conversation.userId}`);
