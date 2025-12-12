@@ -494,8 +494,8 @@ router.get('/ai-status', authenticate, async (req, res) => {
     const userId = req.user.id;
 
     res.json({
-      aiFeatureEnabled: openaiService.isEnabled(),
-      message: openaiService.isEnabled()
+      aiFeatureEnabled: whatsappAIService.isEnabled(),
+      message: whatsappAIService.isEnabled()
         ? 'AI assistant is available and ready to use'
         : 'AI assistant is disabled globally (check ENABLE_AI_FEATURE env variable)'
     });
