@@ -62,6 +62,7 @@ const salesForecastRoutes = require('./routes/salesForecast');
 const automationRoutes = require('./routes/automation');
 const documentsRoutes = require('./routes/documents');
 const vectorDataRoutes = require('./routes/vectorData');
+const migrateRoutes = require('./routes/migrate');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -82,6 +83,7 @@ app.use('/api/forecast', salesForecastRoutes);
 app.use('/api/automation', automationRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/vector-data', vectorDataRoutes);
+app.use('/api/migrate', migrateRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
