@@ -284,6 +284,181 @@ router.get('/stats/summary', async (req, res) => {
 });
 
 /**
+ * Get documents for a specific lead
+ * GET /api/leads/:id/documents
+ */
+router.get('/:id/documents', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const leadId = req.params.id;
+
+    // Verify lead belongs to user
+    const lead = await prisma.lead.findFirst({
+      where: { id: leadId, userId }
+    });
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    // Get all documents for this lead
+    const documents = await prisma.document.findMany({
+      where: {
+        entityType: 'Lead',
+        entityId: leadId
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Add formatted file sizes
+    const { formatFileSize } = require('../middleware/upload');
+    const documentsWithSize = documents.map(doc => ({
+      ...doc,
+      formattedSize: formatFileSize(doc.fileSize)
+    }));
+
+    res.json(documentsWithSize);
+  } catch (error) {
+    console.error('Error fetching lead documents:', error);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+/**
+ * Upload document to a specific lead
+ * POST /api/leads/:id/documents/upload
+ */
+router.post('/:id/documents/upload', async (req, res) => {
+  const { uploadDocument } = require('../middleware/upload');
+  const leadId = req.params.id;
+
+  // Use multer middleware
+  uploadDocument.single('file')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    try {
+      const userId = req.user.id;
+
+      // Verify lead belongs to user
+      const lead = await prisma.lead.findFirst({
+        where: { id: leadId, userId }
+      });
+
+      if (!lead) {
+        // Delete uploaded file
+        const { deleteFile } = require('../middleware/upload');
+        deleteFile(req.file.path);
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+
+      const { description, tags } = req.body;
+
+      // Create document record
+      const document = await prisma.document.create({
+        data: {
+          fileName: req.file.originalname,
+          fileSize: req.file.size,
+          mimeType: req.file.mimetype,
+          filePath: req.file.path,
+          entityType: 'Lead',
+          entityId: leadId,
+          description: description || null,
+          uploadedBy: userId,
+          userId,
+          tags: tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : []
+        }
+      });
+
+      const { formatFileSize } = require('../middleware/upload');
+      res.json({
+        message: 'Document uploaded successfully',
+        document: {
+          ...document,
+          formattedSize: formatFileSize(document.fileSize)
+        }
+      });
+    } catch (error) {
+      console.error('Error uploading document to lead:', error);
+
+      // Delete uploaded file if database operation failed
+      if (req.file) {
+        const { deleteFile } = require('../middleware/upload');
+        deleteFile(req.file.path);
+      }
+
+      res.status(500).json({ error: 'Failed to upload document' });
+    }
+  });
+});
+
+/**
+ * Delete document from a specific lead
+ * DELETE /api/leads/:id/documents/:docId
+ */
+router.delete('/:id/documents/:docId', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id: leadId, docId } = req.params;
+
+    // Verify lead belongs to user
+    const lead = await prisma.lead.findFirst({
+      where: { id: leadId, userId }
+    });
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    // Get document
+    const document = await prisma.document.findFirst({
+      where: {
+        id: docId,
+        entityType: 'Lead',
+        entityId: leadId
+      }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Check permission
+    if (document.userId !== userId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized to delete this document' });
+    }
+
+    // Delete file from filesystem
+    const { deleteFile } = require('../middleware/upload');
+    deleteFile(document.filePath);
+
+    // Delete document record
+    await prisma.document.delete({
+      where: { id: docId }
+    });
+
+    res.json({ message: 'Document deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting document from lead:', error);
+    res.status(500).json({ error: 'Failed to delete document' });
+  }
+});
+
+/**
  * Bulk import leads from CSV
  * POST /api/leads/import
  */
