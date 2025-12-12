@@ -114,12 +114,13 @@ export default function WhatsApp() {
     socket.on('whatsapp:conversation_updated', (data: any) => {
       console.log('🔌 Conversation updated:', data);
 
-      // Update conversations list
+      // Update conversations list (preserve all existing fields like aiEnabled)
       setConversations((prev) => {
         return prev.map((conv) =>
           conv.id === data.conversationId
             ? {
-                ...conv,
+                ...conv, // Preserve all existing fields including aiEnabled
+                contactName: data.contactName || conv.contactName,
                 lastMessage: data.lastMessage,
                 lastMessageAt: data.lastMessageAt,
                 unreadCount: data.unreadCount,
@@ -127,6 +128,20 @@ export default function WhatsApp() {
             : conv
         );
       });
+
+      // Update selected conversation if it matches
+      if (selectedConversation?.id === data.conversationId) {
+        setSelectedConversation((prev) =>
+          prev
+            ? {
+                ...prev,
+                lastMessage: data.lastMessage,
+                lastMessageAt: data.lastMessageAt,
+                unreadCount: data.unreadCount,
+              }
+            : null
+        );
+      }
     });
 
     return () => {

@@ -88,21 +88,29 @@ export function WhatsAppNotificationProvider({ children }: { children: ReactNode
       setConversations((prev) => {
         const existingIndex = prev.findIndex((c) => c.id === data.conversationId);
 
+        let updatedConversations;
         if (existingIndex >= 0) {
           // Update existing conversation
-          const updated = [...prev];
-          updated[existingIndex] = {
-            ...updated[existingIndex],
+          updatedConversations = [...prev];
+          updatedConversations[existingIndex] = {
+            ...updatedConversations[existingIndex],
+            contactName: data.contactName || updatedConversations[existingIndex].contactName,
             lastMessage: data.lastMessage,
             lastMessageAt: data.lastMessageAt,
             unreadCount: data.unreadCount,
           };
-          return updated;
         } else {
-          // New conversation - fetch full list
+          // New conversation - fetch full list to get all fields
           fetchConversations(false);
           return prev;
         }
+
+        // Calculate total unread count
+        const totalUnread = updatedConversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
+        setUnreadCount(totalUnread);
+        updateDocumentTitle(totalUnread);
+
+        return updatedConversations;
       });
 
       // Trigger notification for new unread messages
