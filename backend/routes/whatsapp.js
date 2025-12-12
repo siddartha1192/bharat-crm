@@ -8,6 +8,9 @@ const { authenticate } = require('../middleware/auth');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// Import io instance for WebSocket broadcasts
+const { io } = require('../server');
+
 // ============ PROTECTED ENDPOINTS (REQUIRE AUTH) ============
 
 // Send WhatsApp message to a contact
@@ -111,6 +114,24 @@ router.post('/send', authenticate, async (req, res) => {
 
     // Save message to file
     await conversationStorage.saveMessage(userId, recipientPhone, savedMessage);
+
+    // 🔌 Broadcast sent message via WebSocket
+    if (io) {
+      io.to(`user:${userId}`).emit('whatsapp:new_message', {
+        conversationId: conversation.id,
+        message: savedMessage
+      });
+
+      io.to(`user:${userId}`).emit('whatsapp:conversation_updated', {
+        conversationId: conversation.id,
+        contactName: contactName,
+        lastMessage: message,
+        lastMessageAt: new Date(),
+        unreadCount: 0
+      });
+
+      console.log(`🔌 WebSocket: Broadcasted sent message to user ${userId}`);
+    }
 
     res.json({
       success: true,
@@ -683,6 +704,24 @@ async function processIncomingMessage(message, value) {
         await conversationStorage.saveMessage(contact.userId, fromPhone, savedMessage);
         console.log(`✅ Message saved to conversation for user ${contact.userId}`);
 
+        // 🔌 Broadcast new message via WebSocket
+        if (io) {
+          io.to(`user:${contact.userId}`).emit('whatsapp:new_message', {
+            conversationId: conversation.id,
+            message: savedMessage
+          });
+
+          io.to(`user:${contact.userId}`).emit('whatsapp:conversation_updated', {
+            conversationId: conversation.id,
+            contactName: conversation.contactName,
+            lastMessage: messageText,
+            lastMessageAt: conversation.lastMessageAt,
+            unreadCount: conversation.unreadCount
+          });
+
+          console.log(`🔌 WebSocket: Broadcasted new message to user ${contact.userId}`);
+        }
+
         // Process AI response if enabled for new conversation (Structured)
         console.log(`\n🔍 AI CHECK FOR NEW CONVERSATION:`);
         console.log(`   - whatsappAIService.isEnabled(): ${whatsappAIService.isEnabled()}`);
@@ -801,6 +840,24 @@ async function processIncomingMessage(message, value) {
         await conversationStorage.saveMessage(conversation.userId, fromPhone, savedMessage);
         console.log(`✅ Message saved to existing conversation for user ${conversation.userId}`);
 
+        // 🔌 Broadcast new message via WebSocket
+        if (io) {
+          io.to(`user:${conversation.userId}`).emit('whatsapp:new_message', {
+            conversationId: conversation.id,
+            message: savedMessage
+          });
+
+          io.to(`user:${conversation.userId}`).emit('whatsapp:conversation_updated', {
+            conversationId: conversation.id,
+            contactName: contactName,
+            lastMessage: messageText,
+            lastMessageAt: new Date(parseInt(timestamp) * 1000),
+            unreadCount: conversation.unreadCount + 1
+          });
+
+          console.log(`🔌 WebSocket: Broadcasted new message to user ${conversation.userId}`);
+        }
+
         // Process AI response if enabled (Structured)
         console.log(`\n🔍 AI CHECK FOR EXISTING CONVERSATION (${conversation.id}):`);
         console.log(`   - whatsappAIService.isEnabled(): ${whatsappAIService.isEnabled()}`);
@@ -869,6 +926,24 @@ async function processIncomingMessage(message, value) {
               // Save to file
               await conversationStorage.saveMessage(conversation.userId, fromPhone, aiMessage);
               console.log(`\n✅ ✅ ✅ AI RESPONSE SENT AND SAVED TO EXISTING CONVERSATION!`);
+
+              // 🔌 Broadcast AI message via WebSocket
+              if (io) {
+                io.to(`user:${conversation.userId}`).emit('whatsapp:new_message', {
+                  conversationId: conversation.id,
+                  message: aiMessage
+                });
+
+                io.to(`user:${conversation.userId}`).emit('whatsapp:conversation_updated', {
+                  conversationId: conversation.id,
+                  contactName: contactName,
+                  lastMessage: aiResult.message,
+                  lastMessageAt: new Date(),
+                  unreadCount: 0 // AI messages don't increase unread count
+                });
+
+                console.log(`🔌 WebSocket: Broadcasted AI message to user ${conversation.userId}`);
+              }
             } else {
               console.log(`\n⚠️ WhatsApp service not configured or no message to send`);
             }

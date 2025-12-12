@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useSocket } from './SocketContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -43,8 +44,8 @@ export function WhatsAppNotificationProvider({ children }: { children: ReactNode
   const [unreadCount, setUnreadCount] = useState(0);
   const lastNotifiedMessagesRef = useRef<Set<string>>(new Set());
   const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+  const { socket } = useSocket();
 
   const token = localStorage.getItem('token');
 
@@ -63,31 +64,80 @@ export function WhatsAppNotificationProvider({ children }: { children: ReactNode
     notificationSoundRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSyAzvLZiTYIGWi77eeeTRAMUKfi8LZjHAY4ktfyy3ksBSN2x/HemT8KE2Cz6eyrVRQJRp/g8r9sIAUsgs/y14o2BxlruvHsn0wQC1Cn4+--3AA');
 
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
       document.title = 'CRM';
     };
   }, []);
 
-  // Start polling for conversations when component mounts
+  // Initial fetch of conversations
   useEffect(() => {
     if (!token) return;
-
-    // Initial fetch
     fetchConversations(false);
+  }, [token]);
 
-    // Poll every 5 seconds
-    pollingIntervalRef.current = setInterval(() => {
-      fetchConversations(false);
-    }, 5000);
+  // 🔌 WebSocket: Real-time conversation updates (replaces polling!)
+  useEffect(() => {
+    if (!socket) return;
+
+    console.log('🔌 Setting up WhatsApp notification WebSocket listeners...');
+
+    // Listen for conversation updates to trigger notifications
+    socket.on('whatsapp:conversation_updated', (data: any) => {
+      console.log('🔌 Notification context received conversation update:', data);
+
+      // Update conversations list
+      setConversations((prev) => {
+        const existingIndex = prev.findIndex((c) => c.id === data.conversationId);
+
+        if (existingIndex >= 0) {
+          // Update existing conversation
+          const updated = [...prev];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            lastMessage: data.lastMessage,
+            lastMessageAt: data.lastMessageAt,
+            unreadCount: data.unreadCount,
+          };
+          return updated;
+        } else {
+          // New conversation - fetch full list
+          fetchConversations(false);
+          return prev;
+        }
+      });
+
+      // Trigger notification for new unread messages
+      if (data.unreadCount > 0) {
+        const messageKey = `${data.conversationId}-${data.lastMessageAt}`;
+
+        if (!lastNotifiedMessagesRef.current.has(messageKey)) {
+          lastNotifiedMessagesRef.current.add(messageKey);
+
+          // Keep only last 20 messages in the set
+          if (lastNotifiedMessagesRef.current.size > 20) {
+            const arr = Array.from(lastNotifiedMessagesRef.current);
+            lastNotifiedMessagesRef.current = new Set(arr.slice(-20));
+          }
+
+          // Trigger notifications
+          playNotificationSound();
+          showDesktopNotification(
+            `New message from ${data.contactName}`,
+            data.lastMessage || 'New message received'
+          );
+          addNotification(data.conversationId, data.contactName, data.lastMessage || 'New message received');
+          toast({
+            title: `New message from ${data.contactName}`,
+            description: data.lastMessage?.substring(0, 50) + (data.lastMessage && data.lastMessage.length > 50 ? '...' : ''),
+          });
+        }
+      }
+    });
 
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
+      console.log('🔌 Cleaning up WhatsApp notification WebSocket listeners...');
+      socket.off('whatsapp:conversation_updated');
     };
-  }, [token]);
+  }, [socket]);
 
   const playNotificationSound = () => {
     if (notificationSoundRef.current) {

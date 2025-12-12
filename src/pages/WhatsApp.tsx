@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useSocket } from '@/contexts/SocketContext';
 import {
   MessageCircle,
   Search,
@@ -83,6 +84,7 @@ export default function WhatsApp() {
   const [aiFeatureAvailable, setAiFeatureAvailable] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { socket, isConnected } = useSocket();
 
   const token = localStorage.getItem('token');
 
@@ -92,25 +94,47 @@ export default function WhatsApp() {
     checkAIStatus();
   }, []);
 
-  // Poll for new conversations every 5 seconds
+  // 🔌 WebSocket: Listen for real-time WhatsApp updates (replaces polling!)
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchConversations(false); // Don't show loading spinner during polling
-    }, 5000);
+    if (!socket) return;
 
-    return () => clearInterval(interval);
-  }, [searchQuery]);
+    console.log('🔌 Setting up WhatsApp WebSocket listeners...');
 
-  // Poll for new messages in current conversation every 3 seconds
-  useEffect(() => {
-    if (!selectedConversation) return;
+    // Listen for new messages
+    socket.on('whatsapp:new_message', (data: { conversationId: string; message: Message }) => {
+      console.log('🔌 Received new WhatsApp message:', data);
 
-    const interval = setInterval(() => {
-      refreshMessages();
-    }, 3000);
+      // Update messages if this is the current conversation
+      if (selectedConversation?.id === data.conversationId) {
+        setMessages((prev) => [...prev, data.message]);
+      }
+    });
 
-    return () => clearInterval(interval);
-  }, [selectedConversation?.id]);
+    // Listen for conversation updates
+    socket.on('whatsapp:conversation_updated', (data: any) => {
+      console.log('🔌 Conversation updated:', data);
+
+      // Update conversations list
+      setConversations((prev) => {
+        return prev.map((conv) =>
+          conv.id === data.conversationId
+            ? {
+                ...conv,
+                lastMessage: data.lastMessage,
+                lastMessageAt: data.lastMessageAt,
+                unreadCount: data.unreadCount,
+              }
+            : conv
+        );
+      });
+    });
+
+    return () => {
+      console.log('🔌 Cleaning up WhatsApp WebSocket listeners...');
+      socket.off('whatsapp:new_message');
+      socket.off('whatsapp:conversation_updated');
+    };
+  }, [socket, selectedConversation?.id]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
