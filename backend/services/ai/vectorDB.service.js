@@ -48,13 +48,23 @@ class VectorDBService {
         console.log(`✅ Collection '${aiConfig.vectorDB.collectionName}' exists`);
       } catch (error) {
         console.log(`📝 Creating collection '${aiConfig.vectorDB.collectionName}'...`);
-        await this.client.createCollection(aiConfig.vectorDB.collectionName, {
-          vectors: {
-            size: 1536, // OpenAI embedding dimension for text-embedding-3-small
-            distance: 'Cosine',
-          },
-        });
-        console.log('✅ Collection created');
+        try {
+          await this.client.createCollection(aiConfig.vectorDB.collectionName, {
+            vectors: {
+              size: 1536, // OpenAI embedding dimension for text-embedding-3-small
+              distance: 'Cosine',
+            },
+          });
+          console.log('✅ Collection created');
+        } catch (createError) {
+          // If collection already exists (409 Conflict), that's fine - just continue
+          if (createError.status === 409) {
+            console.log(`✅ Collection '${aiConfig.vectorDB.collectionName}' already exists (conflict resolved)`);
+          } else {
+            // Re-throw other errors
+            throw createError;
+          }
+        }
       }
 
       // Initialize vector store
