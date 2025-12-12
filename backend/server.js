@@ -2,12 +2,27 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { PrismaClient } = require('@prisma/client');
+const http = require('http');
+const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
 
 dotenv.config();
 
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3001;
+
+// Create HTTP server for both Express and Socket.IO
+const httpServer = http.createServer(app);
+
+// Initialize Socket.IO with CORS
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -67,15 +82,60 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
+// Socket.IO authentication middleware
+io.use((socket, next) => {
+  try {
+    const token = socket.handshake.auth.token;
+
+    if (!token) {
+      return next(new Error('Authentication error: No token provided'));
+    }
+
+    // Verify JWT token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    socket.userId = decoded.userId;
+    socket.userEmail = decoded.email;
+
+    console.log(`🔌 WebSocket: User ${decoded.email} authenticated`);
+    next();
+  } catch (error) {
+    console.error('WebSocket authentication error:', error.message);
+    next(new Error('Authentication error: Invalid token'));
+  }
+});
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  const userId = socket.userId;
+  console.log(`✅ WebSocket: User ${socket.userEmail} connected (ID: ${socket.id})`);
+
+  // Join user-specific room for targeted messages
+  socket.join(`user:${userId}`);
+
+  socket.on('disconnect', () => {
+    console.log(`❌ WebSocket: User ${socket.userEmail} disconnected`);
+  });
+
+  socket.on('error', (error) => {
+    console.error(`⚠️ WebSocket error for user ${socket.userEmail}:`, error);
+  });
+});
+
 // Graceful shutdown
 process.on('SIGINT', async () => {
+  console.log('\n🛑 Shutting down gracefully...');
+  io.close(() => {
+    console.log('✅ WebSocket server closed');
+  });
   await prisma.$disconnect();
   process.exit(0);
 });
 
-app.listen(PORT, () => {
+// Start server (HTTP + WebSocket on same port)
+httpServer.listen(PORT, () => {
   console.log(`🚀 Server is running on http://localhost:${PORT}`);
   console.log(`📊 API endpoints available at http://localhost:${PORT}/api`);
+  console.log(`🔌 WebSocket server ready for real-time connections`);
 });
 
-module.exports = { prisma };
+module.exports = { prisma, io };
