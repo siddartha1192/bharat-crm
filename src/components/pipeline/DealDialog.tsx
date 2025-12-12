@@ -50,6 +50,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
     title: '',
     company: '',
     contactName: '',
+    email: '',
     contactId: undefined,
     stage: initialStage,
     value: 0,
@@ -127,6 +128,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
         title: deal.title || '',
         company: deal.company || '',
         contactName: deal.contactName || '',
+        email: deal.email || '',
         contactId: deal.contactId,
         stage: deal.stage || initialStage,
         value: deal.value || 0,
@@ -142,6 +144,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
         title: '',
         company: '',
         contactName: '',
+        email: '',
         contactId: undefined,
         stage: initialStage,
         value: 0,
@@ -173,6 +176,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
         ...prev,
         contactId: contact.id,
         contactName: contact.name,
+        email: contact.email || prev.email || '',
         company: prev.company || contact.company || '',
       }));
       setContactOpen(false);
@@ -307,6 +311,21 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
                   New contact will be created with this name
                 </p>
               )}
+            </div>
+
+            <div>
+              <Label htmlFor="email">Email *</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => updateField('email', e.target.value)}
+                placeholder="contact@example.com"
+                required
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Synced with lead email
+              </p>
             </div>
 
             <div>
