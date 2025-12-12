@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
+const automationService = require('../services/automation');
 const prisma = new PrismaClient();
 
 // Helper function: Map deal stage to lead status
@@ -197,6 +198,26 @@ router.put('/:id', async (req, res) => {
       });
     } else {
       console.log('⚠️  Verification - No linked lead found for this deal');
+    }
+
+    // Trigger automation for stage change
+    if (isStageChanging) {
+      try {
+        console.log('🤖 Triggering automation for deal stage change:', existingDeal.stage, '→', result.stage);
+        await automationService.triggerAutomation('lead.stage_changed', {
+          id: result.id,
+          name: result.contactName,
+          email: result.email,
+          company: result.company,
+          fromStage: existingDeal.stage,
+          toStage: result.stage,
+          entityType: 'Deal'
+        }, req.user);
+        console.log('✅ Automation triggered successfully');
+      } catch (automationError) {
+        console.error('❌ Error triggering deal stage change automation:', automationError);
+        // Don't fail the request if automation fails
+      }
     }
 
     res.json(result);
