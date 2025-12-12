@@ -9,6 +9,26 @@ const path = require('path');
 
 const prisma = new PrismaClient();
 
+// Track ingest process status in memory (could be moved to Redis for production)
+let ingestStatus = {
+  isRunning: false,
+  startedAt: null,
+  completedAt: null,
+  error: null,
+  logs: []
+};
+
+function addIngestLog(message) {
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] ${message}`;
+  ingestStatus.logs.push(logEntry);
+  console.log(logEntry);
+  // Keep only last 100 logs
+  if (ingestStatus.logs.length > 100) {
+    ingestStatus.logs.shift();
+  }
+}
+
 /**
  * Process and upload data to vector database
  */
@@ -257,6 +277,10 @@ router.delete('/uploads/:id', authenticate, authorize('ADMIN'), async (req, res)
  */
 router.post('/ingest', authenticate, authorize('ADMIN'), async (req, res) => {
   try {
+    if (ingestStatus.isRunning) {
+      return res.status(409).json({ error: 'Ingest process is already running' });
+    }
+
     const scriptPath = path.join(__dirname, '../scripts/ingestDocuments.js');
 
     // Check if script exists
@@ -264,26 +288,81 @@ router.post('/ingest', authenticate, authorize('ADMIN'), async (req, res) => {
       return res.status(404).json({ error: 'Ingest script not found' });
     }
 
+    // Reset status
+    ingestStatus = {
+      isRunning: true,
+      startedAt: new Date(),
+      completedAt: null,
+      error: null,
+      logs: []
+    };
+
+    addIngestLog('🚀 Starting ingest process...');
+
     // Send immediate response
     res.json({
-      message: 'Ingest process started in background',
+      message: 'Ingest process started',
       status: 'processing'
     });
 
-    // Run script in background
+    // Run script with captured output
     const ingestProcess = spawn('node', [scriptPath, '--clear'], {
       cwd: path.join(__dirname, '..'),
-      detached: true,
-      stdio: 'ignore'
+      stdio: ['ignore', 'pipe', 'pipe']
     });
 
-    // Detach the process so it continues running
-    ingestProcess.unref();
+    // Capture stdout
+    ingestProcess.stdout.on('data', (data) => {
+      const lines = data.toString().split('\n').filter(line => line.trim());
+      lines.forEach(line => addIngestLog(line));
+    });
 
-    console.log('Ingest script started with PID:', ingestProcess.pid);
+    // Capture stderr
+    ingestProcess.stderr.on('data', (data) => {
+      const lines = data.toString().split('\n').filter(line => line.trim());
+      lines.forEach(line => addIngestLog(`ERROR: ${line}`));
+    });
+
+    // Handle completion
+    ingestProcess.on('close', (code) => {
+      ingestStatus.isRunning = false;
+      ingestStatus.completedAt = new Date();
+
+      if (code === 0) {
+        addIngestLog('✅ Ingest process completed successfully');
+      } else {
+        ingestStatus.error = `Process exited with code ${code}`;
+        addIngestLog(`❌ Ingest process failed with exit code ${code}`);
+      }
+    });
+
+    // Handle errors
+    ingestProcess.on('error', (error) => {
+      ingestStatus.isRunning = false;
+      ingestStatus.completedAt = new Date();
+      ingestStatus.error = error.message;
+      addIngestLog(`❌ Process error: ${error.message}`);
+    });
+
+    addIngestLog(`Process started with PID: ${ingestProcess.pid}`);
   } catch (error) {
     console.error('Error starting ingest script:', error);
+    ingestStatus.isRunning = false;
+    ingestStatus.error = error.message;
     res.status(500).json({ error: 'Failed to start ingest process' });
+  }
+});
+
+/**
+ * Get ingest process status
+ * GET /api/vector-data/ingest/status
+ */
+router.get('/ingest/status', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res) => {
+  try {
+    res.json(ingestStatus);
+  } catch (error) {
+    console.error('Error fetching ingest status:', error);
+    res.status(500).json({ error: 'Failed to fetch ingest status' });
   }
 });
 

@@ -283,4 +283,140 @@ router.get('/stats/summary', async (req, res) => {
   }
 });
 
+/**
+ * Bulk import leads from CSV
+ * POST /api/leads/import
+ */
+router.post('/import', async (req, res) => {
+  const { uploadVectorData } = require('../middleware/upload');
+  const csvParser = require('csv-parser');
+  const fs = require('fs');
+  const stream = require('stream');
+
+  // Use multer middleware for single file upload
+  uploadVectorData.single('file')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const userId = req.user.id;
+    const results = {
+      total: 0,
+      successful: 0,
+      failed: 0,
+      errors: []
+    };
+
+    try {
+      const leads = [];
+
+      // Parse CSV file
+      await new Promise((resolve, reject) => {
+        fs.createReadStream(req.file.path)
+          .pipe(csvParser())
+          .on('data', (row) => {
+            leads.push(row);
+          })
+          .on('end', resolve)
+          .on('error', reject);
+      });
+
+      results.total = leads.length;
+
+      // Import leads one by one
+      for (let i = 0; i < leads.length; i++) {
+        const leadData = leads[i];
+
+        try {
+          // Map CSV columns to lead fields (flexible mapping)
+          const lead = {
+            name: leadData.name || leadData.Name || leadData.contact_name || '',
+            email: leadData.email || leadData.Email || '',
+            phone: leadData.phone || leadData.Phone || leadData.mobile || '',
+            company: leadData.company || leadData.Company || '',
+            status: leadData.status || leadData.Status || 'new',
+            source: leadData.source || leadData.Source || 'import',
+            notes: leadData.notes || leadData.Notes || '',
+            estimatedValue: parseFloat(leadData.estimated_value || leadData.EstimatedValue || leadData.value || 0),
+            assignedTo: leadData.assigned_to || userId,
+            tags: leadData.tags ? (typeof leadData.tags === 'string' ? leadData.tags.split(',').map(t => t.trim()) : []) : [],
+            userId
+          };
+
+          // Validate required fields
+          if (!lead.name) {
+            results.failed++;
+            results.errors.push(`Row ${i + 1}: Missing required field 'name'`);
+            continue;
+          }
+
+          // Create lead and associated deal in transaction
+          await prisma.$transaction(async (tx) => {
+            // Create Lead
+            const createdLead = await tx.lead.create({
+              data: {
+                name: lead.name,
+                email: lead.email,
+                phone: lead.phone,
+                company: lead.company,
+                status: lead.status,
+                source: lead.source,
+                notes: lead.notes,
+                estimatedValue: lead.estimatedValue,
+                assignedTo: lead.assignedTo,
+                tags: lead.tags,
+                userId: lead.userId
+              }
+            });
+
+            // Create associated Deal
+            await tx.deal.create({
+              data: {
+                title: `Deal - ${lead.name}`,
+                company: lead.company,
+                contactName: lead.name,
+                value: lead.estimatedValue,
+                stage: 'lead',
+                probability: 10,
+                expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+                assignedTo: lead.assignedTo,
+                notes: lead.notes,
+                tags: lead.tags,
+                userId: lead.userId
+              }
+            });
+          });
+
+          results.successful++;
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`Row ${i + 1}: ${error.message}`);
+          console.error(`Error importing lead row ${i + 1}:`, error);
+        }
+      }
+
+      // Delete uploaded file
+      fs.unlinkSync(req.file.path);
+
+      res.json({
+        message: `Imported ${results.successful} out of ${results.total} leads`,
+        results
+      });
+    } catch (error) {
+      console.error('Error importing leads:', error);
+
+      // Delete uploaded file on error
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+
+      res.status(500).json({ error: 'Failed to import leads', message: error.message });
+    }
+  });
+});
+
 module.exports = router;
