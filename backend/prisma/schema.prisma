@@ -484,6 +484,7 @@ model AutomationRule {
   // Stage change specific config
   fromStage       String?  // Source stage for stage change triggers
   toStage         String?  // Destination stage for stage change triggers
+  entityType      String   @default("lead") // 'lead' | 'deal' - which entity the automation applies to
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

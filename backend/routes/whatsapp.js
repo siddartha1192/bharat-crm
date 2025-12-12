@@ -212,6 +212,166 @@ router.post('/send-template', authenticate, async (req, res) => {
   }
 });
 
+// Send bulk WhatsApp messages to multiple contacts
+router.post('/bulk-send', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { message, contacts } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
+      return res.status(400).json({ error: 'At least one contact is required' });
+    }
+
+    // Check if WhatsApp is configured
+    if (!whatsappService.isConfigured()) {
+      return res.status(503).json({
+        error: 'WhatsApp is not configured',
+        message: 'Please configure WHATSAPP_TOKEN and WHATSAPP_PHONE_ID in environment variables'
+      });
+    }
+
+    // Get user info for sender name
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true }
+    });
+
+    const results = [];
+
+    // Send message to each contact
+    for (const contact of contacts) {
+      try {
+        const { id: contactId, name: contactName, phone } = contact;
+
+        if (!phone) {
+          results.push({
+            phone: 'N/A',
+            name: contactName,
+            success: false,
+            error: 'No phone number'
+          });
+          continue;
+        }
+
+        // Send the message
+        const result = await whatsappService.sendMessage(phone, message);
+
+        // Get or create conversation
+        let conversation = await prisma.whatsAppConversation.findUnique({
+          where: {
+            userId_contactPhone: {
+              userId,
+              contactPhone: phone
+            }
+          }
+        });
+
+        if (!conversation) {
+          // Create new conversation
+          const filePath = conversationStorage.getFilePath(userId, phone);
+          conversation = await prisma.whatsAppConversation.create({
+            data: {
+              userId,
+              contactName,
+              contactPhone: phone,
+              contactId: contactId || null,
+              lastMessage: message,
+              lastMessageAt: new Date(),
+              filePath
+            }
+          });
+        } else {
+          // Update existing conversation
+          conversation = await prisma.whatsAppConversation.update({
+            where: { id: conversation.id },
+            data: {
+              lastMessage: message,
+              lastMessageAt: new Date()
+            }
+          });
+        }
+
+        // Save message to database
+        const savedMessage = await prisma.whatsAppMessage.create({
+          data: {
+            conversationId: conversation.id,
+            message,
+            sender: 'user',
+            senderName: user?.name || 'User',
+            status: 'sent',
+            messageType: 'text',
+            metadata: { whatsappMessageId: result.messageId, bulkSend: true }
+          }
+        });
+
+        // Save message to file
+        await conversationStorage.saveMessage(userId, phone, savedMessage);
+
+        // 🔌 Broadcast sent message via WebSocket
+        if (io) {
+          io.to(`user:${userId}`).emit('whatsapp:new_message', {
+            conversationId: conversation.id,
+            message: savedMessage
+          });
+
+          io.to(`user:${userId}`).emit('whatsapp:conversation_updated', {
+            conversationId: conversation.id,
+            contactName: contactName,
+            lastMessage: message,
+            lastMessageAt: new Date(),
+            unreadCount: 0,
+            aiEnabled: conversation.aiEnabled
+          });
+        }
+
+        results.push({
+          phone,
+          name: contactName,
+          success: true,
+          messageId: result.messageId
+        });
+
+        // Small delay between messages to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+      } catch (error) {
+        console.error(`Error sending bulk message to ${contact.phone}:`, error);
+        results.push({
+          phone: contact.phone,
+          name: contact.name,
+          success: false,
+          error: error.message || 'Failed to send'
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.length - successCount;
+
+    res.json({
+      success: true,
+      message: `Sent to ${successCount} contact(s). ${failureCount} failed.`,
+      results,
+      summary: {
+        total: results.length,
+        success: successCount,
+        failed: failureCount
+      }
+    });
+
+  } catch (error) {
+    console.error('Error sending bulk messages:', error);
+    res.status(500).json({
+      error: 'Failed to send bulk messages',
+      message: error.message
+    });
+  }
+});
+
 // Check WhatsApp configuration status
 router.get('/status', authenticate, async (req, res) => {
   const userId = req.user.id;
