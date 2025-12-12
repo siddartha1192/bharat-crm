@@ -95,6 +95,7 @@ router.post('/', async (req, res) => {
           title: `${leadData.company} - ${leadData.name}`,
           company: leadData.company,
           contactName: leadData.name,
+          email: leadData.email,
           value: leadData.estimatedValue || 0,
           stage: mapLeadStatusToDealStage(leadData.status || 'new'),
           probability: leadData.priority === 'urgent' ? 80 : leadData.priority === 'high' ? 60 : leadData.priority === 'medium' ? 40 : 20,
@@ -179,6 +180,7 @@ router.put('/:id', async (req, res) => {
 
         // Sync other fields
         if (updateData.name) dealUpdateData.contactName = updateData.name;
+        if (updateData.email) dealUpdateData.email = updateData.email;
         if (updateData.company) dealUpdateData.company = updateData.company;
         if (updateData.estimatedValue !== undefined) dealUpdateData.value = updateData.estimatedValue;
         if (updateData.notes) dealUpdateData.notes = updateData.notes;

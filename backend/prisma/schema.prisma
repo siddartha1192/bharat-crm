@@ -296,6 +296,7 @@ model Deal {
   title           String
   company         String
   contactName     String
+  email           String   // Synced with lead email
   contactId       String?  // Optional link to Contact
   value           Float
   stage           String   // References PipelineStage.slug
