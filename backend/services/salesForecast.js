@@ -47,17 +47,24 @@ async function calculateForecast(userId, period, startDate, endDate) {
       where: filter
     });
 
-    // Calculate metrics
-    const wonDeals = deals.filter(d => d.stage === 'won');
-    const lostDeals = deals.filter(d => d.stage === 'lost');
-    const activeDeals = deals.filter(d => d.stage !== 'won' && d.stage !== 'lost');
+    // Calculate metrics with CORRECT stage names
+    // Actual stages: 'lead', 'qualified', 'proposal', 'negotiation', 'closed-won', 'closed-lost'
+    const wonDeals = deals.filter(d => d.stage === 'closed-won');
+    const lostDeals = deals.filter(d => d.stage === 'closed-lost');
+    const activeDeals = deals.filter(d => d.stage !== 'closed-won' && d.stage !== 'closed-lost');
 
+    // Won revenue = actual closed revenue in this period
     const wonRevenue = wonDeals.reduce((sum, deal) => sum + deal.value, 0);
+
+    // Pipeline value = total value of active deals
     const pipelineValue = activeDeals.reduce((sum, deal) => sum + deal.value, 0);
+
+    // Weighted value = expected revenue from active deals (probability-adjusted)
     const weightedValue = activeDeals.reduce((sum, deal) => sum + (deal.value * deal.probability / 100), 0);
 
-    const totalDeals = wonDeals.length + lostDeals.length;
-    const conversionRate = totalDeals > 0 ? (wonDeals.length / totalDeals) * 100 : 0;
+    // Conversion rate = won / (won + lost) - only for CLOSED deals
+    const closedDeals = wonDeals.length + lostDeals.length;
+    const conversionRate = closedDeals > 0 ? (wonDeals.length / closedDeals) * 100 : 0;
 
     // Calculate stage breakdown
     const stageBreakdown = {};
@@ -122,7 +129,7 @@ async function calculateForecast(userId, period, startDate, endDate) {
     const previousWonDeals = await prisma.deal.findMany({
       where: {
         ...previousFilter,
-        stage: 'won'
+        stage: 'closed-won'  // FIXED: Use correct stage name
       }
     });
 
@@ -131,14 +138,41 @@ async function calculateForecast(userId, period, startDate, endDate) {
       ? ((wonRevenue - previousPeriodRevenue) / previousPeriodRevenue) * 100
       : 0;
 
+    // Get active revenue goal for this period (if exists)
+    let revenueGoal = null;
+    try {
+      const goal = await prisma.revenueGoal.findFirst({
+        where: {
+          userId: userId || null,
+          startDate: { lte: endDate },
+          endDate: { gte: startDate }
+        }
+      });
+      if (goal) {
+        revenueGoal = {
+          target: goal.targetRevenue,
+          progress: wonRevenue,
+          percentage: (wonRevenue / goal.targetRevenue) * 100,
+          remaining: goal.targetRevenue - wonRevenue
+        };
+      }
+    } catch (error) {
+      // Revenue goal might not exist yet (table not migrated)
+      console.log('Revenue goal not available:', error.message);
+    }
+
     return {
       forecastDate: new Date(),
       forecastPeriod: period,
-      expectedRevenue: wonRevenue + weightedValue,
-      pipelineValue,
-      weightedValue,
+      // FIXED: Clear naming
+      actualRevenue: wonRevenue,              // Revenue already won (closed deals)
+      projectedRevenue: weightedValue,         // Expected revenue from active pipeline
+      expectedRevenue: wonRevenue + weightedValue,  // Total forecast (actual + projected)
+      pipelineValue,                           // Total pipeline value (unweighted)
+      weightedValue,                           // Weighted pipeline value
       leadCount: leads.length,
       dealCount: deals.length,
+      activeDeals: activeDeals.length,         // NEW: Count of active deals
       wonCount: wonDeals.length,
       lostCount: lostDeals.length,
       conversionRate,
@@ -146,7 +180,8 @@ async function calculateForecast(userId, period, startDate, endDate) {
       userBreakdown,
       previousPeriodRevenue,
       growthRate,
-      wonRevenue
+      wonRevenue,                              // Kept for backward compatibility
+      revenueGoal                              // NEW: Revenue goal tracking
     };
   } catch (error) {
     console.error('Error calculating forecast:', error);
@@ -264,12 +299,12 @@ async function getPipelineHealth(userId) {
   try {
     const filter = userId ? { userId } : {};
 
-    // Get all active deals
+    // Get all active deals (exclude closed deals)
     const deals = await prisma.deal.findMany({
       where: {
         ...filter,
         stage: {
-          notIn: ['won', 'lost']
+          notIn: ['closed-won', 'closed-lost']  // FIXED: Use correct stage names
         }
       },
       include: {
@@ -325,10 +360,108 @@ async function getPipelineHealth(userId) {
   }
 }
 
+/**
+ * Create or update revenue goal
+ */
+async function saveRevenueGoal(userId, goalData) {
+  try {
+    if (goalData.id) {
+      // Update existing goal
+      return await prisma.revenueGoal.update({
+        where: { id: goalData.id },
+        data: {
+          period: goalData.period,
+          targetRevenue: goalData.targetRevenue,
+          startDate: new Date(goalData.startDate),
+          endDate: new Date(goalData.endDate),
+          description: goalData.description
+        }
+      });
+    } else {
+      // Create new goal
+      return await prisma.revenueGoal.create({
+        data: {
+          userId: userId || null,
+          period: goalData.period,
+          targetRevenue: goalData.targetRevenue,
+          startDate: new Date(goalData.startDate),
+          endDate: new Date(goalData.endDate),
+          description: goalData.description
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error saving revenue goal:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get revenue goals
+ */
+async function getRevenueGoals(userId, period = null) {
+  try {
+    const filter = { userId: userId || null };
+    if (period) {
+      filter.period = period;
+    }
+
+    return await prisma.revenueGoal.findMany({
+      where: filter,
+      orderBy: { startDate: 'desc' }
+    });
+  } catch (error) {
+    console.error('Error fetching revenue goals:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get active revenue goal for current period
+ */
+async function getActiveRevenueGoal(userId, period = 'monthly') {
+  try {
+    const now = new Date();
+
+    return await prisma.revenueGoal.findFirst({
+      where: {
+        userId: userId || null,
+        period,
+        startDate: { lte: now },
+        endDate: { gte: now }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching active revenue goal:', error);
+    throw error;
+  }
+}
+
+/**
+ * Delete revenue goal
+ */
+async function deleteRevenueGoal(goalId, userId) {
+  try {
+    return await prisma.revenueGoal.delete({
+      where: {
+        id: goalId,
+        userId: userId || null
+      }
+    });
+  } catch (error) {
+    console.error('Error deleting revenue goal:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   calculateForecast,
   saveForecast,
   getForecasts,
   getTrendData,
-  getPipelineHealth
+  getPipelineHealth,
+  saveRevenueGoal,
+  getRevenueGoals,
+  getActiveRevenueGoal,
+  deleteRevenueGoal
 };

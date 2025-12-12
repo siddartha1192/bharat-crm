@@ -158,4 +158,87 @@ router.get('/organization', authenticate, authorize('ADMIN', 'MANAGER'), async (
   }
 });
 
+/**
+ * Create or update revenue goal
+ * POST /api/forecast/revenue-goal
+ */
+router.post('/revenue-goal', authenticate, async (req, res) => {
+  try {
+    const { goalData } = req.body;
+
+    // Only admins and managers can set org-wide goals (userId = null)
+    const targetUserId = (!goalData.userId && (req.user.role === 'ADMIN' || req.user.role === 'MANAGER'))
+      ? null
+      : req.user.id;
+
+    const goal = await salesForecastService.saveRevenueGoal(targetUserId, goalData);
+
+    res.json(goal);
+  } catch (error) {
+    console.error('Error saving revenue goal:', error);
+    res.status(500).json({ error: 'Failed to save revenue goal' });
+  }
+});
+
+/**
+ * Get revenue goals
+ * GET /api/forecast/revenue-goals
+ */
+router.get('/revenue-goals', authenticate, async (req, res) => {
+  try {
+    const { period, userId } = req.query;
+
+    // Only admins and managers can view other users' goals
+    const targetUserId = userId && (req.user.role === 'ADMIN' || req.user.role === 'MANAGER')
+      ? userId
+      : req.user.id;
+
+    const goals = await salesForecastService.getRevenueGoals(targetUserId, period);
+
+    res.json(goals);
+  } catch (error) {
+    console.error('Error fetching revenue goals:', error);
+    res.status(500).json({ error: 'Failed to fetch revenue goals' });
+  }
+});
+
+/**
+ * Get active revenue goal
+ * GET /api/forecast/revenue-goal/active
+ */
+router.get('/revenue-goal/active', authenticate, async (req, res) => {
+  try {
+    const { period = 'monthly', userId } = req.query;
+
+    // Only admins and managers can view other users' goals
+    const targetUserId = userId && (req.user.role === 'ADMIN' || req.user.role === 'MANAGER')
+      ? userId
+      : req.user.id;
+
+    const goal = await salesForecastService.getActiveRevenueGoal(targetUserId, period);
+
+    res.json(goal);
+  } catch (error) {
+    console.error('Error fetching active revenue goal:', error);
+    res.status(500).json({ error: 'Failed to fetch active revenue goal' });
+  }
+});
+
+/**
+ * Delete revenue goal
+ * DELETE /api/forecast/revenue-goal/:id
+ */
+router.delete('/revenue-goal/:id', authenticate, async (req, res) => {
+  try {
+    const goalId = req.params.id;
+
+    await salesForecastService.deleteRevenueGoal(goalId, req.user.id);
+
+    res.json({ message: 'Revenue goal deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting revenue goal:', error);
+    res.status(500).json({ error: 'Failed to delete revenue goal' });
+  }
+});
+
 module.exports = router;
