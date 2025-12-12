@@ -114,16 +114,17 @@ export default function WhatsApp() {
     socket.on('whatsapp:conversation_updated', (data: any) => {
       console.log('🔌 Conversation updated:', data);
 
-      // Update conversations list (preserve all existing fields like aiEnabled)
+      // Update conversations list with aiEnabled field from WebSocket
       setConversations((prev) => {
         return prev.map((conv) =>
           conv.id === data.conversationId
             ? {
-                ...conv, // Preserve all existing fields including aiEnabled
+                ...conv,
                 contactName: data.contactName || conv.contactName,
                 lastMessage: data.lastMessage,
                 lastMessageAt: data.lastMessageAt,
                 unreadCount: data.unreadCount,
+                aiEnabled: data.aiEnabled !== undefined ? data.aiEnabled : conv.aiEnabled, // Use WebSocket value if provided
               }
             : conv
         );
@@ -138,6 +139,7 @@ export default function WhatsApp() {
                 lastMessage: data.lastMessage,
                 lastMessageAt: data.lastMessageAt,
                 unreadCount: data.unreadCount,
+                aiEnabled: data.aiEnabled !== undefined ? data.aiEnabled : prev.aiEnabled,
               }
             : null
         );
@@ -615,9 +617,6 @@ export default function WhatsApp() {
                   )}
                 </Button>
               )}
-              <Button size="sm" variant="ghost">
-                <Phone className="w-4 h-4" />
-              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" variant="ghost">
