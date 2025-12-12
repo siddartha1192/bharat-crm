@@ -135,19 +135,20 @@ async function triggerAutomation(event, data, user) {
     // Execute each rule
     for (const rule of rules) {
       try {
-        // Check if conditions match
-        if (rule.triggerConditions) {
-          const conditions = rule.triggerConditions;
-
-          // For stage change events, check if fromStage and toStage match
-          if (event.includes('stage_changed')) {
-            if (conditions.fromStage && conditions.fromStage !== data.fromStage) {
-              continue;
-            }
-            if (conditions.toStage && conditions.toStage !== data.toStage) {
-              continue;
-            }
+        // For stage change events, check if fromStage and toStage match
+        // These are stored as direct fields on the rule, not in triggerConditions
+        if (event.includes('stage_changed')) {
+          // Skip if fromStage is specified but doesn't match
+          if (rule.fromStage && rule.fromStage !== data.fromStage) {
+            console.log(`⏭️  Skipping rule "${rule.name}": fromStage "${rule.fromStage}" doesn't match "${data.fromStage}"`);
+            continue;
           }
+          // Skip if toStage is specified but doesn't match
+          if (rule.toStage && rule.toStage !== data.toStage) {
+            console.log(`⏭️  Skipping rule "${rule.name}": toStage "${rule.toStage}" doesn't match "${data.toStage}"`);
+            continue;
+          }
+          console.log(`✅ Rule "${rule.name}" matches stage change: ${data.fromStage} → ${data.toStage}`);
         }
 
         // Execute action based on actionType

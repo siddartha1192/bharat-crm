@@ -283,4 +283,315 @@ router.get('/stats/summary', async (req, res) => {
   }
 });
 
+/**
+ * Get documents for a specific lead
+ * GET /api/leads/:id/documents
+ */
+router.get('/:id/documents', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const leadId = req.params.id;
+
+    // Verify lead belongs to user
+    const lead = await prisma.lead.findFirst({
+      where: { id: leadId, userId }
+    });
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    // Get all documents for this lead
+    const documents = await prisma.document.findMany({
+      where: {
+        entityType: 'Lead',
+        entityId: leadId
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Add formatted file sizes
+    const { formatFileSize } = require('../middleware/upload');
+    const documentsWithSize = documents.map(doc => ({
+      ...doc,
+      formattedSize: formatFileSize(doc.fileSize)
+    }));
+
+    res.json(documentsWithSize);
+  } catch (error) {
+    console.error('Error fetching lead documents:', error);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+/**
+ * Upload document to a specific lead
+ * POST /api/leads/:id/documents/upload
+ */
+router.post('/:id/documents/upload', async (req, res) => {
+  const { uploadDocument } = require('../middleware/upload');
+  const leadId = req.params.id;
+
+  // Use multer middleware
+  uploadDocument.single('file')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    try {
+      const userId = req.user.id;
+
+      // Verify lead belongs to user
+      const lead = await prisma.lead.findFirst({
+        where: { id: leadId, userId }
+      });
+
+      if (!lead) {
+        // Delete uploaded file
+        const { deleteFile } = require('../middleware/upload');
+        deleteFile(req.file.path);
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+
+      const { description, tags } = req.body;
+
+      // Create document record
+      const document = await prisma.document.create({
+        data: {
+          fileName: req.file.originalname,
+          fileSize: req.file.size,
+          mimeType: req.file.mimetype,
+          filePath: req.file.path,
+          entityType: 'Lead',
+          entityId: leadId,
+          description: description || null,
+          uploadedBy: userId,
+          userId,
+          tags: tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : []
+        }
+      });
+
+      const { formatFileSize } = require('../middleware/upload');
+      res.json({
+        message: 'Document uploaded successfully',
+        document: {
+          ...document,
+          formattedSize: formatFileSize(document.fileSize)
+        }
+      });
+    } catch (error) {
+      console.error('Error uploading document to lead:', error);
+
+      // Delete uploaded file if database operation failed
+      if (req.file) {
+        const { deleteFile } = require('../middleware/upload');
+        deleteFile(req.file.path);
+      }
+
+      res.status(500).json({ error: 'Failed to upload document' });
+    }
+  });
+});
+
+/**
+ * Delete document from a specific lead
+ * DELETE /api/leads/:id/documents/:docId
+ */
+router.delete('/:id/documents/:docId', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id: leadId, docId } = req.params;
+
+    // Verify lead belongs to user
+    const lead = await prisma.lead.findFirst({
+      where: { id: leadId, userId }
+    });
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    // Get document
+    const document = await prisma.document.findFirst({
+      where: {
+        id: docId,
+        entityType: 'Lead',
+        entityId: leadId
+      }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Check permission
+    if (document.userId !== userId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized to delete this document' });
+    }
+
+    // Delete file from filesystem
+    const { deleteFile } = require('../middleware/upload');
+    deleteFile(document.filePath);
+
+    // Delete document record
+    await prisma.document.delete({
+      where: { id: docId }
+    });
+
+    res.json({ message: 'Document deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting document from lead:', error);
+    res.status(500).json({ error: 'Failed to delete document' });
+  }
+});
+
+/**
+ * Bulk import leads from CSV
+ * POST /api/leads/import
+ */
+router.post('/import', async (req, res) => {
+  const { uploadVectorData } = require('../middleware/upload');
+  const csvParser = require('csv-parser');
+  const fs = require('fs');
+  const stream = require('stream');
+
+  // Use multer middleware for single file upload
+  uploadVectorData.single('file')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const userId = req.user.id;
+    const results = {
+      total: 0,
+      successful: 0,
+      failed: 0,
+      errors: []
+    };
+
+    try {
+      const leads = [];
+
+      // Parse CSV file
+      await new Promise((resolve, reject) => {
+        fs.createReadStream(req.file.path)
+          .pipe(csvParser())
+          .on('data', (row) => {
+            leads.push(row);
+          })
+          .on('end', resolve)
+          .on('error', reject);
+      });
+
+      results.total = leads.length;
+
+      // Import leads one by one
+      for (let i = 0; i < leads.length; i++) {
+        const leadData = leads[i];
+
+        try {
+          // Map CSV columns to lead fields (flexible mapping)
+          const lead = {
+            name: leadData.name || leadData.Name || leadData.contact_name || '',
+            email: leadData.email || leadData.Email || '',
+            phone: leadData.phone || leadData.Phone || leadData.mobile || '',
+            company: leadData.company || leadData.Company || '',
+            status: leadData.status || leadData.Status || 'new',
+            source: leadData.source || leadData.Source || 'import',
+            notes: leadData.notes || leadData.Notes || '',
+            estimatedValue: parseFloat(leadData.estimated_value || leadData.EstimatedValue || leadData.value || 0),
+            assignedTo: leadData.assigned_to || userId,
+            tags: leadData.tags ? (typeof leadData.tags === 'string' ? leadData.tags.split(',').map(t => t.trim()) : []) : [],
+            userId
+          };
+
+          // Validate required fields
+          if (!lead.name) {
+            results.failed++;
+            results.errors.push(`Row ${i + 1}: Missing required field 'name'`);
+            continue;
+          }
+
+          // Create lead and associated deal in transaction
+          await prisma.$transaction(async (tx) => {
+            // Create Lead
+            const createdLead = await tx.lead.create({
+              data: {
+                name: lead.name,
+                email: lead.email,
+                phone: lead.phone,
+                company: lead.company,
+                status: lead.status,
+                source: lead.source,
+                notes: lead.notes,
+                estimatedValue: lead.estimatedValue,
+                assignedTo: lead.assignedTo,
+                tags: lead.tags,
+                userId: lead.userId
+              }
+            });
+
+            // Create associated Deal
+            await tx.deal.create({
+              data: {
+                title: `Deal - ${lead.name}`,
+                company: lead.company,
+                contactName: lead.name,
+                value: lead.estimatedValue,
+                stage: 'lead',
+                probability: 10,
+                expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+                assignedTo: lead.assignedTo,
+                notes: lead.notes,
+                tags: lead.tags,
+                userId: lead.userId
+              }
+            });
+          });
+
+          results.successful++;
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`Row ${i + 1}: ${error.message}`);
+          console.error(`Error importing lead row ${i + 1}:`, error);
+        }
+      }
+
+      // Delete uploaded file
+      fs.unlinkSync(req.file.path);
+
+      res.json({
+        message: `Imported ${results.successful} out of ${results.total} leads`,
+        results
+      });
+    } catch (error) {
+      console.error('Error importing leads:', error);
+
+      // Delete uploaded file on error
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+
+      res.status(500).json({ error: 'Failed to import leads', message: error.message });
+    }
+  });
+});
+
 module.exports = router;

@@ -63,6 +63,7 @@ model User {
   automationRules         AutomationRule[]
   documents               Document[]
   salesForecasts          SalesForecast[]
+  revenueGoals            RevenueGoal[]
   vectorDataUploads       VectorDataUpload[]
 
   @@index([email])
@@ -583,4 +584,24 @@ model VectorDataUpload {
   @@index([userId])
   @@index([status])
   @@index([createdAt])
+}
+
+// Revenue Goal Model - Track sales targets and goals
+model RevenueGoal {
+  id              String   @id @default(uuid())
+  userId          String?  // Null for organization-wide goals
+  period          String   // 'monthly' | 'quarterly' | 'yearly'
+  targetRevenue   Float    // Goal amount
+  startDate       DateTime // Goal period start
+  endDate         DateTime // Goal period end
+  description     String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User relation (optional for org-wide goals)
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([period])
+  @@index([startDate, endDate])
 }
