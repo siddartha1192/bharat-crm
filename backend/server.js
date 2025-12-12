@@ -12,21 +12,24 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3001;
 
+// Middleware
+app.use(cors());
+app.use(express.json());
+
 // Create HTTP server for both Express and Socket.IO
 const httpServer = http.createServer(app);
 
 // Initialize Socket.IO with CORS
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
+    origin: true, // Allow all origins in development (you can restrict in production)
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
+  },
+  transports: ['websocket', 'polling'], // Support both transports
+  allowEIO3: true // Support older clients
 });
-
-// Middleware
-app.use(cors());
-app.use(express.json());
 
 // Serve static files from public directory
 app.use(express.static('public'));
@@ -82,12 +85,21 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
+// Log when Socket.IO server is ready
+console.log('🔌 Socket.IO server initialized');
+console.log('   - CORS origin:', 'All origins allowed (development mode)');
+console.log('   - Transports:', 'websocket, polling');
+
 // Socket.IO authentication middleware
 io.use((socket, next) => {
+  console.log('🔌 New WebSocket connection attempt from:', socket.handshake.address);
+  console.log('   - Transport:', socket.conn.transport.name);
+
   try {
     const token = socket.handshake.auth.token;
 
     if (!token) {
+      console.error('❌ WebSocket: No token provided in handshake');
       return next(new Error('Authentication error: No token provided'));
     }
 
@@ -96,10 +108,10 @@ io.use((socket, next) => {
     socket.userId = decoded.userId;
     socket.userEmail = decoded.email;
 
-    console.log(`🔌 WebSocket: User ${decoded.email} authenticated`);
+    console.log(`✅ WebSocket: User ${decoded.email} authenticated successfully`);
     next();
   } catch (error) {
-    console.error('WebSocket authentication error:', error.message);
+    console.error('❌ WebSocket authentication error:', error.message);
     next(new Error('Authentication error: Invalid token'));
   }
 });
@@ -108,12 +120,15 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   const userId = socket.userId;
   console.log(`✅ WebSocket: User ${socket.userEmail} connected (ID: ${socket.id})`);
+  console.log(`   - Transport: ${socket.conn.transport.name}`);
+  console.log(`   - User room: user:${userId}`);
 
   // Join user-specific room for targeted messages
   socket.join(`user:${userId}`);
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason) => {
     console.log(`❌ WebSocket: User ${socket.userEmail} disconnected`);
+    console.log(`   - Reason: ${reason}`);
   });
 
   socket.on('error', (error) => {
