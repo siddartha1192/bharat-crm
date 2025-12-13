@@ -102,6 +102,11 @@ router.put('/:id', async (req, res) => {
     console.log('📝 Updating deal:', req.params.id);
     console.log('📊 Update data:', JSON.stringify(updateData, null, 2));
 
+    // Validate required fields if provided
+    if (updateData.title !== undefined && !updateData.title.trim()) {
+      return res.status(400).json({ error: 'Deal title cannot be empty' });
+    }
+
     // First verify the deal belongs to the user
     const existingDeal = await prisma.deal.findFirst({
       where: {
@@ -111,17 +116,23 @@ router.put('/:id', async (req, res) => {
     });
 
     if (!existingDeal) {
+      console.log('❌ Deal not found for user:', userId, 'dealId:', req.params.id);
       return res.status(404).json({ error: 'Deal not found' });
     }
 
-    console.log('📌 Existing deal stage:', existingDeal.stage, '→ New stage:', updateData.stage);
+    console.log('📌 Existing deal:', {
+      id: existingDeal.id,
+      title: existingDeal.title,
+      stage: existingDeal.stage,
+      userId: existingDeal.userId
+    });
 
     // Check if stage is actually changing (store this before filtering fields)
     const isStageChanging = updateData.stage && updateData.stage !== existingDeal.stage;
     console.log('🔍 Stage changing?', isStageChanging, '(from', existingDeal.stage, 'to', updateData.stage, ')');
 
-    // Remove fields that shouldn't be updated
-    const { id, createdAt, updatedAt, nextAction, source, ...dealData } = updateData;
+    // Remove fields that shouldn't be updated and CRITICAL: prevent userId from being changed
+    const { id, createdAt, updatedAt, nextAction, source, userId: _, ...dealData } = updateData;
 
     // Update Deal and sync with Lead in transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -224,6 +235,15 @@ router.put('/:id', async (req, res) => {
       }
     }
 
+    console.log('✅ Deal update completed successfully');
+    console.log('📦 Returning updated deal:', {
+      id: result.id,
+      title: result.title,
+      stage: result.stage,
+      userId: result.userId,
+      company: result.company
+    });
+
     res.json(result);
   } catch (error) {
     console.error('❌ Error updating deal:', error);
@@ -248,11 +268,34 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Deal not found' });
     }
 
-    await prisma.deal.delete({
-      where: { id: req.params.id }
+    console.log('🗑️ Deleting deal:', req.params.id);
+
+    // Use transaction to delete both deal and linked lead
+    await prisma.$transaction(async (tx) => {
+      // Find the linked lead (if any)
+      const linkedLead = await tx.lead.findFirst({
+        where: { dealId: req.params.id }
+      });
+
+      if (linkedLead) {
+        console.log('🗑️ Found linked lead:', linkedLead.id, '- deleting it too');
+        // Delete the linked lead first
+        await tx.lead.delete({
+          where: { id: linkedLead.id }
+        });
+        console.log('✅ Linked lead deleted');
+      } else {
+        console.log('ℹ️  No linked lead found for this deal');
+      }
+
+      // Delete the deal
+      await tx.deal.delete({
+        where: { id: req.params.id }
+      });
+      console.log('✅ Deal deleted');
     });
 
-    res.json({ message: 'Deal deleted successfully' });
+    res.json({ message: 'Deal and linked lead deleted successfully' });
   } catch (error) {
     console.error('Error deleting deal:', error);
     res.status(500).json({ error: 'Failed to delete deal' });
