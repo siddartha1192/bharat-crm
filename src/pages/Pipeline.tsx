@@ -351,12 +351,7 @@ export default function Pipeline() {
                   Export
                 </Button>
               </ProtectedFeature>
-              <ProtectedFeature permission="deals:create">
-                <Button onClick={() => handleAddDeal('lead')}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Deal
-                </Button>
-              </ProtectedFeature>
+              {/* Deal creation removed - deals are auto-created from leads */}
             </div>
           </div>
         </div>
@@ -440,7 +435,6 @@ export default function Pipeline() {
                     key={stage.id}
                     stage={stage}
                     deals={getDealsByStage(stage.slug)}
-                    onAddDeal={() => handleAddDeal(stage.slug)}
                     onEditDeal={handleEditDeal}
                     onDeleteDeal={handleDeleteDeal}
                   />

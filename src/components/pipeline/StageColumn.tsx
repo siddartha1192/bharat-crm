@@ -10,12 +10,11 @@ import { DealCard } from './DealCard';
 interface StageColumnProps {
   stage: PipelineStageConfig;
   deals: Deal[];
-  onAddDeal: () => void;
   onEditDeal: (deal: Deal) => void;
   onDeleteDeal: (deal: Deal) => void;
 }
 
-export function StageColumn({ stage, deals, onAddDeal, onEditDeal, onDeleteDeal }: StageColumnProps) {
+export function StageColumn({ stage, deals, onEditDeal, onDeleteDeal }: StageColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
@@ -84,15 +83,7 @@ export function StageColumn({ stage, deals, onAddDeal, onEditDeal, onDeleteDeal 
           </div>
         </SortableContext>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full mt-3 text-muted-foreground hover:text-foreground"
-          onClick={onAddDeal}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Deal
-        </Button>
+        {/* Add Deal button removed - deals are auto-created from leads */}
       </Card>
     </div>
   );
