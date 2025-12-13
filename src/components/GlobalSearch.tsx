@@ -62,9 +62,11 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
   const performSearch = async (searchQuery: string) => {
     try {
       setLoading(true);
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/search?q=${encodeURIComponent(searchQuery)}`, {
         headers: {
-          'X-User-Id': userId || '',
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
 

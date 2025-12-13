@@ -9,6 +9,7 @@ import { PipelineSettings } from '@/components/pipeline/PipelineSettings';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { exportDealsToCSV, importDealsFromCSV } from '@/lib/csvUtils';
 import {
@@ -34,6 +35,7 @@ import {
   LayoutGrid,
   List,
   Settings,
+  Search,
 } from 'lucide-react';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 
@@ -48,6 +50,7 @@ export default function Pipeline() {
   const [selectedStage, setSelectedStage] = useState<string>('lead');
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch stages and deals from API
@@ -113,8 +116,8 @@ export default function Pipeline() {
     ).length,
   };
 
-  const getDealsByStage = (slug: string) => {
-    return deals.filter(deal => deal.stage === slug);
+  const getDealsByStage = (slug: string, dealsToFilter = deals) => {
+    return dealsToFilter.filter(deal => deal.stage === slug);
   };
 
   const getStageValue = (slug: string) => {
@@ -122,6 +125,21 @@ export default function Pipeline() {
       .filter(deal => deal.stage === slug)
       .reduce((sum, deal) => sum + deal.value, 0);
   };
+
+  // Filter deals based on search query
+  const getFilteredDeals = () => {
+    if (!searchQuery.trim()) return deals;
+
+    const query = searchQuery.toLowerCase();
+    return deals.filter(deal =>
+      deal.title?.toLowerCase().includes(query) ||
+      deal.company?.toLowerCase().includes(query) ||
+      deal.contactName?.toLowerCase().includes(query) ||
+      deal.email?.toLowerCase().includes(query)
+    );
+  };
+
+  const filteredDeals = getFilteredDeals();
 
   const handleDragStart = (event: DragStartEvent) => {
     const deal = deals.find(d => d.id === event.active.id);
@@ -411,6 +429,37 @@ export default function Pipeline() {
           </Card>
         </div>
 
+        {/* Search and View Toggle */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search deals by title, company, contact..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant={viewMode === 'board' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('board')}
+            >
+              <LayoutGrid className="w-4 h-4 mr-2" />
+              Board
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+            >
+              <List className="w-4 h-4 mr-2" />
+              List
+            </Button>
+          </div>
+        </div>
+
         {/* Pipeline Board/List View */}
         {loading ? (
           <Card className="p-12 text-center">
@@ -434,7 +483,7 @@ export default function Pipeline() {
                   <StageColumn
                     key={stage.id}
                     stage={stage}
-                    deals={getDealsByStage(stage.slug)}
+                    deals={getDealsByStage(stage.slug, filteredDeals)}
                     onEditDeal={handleEditDeal}
                     onDeleteDeal={handleDeleteDeal}
                   />
@@ -448,7 +497,7 @@ export default function Pipeline() {
           </DndContext>
         ) : (
           <DealListView
-            deals={deals}
+            deals={filteredDeals}
             onDealClick={handleEditDeal}
             onDeleteDeal={handleDeleteDeal}
           />

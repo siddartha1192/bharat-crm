@@ -11,6 +11,7 @@ router.use(authenticate);
 router.get('/', async (req, res) => {
   try {
     const userId = req.user.id;
+    const { q } = req.query;
 
     if (!q || q.trim().length < 2) {
       return res.json({ results: [] });
