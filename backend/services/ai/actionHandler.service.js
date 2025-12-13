@@ -269,7 +269,7 @@ Notes: ${data.notes || 'None'}
           phone: data.phone || context.contactPhone || '',
           whatsapp: context.contactPhone || data.phone || '',
           company: data.company || '',
-          source: data.source || 'WhatsApp AI',
+          source: 'whatsapp', // WhatsApp AI-created leads
           status: 'new',
           priority: data.priority || 'medium',
           estimatedValue: data.estimatedValue || 0,
