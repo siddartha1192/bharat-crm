@@ -199,8 +199,17 @@ export default function Pipeline() {
         // Update in backend
         console.log('🎯 Updating deal via drag-and-drop:', activeDeal.id);
         console.log('📤 Stage update:', originalDealStage, '→', targetStage);
-        await dealsAPI.update(activeDeal.id, { stage: targetStage });
+        const updatedDeal = await dealsAPI.update(activeDeal.id, { stage: targetStage });
+
+        // Update local state with the backend response to ensure consistency
+        setDeals(prevDeals =>
+          prevDeals.map(d =>
+            d.id === activeDeal.id ? { ...updatedDeal, updatedAt: new Date(updatedDeal.updatedAt) } : d
+          )
+        );
+
         toast.success(`Deal moved to ${stageName}!`);
+        console.log('✅ Deal stage updated successfully');
       } catch (error) {
         // Revert on error - restore to original stage
         setDeals(prevDeals =>
