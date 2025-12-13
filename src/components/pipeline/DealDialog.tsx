@@ -364,7 +364,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select stage" />
                 </SelectTrigger>
                 <SelectContent>
                   {stages.map(stage => (
@@ -383,7 +383,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
                 onValueChange={(value) => updateField('assignedTo', value)}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select assignee" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Priya Sharma">Priya Sharma</SelectItem>
