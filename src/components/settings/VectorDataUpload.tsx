@@ -43,24 +43,90 @@ export default function VectorDataUpload() {
   const [uploads, setUploads] = useState<VectorUpload[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [ingesting, setIngesting] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadUploads();
+
+    // Cleanup polling interval on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
   }, []);
 
   const loadUploads = async () => {
     try {
       const response = await api.get('/vector-data/uploads');
-      setUploads(response.data);
+      const uploadsList = response.data;
+      setUploads(uploadsList);
+
+      // Start polling if there are any processing uploads
+      const hasProcessing = uploadsList.some((u: VectorUpload) => u.status === 'processing');
+      if (hasProcessing && !pollingIntervalRef.current) {
+        startPolling();
+      }
     } catch (error) {
       console.error('Error loading uploads:', error);
       toast.error('Failed to load uploads');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Poll for processing status updates
+  const startPolling = () => {
+    // Clear any existing interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    // Keep track of previous processing IDs
+    let previousProcessingIds = new Set(
+      uploads.filter(u => u.status === 'processing').map(u => u.id)
+    );
+
+    // Poll every 2 seconds
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await api.get('/vector-data/uploads');
+        const newUploads = response.data;
+
+        // Check for newly completed uploads
+        const currentProcessingIds = new Set(
+          newUploads.filter((u: VectorUpload) => u.status === 'processing').map((u: VectorUpload) => u.id)
+        );
+
+        // Find uploads that were processing but are now completed
+        previousProcessingIds.forEach(id => {
+          if (!currentProcessingIds.has(id)) {
+            const completedUpload = newUploads.find((u: VectorUpload) => u.id === id);
+            if (completedUpload?.status === 'completed') {
+              toast.success(`File "${completedUpload.fileName}" processed successfully! ${completedUpload.recordsProcessed} records added.`);
+            } else if (completedUpload?.status === 'failed') {
+              toast.error(`File "${completedUpload.fileName}" processing failed: ${completedUpload.errorMessage}`);
+            }
+          }
+        });
+
+        previousProcessingIds = currentProcessingIds;
+        setUploads(newUploads);
+
+        // Stop polling if no uploads are processing
+        const hasProcessing = newUploads.some((u: VectorUpload) => u.status === 'processing');
+        if (!hasProcessing && pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      } catch (error) {
+        console.error('Error polling uploads:', error);
+      }
+    }, 2000);
   };
 
   const handleFileSelect = () => {
@@ -87,23 +153,41 @@ export default function VectorDataUpload() {
 
     try {
       setUploading(true);
+      setUploadProgress(0);
 
       const formData = new FormData();
       formData.append('file', file);
 
-      // Don't set Content-Type header - let the browser set it with boundary
-      const response = await api.post('/vector-data/upload', formData);
+      // Upload with progress tracking
+      const response = await api.post('/vector-data/upload', formData, {
+        onUploadProgress: (progressEvent) => {
+          const progress = progressEvent.total
+            ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            : 0;
+          setUploadProgress(progress);
+        },
+      });
+
+      // Upload complete - show 100% briefly
+      setUploadProgress(100);
 
       toast.success('File uploaded successfully and is being processed');
-      loadUploads();
+
+      // Load uploads and start polling for processing status
+      await loadUploads();
+      startPolling();
 
       // Clear file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+
+      // Reset progress after a brief delay
+      setTimeout(() => setUploadProgress(0), 1000);
     } catch (error: any) {
       console.error('Error uploading file:', error);
       toast.error(error.response?.data?.error || 'Failed to upload file');
+      setUploadProgress(0);
     } finally {
       setUploading(false);
     }
@@ -212,6 +296,17 @@ export default function VectorDataUpload() {
               Supported formats: TXT, CSV, JSON, PDF, DOC, DOCX<br />
               Maximum file size: 50MB
             </p>
+
+            {uploading && uploadProgress > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="text-muted-foreground">Uploading...</span>
+                  <span className="font-medium">{uploadProgress}%</span>
+                </div>
+                <Progress value={uploadProgress} className="w-full" />
+              </div>
+            )}
+
             <Button onClick={handleFileSelect} disabled={uploading}>
               {uploading ? (
                 <>
@@ -292,8 +387,13 @@ export default function VectorDataUpload() {
                         )}
                         {upload.status === 'processing' && (
                           <div className="space-y-2">
-                            <p className="text-blue-600 font-medium">Processing...</p>
-                            <Progress value={50} className="w-full" />
+                            <p className="text-blue-600 font-medium flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Processing file... This may take a few moments
+                            </p>
+                            <div className="text-xs text-muted-foreground">
+                              Status will update automatically when processing completes
+                            </div>
                           </div>
                         )}
                         {upload.status === 'failed' && upload.errorMessage && (
