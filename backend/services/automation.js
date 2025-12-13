@@ -122,15 +122,20 @@ function replaceTemplateVariables(template, variables) {
  */
 async function triggerAutomation(event, data, user) {
   try {
-    // Find all active automation rules for this event
+    // Determine entity type from data or event
+    const entityType = data.entityType?.toLowerCase() ||
+                       (event.includes('deal') ? 'deal' : 'lead');
+
+    // Find all active automation rules for this event and entity type
     const rules = await prisma.automationRule.findMany({
       where: {
         triggerEvent: event,
-        isEnabled: true
+        isEnabled: true,
+        entityType: entityType
       }
     });
 
-    console.log(`Found ${rules.length} automation rules for event: ${event}`);
+    console.log(`Found ${rules.length} automation rules for event: ${event} (entityType: ${entityType})`);
 
     // Execute each rule
     for (const rule of rules) {

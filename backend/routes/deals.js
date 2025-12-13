@@ -205,7 +205,9 @@ router.put('/:id', async (req, res) => {
     if (isStageChanging) {
       try {
         console.log('🤖 Triggering automation for deal stage change:', existingDeal.stage, '→', result.stage);
-        await automationService.triggerAutomation('lead.stage_changed', {
+
+        // Trigger deal-specific automation
+        await automationService.triggerAutomation('deal.stage_changed', {
           id: result.id,
           name: result.contactName,
           email: result.email,
@@ -214,7 +216,8 @@ router.put('/:id', async (req, res) => {
           toStage: result.stage,
           entityType: 'Deal'
         }, req.user);
-        console.log('✅ Automation triggered successfully');
+
+        console.log('✅ Deal automation triggered successfully');
       } catch (automationError) {
         console.error('❌ Error triggering deal stage change automation:', automationError);
         // Don't fail the request if automation fails
