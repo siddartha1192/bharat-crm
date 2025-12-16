@@ -35,7 +35,6 @@ import {
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
 
 interface LeadDetailDialogProps {
   lead: Lead | null;
@@ -86,7 +85,6 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (lead && open) {
@@ -186,29 +184,14 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
 
   const handleSendEmail = () => {
     if (!lead) return;
-    // Navigate to emails page with compose mode and pre-filled lead email
-    navigate('/emails', {
-      state: {
-        compose: true,
-        to: lead.email,
-        subject: `Follow-up: ${lead.name}`,
-      }
-    });
-    onOpenChange(false);
+    // Navigate to emails page
+    window.location.href = `/emails?compose=true&to=${encodeURIComponent(lead.email)}&subject=${encodeURIComponent(`Follow-up: ${lead.name}`)}`;
   };
 
   const handleScheduleMeeting = () => {
     if (!lead) return;
-    // Navigate to calendar with new event dialog
-    navigate('/calendar', {
-      state: {
-        newEvent: true,
-        title: `Meeting with ${lead.name}`,
-        attendees: [lead.email],
-        description: `Meeting with ${lead.name} from ${lead.company}`,
-      }
-    });
-    onOpenChange(false);
+    // Navigate to calendar page
+    window.location.href = `/calendar?new=true&title=${encodeURIComponent(`Meeting with ${lead.name}`)}&attendees=${encodeURIComponent(lead.email)}`;
   };
 
   if (!lead) return null;
