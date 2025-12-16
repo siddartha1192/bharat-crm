@@ -24,13 +24,12 @@ import {
   Calendar,
   Tag,
   ExternalLink,
-  PhoneCall,
   Video,
   Users,
   Briefcase,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { WhatsAppChatModal } from '@/components/whatsapp/WhatsAppChatModal';
+import { useNavigate } from 'react-router-dom';
 
 interface ContactDetailDialogProps {
   contact: Contact | null;
@@ -58,18 +57,39 @@ const industryIcons = {
 };
 
 export function ContactDetailDialog({ contact, open, onOpenChange }: ContactDetailDialogProps) {
-  const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSendEmail = () => {
+    if (!contact) return;
+    // Navigate to emails page with compose mode and pre-filled contact email
+    navigate('/emails', {
+      state: {
+        compose: true,
+        to: contact.email,
+        subject: `Follow-up: ${contact.name}`,
+      }
+    });
+    onOpenChange(false);
+  };
+
+  const handleScheduleMeeting = () => {
+    if (!contact) return;
+    // Navigate to calendar with new event dialog
+    navigate('/calendar', {
+      state: {
+        newEvent: true,
+        title: `Meeting with ${contact.name}`,
+        attendees: [contact.email],
+        description: `Meeting with ${contact.name} from ${contact.company}`,
+      }
+    });
+    onOpenChange(false);
+  };
 
   if (!contact) return null;
 
   return (
-    <>
-      <WhatsAppChatModal
-        contact={contact}
-        open={whatsappModalOpen}
-        onOpenChange={setWhatsappModalOpen}
-      />
-      <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
@@ -355,31 +375,17 @@ export function ContactDetailDialog({ contact, open, onOpenChange }: ContactDeta
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4 flex-wrap">
-            <Button className="flex-1">
-              <PhoneCall className="w-4 h-4 mr-2" />
-              Call Contact
-            </Button>
-            <Button className="flex-1" variant="outline">
+            <Button className="flex-1" onClick={handleSendEmail}>
               <Mail className="w-4 h-4 mr-2" />
               Send Email
             </Button>
-            {contact.whatsapp && (
-              <Button
-                className="flex-1 bg-green-600 hover:bg-green-700"
-                onClick={() => setWhatsappModalOpen(true)}
-              >
-                <MessageCircle className="w-4 h-4 mr-2" />
-                WhatsApp
-              </Button>
-            )}
-            <Button className="flex-1" variant="outline">
+            <Button className="flex-1" variant="outline" onClick={handleScheduleMeeting}>
               <Video className="w-4 h-4 mr-2" />
-              Schedule Meet
+              Schedule Meeting
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
-    </>
   );
 }
