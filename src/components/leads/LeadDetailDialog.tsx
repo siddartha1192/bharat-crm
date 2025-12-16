@@ -45,11 +45,11 @@ interface LeadDetailDialogProps {
 const sourceIcons = {
   'web-form': Globe,
   'whatsapp': MessageCircle,
-  'call': PhoneCall,
+  'call': Phone,
   'email': Mail,
   'referral': User,
   'social-media': Twitter,
-  'missed-call': PhoneCall,
+  'missed-call': Phone,
 };
 
 const statusColors = {
