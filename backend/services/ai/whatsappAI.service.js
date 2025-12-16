@@ -12,6 +12,13 @@ const vectorDBService = require('./vectorDB.service');
 
 const prisma = new PrismaClient();
 
+// Configuration for WhatsApp conversation memory
+const WHATSAPP_MEMORY_CONFIG = {
+  MAX_MESSAGES: 40, // Keep last 40 messages before summarizing
+  MESSAGES_TO_KEEP: 25, // Keep most recent 25 messages after summarization
+  SUMMARIZE_THRESHOLD: 30, // Summarize when messages exceed this count
+};
+
 class WhatsAppAIService {
   constructor() {
     this.llm = null;
@@ -199,11 +206,35 @@ You: {
 **FEATURES QUESTIONS:**
 When asked about features, retrieve from knowledge base and explain briefly.
 
+**ERROR HANDLING (CRITICAL):**
+If any action fails (appointment, task, lead creation), you MUST:
+1. Inform the user that the action failed
+2. Explain what went wrong (e.g., "I couldn't create the appointment because the date format was unclear")
+3. Ask the user to provide the missing or corrected information
+4. NEVER silently ignore errors - always notify the user
+
+Example Error Flow:
+User: "Book me for tomorrow"
+AI tries to create appointment but fails due to missing year
+You: {
+  "message": "I tried to schedule your appointment, but I need more details. Could you please provide:\n• Your full name\n• Your email address\n• A complete date with year (e.g., December 20, 2025)\n• Preferred time",
+  "actions": [{"type": "none"}],
+  "metadata": {"intent": "appointment", "sentiment": "neutral"}
+}
+
+**DATE FORMAT REQUIREMENTS:**
+For appointments, ALWAYS require complete dates:
+- Acceptable: "December 20, 2025", "20/12/2025", "2025-12-20"
+- If user says "tomorrow" or "next week", calculate the FULL date with year
+- If date is ambiguous, ask for clarification with a specific format
+
 **REMEMBER:**
 1. ALWAYS output valid JSON - never plain text
 2. ALWAYS include the "actions" array with at least one action
 3. When you have all required data for a task/appointment/lead, CREATE IT immediately with the appropriate action type
-4. No additional text before or after the JSON`;
+4. If action fails, NEVER ignore it - ask user to re-enter correct information
+5. CRITICAL: Never silently fail - always notify user of errors and request corrections
+6. No additional text before or after the JSON`;
   }
 
   /**
@@ -301,10 +332,132 @@ When asked about features, retrieve from knowledge base and explain briefly.
 
       console.log('✅ Structured Response:', JSON.stringify(structuredResponse, null, 2));
 
+      // Save messages to database and manage memory
+      try {
+        await this.saveMessage(conversationId, 'contact', userMessage);
+        await this.saveMessage(conversationId, 'ai', structuredResponse.message);
+
+        // Check if we need to summarize conversation
+        const conversation = await prisma.whatsAppConversation.findUnique({
+          where: { id: conversationId }
+        });
+
+        if (conversation && conversation.messageCount > WHATSAPP_MEMORY_CONFIG.SUMMARIZE_THRESHOLD) {
+          console.log(`📊 WhatsApp message count (${conversation.messageCount}) exceeds threshold, triggering summarization...`);
+          // Run summarization in background
+          this.summarizeConversation(conversationId, userId).catch(err =>
+            console.error('WhatsApp summarization failed:', err)
+          );
+        }
+      } catch (saveError) {
+        console.error('Error saving WhatsApp messages:', saveError);
+        // Continue even if save fails
+      }
+
       return structuredResponse;
     } catch (error) {
       console.error('❌ Error processing WhatsApp message:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Save message to WhatsApp conversation
+   * @param {string} conversationId - Conversation ID
+   * @param {string} sender - 'contact' or 'ai'
+   * @param {string} message - Message content
+   */
+  async saveMessage(conversationId, sender, message) {
+    try {
+      await prisma.whatsAppMessage.create({
+        data: {
+          conversationId,
+          message,
+          sender,
+          isAiGenerated: sender === 'ai',
+        },
+      });
+
+      // Update conversation metadata
+      await prisma.whatsAppConversation.update({
+        where: { id: conversationId },
+        data: {
+          messageCount: { increment: 1 },
+          lastMessageAt: new Date(),
+          lastMessage: message,
+        },
+      });
+    } catch (error) {
+      console.error('Error saving WhatsApp message:', error);
+      // Don't throw - conversation should continue
+    }
+  }
+
+  /**
+   * Summarize old WhatsApp messages to compress memory
+   * @param {string} conversationId - Conversation ID
+   * @param {string} userId - User ID
+   */
+  async summarizeConversation(conversationId, userId) {
+    try {
+      console.log('📝 Summarizing WhatsApp conversation to compress memory...');
+
+      // Get all messages
+      const messages = await prisma.whatsAppMessage.findMany({
+        where: { conversationId },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      if (messages.length <= WHATSAPP_MEMORY_CONFIG.SUMMARIZE_THRESHOLD) {
+        return; // No need to summarize yet
+      }
+
+      // Messages to summarize (all except the most recent ones to keep)
+      const messagesToSummarize = messages.slice(0, -WHATSAPP_MEMORY_CONFIG.MESSAGES_TO_KEEP);
+
+      // Build conversation text for summarization
+      const conversationText = messagesToSummarize
+        .map(m => `${m.sender === 'contact' ? 'User' : 'AI Assistant'}: ${m.message}`)
+        .join('\n\n');
+
+      // Create summarization prompt
+      const summaryPrompt = `Summarize the following WhatsApp conversation between a user and an AI assistant. Focus on:
+1. Key questions asked by the user
+2. Important information provided by the assistant
+3. Any appointments, tasks, or leads created
+4. Context that would be helpful for future conversations
+
+Keep the summary concise (max 300 words) but preserve important details.
+
+Conversation:
+${conversationText}
+
+Summary:`;
+
+      // Get summary from LLM
+      const summaryResponse = await this.llm.invoke([new HumanMessage(summaryPrompt)]);
+      const summary = summaryResponse.content;
+
+      console.log(`📊 Summarized ${messagesToSummarize.length} WhatsApp messages into summary`);
+
+      // Update conversation with summary
+      await prisma.whatsAppConversation.update({
+        where: { id: conversationId },
+        data: { summary },
+      });
+
+      // Delete old messages (keep only recent ones)
+      const messageIdsToDelete = messagesToSummarize.map(m => m.id);
+      await prisma.whatsAppMessage.deleteMany({
+        where: {
+          id: { in: messageIdsToDelete },
+        },
+      });
+
+      console.log(`🗑️  Deleted ${messageIdsToDelete.length} old WhatsApp messages, kept ${WHATSAPP_MEMORY_CONFIG.MESSAGES_TO_KEEP} recent`);
+    } catch (error) {
+      console.error('Error summarizing WhatsApp conversation:', error);
+      // Don't throw - continue without summarization
     }
   }
 
