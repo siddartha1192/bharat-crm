@@ -916,16 +916,33 @@ async function processIncomingMessage(message, value) {
 
             console.log(`\n⚡ Executed ${actionResults.length} action(s)`);
 
+            // Check if any actions failed and notify user
+            const failedActions = actionResults.filter(result => !result.success);
+            let messageToSend = aiResult.message;
+
+            if (failedActions.length > 0) {
+              console.log(`\n⚠️ ${failedActions.length} action(s) failed`);
+
+              // Build error message for user
+              const errorDetails = failedActions.map(fa => {
+                return `• ${fa.action}: ${fa.error || 'Unknown error'}`;
+              }).join('\n');
+
+              messageToSend = `⚠️ I encountered an issue while processing your request:\n\n${errorDetails}\n\nCould you please provide the information again? I need all required details to complete this action.`;
+
+              console.log(`\n🔔 Notifying user about failed actions`);
+            }
+
             // Send message to WhatsApp
-            if (whatsappService.isConfigured() && aiResult.message) {
-              const sentMessage = await whatsappService.sendMessage(fromPhone, aiResult.message);
+            if (whatsappService.isConfigured() && messageToSend) {
+              const sentMessage = await whatsappService.sendMessage(fromPhone, messageToSend);
               console.log(`   ✅ WhatsApp message sent! Message ID: ${sentMessage.messageId}`);
 
               // Save AI response to database
               const aiMessage = await prisma.whatsAppMessage.create({
                 data: {
                   conversationId: conversation.id,
-                  message: aiResult.message,
+                  message: messageToSend,
                   sender: 'ai',
                   senderName: 'AI Assistant',
                   status: 'sent',
@@ -944,7 +961,7 @@ async function processIncomingMessage(message, value) {
               await prisma.whatsAppConversation.update({
                 where: { id: conversation.id },
                 data: {
-                  lastMessage: aiResult.message,
+                  lastMessage: messageToSend,
                   lastMessageAt: new Date()
                 }
               });
@@ -1053,16 +1070,33 @@ async function processIncomingMessage(message, value) {
 
             console.log(`\n⚡ Executed ${actionResults.length} action(s)`);
 
+            // Check if any actions failed and notify user
+            const failedActions = actionResults.filter(result => !result.success);
+            let messageToSend = aiResult.message;
+
+            if (failedActions.length > 0) {
+              console.log(`\n⚠️ ${failedActions.length} action(s) failed`);
+
+              // Build error message for user
+              const errorDetails = failedActions.map(fa => {
+                return `• ${fa.action}: ${fa.error || 'Unknown error'}`;
+              }).join('\n');
+
+              messageToSend = `⚠️ I encountered an issue while processing your request:\n\n${errorDetails}\n\nCould you please provide the information again? I need all required details to complete this action.`;
+
+              console.log(`\n🔔 Notifying user about failed actions`);
+            }
+
             // Send message to WhatsApp
-            if (whatsappService.isConfigured() && aiResult.message) {
-              const sentMessage = await whatsappService.sendMessage(fromPhone, aiResult.message);
+            if (whatsappService.isConfigured() && messageToSend) {
+              const sentMessage = await whatsappService.sendMessage(fromPhone, messageToSend);
               console.log(`   ✅ WhatsApp message sent! Message ID: ${sentMessage.messageId}`);
 
               // Save AI response to database
               const aiMessage = await prisma.whatsAppMessage.create({
                 data: {
                   conversationId: conversation.id,
-                  message: aiResult.message,
+                  message: messageToSend,
                   sender: 'ai',
                   senderName: 'AI Assistant',
                   status: 'sent',
@@ -1081,7 +1115,7 @@ async function processIncomingMessage(message, value) {
               await prisma.whatsAppConversation.update({
                 where: { id: conversation.id },
                 data: {
-                  lastMessage: aiResult.message,
+                  lastMessage: messageToSend,
                   lastMessageAt: new Date()
                 }
               });
