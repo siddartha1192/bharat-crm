@@ -46,6 +46,30 @@ router.post('/chat', async (req, res) => {
 });
 
 /**
+ * Clear conversation history for current user
+ */
+router.delete('/conversation', async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    console.log(`\n🗑️ Clearing conversation history for user ${userId}`);
+
+    await portalAIService.clearConversation(userId);
+
+    res.json({
+      success: true,
+      message: 'Conversation history cleared successfully',
+    });
+  } catch (error) {
+    console.error('Error clearing conversation:', error);
+    res.status(500).json({
+      error: 'Failed to clear conversation',
+      message: error.message,
+    });
+  }
+});
+
+/**
  * Get AI system status
  */
 router.get('/status', async (req, res) => {
