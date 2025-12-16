@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Contact } from '@/types/contact';
 import {
   Dialog,
@@ -29,7 +28,6 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
 
 interface ContactDetailDialogProps {
   contact: Contact | null;
@@ -57,33 +55,16 @@ const industryIcons = {
 };
 
 export function ContactDetailDialog({ contact, open, onOpenChange }: ContactDetailDialogProps) {
-  const navigate = useNavigate();
-
   const handleSendEmail = () => {
     if (!contact) return;
-    // Navigate to emails page with compose mode and pre-filled contact email
-    navigate('/emails', {
-      state: {
-        compose: true,
-        to: contact.email,
-        subject: `Follow-up: ${contact.name}`,
-      }
-    });
-    onOpenChange(false);
+    // Navigate to emails page
+    window.location.href = `/emails?compose=true&to=${encodeURIComponent(contact.email)}&subject=${encodeURIComponent(`Follow-up: ${contact.name}`)}`;
   };
 
   const handleScheduleMeeting = () => {
     if (!contact) return;
-    // Navigate to calendar with new event dialog
-    navigate('/calendar', {
-      state: {
-        newEvent: true,
-        title: `Meeting with ${contact.name}`,
-        attendees: [contact.email],
-        description: `Meeting with ${contact.name} from ${contact.company}`,
-      }
-    });
-    onOpenChange(false);
+    // Navigate to calendar page
+    window.location.href = `/calendar?new=true&title=${encodeURIComponent(`Meeting with ${contact.name}`)}&attendees=${encodeURIComponent(contact.email)}`;
   };
 
   if (!contact) return null;
