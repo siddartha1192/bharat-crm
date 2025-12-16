@@ -26,7 +26,6 @@ import {
   Twitter,
   Facebook,
   ExternalLink,
-  PhoneCall,
   Video,
   FileText,
   Upload,
@@ -36,6 +35,7 @@ import {
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 interface LeadDetailDialogProps {
   lead: Lead | null;
@@ -86,6 +86,7 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (lead && open) {
@@ -181,6 +182,33 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
       console.error('Error deleting document:', error);
       toast.error('Failed to delete document');
     }
+  };
+
+  const handleSendEmail = () => {
+    if (!lead) return;
+    // Navigate to emails page with compose mode and pre-filled lead email
+    navigate('/emails', {
+      state: {
+        compose: true,
+        to: lead.email,
+        subject: `Follow-up: ${lead.name}`,
+      }
+    });
+    onOpenChange(false);
+  };
+
+  const handleScheduleMeeting = () => {
+    if (!lead) return;
+    // Navigate to calendar with new event dialog
+    navigate('/calendar', {
+      state: {
+        newEvent: true,
+        title: `Meeting with ${lead.name}`,
+        attendees: [lead.email],
+        description: `Meeting with ${lead.name} from ${lead.company}`,
+      }
+    });
+    onOpenChange(false);
   };
 
   if (!lead) return null;
@@ -504,17 +532,13 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4">
-            <Button className="flex-1">
-              <PhoneCall className="w-4 h-4 mr-2" />
-              Call Lead
-            </Button>
-            <Button className="flex-1" variant="outline">
+            <Button className="flex-1" onClick={handleSendEmail}>
               <Mail className="w-4 h-4 mr-2" />
               Send Email
             </Button>
-            <Button className="flex-1" variant="outline">
+            <Button className="flex-1" variant="outline" onClick={handleScheduleMeeting}>
               <Video className="w-4 h-4 mr-2" />
-              Schedule Meet
+              Schedule Meeting
             </Button>
           </div>
         </div>
