@@ -6,6 +6,7 @@
 const { PrismaClient } = require('@prisma/client');
 const aiConfig = require('../../config/ai.config');
 const googleCalendarService = require('../googleCalendar.js');
+const automationService = require('../automation');
 
 const prisma = new PrismaClient();
 
@@ -278,6 +279,22 @@ Notes: ${data.notes || 'None'}
           userId: ownerUser.id,
         },
       });
+
+      // Trigger automation for lead creation (to send email notifications)
+      try {
+        await automationService.triggerAutomation('lead.created', {
+          id: lead.id,
+          name: lead.name,
+          email: lead.email,
+          company: lead.company,
+          status: lead.status,
+          entityType: 'Lead'
+        }, ownerUser);
+        console.log('   ✅ Lead creation automation triggered');
+      } catch (automationError) {
+        console.error('   ⚠️ Error triggering lead creation automation:', automationError);
+        // Don't fail the lead creation if automation fails
+      }
 
       return {
         success: true,
