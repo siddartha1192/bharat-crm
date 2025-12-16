@@ -13,6 +13,13 @@ const databaseTools = require('./databaseTools.service');
 
 const prisma = new PrismaClient();
 
+// Configuration for conversation memory
+const MEMORY_CONFIG = {
+  MAX_MESSAGES: 20, // Keep last 20 messages before summarizing
+  MESSAGES_TO_KEEP: 10, // Keep most recent 10 messages after summarization
+  SUMMARIZE_THRESHOLD: 15, // Summarize when messages exceed this count
+};
+
 class PortalAIService {
   constructor() {
     this.llm = null;
@@ -168,12 +175,177 @@ Remember: Use your functions! You have direct database access - use it to provid
     }
   }
 
+  /**
+   * Get or create user's AI conversation
+   * @param {string} userId - User ID
+   * @returns {Object} AI conversation with messages
+   */
+  async getOrCreateConversation(userId) {
+    try {
+      // Try to find existing conversation
+      let conversation = await prisma.aIConversation.findFirst({
+        where: { userId },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'asc' },
+            take: MEMORY_CONFIG.MAX_MESSAGES,
+          },
+        },
+      });
+
+      // Create new conversation if doesn't exist
+      if (!conversation) {
+        conversation = await prisma.aIConversation.create({
+          data: {
+            userId,
+            messageCount: 0,
+          },
+          include: {
+            messages: true,
+          },
+        });
+        console.log(`📝 Created new AI conversation for user ${userId}`);
+      }
+
+      return conversation;
+    } catch (error) {
+      console.error('Error getting/creating conversation:', error);
+      throw error;
+    }
+  }
 
   /**
-   * Process chat message in Portal with function calling
+   * Save message to conversation
+   * @param {string} conversationId - Conversation ID
+   * @param {string} role - 'user' or 'assistant'
+   * @param {string} content - Message content
+   * @param {Array} functionCalls - Optional function calls made
+   */
+  async saveMessage(conversationId, role, content, functionCalls = null) {
+    try {
+      await prisma.aIMessage.create({
+        data: {
+          conversationId,
+          role,
+          content,
+          functionCalls: functionCalls ? JSON.parse(JSON.stringify(functionCalls)) : null,
+        },
+      });
+
+      // Update conversation metadata
+      await prisma.aIConversation.update({
+        where: { id: conversationId },
+        data: {
+          messageCount: { increment: 1 },
+          lastMessageAt: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error('Error saving message:', error);
+      // Don't throw - conversation should continue even if save fails
+    }
+  }
+
+  /**
+   * Summarize old messages to compress conversation memory
+   * @param {string} conversationId - Conversation ID
+   * @param {string} userId - User ID
+   */
+  async summarizeConversation(conversationId, userId) {
+    try {
+      console.log('📝 Summarizing conversation to compress memory...');
+
+      // Get all messages
+      const messages = await prisma.aIMessage.findMany({
+        where: { conversationId },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      if (messages.length <= MEMORY_CONFIG.SUMMARIZE_THRESHOLD) {
+        return; // No need to summarize yet
+      }
+
+      // Messages to summarize (all except the most recent ones to keep)
+      const messagesToSummarize = messages.slice(0, -MEMORY_CONFIG.MESSAGES_TO_KEEP);
+
+      // Build conversation text for summarization
+      const conversationText = messagesToSummarize
+        .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+        .join('\n\n');
+
+      // Create summarization prompt
+      const summaryPrompt = `Summarize the following conversation between a user and an AI assistant. Focus on:
+1. Key questions asked by the user
+2. Important information provided by the assistant
+3. Any data queries or analyses performed
+4. Context that would be helpful for future conversations
+
+Keep the summary concise (max 500 words) but preserve important details.
+
+Conversation:
+${conversationText}
+
+Summary:`;
+
+      // Get summary from LLM
+      const summaryResponse = await this.llm.invoke([new HumanMessage(summaryPrompt)]);
+      const summary = summaryResponse.content;
+
+      console.log(`📊 Summarized ${messagesToSummarize.length} messages into summary`);
+
+      // Update conversation with summary
+      await prisma.aIConversation.update({
+        where: { id: conversationId },
+        data: { summary },
+      });
+
+      // Delete old messages (keep only recent ones)
+      const messageIdsToDelete = messagesToSummarize.map(m => m.id);
+      await prisma.aIMessage.deleteMany({
+        where: {
+          id: { in: messageIdsToDelete },
+        },
+      });
+
+      console.log(`🗑️  Deleted ${messageIdsToDelete.length} old messages, kept ${MEMORY_CONFIG.MESSAGES_TO_KEEP} recent`);
+    } catch (error) {
+      console.error('Error summarizing conversation:', error);
+      // Don't throw - continue without summarization
+    }
+  }
+
+  /**
+   * Build conversation history from database
+   * @param {Object} conversation - Conversation object with messages
+   * @returns {Array} Array of message objects for LLM
+   */
+  buildConversationHistory(conversation) {
+    const history = [];
+
+    // Add summary as context if it exists
+    if (conversation.summary) {
+      history.push({
+        role: 'system',
+        content: `Previous conversation summary:\n${conversation.summary}`,
+      });
+    }
+
+    // Add recent messages
+    for (const msg of conversation.messages) {
+      history.push({
+        role: msg.role,
+        content: msg.content,
+      });
+    }
+
+    return history;
+  }
+
+  /**
+   * Process chat message in Portal with function calling and persistent memory
    * @param {string} userMessage - User's message
    * @param {string} userId - User ID
-   * @param {Array} conversationHistory - Previous messages
+   * @param {Array} conversationHistory - Deprecated: Previous messages (now loaded from DB)
    * @returns {Object} AI response with optional data
    */
   async processMessage(userMessage, userId, conversationHistory = []) {
@@ -183,6 +355,10 @@ Remember: Use your functions! You have direct database access - use it to provid
       console.log('\n🚀 Portal AI Processing...');
       console.log(`User: ${userId}`);
       console.log(`Query: "${userMessage}"`);
+
+      // Get or create conversation with persistent memory
+      const conversation = await this.getOrCreateConversation(userId);
+      console.log(`💬 Loaded conversation ${conversation.id} (${conversation.messageCount} total messages)`);
 
       // Get database stats for context
       const dbStats = await this.getDatabaseStats();
@@ -209,9 +385,12 @@ Remember: Use your functions! You have direct database access - use it to provid
         new SystemMessage(this.getSystemPrompt(userId, dbStats, pipelineStages) + docContext),
       ];
 
-      // Add conversation history
-      for (const msg of conversationHistory.slice(-10)) { // Keep last 10 messages
-        if (msg.role === 'user') {
+      // Add conversation history from database (includes summary if available)
+      const history = this.buildConversationHistory(conversation);
+      for (const msg of history) {
+        if (msg.role === 'system') {
+          messages.push(new SystemMessage(msg.content));
+        } else if (msg.role === 'user') {
           messages.push(new HumanMessage(msg.content));
         } else if (msg.role === 'assistant') {
           messages.push(new AIMessage(msg.content));
@@ -285,6 +464,25 @@ Remember: Use your functions! You have direct database access - use it to provid
 
       console.log('✅ Portal AI Response generated');
 
+      // Save user message and assistant response to database
+      await this.saveMessage(conversation.id, 'user', userMessage);
+      await this.saveMessage(
+        conversation.id,
+        'assistant',
+        finalResponse,
+        functionCallResults.length > 0 ? functionCallResults : null
+      );
+
+      // Check if we need to summarize conversation
+      const currentMessageCount = conversation.messageCount + 2; // +2 for user message and assistant response
+      if (currentMessageCount > MEMORY_CONFIG.SUMMARIZE_THRESHOLD) {
+        console.log(`📊 Message count (${currentMessageCount}) exceeds threshold, triggering summarization...`);
+        // Run summarization in background (don't wait for it)
+        this.summarizeConversation(conversation.id, userId).catch(err =>
+          console.error('Summarization failed:', err)
+        );
+      }
+
       return {
         message: finalResponse,
         data: functionCallResults,
@@ -293,6 +491,40 @@ Remember: Use your functions! You have direct database access - use it to provid
       };
     } catch (error) {
       console.error('❌ Error processing Portal message:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear conversation history for a user
+   * @param {string} userId - User ID
+   */
+  async clearConversation(userId) {
+    try {
+      const conversation = await prisma.aIConversation.findFirst({
+        where: { userId },
+      });
+
+      if (conversation) {
+        // Delete all messages
+        await prisma.aIMessage.deleteMany({
+          where: { conversationId: conversation.id },
+        });
+
+        // Reset conversation
+        await prisma.aIConversation.update({
+          where: { id: conversation.id },
+          data: {
+            summary: null,
+            messageCount: 0,
+            lastMessageAt: new Date(),
+          },
+        });
+
+        console.log(`🗑️  Cleared conversation for user ${userId}`);
+      }
+    } catch (error) {
+      console.error('Error clearing conversation:', error);
       throw error;
     }
   }

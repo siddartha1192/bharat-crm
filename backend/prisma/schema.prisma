@@ -65,6 +65,7 @@ model User {
   salesForecasts          SalesForecast[]
   revenueGoals            RevenueGoal[]
   vectorDataUploads       VectorDataUpload[]
+  aiConversations         AIConversation[]
 
   @@index([email])
   @@index([googleId])
@@ -606,4 +607,44 @@ model RevenueGoal {
   @@index([userId])
   @@index([period])
   @@index([startDate, endDate])
+}
+
+// AI Conversation Model - Portal AI conversation memory
+model AIConversation {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Conversation summary (compressed memory)
+  summary           String?  @db.Text
+
+  // Metadata
+  messageCount      Int      @default(0)
+  lastMessageAt     DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Messages (recent only)
+  messages          AIMessage[]
+
+  @@index([userId])
+  @@index([lastMessageAt])
+}
+
+// AI Message Model - Individual messages in conversation
+model AIMessage {
+  id                String   @id @default(uuid())
+  conversationId    String
+  conversation      AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  role              String   // 'user' | 'assistant'
+  content           String   @db.Text
+
+  // Function call metadata (if AI used tools)
+  functionCalls     Json?    // Array of function calls made
+
+  createdAt         DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([createdAt])
 }
