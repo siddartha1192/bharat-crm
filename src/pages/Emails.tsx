@@ -471,9 +471,16 @@ export default function Emails() {
                       <p className="text-sm text-muted-foreground mb-2">
                         To: {email.to.join(', ')}
                       </p>
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {email.body}
-                      </p>
+                      {email.htmlBody ? (
+                        <div
+                          className="text-sm text-muted-foreground line-clamp-2 prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: email.htmlBody }}
+                        />
+                      ) : (
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {email.body}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground shrink-0">
@@ -651,7 +658,14 @@ export default function Emails() {
                   )}
 
                   <div className="border-t border-blue-200 dark:border-blue-800 pt-3 mt-3">
-                    <p className="text-sm whitespace-pre-wrap">{selectedEmail.body}</p>
+                    {selectedEmail.htmlBody ? (
+                      <div
+                        className="text-sm prose prose-sm max-w-none dark:prose-invert"
+                        dangerouslySetInnerHTML={{ __html: selectedEmail.htmlBody }}
+                      />
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{selectedEmail.body}</p>
+                    )}
                   </div>
                 </div>
 
@@ -697,7 +711,14 @@ export default function Emails() {
                         </div>
 
                         <div className="border-t border-gray-200 dark:border-gray-800 pt-2 mt-2">
-                          <p className="text-sm whitespace-pre-wrap">{reply.body}</p>
+                          {reply.htmlBody ? (
+                            <div
+                              className="text-sm prose prose-sm max-w-none dark:prose-invert"
+                              dangerouslySetInnerHTML={{ __html: reply.htmlBody }}
+                            />
+                          ) : (
+                            <p className="text-sm whitespace-pre-wrap">{reply.body}</p>
+                          )}
                         </div>
                       </div>
                     </div>
