@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/popover';
 import { Check, ChevronsUpDown, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AssignmentDropdown } from '@/components/common/AssignmentDropdown';
 
 interface DealDialogProps {
   open: boolean;
@@ -378,19 +379,14 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
 
             <div>
               <Label htmlFor="assignedTo">Assigned To *</Label>
-              <Select
-                value={formData.assignedTo}
-                onValueChange={(value) => updateField('assignedTo', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select assignee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Priya Sharma">Priya Sharma</SelectItem>
-                  <SelectItem value="Rahul Verma">Rahul Verma</SelectItem>
-                  <SelectItem value="Anjali Desai">Anjali Desai</SelectItem>
-                </SelectContent>
-              </Select>
+              <AssignmentDropdown
+                value={formData.assignedTo || ''}
+                onChange={(value) => updateField('assignedTo', value)}
+                placeholder="Select user to assign this deal"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Synced with lead assignment
+              </p>
             </div>
 
             <div>
