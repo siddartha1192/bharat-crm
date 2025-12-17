@@ -493,4 +493,18 @@ router.delete('/:id', authenticate, hasPermission('ADMIN'), async (req, res) => 
   }
 });
 
+// GET /api/users/assignable - Get list of users that current user can assign to
+router.get('/assignable', authenticate, async (req, res) => {
+  try {
+    const { getAssignableUsers } = require('../middleware/assignment');
+
+    const assignableUsers = await getAssignableUsers(req.user);
+
+    res.json(assignableUsers);
+  } catch (error) {
+    console.error('Error fetching assignable users:', error);
+    res.status(500).json({ error: 'Failed to fetch assignable users' });
+  }
+});
+
 module.exports = router;

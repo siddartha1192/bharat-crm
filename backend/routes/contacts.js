@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
+const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
 const prisma = new PrismaClient();
 
 // Apply authentication to all routes
@@ -22,13 +23,16 @@ const transformContactForFrontend = (contact) => {
   };
 };
 
-// GET all contacts
+// GET all contacts (with role-based visibility)
 router.get('/', async (req, res) => {
   try {
     const { type, assignedTo } = req.query;
-    const userId = req.user.id;
 
-    const where = { userId };
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
+
+    // Build where clause
+    const where = { ...visibilityFilter };
 
     if (type && type !== 'all') where.type = type;
     if (assignedTo) where.assignedTo = assignedTo;
@@ -47,15 +51,16 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single contact by ID
+// GET single contact by ID (with role-based visibility)
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
     const contact = await prisma.contact.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
@@ -73,16 +78,22 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST create new contact
-router.post('/', async (req, res) => {
+router.post('/', validateAssignment, async (req, res) => {
   try {
     const userId = req.user.id;
 
     // Remove auto-generated fields and transform address
     const { id, createdAt, updatedAt, address, ...contactData } = req.body;
 
+    // Auto-assign to creator if not specified
+    const assignedTo = contactData.assignedTo || req.user.name;
+    const createdBy = userId;
+
     // Transform nested address to flat fields
     const data = {
       ...contactData,
+      assignedTo,
+      createdBy,
       userId,
       addressStreet: address?.street || '',
       addressCity: address?.city || '',
@@ -108,15 +119,16 @@ router.post('/', async (req, res) => {
 });
 
 // PUT update contact
-router.put('/:id', async (req, res) => {
+router.put('/:id', validateAssignment, async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
-    // First verify the contact belongs to the user
+    // First verify the contact is visible to the user
     const existingContact = await prisma.contact.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
@@ -154,18 +166,27 @@ router.put('/:id', async (req, res) => {
 // DELETE contact
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
-    // First verify the contact belongs to the user
+    // First verify the contact is visible to the user
     const existingContact = await prisma.contact.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
     if (!existingContact) {
       return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    // Check if user has permission to delete (only creator, assignee, or admin/manager)
+    if (req.user.role !== 'ADMIN' &&
+        req.user.role !== 'MANAGER' &&
+        existingContact.createdBy !== req.user.id &&
+        existingContact.assignedTo !== req.user.name) {
+      return res.status(403).json({ error: 'You do not have permission to delete this contact' });
     }
 
     await prisma.contact.delete({
@@ -179,17 +200,18 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// GET contact stats
+// GET contact stats (with role-based visibility)
 router.get('/stats/summary', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
     const [total, customers, prospects, totalValue] = await Promise.all([
-      prisma.contact.count({ where: { userId } }),
-      prisma.contact.count({ where: { userId, type: 'customer' } }),
-      prisma.contact.count({ where: { userId, type: 'prospect' } }),
+      prisma.contact.count({ where: visibilityFilter }),
+      prisma.contact.count({ where: { ...visibilityFilter, type: 'customer' } }),
+      prisma.contact.count({ where: { ...visibilityFilter, type: 'prospect' } }),
       prisma.contact.aggregate({
-        where: { userId },
+        where: visibilityFilter,
         _sum: { lifetimeValue: true }
       })
     ]);
