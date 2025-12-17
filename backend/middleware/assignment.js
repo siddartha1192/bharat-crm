@@ -4,10 +4,15 @@ const prisma = new PrismaClient();
 /**
  * Get visibility filter for entities based on user role
  * @param {Object} user - User object with role, id, departmentId, teamId
+ * @param {String} entityType - Entity type ('lead', 'contact', 'deal', 'task') - determines which assignment field to use
  * @returns {Object} Prisma where clause for filtering entities
  */
-async function getVisibilityFilter(user) {
+async function getVisibilityFilter(user, entityType = 'default') {
   const { role, id: userId, departmentId, teamId } = user;
+
+  // Determine the correct assignment field name based on entity type
+  // Task uses 'assignee', others use 'assignedTo'
+  const assignmentField = entityType === 'task' ? 'assignee' : 'assignedTo';
 
   switch (role) {
     case 'ADMIN':
@@ -28,7 +33,7 @@ async function getVisibilityFilter(user) {
         return {
           OR: [
             { userId: { in: userIds } },
-            { assignedTo: { in: userNames } },
+            { [assignmentField]: { in: userNames } },
             { createdBy: { in: userIds } }
           ]
         };
@@ -44,7 +49,7 @@ async function getVisibilityFilter(user) {
         return {
           OR: [
             { userId: { in: userIds } },
-            { assignedTo: { in: userNames } },
+            { [assignmentField]: { in: userNames } },
             { createdBy: { in: userIds } }
           ]
         };
@@ -53,7 +58,7 @@ async function getVisibilityFilter(user) {
       return {
         OR: [
           { userId: userId },
-          { assignedTo: user.name },
+          { [assignmentField]: user.name },
           { createdBy: userId }
         ]
       };
@@ -62,7 +67,7 @@ async function getVisibilityFilter(user) {
       // Agents see only items assigned to them or created by them
       return {
         OR: [
-          { assignedTo: user.name },
+          { [assignmentField]: user.name },
           { createdBy: userId },
           { userId: userId }
         ]
@@ -230,21 +235,24 @@ async function getAssignableUsers(currentUser) {
  */
 async function validateAssignment(req, res, next) {
   try {
-    const { assignedTo } = req.body;
+    // Check both assignedTo (for leads, contacts, deals) and assignee (for tasks)
+    const { assignedTo, assignee } = req.body;
     const currentUser = req.user;
 
+    const targetAssignment = assignedTo || assignee;
+
     // If no assignment is being made, continue
-    if (!assignedTo) {
+    if (!targetAssignment) {
       return next();
     }
 
     // Check if user can assign to the target
-    const canAssign = await canAssignToByName(currentUser, assignedTo);
+    const canAssign = await canAssignToByName(currentUser, targetAssignment);
 
     if (!canAssign) {
       return res.status(403).json({
         error: 'Forbidden',
-        message: `You do not have permission to assign to ${assignedTo}`
+        message: `You do not have permission to assign to ${targetAssignment}`
       });
     }
 
