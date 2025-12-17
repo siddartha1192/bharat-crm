@@ -224,7 +224,9 @@ Notes: ${data.notes || 'None'}
           priority: data.priority || 'medium',
           status: 'todo',
           dueDate,
-          userId: ownerUser.id,
+          user: {
+            connect: { id: ownerUser.id }
+          },
           assignedTo: assignedToName,
           createdBy: ownerUser.id,
           tags: data.tags || [],
