@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
 import {
   Select,
   SelectContent,
@@ -22,13 +21,14 @@ interface AssignmentDropdownProps {
   disabled?: boolean;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
 export function AssignmentDropdown({
   value,
   onChange,
   placeholder = 'Select user to assign',
   disabled = false,
 }: AssignmentDropdownProps) {
-  const { token } = useAuth();
   const [users, setUsers] = useState<AssignableUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +39,14 @@ export function AssignmentDropdown({
         setLoading(true);
         setError(null);
 
-        const response = await fetch('/api/users/assignable', {
+        // Get token from localStorage
+        const token = localStorage.getItem('token');
+
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+
+        const response = await fetch(`${API_BASE_URL}/users/assignable`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -60,10 +67,8 @@ export function AssignmentDropdown({
       }
     };
 
-    if (token) {
-      fetchAssignableUsers();
-    }
-  }, [token]);
+    fetchAssignableUsers();
+  }, []);
 
   if (loading) {
     return (
