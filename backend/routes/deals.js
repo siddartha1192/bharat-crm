@@ -169,6 +169,7 @@ router.put('/:id', async (req, res) => {
         // Sync other fields
         if (updateData.contactName) leadUpdateData.name = updateData.contactName;
         if (updateData.email) leadUpdateData.email = updateData.email;
+        if (updateData.phone !== undefined) leadUpdateData.phone = updateData.phone;
         if (updateData.company) leadUpdateData.company = updateData.company;
         if (updateData.value !== undefined) leadUpdateData.estimatedValue = updateData.value;
         if (updateData.notes) leadUpdateData.notes = updateData.notes;

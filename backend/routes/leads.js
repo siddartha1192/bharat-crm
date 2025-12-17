@@ -96,6 +96,7 @@ router.post('/', async (req, res) => {
           company: leadData.company,
           contactName: leadData.name,
           email: leadData.email,
+          phone: leadData.phone || '',
           value: leadData.estimatedValue || 0,
           stage: mapLeadStatusToDealStage(leadData.status || 'new'),
           probability: leadData.priority === 'urgent' ? 80 : leadData.priority === 'high' ? 60 : leadData.priority === 'medium' ? 40 : 20,
@@ -181,6 +182,7 @@ router.put('/:id', async (req, res) => {
         // Sync other fields
         if (updateData.name) dealUpdateData.contactName = updateData.name;
         if (updateData.email) dealUpdateData.email = updateData.email;
+        if (updateData.phone !== undefined) dealUpdateData.phone = updateData.phone;
         if (updateData.company) dealUpdateData.company = updateData.company;
         if (updateData.estimatedValue !== undefined) dealUpdateData.value = updateData.estimatedValue;
         if (updateData.notes) dealUpdateData.notes = updateData.notes;
@@ -571,6 +573,8 @@ router.post('/import', async (req, res) => {
                 title: `Deal - ${lead.name}`,
                 company: lead.company,
                 contactName: lead.name,
+                email: lead.email,
+                phone: lead.phone || '',
                 value: lead.estimatedValue,
                 stage: 'lead',
                 probability: 10,

@@ -298,6 +298,7 @@ model Deal {
   company         String
   contactName     String
   email           String   // Synced with lead email
+  phone           String   @default("") // Synced with lead phone
   contactId       String?  // Optional link to Contact
   value           Float
   stage           String   // References PipelineStage.slug
