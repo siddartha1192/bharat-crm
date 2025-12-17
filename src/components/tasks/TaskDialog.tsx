@@ -23,6 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { AssignmentDropdown } from '@/components/common/AssignmentDropdown';
 
 interface TaskDialogProps {
   open: boolean;
@@ -170,11 +171,10 @@ export function TaskDialog({ open, onOpenChange, task, onSave }: TaskDialogProps
 
           <div className="space-y-2">
             <Label htmlFor="assignedTo">Assigned To</Label>
-            <Input
-              id="assignedTo"
+            <AssignmentDropdown
               value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              placeholder="Assign to"
+              onChange={setAssignedTo}
+              placeholder="Select user to assign this task"
             />
           </div>
 

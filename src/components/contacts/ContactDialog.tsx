@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { AssignmentDropdown } from '@/components/common/AssignmentDropdown';
 
 interface ContactDialogProps {
   contact?: Contact | null;
@@ -399,10 +400,10 @@ export function ContactDialog({ contact, open, onOpenChange, onSave }: ContactDi
           <div className="space-y-4">
             <div>
               <Label htmlFor="assignedTo">Assigned To</Label>
-              <Input
-                id="assignedTo"
+              <AssignmentDropdown
                 value={formData.assignedTo}
-                onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
+                onChange={(value) => setFormData({ ...formData, assignedTo: value })}
+                placeholder="Select user to assign this contact"
               />
             </div>
 
