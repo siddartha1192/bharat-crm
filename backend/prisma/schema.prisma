@@ -344,7 +344,7 @@ model Task {
   priority    String   // 'low' | 'medium' | 'high' | 'urgent'
   status      String   // 'todo' | 'in-progress' | 'completed'
   dueDate     DateTime
-  assignee    String
+  assignedTo  String   // Changed from 'assignee' to match other models
   createdBy   String?  // User ID of who created this task
   tags        String[]
   createdAt   DateTime @default(now())
@@ -356,7 +356,7 @@ model Task {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status])
-  @@index([assignee])
+  @@index([assignedTo])
   @@index([userId])
   @@index([createdBy])
 }
