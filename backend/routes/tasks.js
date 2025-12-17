@@ -13,8 +13,8 @@ router.get('/', async (req, res) => {
   try {
     const { status } = req.query;
 
-    // Get role-based visibility filter
-    const visibilityFilter = await getVisibilityFilter(req.user);
+    // Get role-based visibility filter (pass 'task' to use 'assignee' field)
+    const visibilityFilter = await getVisibilityFilter(req.user, 'task');
 
     // Build where clause
     const where = { ...visibilityFilter };
@@ -36,8 +36,8 @@ router.get('/', async (req, res) => {
 // GET single task by ID (with role-based visibility)
 router.get('/:id', async (req, res) => {
   try {
-    // Get role-based visibility filter
-    const visibilityFilter = await getVisibilityFilter(req.user);
+    // Get role-based visibility filter (pass 'task' to use 'assignee' field)
+    const visibilityFilter = await getVisibilityFilter(req.user, 'task');
 
     const task = await prisma.task.findFirst({
       where: {
@@ -93,8 +93,8 @@ router.post('/', validateAssignment, async (req, res) => {
 // PUT update task
 router.put('/:id', validateAssignment, async (req, res) => {
   try {
-    // Get role-based visibility filter
-    const visibilityFilter = await getVisibilityFilter(req.user);
+    // Get role-based visibility filter (pass 'task' to use 'assignee' field)
+    const visibilityFilter = await getVisibilityFilter(req.user, 'task');
 
     // First verify the task is visible to the user
     const existingTask = await prisma.task.findFirst({
@@ -126,8 +126,8 @@ router.put('/:id', validateAssignment, async (req, res) => {
 // DELETE task
 router.delete('/:id', async (req, res) => {
   try {
-    // Get role-based visibility filter
-    const visibilityFilter = await getVisibilityFilter(req.user);
+    // Get role-based visibility filter (pass 'task' to use 'assignee' field)
+    const visibilityFilter = await getVisibilityFilter(req.user, 'task');
 
     // First verify the task is visible to the user
     const existingTask = await prisma.task.findFirst({
