@@ -58,7 +58,7 @@ export function Sidebar() {
               "text-blue-100 hover:bg-white/10 hover:text-white hover:shadow-md",
               "group relative overflow-hidden"
             )}
-            activeClassName="bg-white text-blue-600 hover:bg-white shadow-lg"
+            activeClassName="bg-white text-blue-600 hover:bg-white hover:text-blue-700 shadow-lg"
           >
             {/* Active indicator */}
             <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -79,7 +79,7 @@ export function Sidebar() {
         <NavLink
           to="/users"
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-blue-100 hover:bg-white/10 hover:text-white group relative overflow-hidden"
-          activeClassName="bg-white text-blue-600 shadow-lg"
+          activeClassName="bg-white text-blue-600 hover:bg-white hover:text-blue-700 shadow-lg"
         >
           <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
           <Shield className="w-5 h-5 relative z-10" />
@@ -88,7 +88,7 @@ export function Sidebar() {
         <NavLink
           to="/settings"
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-blue-100 hover:bg-white/10 hover:text-white group relative overflow-hidden"
-          activeClassName="bg-white text-blue-600 shadow-lg"
+          activeClassName="bg-white text-blue-600 hover:bg-white hover:text-blue-700 shadow-lg"
         >
           <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
           <Settings className="w-5 h-5 relative z-10" />

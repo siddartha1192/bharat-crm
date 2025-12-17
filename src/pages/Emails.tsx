@@ -446,15 +446,15 @@ export default function Emails() {
             filteredEmails.map((email) => (
               <div
                 key={email.id}
-                className="p-4 hover:bg-accent/50 cursor-pointer transition-colors"
+                className="px-4 py-2 hover:bg-accent/50 cursor-pointer transition-colors border-b border-border"
                 onClick={() => handleViewEmail(email)}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <div className="mt-1">{getStatusIcon(email.status)}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold truncate">{email.subject}</h3>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="shrink-0">{getStatusIcon(email.status)}</div>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <h3 className="font-semibold truncate text-sm">{email.subject}</h3>
                         {getStatusBadge(email.status)}
                         {email.entityType && (
                           <Badge variant="outline" className="text-xs">
@@ -464,27 +464,17 @@ export default function Emails() {
                         {email.replyCount && email.replyCount > 0 && (
                           <Badge variant="secondary" className="text-xs">
                             <MessageSquare className="w-3 h-3 mr-1" />
-                            {email.replyCount} {email.replyCount === 1 ? 'reply' : 'replies'}
+                            {email.replyCount}
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        To: {email.to.join(', ')}
-                      </p>
-                      {email.htmlBody ? (
-                        <div
-                          className="text-sm text-muted-foreground line-clamp-2 prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: email.htmlBody }}
-                        />
-                      ) : (
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {email.body}
-                        </p>
-                      )}
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        To: {email.to[0]}{email.to.length > 1 && ` +${email.to.length - 1}`}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground shrink-0">
-                    <span>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
+                    <span className="text-xs">
                       {email.sentAt
                         ? new Date(email.sentAt).toLocaleDateString()
                         : new Date(email.createdAt).toLocaleDateString()}
@@ -493,23 +483,25 @@ export default function Emails() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="h-7 w-7 p-0"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleViewEmail(email);
                         }}
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-3.5 h-3.5" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="h-7 w-7 p-0"
                         onClick={(e) => {
                           e.stopPropagation();
                           setEmailToDelete(email);
                           setDeleteConfirmOpen(true);
                         }}
                       >
-                        <Trash2 className="w-4 h-4 text-red-600 hover:text-red-700" />
+                        <Trash2 className="w-3.5 h-3.5 text-red-600 hover:text-red-700" />
                       </Button>
                     </div>
                   </div>

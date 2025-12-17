@@ -230,7 +230,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE lead
+// DELETE lead (also deletes linked deal)
 router.delete('/:id', async (req, res) => {
   try {
     const userId = req.user.id;
@@ -247,10 +247,25 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Lead not found' });
     }
 
-    await prisma.lead.delete({
-      where: { id: req.params.id }
+    console.log('🗑️ Deleting lead:', req.params.id);
+
+    // Use transaction to delete both lead and linked deal
+    await prisma.$transaction(async (tx) => {
+      // If lead has a linked deal, delete it first
+      if (existingLead.dealId) {
+        console.log('🗑️ Found linked deal:', existingLead.dealId, '- deleting it too');
+        await tx.deal.delete({
+          where: { id: existingLead.dealId }
+        });
+      }
+
+      // Delete the lead
+      await tx.lead.delete({
+        where: { id: req.params.id }
+      });
     });
 
+    console.log('✅ Lead and linked deal deleted successfully');
     res.json({ message: 'Lead deleted successfully' });
   } catch (error) {
     console.error('Error deleting lead:', error);
