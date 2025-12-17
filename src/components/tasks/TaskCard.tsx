@@ -32,7 +32,7 @@ export function TaskCard({ task, onClick, onDelete }: TaskCardProps) {
   const priority = priorityConfig[task.priority];
   const PriorityIcon = priority.icon;
   
-  const initials = task.assignee
+  const initials = task.assignedTo
     .split(' ')
     .map(n => n[0])
     .join('')
@@ -107,7 +107,7 @@ export function TaskCard({ task, onClick, onDelete }: TaskCardProps) {
               {initials}
             </AvatarFallback>
           </Avatar>
-          <span className="text-muted-foreground">{task.assignee}</span>
+          <span className="text-muted-foreground">{task.assignedTo}</span>
         </div>
 
         <div className={cn(

@@ -261,7 +261,7 @@ class DatabaseToolsService {
                 enum: ['low', 'medium', 'high', 'urgent'],
                 description: 'Filter by priority',
               },
-              assignee: {
+              assignedTo: {
                 type: 'string',
                 description: 'Filter by assigned user name',
               },
@@ -580,8 +580,8 @@ class DatabaseToolsService {
 
     if (args.status) where.status = args.status;
     if (args.priority) where.priority = args.priority;
-    if (args.assignee) {
-      where.assignee = { contains: args.assignee, mode: 'insensitive' };
+    if (args.assignedTo) {
+      where.assignedTo = { contains: args.assignedTo, mode: 'insensitive' };
     }
     if (args.dueDateFrom || args.dueDateTo) {
       where.dueDate = {};
@@ -605,7 +605,7 @@ class DatabaseToolsService {
         description: true,
         status: true,
         priority: true,
-        assignee: true,
+        assignedTo: true,
         dueDate: true,
         createdAt: true,
         completedAt: true,

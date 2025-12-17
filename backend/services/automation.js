@@ -257,7 +257,8 @@ async function executeTaskAction(rule, data, user) {
         priority: actionConfig.priority || 'medium',
         status: 'todo',
         dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
-        assignee: data.assignedTo || user.id,
+        assignedTo: data.assignedTo || user.name,
+        createdBy: user.id,
         userId: user.id,
         tags: actionConfig.tags || []
       }

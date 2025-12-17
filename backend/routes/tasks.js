@@ -62,8 +62,8 @@ router.post('/', validateAssignment, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Remove auto-generated fields
-    const { id, createdAt, updatedAt, ...taskData } = req.body;
+    // Remove auto-generated fields AND old 'assignee' field (frontend might still send it)
+    const { id, createdAt, updatedAt, assignee, ...taskData } = req.body;
 
     // Auto-assign to creator if not specified
     const assignedTo = taskData.assignedTo || req.user.name;
@@ -108,8 +108,8 @@ router.put('/:id', validateAssignment, async (req, res) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    // Remove auto-generated fields
-    const { id, createdAt, updatedAt, ...taskData } = req.body;
+    // Remove auto-generated fields AND old 'assignee' field (frontend might still send it)
+    const { id, createdAt, updatedAt, assignee, ...taskData } = req.body;
 
     const task = await prisma.task.update({
       where: { id: req.params.id },
