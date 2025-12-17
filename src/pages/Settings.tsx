@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Users, Bell, Lock, Zap, Database } from 'lucide-react';
+import { Users, Zap, Database } from 'lucide-react';
 import { UserManagement } from '@/components/settings/UserManagement';
 import AutomationSettings from '@/components/settings/AutomationSettings';
 import VectorDataUpload from '@/components/settings/VectorDataUpload';
@@ -10,7 +9,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 
 export default function Settings() {
   const { isAdmin } = usePermissions();
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState('users');
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -26,12 +25,7 @@ export default function Settings() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 lg:w-[900px]">
-          <TabsTrigger value="general">
-            <Shield className="w-4 h-4 mr-2" />
-            General
-          </TabsTrigger>
-
+        <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
           <ProtectedFeature permission="users:read">
             <TabsTrigger value="users">
               <Users className="w-4 h-4 mr-2" />
@@ -50,36 +44,7 @@ export default function Settings() {
               Vector DB
             </TabsTrigger>
           </ProtectedFeature>
-
-          <TabsTrigger value="notifications">
-            <Bell className="w-4 h-4 mr-2" />
-            Notifications
-          </TabsTrigger>
-
-          <TabsTrigger value="security">
-            <Lock className="w-4 h-4 mr-2" />
-            Security
-          </TabsTrigger>
         </TabsList>
-
-        {/* General Settings */}
-        <TabsContent value="general" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>General Settings</CardTitle>
-              <CardDescription>
-                Manage your general account settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  General settings coming soon...
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* User Management (Admin Only) */}
         <ProtectedFeature permission="users:read">
@@ -99,44 +64,6 @@ export default function Settings() {
             <VectorDataUpload />
           </TabsContent>
         </ProtectedFeature>
-
-        {/* Notifications */}
-        <TabsContent value="notifications" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>
-                Choose how you want to be notified
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Notification settings coming soon...
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Security */}
-        <TabsContent value="security" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Security Settings</CardTitle>
-              <CardDescription>
-                Manage your security preferences
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Security settings coming soon...
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );
