@@ -64,6 +64,21 @@ router.get('/', authenticate, hasPermission('MANAGER'), async (req, res) => {
   }
 });
 
+// GET /api/users/assignable - Get list of users that current user can assign to
+// IMPORTANT: This route must come BEFORE /:id to avoid matching "assignable" as an ID
+router.get('/assignable', authenticate, async (req, res) => {
+  try {
+    const { getAssignableUsers } = require('../middleware/assignment');
+
+    const assignableUsers = await getAssignableUsers(req.user);
+
+    res.json(assignableUsers);
+  } catch (error) {
+    console.error('Error fetching assignable users:', error);
+    res.status(500).json({ error: 'Failed to fetch assignable users' });
+  }
+});
+
 // GET /api/users/:id - Get user by ID
 router.get('/:id', authenticate, async (req, res) => {
   try {
@@ -490,20 +505,6 @@ router.delete('/:id', authenticate, hasPermission('ADMIN'), async (req, res) => 
   } catch (error) {
     console.error('Error deleting user:', error);
     res.status(500).json({ error: 'Failed to delete user' });
-  }
-});
-
-// GET /api/users/assignable - Get list of users that current user can assign to
-router.get('/assignable', authenticate, async (req, res) => {
-  try {
-    const { getAssignableUsers } = require('../middleware/assignment');
-
-    const assignableUsers = await getAssignableUsers(req.user);
-
-    res.json(assignableUsers);
-  } catch (error) {
-    console.error('Error fetching assignable users:', error);
-    res.status(500).json({ error: 'Failed to fetch assignable users' });
   }
 });
 
