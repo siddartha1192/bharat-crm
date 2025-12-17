@@ -161,6 +161,7 @@ model Lead {
   priority          String   // 'low' | 'medium' | 'high' | 'urgent'
   estimatedValue    Float
   assignedTo        String
+  createdBy         String?  // User ID of who created this lead (for tracking ownership)
   notes             String   @default("")
   tags              String[] // Array of tags
   website           String?
@@ -184,6 +185,7 @@ model Lead {
   @@index([assignedTo])
   @@index([userId])
   @@index([dealId])
+  @@index([createdBy])
 }
 
 model Contact {
@@ -210,6 +212,7 @@ model Contact {
   notes           String   @default("")
   tags            String[] // Array of tags
   assignedTo      String
+  createdBy       String?  // User ID of who created this contact
   lifetimeValue   Float    @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -224,6 +227,7 @@ model Contact {
   @@index([type])
   @@index([assignedTo])
   @@index([userId])
+  @@index([createdBy])
 }
 
 model Invoice {
@@ -306,6 +310,7 @@ model Deal {
   probability     Int      // 0-100
   expectedCloseDate DateTime
   assignedTo      String
+  createdBy       String?  // User ID of who created this deal (auto from lead)
   notes           String   @default("")
   tags            String[]
   createdAt       DateTime @default(now())
@@ -329,6 +334,7 @@ model Deal {
   @@index([assignedTo])
   @@index([userId])
   @@index([contactId])
+  @@index([createdBy])
 }
 
 model Task {
@@ -339,6 +345,7 @@ model Task {
   status      String   // 'todo' | 'in-progress' | 'completed'
   dueDate     DateTime
   assignee    String
+  createdBy   String?  // User ID of who created this task
   tags        String[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -351,6 +358,7 @@ model Task {
   @@index([status])
   @@index([assignee])
   @@index([userId])
+  @@index([createdBy])
 }
 
 model WhatsAppConversation {

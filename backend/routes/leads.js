@@ -3,6 +3,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const automationService = require('../services/automation');
+const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
 const prisma = new PrismaClient();
 
 // Helper function: Map lead status to deal stage
@@ -35,13 +36,16 @@ function mapDealStageToLeadStatus(dealStage) {
 // Apply authentication to all lead routes
 router.use(authenticate);
 
-// GET all leads
+// GET all leads (with role-based visibility)
 router.get('/', async (req, res) => {
   try {
     const { status, assignedTo } = req.query;
-    const userId = req.user.id;
 
-    const where = { userId };
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
+
+    // Build where clause
+    const where = { ...visibilityFilter };
 
     if (status && status !== 'all') where.status = status;
     if (assignedTo) where.assignedTo = assignedTo;
@@ -58,15 +62,16 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single lead by ID
+// GET single lead by ID (with role-based visibility)
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
     const lead = await prisma.lead.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
@@ -82,10 +87,14 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST create new lead (automatically creates Deal in pipeline)
-router.post('/', async (req, res) => {
+router.post('/', validateAssignment, async (req, res) => {
   try {
     const userId = req.user.id;
     const leadData = req.body;
+
+    // Auto-assign to creator if not specified
+    const assignedTo = leadData.assignedTo || req.user.name;
+    const createdBy = userId;
 
     // Use transaction to ensure both Lead and Deal are created together
     const result = await prisma.$transaction(async (tx) => {
@@ -101,7 +110,8 @@ router.post('/', async (req, res) => {
           stage: mapLeadStatusToDealStage(leadData.status || 'new'),
           probability: leadData.priority === 'urgent' ? 80 : leadData.priority === 'high' ? 60 : leadData.priority === 'medium' ? 40 : 20,
           expectedCloseDate: leadData.nextFollowUpAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          assignedTo: leadData.assignedTo || req.user.name || 'Unassigned',
+          assignedTo,
+          createdBy,
           notes: leadData.notes || '',
           tags: leadData.tags || [],
           userId
@@ -112,6 +122,8 @@ router.post('/', async (req, res) => {
       const lead = await tx.lead.create({
         data: {
           ...leadData,
+          assignedTo,
+          createdBy,
           userId,
           dealId: deal.id
         }
@@ -145,16 +157,18 @@ router.post('/', async (req, res) => {
 });
 
 // PUT update lead (syncs with Deal if linked)
-router.put('/:id', async (req, res) => {
+router.put('/:id', validateAssignment, async (req, res) => {
   try {
-    const userId = req.user.id;
     const updateData = req.body;
 
-    // First verify the lead belongs to the user
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
+
+    // First verify the lead is visible to the user
     const existingLead = await prisma.lead.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
@@ -235,18 +249,27 @@ router.put('/:id', async (req, res) => {
 // DELETE lead (also deletes linked deal)
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
-    // First verify the lead belongs to the user
+    // First verify the lead is visible to the user
     const existingLead = await prisma.lead.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
     if (!existingLead) {
       return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    // Check if user has permission to delete (only creator, assignee, or admin/manager)
+    if (req.user.role !== 'ADMIN' &&
+        req.user.role !== 'MANAGER' &&
+        existingLead.createdBy !== req.user.id &&
+        existingLead.assignedTo !== req.user.name) {
+      return res.status(403).json({ error: 'You do not have permission to delete this lead' });
     }
 
     console.log('🗑️ Deleting lead:', req.params.id);
@@ -275,17 +298,18 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// GET lead stats
+// GET lead stats (with role-based visibility)
 router.get('/stats/summary', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
     const [total, newLeads, qualified, totalValue] = await Promise.all([
-      prisma.lead.count({ where: { userId } }),
-      prisma.lead.count({ where: { userId, status: 'new' } }),
-      prisma.lead.count({ where: { userId, status: 'qualified' } }),
+      prisma.lead.count({ where: visibilityFilter }),
+      prisma.lead.count({ where: { ...visibilityFilter, status: 'new' } }),
+      prisma.lead.count({ where: { ...visibilityFilter, status: 'qualified' } }),
       prisma.lead.aggregate({
-        where: { userId },
+        where: visibilityFilter,
         _sum: { estimatedValue: true }
       })
     ]);
@@ -308,12 +332,14 @@ router.get('/stats/summary', async (req, res) => {
  */
 router.get('/:id/documents', async (req, res) => {
   try {
-    const userId = req.user.id;
     const leadId = req.params.id;
 
-    // Verify lead belongs to user
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
+
+    // Verify lead is visible to user
     const lead = await prisma.lead.findFirst({
-      where: { id: leadId, userId }
+      where: { id: leadId, ...visibilityFilter }
     });
 
     if (!lead) {
@@ -371,11 +397,12 @@ router.post('/:id/documents/upload', async (req, res) => {
     }
 
     try {
-      const userId = req.user.id;
+      // Get role-based visibility filter
+      const visibilityFilter = await getVisibilityFilter(req.user);
 
-      // Verify lead belongs to user
+      // Verify lead is visible to user
       const lead = await prisma.lead.findFirst({
-        where: { id: leadId, userId }
+        where: { id: leadId, ...visibilityFilter }
       });
 
       if (!lead) {
@@ -431,12 +458,14 @@ router.post('/:id/documents/upload', async (req, res) => {
  */
 router.delete('/:id/documents/:docId', async (req, res) => {
   try {
-    const userId = req.user.id;
     const { id: leadId, docId } = req.params;
 
-    // Verify lead belongs to user
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
+
+    // Verify lead is visible to user
     const lead = await prisma.lead.findFirst({
-      where: { id: leadId, userId }
+      where: { id: leadId, ...visibilityFilter }
     });
 
     if (!lead) {
@@ -457,7 +486,7 @@ router.delete('/:id/documents/:docId', async (req, res) => {
     }
 
     // Check permission
-    if (document.userId !== userId && req.user.role !== 'ADMIN') {
+    if (document.userId !== req.user.id && req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Not authorized to delete this document' });
     }
 
@@ -562,6 +591,7 @@ router.post('/import', async (req, res) => {
                 notes: lead.notes,
                 estimatedValue: lead.estimatedValue,
                 assignedTo: lead.assignedTo,
+                createdBy: userId,
                 tags: lead.tags,
                 userId: lead.userId
               }
@@ -580,6 +610,7 @@ router.post('/import', async (req, res) => {
                 probability: 10,
                 expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
                 assignedTo: lead.assignedTo,
+                createdBy: userId,
                 notes: lead.notes,
                 tags: lead.tags,
                 userId: lead.userId

@@ -2,18 +2,22 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
+const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
 const prisma = new PrismaClient();
 
 // Apply authentication to all routes
 router.use(authenticate);
 
-// GET all tasks
+// GET all tasks (with role-based visibility)
 router.get('/', async (req, res) => {
   try {
     const { status } = req.query;
-    const userId = req.user.id;
 
-    const where = { userId };
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
+
+    // Build where clause
+    const where = { ...visibilityFilter };
 
     if (status && status !== 'all') where.status = status;
 
@@ -29,15 +33,16 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single task by ID
+// GET single task by ID (with role-based visibility)
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
     const task = await prisma.task.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
@@ -53,16 +58,22 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST create new task
-router.post('/', async (req, res) => {
+router.post('/', validateAssignment, async (req, res) => {
   try {
     const userId = req.user.id;
 
     // Remove auto-generated fields
     const { id, createdAt, updatedAt, ...taskData } = req.body;
 
+    // Auto-assign to creator if not specified
+    const assignee = taskData.assignee || req.user.name;
+    const createdBy = userId;
+
     // Ensure required fields have defaults
     const data = {
       ...taskData,
+      assignee,
+      createdBy,
       userId,
       description: taskData.description || '',
       tags: taskData.tags || [],
@@ -80,15 +91,16 @@ router.post('/', async (req, res) => {
 });
 
 // PUT update task
-router.put('/:id', async (req, res) => {
+router.put('/:id', validateAssignment, async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
-    // First verify the task belongs to the user
+    // First verify the task is visible to the user
     const existingTask = await prisma.task.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
@@ -114,18 +126,27 @@ router.put('/:id', async (req, res) => {
 // DELETE task
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
-    // First verify the task belongs to the user
+    // First verify the task is visible to the user
     const existingTask = await prisma.task.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
     if (!existingTask) {
       return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Check if user has permission to delete (only creator, assignee, or admin/manager)
+    if (req.user.role !== 'ADMIN' &&
+        req.user.role !== 'MANAGER' &&
+        existingTask.createdBy !== req.user.id &&
+        existingTask.assignee !== req.user.name) {
+      return res.status(403).json({ error: 'You do not have permission to delete this task' });
     }
 
     await prisma.task.delete({

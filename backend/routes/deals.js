@@ -3,6 +3,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const automationService = require('../services/automation');
+const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
 const prisma = new PrismaClient();
 
 // Helper function: Map deal stage to lead status
@@ -21,13 +22,16 @@ function mapDealStageToLeadStatus(dealStage) {
 // Apply authentication to all routes
 router.use(authenticate);
 
-// GET all deals
+// GET all deals (with role-based visibility)
 router.get('/', async (req, res) => {
   try {
     const { stage } = req.query;
-    const userId = req.user.id;
 
-    const where = { userId };
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
+
+    // Build where clause
+    const where = { ...visibilityFilter };
 
     if (stage && stage !== 'all') where.stage = stage;
 
@@ -43,15 +47,16 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single deal by ID
+// GET single deal by ID (with role-based visibility)
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
     const deal = await prisma.deal.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
@@ -67,16 +72,22 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST create new deal
-router.post('/', async (req, res) => {
+router.post('/', validateAssignment, async (req, res) => {
   try {
     const userId = req.user.id;
 
     // Remove fields that shouldn't be sent to Prisma
     const { id, createdAt, updatedAt, nextAction, source, ...dealData } = req.body;
 
+    // Auto-assign to creator if not specified
+    const assignedTo = dealData.assignedTo || req.user.name;
+    const createdBy = userId;
+
     // Ensure required fields have defaults
     const data = {
       ...dealData,
+      assignedTo,
+      createdBy,
       userId,
       notes: dealData.notes || '',
       tags: dealData.tags || [],
@@ -94,9 +105,8 @@ router.post('/', async (req, res) => {
 });
 
 // PUT update deal (syncs with Lead if linked)
-router.put('/:id', async (req, res) => {
+router.put('/:id', validateAssignment, async (req, res) => {
   try {
-    const userId = req.user.id;
     const updateData = req.body;
 
     console.log('📝 Updating deal:', req.params.id);
@@ -107,16 +117,19 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Deal title cannot be empty' });
     }
 
-    // First verify the deal belongs to the user
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
+
+    // First verify the deal is visible to the user
     const existingDeal = await prisma.deal.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
     if (!existingDeal) {
-      console.log('❌ Deal not found for user:', userId, 'dealId:', req.params.id);
+      console.log('❌ Deal not found or not visible to user:', req.user.id, 'dealId:', req.params.id);
       return res.status(404).json({ error: 'Deal not found' });
     }
 
@@ -255,18 +268,27 @@ router.put('/:id', async (req, res) => {
 // DELETE deal
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
 
-    // First verify the deal belongs to the user
+    // First verify the deal is visible to the user
     const existingDeal = await prisma.deal.findFirst({
       where: {
         id: req.params.id,
-        userId
+        ...visibilityFilter
       }
     });
 
     if (!existingDeal) {
       return res.status(404).json({ error: 'Deal not found' });
+    }
+
+    // Check if user has permission to delete (only creator, assignee, or admin/manager)
+    if (req.user.role !== 'ADMIN' &&
+        req.user.role !== 'MANAGER' &&
+        existingDeal.createdBy !== req.user.id &&
+        existingDeal.assignedTo !== req.user.name) {
+      return res.status(403).json({ error: 'You do not have permission to delete this deal' });
     }
 
     console.log('🗑️ Deleting deal:', req.params.id);
