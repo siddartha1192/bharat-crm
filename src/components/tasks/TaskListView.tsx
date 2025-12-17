@@ -40,7 +40,7 @@ export function TaskListView({ tasks, onClick, onDelete }: TaskListViewProps) {
               <th className="text-left p-4 font-semibold text-sm">Task</th>
               <th className="text-left p-4 font-semibold text-sm">Status</th>
               <th className="text-left p-4 font-semibold text-sm">Priority</th>
-              <th className="text-left p-4 font-semibold text-sm">Assignee</th>
+              <th className="text-left p-4 font-semibold text-sm">Assigned To</th>
               <th className="text-left p-4 font-semibold text-sm">Due Date</th>
               <th className="text-left p-4 font-semibold text-sm">Tags</th>
               <th className="text-left p-4 font-semibold text-sm">Created</th>
@@ -77,7 +77,7 @@ export function TaskListView({ tasks, onClick, onDelete }: TaskListViewProps) {
                 <td className="p-4">
                   <div className="flex items-center gap-2 text-sm">
                     <User className="w-4 h-4 text-muted-foreground" />
-                    <span>{task.assignee || 'Unassigned'}</span>
+                    <span>{task.assignedTo || 'Unassigned'}</span>
                   </div>
                 </td>
                 <td className="p-4">

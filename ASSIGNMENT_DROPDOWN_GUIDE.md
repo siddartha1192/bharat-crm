@@ -233,8 +233,6 @@ export function DealForm() {
 
 ### 5. Use in Task Form
 
-**Note:** Tasks use `assignee` instead of `assignedTo`
-
 ```typescript
 // src/components/tasks/TaskForm.tsx
 import { AssignmentDropdown } from '@/components/common/AssignmentDropdown';
@@ -244,7 +242,7 @@ export function TaskForm() {
     title: '',
     description: '',
     dueDate: '',
-    assignee: '', // Note: tasks use 'assignee' not 'assignedTo'
+    assignedTo: '',
     // ... other fields
   });
 
@@ -255,8 +253,8 @@ export function TaskForm() {
       <div>
         <label>Assign To</label>
         <AssignmentDropdown
-          value={formData.assignee}
-          onChange={(name) => setFormData({ ...formData, assignee: name })}
+          value={formData.assignedTo}
+          onChange={(name) => setFormData({ ...formData, assignedTo: name })}
           placeholder="Select who to assign this task to"
         />
       </div>
@@ -271,10 +269,9 @@ export function TaskForm() {
 
 ## Key Points
 
-1. **Auto-Assignment**: Backend automatically assigns to creator if `assignedTo`/`assignee` is not provided
+1. **Auto-Assignment**: Backend automatically assigns to creator if `assignedTo` is not provided
 2. **Field Names**:
-   - Leads, Contacts, Deals use `assignedTo`
-   - Tasks use `assignee`
+   - All models (Leads, Contacts, Deals, Tasks) use `assignedTo` consistently
 3. **Validation**: Backend validates that user has permission to assign to selected person
 4. **Display for Agents**: Agents don't need dropdown - items auto-assign to them
 5. **Display for Managers**: Show only department/team members

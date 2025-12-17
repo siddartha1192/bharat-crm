@@ -213,8 +213,8 @@ Notes: ${data.notes || 'None'}
         dueDate = new Date(data.dueDate);
       }
 
-      // Determine assignee name (from AI data or default to owner)
-      const assigneeName = data.assignee || ownerUser.name || ownerUser.email;
+      // Determine assignedTo name (from AI data or default to owner)
+      const assignedToName = data.assignedTo || data.assignee || ownerUser.name || ownerUser.email;
 
       // Create task
       const task = await prisma.task.create({
@@ -225,7 +225,8 @@ Notes: ${data.notes || 'None'}
           status: 'todo',
           dueDate,
           userId: ownerUser.id,
-          assignee: assigneeName, // ✓ Fixed: Now providing required assignee field
+          assignedTo: assignedToName,
+          createdBy: ownerUser.id,
           tags: data.tags || [],
         },
       });

@@ -37,7 +37,7 @@ export function TaskDialog({ open, onOpenChange, task, onSave }: TaskDialogProps
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [status, setStatus] = useState<TaskStatus>('todo');
   const [dueDate, setDueDate] = useState<Date>(new Date());
-  const [assignee, setAssignee] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
   const [tags, setTags] = useState('');
 
   // Update form when task prop changes
@@ -48,7 +48,7 @@ export function TaskDialog({ open, onOpenChange, task, onSave }: TaskDialogProps
       setPriority(task.priority || 'medium');
       setStatus(task.status || 'todo');
       setDueDate(task.dueDate || new Date());
-      setAssignee(task.assignee || '');
+      setAssignedTo(task.assignedTo || '');
       setTags(task.tags?.join(', ') || '');
     } else {
       // Reset for new task
@@ -57,7 +57,7 @@ export function TaskDialog({ open, onOpenChange, task, onSave }: TaskDialogProps
       setPriority('medium');
       setStatus('todo');
       setDueDate(new Date());
-      setAssignee('');
+      setAssignedTo('');
       setTags('');
     }
   }, [task, open]);
@@ -69,7 +69,7 @@ export function TaskDialog({ open, onOpenChange, task, onSave }: TaskDialogProps
       priority,
       status,
       dueDate,
-      assignee,
+      assignedTo,
       tags: tags.split(',').map(t => t.trim()).filter(Boolean),
     };
 
@@ -169,11 +169,11 @@ export function TaskDialog({ open, onOpenChange, task, onSave }: TaskDialogProps
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="assignee">Assignee</Label>
+            <Label htmlFor="assignedTo">Assigned To</Label>
             <Input
-              id="assignee"
-              value={assignee}
-              onChange={(e) => setAssignee(e.target.value)}
+              id="assignedTo"
+              value={assignedTo}
+              onChange={(e) => setAssignedTo(e.target.value)}
               placeholder="Assign to"
             />
           </div>
