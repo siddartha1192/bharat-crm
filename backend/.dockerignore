@@ -3,7 +3,8 @@ node_modules
 npm-debug.log
 yarn-error.log
 
-# Environment files
+# Environment files (will be provided at runtime)
+.env
 .env.local
 .env.development
 .env.test
@@ -21,7 +22,7 @@ coverage
 *.test.js
 __tests__
 
-# Uploads and temp files
+# Uploads and temp files (will be mounted as volumes)
 uploads/*
 !uploads/.gitkeep
 knowledge_base/*
@@ -36,3 +37,8 @@ README.md
 # CI/CD
 .github
 .gitlab-ci.yml
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
