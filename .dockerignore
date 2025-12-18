@@ -1,0 +1,41 @@
+# Node modules
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build output
+dist
+build
+.cache
+
+# Environment files
+.env.local
+.env.development
+.env.test
+
+# Development files
+*.log
+*.md
+.git
+.gitignore
+.vscode
+.idea
+
+# Test files
+coverage
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__
+
+# Documentation
+docs
+README.md
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Backend folder
+backend
