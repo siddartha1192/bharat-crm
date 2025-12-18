@@ -265,32 +265,82 @@ Notes: ${data.notes || 'None'}
         return { success: false, error: 'Owner user not found' };
       }
 
-      // Create lead
-      const lead = await prisma.lead.create({
-        data: {
-          name: data.name,
-          email: data.email,
-          phone: data.phone || context.contactPhone || '',
-          whatsapp: context.contactPhone || data.phone || '',
-          company: data.company || '',
-          source: 'whatsapp', // WhatsApp AI-created leads
-          status: 'new',
-          priority: data.priority || 'medium',
-          estimatedValue: data.estimatedValue || 0,
-          assignedTo: ownerUser.name || ownerUser.email,
-          notes: data.notes || 'Lead captured via WhatsApp AI Assistant',
-          userId: ownerUser.id,
-        },
+      // Helper function: Map lead status to deal stage
+      const mapLeadStatusToDealStage = (leadStatus) => {
+        const statusMapping = {
+          'new': 'lead',
+          'contacted': 'lead',
+          'qualified': 'qualified',
+          'proposal': 'proposal',
+          'negotiation': 'negotiation',
+          'won': 'closed-won',
+          'lost': 'closed-lost'
+        };
+        return statusMapping[leadStatus] || 'lead';
+      };
+
+      const assignedToName = ownerUser.name || ownerUser.email;
+      const status = 'new';
+      const priority = data.priority || 'medium';
+      const estimatedValue = data.estimatedValue || 0;
+      const company = data.company || '';
+
+      // Use transaction to ensure both Lead and Deal are created together
+      const result = await prisma.$transaction(async (tx) => {
+        // Create the Deal first in the pipeline
+        const deal = await tx.deal.create({
+          data: {
+            title: `${company || 'WhatsApp Lead'} - ${data.name}`,
+            company: company,
+            contactName: data.name,
+            email: data.email,
+            phone: data.phone || context.contactPhone || '',
+            value: estimatedValue,
+            stage: mapLeadStatusToDealStage(status),
+            probability: priority === 'urgent' ? 80 : priority === 'high' ? 60 : priority === 'medium' ? 40 : 20,
+            expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+            assignedTo: assignedToName,
+            createdBy: ownerUser.id,
+            notes: data.notes || 'Lead captured via WhatsApp AI Assistant',
+            tags: [],
+            userId: ownerUser.id
+          }
+        });
+
+        // Create the Lead and link it to the Deal
+        const lead = await tx.lead.create({
+          data: {
+            name: data.name,
+            email: data.email,
+            phone: data.phone || context.contactPhone || '',
+            whatsapp: context.contactPhone || data.phone || '',
+            company: company,
+            source: 'whatsapp', // WhatsApp AI-created leads
+            status: status,
+            priority: priority,
+            estimatedValue: estimatedValue,
+            assignedTo: assignedToName,
+            createdBy: ownerUser.id,
+            notes: data.notes || 'Lead captured via WhatsApp AI Assistant',
+            tags: [],
+            userId: ownerUser.id,
+            dealId: deal.id // Link lead to deal
+          },
+        });
+
+        return { lead, deal };
       });
+
+      console.log(`   ✅ Lead created with auto-generated Deal: Lead ${result.lead.id} -> Deal ${result.deal.id}`);
 
       // Trigger automation for lead creation (to send email notifications)
       try {
         await automationService.triggerAutomation('lead.created', {
-          id: lead.id,
-          name: lead.name,
-          email: lead.email,
-          company: lead.company,
-          status: lead.status,
+          id: result.lead.id,
+          name: result.lead.name,
+          email: result.lead.email,
+          company: result.lead.company,
+          status: result.lead.status,
           entityType: 'Lead'
         }, ownerUser);
         console.log('   ✅ Lead creation automation triggered');
@@ -302,10 +352,11 @@ Notes: ${data.notes || 'None'}
       return {
         success: true,
         data: {
-          leadId: lead.id,
-          name: lead.name,
-          email: lead.email,
-          status: lead.status,
+          leadId: result.lead.id,
+          dealId: result.deal.id,
+          name: result.lead.name,
+          email: result.lead.email,
+          status: result.lead.status,
         },
       };
     } catch (error) {
