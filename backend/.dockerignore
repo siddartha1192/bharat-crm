@@ -1,0 +1,38 @@
+# Node modules
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Environment files
+.env.local
+.env.development
+.env.test
+
+# Development files
+*.log
+*.md
+.git
+.gitignore
+.vscode
+.idea
+
+# Test files
+coverage
+*.test.js
+__tests__
+
+# Uploads and temp files
+uploads/*
+!uploads/.gitkeep
+knowledge_base/*
+!knowledge_base/.gitkeep
+conversations/*
+!conversations/.gitkeep
+
+# Documentation
+docs
+README.md
+
+# CI/CD
+.github
+.gitlab-ci.yml
