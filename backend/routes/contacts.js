@@ -119,7 +119,7 @@ router.post('/', validateAssignment, async (req, res) => {
 });
 
 // PUT update contact
-router.put('/:id', validateAssignment, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     // Get role-based visibility filter
     const visibilityFilter = await getVisibilityFilter(req.user);
@@ -138,6 +138,19 @@ router.put('/:id', validateAssignment, async (req, res) => {
 
     // Remove auto-generated fields and transform address
     const { id, createdAt, updatedAt, address, ...contactData } = req.body;
+
+    // Only validate assignment if assignedTo is being changed
+    if (contactData.assignedTo && contactData.assignedTo !== existingContact.assignedTo) {
+      const { canAssignToByName } = require('../middleware/assignment');
+      const canAssign = await canAssignToByName(req.user, contactData.assignedTo);
+
+      if (!canAssign) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: `You do not have permission to assign to ${contactData.assignedTo}`
+        });
+      }
+    }
 
     // Transform nested address to flat fields if address is provided
     const data = { ...contactData };
