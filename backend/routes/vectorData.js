@@ -6,7 +6,7 @@ const { PrismaClient } = require('@prisma/client');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const pdf = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 
 const prisma = new PrismaClient();
 
@@ -43,7 +43,7 @@ async function processVectorData(filePath, fileName) {
     if (ext === '.pdf') {
       // Read PDF file as buffer
       const dataBuffer = fs.readFileSync(filePath);
-      const pdfData = await pdf(dataBuffer);
+      const pdfData = await PDFParse(dataBuffer);
 
       // Extract text content from PDF
       const content = pdfData.text;

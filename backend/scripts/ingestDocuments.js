@@ -12,7 +12,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const vectorDBService = require('../services/ai/vectorDB.service');
 const aiConfig = require('../config/ai.config');
-const pdf = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 
 // Supported file types
 const SUPPORTED_EXTENSIONS = ['.txt', '.md', '.json', '.pdf'];
@@ -42,7 +42,7 @@ async function readKnowledgeBase(dir) {
             if (ext === '.pdf') {
               // Read PDF file as buffer and extract text
               const dataBuffer = await fs.readFile(fullPath);
-              const pdfData = await pdf(dataBuffer);
+              const pdfData = await PDFParse(dataBuffer);
               content = pdfData.text;
             } else {
               // Read text-based files as UTF-8
