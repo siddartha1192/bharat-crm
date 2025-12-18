@@ -43,10 +43,16 @@ async function processVectorData(filePath, fileName) {
     if (ext === '.pdf') {
       // Read PDF file as buffer
       const dataBuffer = fs.readFileSync(filePath);
-      const pdfData = await PDFParse(dataBuffer);
+
+      // Create PDF parser instance with the buffer
+      const parser = new PDFParse({ data: dataBuffer });
 
       // Extract text content from PDF
-      const content = pdfData.text;
+      const result = await parser.getText();
+      const content = result.text;
+
+      // Clean up parser resources
+      await parser.destroy();
 
       // Split text into chunks (by paragraphs or pages)
       const chunks = content.split('\n\n').filter(chunk => chunk.trim());
