@@ -6,6 +6,7 @@ const { PrismaClient } = require('@prisma/client');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const pdf = require('pdf-parse');
 
 const prisma = new PrismaClient();
 
@@ -34,38 +35,51 @@ function addIngestLog(message) {
  */
 async function processVectorData(filePath, fileName) {
   try {
-    // Read file content
-    const content = fs.readFileSync(filePath, 'utf-8');
-
     // Determine file type and process accordingly
     const ext = path.extname(fileName).toLowerCase();
 
     let documents = [];
 
-    if (ext === '.txt') {
-      // Split text into chunks
+    if (ext === '.pdf') {
+      // Read PDF file as buffer
+      const dataBuffer = fs.readFileSync(filePath);
+      const pdfData = await pdf(dataBuffer);
+
+      // Extract text content from PDF
+      const content = pdfData.text;
+
+      // Split text into chunks (by paragraphs or pages)
       const chunks = content.split('\n\n').filter(chunk => chunk.trim());
       documents = chunks.map(chunk => ({ content: chunk }));
-    } else if (ext === '.csv') {
-      // Parse CSV
-      const lines = content.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',');
+    } else {
+      // Read file content as text
+      const content = fs.readFileSync(filePath, 'utf-8');
 
-      documents = lines.slice(1).map(line => {
-        const values = line.split(',');
-        const obj = {};
-        headers.forEach((header, index) => {
-          obj[header.trim()] = values[index]?.trim() || '';
+      if (ext === '.txt' || ext === '.md') {
+        // Split text into chunks
+        const chunks = content.split('\n\n').filter(chunk => chunk.trim());
+        documents = chunks.map(chunk => ({ content: chunk }));
+      } else if (ext === '.csv') {
+        // Parse CSV
+        const lines = content.split('\n').filter(line => line.trim());
+        const headers = lines[0].split(',');
+
+        documents = lines.slice(1).map(line => {
+          const values = line.split(',');
+          const obj = {};
+          headers.forEach((header, index) => {
+            obj[header.trim()] = values[index]?.trim() || '';
+          });
+          return { content: JSON.stringify(obj) };
         });
-        return { content: JSON.stringify(obj) };
-      });
-    } else if (ext === '.json') {
-      // Parse JSON
-      const data = JSON.parse(content);
-      if (Array.isArray(data)) {
-        documents = data.map(item => ({ content: JSON.stringify(item) }));
-      } else {
-        documents = [{ content: JSON.stringify(data) }];
+      } else if (ext === '.json') {
+        // Parse JSON
+        const data = JSON.parse(content);
+        if (Array.isArray(data)) {
+          documents = data.map(item => ({ content: JSON.stringify(item) }));
+        } else {
+          documents = [{ content: JSON.stringify(data) }];
+        }
       }
     }
 

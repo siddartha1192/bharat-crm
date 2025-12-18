@@ -98,20 +98,20 @@ const documentFileFilter = (req, file, cb) => {
  * File filter for vector data
  */
 const vectorDataFileFilter = (req, file, cb) => {
-  // Allowed file types for vector data
+  // Allowed file types for vector data: .txt, .md, .csv, .json, .pdf
   const allowedTypes = [
     'text/plain',
+    'text/markdown',
+    'text/x-markdown',
     'text/csv',
     'application/json',
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    'application/pdf'
   ];
 
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error(`File type ${file.mimetype} is not allowed for vector data`), false);
+    cb(new Error(`File type ${file.mimetype} is not allowed for vector data. Supported types: TXT, MD, CSV, JSON, PDF`), false);
   }
 };
 
