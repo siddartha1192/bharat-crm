@@ -42,8 +42,16 @@ async function readKnowledgeBase(dir) {
             if (ext === '.pdf') {
               // Read PDF file as buffer and extract text
               const dataBuffer = await fs.readFile(fullPath);
-              const pdfData = await PDFParse(dataBuffer);
-              content = pdfData.text;
+
+              // Create PDF parser instance with the buffer
+              const parser = new PDFParse({ data: dataBuffer });
+
+              // Extract text content
+              const result = await parser.getText();
+              content = result.text;
+
+              // Clean up parser resources
+              await parser.destroy();
             } else {
               // Read text-based files as UTF-8
               content = await fs.readFile(fullPath, 'utf-8');
