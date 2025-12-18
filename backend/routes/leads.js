@@ -157,7 +157,7 @@ router.post('/', validateAssignment, async (req, res) => {
 });
 
 // PUT update lead (syncs with Deal if linked)
-router.put('/:id', validateAssignment, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const updateData = req.body;
 
@@ -174,6 +174,19 @@ router.put('/:id', validateAssignment, async (req, res) => {
 
     if (!existingLead) {
       return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    // Only validate assignment if assignedTo is being changed
+    if (updateData.assignedTo && updateData.assignedTo !== existingLead.assignedTo) {
+      const { canAssignToByName } = require('../middleware/assignment');
+      const canAssign = await canAssignToByName(req.user, updateData.assignedTo);
+
+      if (!canAssign) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: `You do not have permission to assign to ${updateData.assignedTo}`
+        });
+      }
     }
 
     // Update Lead and sync with Deal in transaction

@@ -91,7 +91,7 @@ router.post('/', validateAssignment, async (req, res) => {
 });
 
 // PUT update task
-router.put('/:id', validateAssignment, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     // Get role-based visibility filter
     const visibilityFilter = await getVisibilityFilter(req.user);
@@ -110,6 +110,19 @@ router.put('/:id', validateAssignment, async (req, res) => {
 
     // Remove auto-generated fields AND old 'assignee' field (frontend might still send it)
     const { id, createdAt, updatedAt, assignee, ...taskData } = req.body;
+
+    // Only validate assignment if assignedTo is being changed
+    if (taskData.assignedTo && taskData.assignedTo !== existingTask.assignedTo) {
+      const { canAssignToByName } = require('../middleware/assignment');
+      const canAssign = await canAssignToByName(req.user, taskData.assignedTo);
+
+      if (!canAssign) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: `You do not have permission to assign to ${taskData.assignedTo}`
+        });
+      }
+    }
 
     const task = await prisma.task.update({
       where: { id: req.params.id },
