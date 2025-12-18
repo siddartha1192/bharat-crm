@@ -12,9 +12,10 @@ const fs = require('fs').promises;
 const path = require('path');
 const vectorDBService = require('../services/ai/vectorDB.service');
 const aiConfig = require('../config/ai.config');
+const pdf = require('pdf-parse');
 
 // Supported file types
-const SUPPORTED_EXTENSIONS = ['.txt', '.md', '.json'];
+const SUPPORTED_EXTENSIONS = ['.txt', '.md', '.json', '.pdf'];
 
 /**
  * Read all files from knowledge base directory
@@ -35,8 +36,18 @@ async function readKnowledgeBase(dir) {
 
         if (SUPPORTED_EXTENSIONS.includes(ext)) {
           try {
-            const content = await fs.readFile(fullPath, 'utf-8');
+            let content;
             const relativePath = path.relative(aiConfig.knowledgeBase.path, fullPath);
+
+            if (ext === '.pdf') {
+              // Read PDF file as buffer and extract text
+              const dataBuffer = await fs.readFile(fullPath);
+              const pdfData = await pdf(dataBuffer);
+              content = pdfData.text;
+            } else {
+              // Read text-based files as UTF-8
+              content = await fs.readFile(fullPath, 'utf-8');
+            }
 
             documents.push({
               content,
@@ -357,7 +368,7 @@ async function main() {
 
     if (documents.length === 0) {
       console.log('\n⚠️ No documents found!');
-      console.log(`Place your documents (.txt, .md, .json) in: ${knowledgeBasePath}`);
+      console.log(`Place your documents (.txt, .md, .json, .pdf) in: ${knowledgeBasePath}`);
       return;
     }
 

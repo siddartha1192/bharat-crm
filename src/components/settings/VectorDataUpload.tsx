@@ -143,8 +143,8 @@ export default function VectorDataUpload() {
       return;
     }
 
-    // Validate file type
-    const allowedTypes = ['.txt', '.csv', '.json', '.pdf', '.doc', '.docx'];
+    // Validate file type - backend supports: .txt, .md, .csv, .json, .pdf
+    const allowedTypes = ['.txt', '.md', '.csv', '.json', '.pdf'];
     const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
     if (!allowedTypes.includes(fileExt)) {
       toast.error(`File type ${fileExt} is not allowed. Allowed types: ${allowedTypes.join(', ')}`);
@@ -285,7 +285,7 @@ export default function VectorDataUpload() {
         <CardHeader>
           <CardTitle>Upload Data File</CardTitle>
           <CardDescription>
-            Upload text, CSV, JSON, or document files to enhance the AI knowledge base
+            Upload text files (.txt, .md), CSV, JSON, or PDF documents to enhance the AI knowledge base
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -293,7 +293,7 @@ export default function VectorDataUpload() {
             <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Upload Data File</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Supported formats: TXT, CSV, JSON, PDF, DOC, DOCX<br />
+              Supported formats: TXT, MD, CSV, JSON, PDF<br />
               Maximum file size: 50MB
             </p>
 
@@ -324,7 +324,7 @@ export default function VectorDataUpload() {
               ref={fileInputRef}
               type="file"
               className="hidden"
-              accept=".txt,.csv,.json,.pdf,.doc,.docx"
+              accept=".txt,.md,.csv,.json,.pdf"
               onChange={handleFileChange}
             />
           </div>
