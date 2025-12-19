@@ -97,6 +97,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL}
+        VITE_API_WEBHOOK_URL: ${VITE_API_WEBHOOK_URL:-}
     container_name: bharat-crm-frontend
     restart: always
     depends_on:
@@ -119,12 +120,8 @@ services:
       - backend
     ports:
       - "8080:80"
-      - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - certbot_data:/var/www/certbot:ro
-      - certbot_conf:/etc/letsencrypt:ro
+      - ./nginx/nginx.conf.dev:/etc/nginx/nginx.conf:ro
     networks:
       - crm-network
     logging:
