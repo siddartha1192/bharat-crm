@@ -120,8 +120,12 @@ services:
       - backend
     ports:
       - "8080:80"
+      - "8443:443"
     volumes:
-      - ./nginx/nginx.conf.dev:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.conf.ssl:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot_data:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
     networks:
       - crm-network
     logging:
