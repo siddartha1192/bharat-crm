@@ -4,6 +4,13 @@
 # Stage 1: Build the React application
 FROM node:18-alpine AS builder
 
+# Build argument for API URL
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+
+ARG VITE_API_WEBHOOK_URL
+ENV VITE_API_WEBHOOK_URL=${VITE_API_WEBHOOK_URL}
+
 WORKDIR /app
 
 # Copy package files
