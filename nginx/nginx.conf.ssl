@@ -66,8 +66,9 @@ http {
 
     # HTTPS server (port 443 -> host 8443)
     server {
-        listen 443 ssl http2;
-        listen [::]:443 ssl http2;
+        listen 443 ssl;
+        listen [::]:443 ssl;
+        http2 on;
         server_name _;
 
         # SSL configuration with self-signed cert fallback
