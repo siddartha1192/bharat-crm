@@ -371,6 +371,69 @@ class CampaignService {
         }));
 
         recipients = [...leadRecipients, ...contactRecipients];
+      } else if (targetType === 'tags') {
+        // Get both leads and contacts filtered by tags
+        if (targetFilters && targetFilters.tags && targetFilters.tags.length > 0) {
+          const [leads, contacts] = await Promise.all([
+            prisma.lead.findMany({
+              where: {
+                userId: campaign.userId,
+                tags: { hasSome: targetFilters.tags },
+              },
+              select: { id: true, name: true, email: true, phone: true, whatsapp: true, company: true },
+              take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
+            }),
+            prisma.contact.findMany({
+              where: {
+                userId: campaign.userId,
+                tags: { hasSome: targetFilters.tags },
+              },
+              select: { id: true, name: true, email: true, phone: true, whatsapp: true, company: true },
+              take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
+            }),
+          ]);
+
+          const leadRecipients = leads.map(lead => ({
+            recipientType: 'lead',
+            recipientId: lead.id,
+            recipientName: lead.name,
+            recipientEmail: channel === 'email' ? lead.email : null,
+            recipientPhone: channel === 'whatsapp' ? (lead.whatsapp || lead.phone) : null,
+          }));
+
+          const contactRecipients = contacts.map(contact => ({
+            recipientType: 'contact',
+            recipientId: contact.id,
+            recipientName: contact.name,
+            recipientEmail: channel === 'email' ? contact.email : null,
+            recipientPhone: channel === 'whatsapp' ? (contact.whatsapp || contact.phone) : null,
+          }));
+
+          recipients = [...leadRecipients, ...contactRecipients];
+        }
+      } else if (targetType === 'custom') {
+        // Manual entry of emails or phone numbers
+        if (targetFilters && targetFilters.customList) {
+          const customList = targetFilters.customList;
+
+          if (channel === 'email' && customList.emails) {
+            recipients = customList.emails.map((email, index) => ({
+              recipientType: 'custom',
+              recipientId: `custom-${index}`,
+              recipientName: email.split('@')[0], // Use email prefix as name
+              recipientEmail: email.trim(),
+              recipientPhone: null,
+            }));
+          } else if (channel === 'whatsapp' && customList.phones) {
+            recipients = customList.phones.map((phone, index) => ({
+              recipientType: 'custom',
+              recipientId: `custom-${index}`,
+              recipientName: phone, // Use phone as name
+              recipientEmail: null,
+              recipientPhone: phone.trim(),
+            }));
+          }
+        }
       }
 
       // Filter out recipients without valid contact info
