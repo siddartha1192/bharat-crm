@@ -35,6 +35,9 @@ const io = new Server(httpServer, {
 // This must happen BEFORE requiring the routes
 module.exports = { prisma, io };
 
+// Make io accessible to routes
+app.set('io', io);
+
 // Serve static files from public directory
 app.use(express.static('public'));
 
@@ -63,6 +66,7 @@ const automationRoutes = require('./routes/automation');
 const documentsRoutes = require('./routes/documents');
 const vectorDataRoutes = require('./routes/vectorData');
 const migrateRoutes = require('./routes/migrate');
+const campaignsRoutes = require('./routes/campaigns');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -84,6 +88,7 @@ app.use('/api/automation', automationRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/vector-data', vectorDataRoutes);
 app.use('/api/migrate', migrateRoutes);
+app.use('/api/campaigns', campaignsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -151,6 +156,11 @@ process.on('SIGINT', async () => {
   await prisma.$disconnect();
   process.exit(0);
 });
+
+// Initialize campaign scheduler
+const campaignScheduler = require('./services/campaignScheduler');
+campaignScheduler.initialize(io);
+campaignScheduler.start();
 
 // Start server (HTTP + WebSocket on same port)
 httpServer.listen(PORT, () => {

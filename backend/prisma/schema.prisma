@@ -66,6 +66,7 @@ model User {
   revenueGoals            RevenueGoal[]
   vectorDataUploads       VectorDataUpload[]
   aiConversations         AIConversation[]
+  campaigns               Campaign[]
 
   @@index([email])
   @@index([googleId])
@@ -660,5 +661,99 @@ model AIMessage {
   createdAt         DateTime @default(now())
 
   @@index([conversationId])
+  @@index([createdAt])
+}
+
+// Campaign Model - Main campaign configuration for email and WhatsApp automation
+model Campaign {
+  id              String   @id @default(uuid())
+  name            String   // Campaign name
+  description     String?  @db.Text
+  channel         String   // 'email' | 'whatsapp'
+  status          String   @default("draft") // 'draft' | 'scheduled' | 'running' | 'completed' | 'paused' | 'failed'
+
+  // Content
+  subject         String?  // For emails only
+  htmlContent     String?  @db.Text // Custom HTML for emails
+  textContent     String   @db.Text // Message content (plain text for WhatsApp, fallback for email)
+
+  // Scheduling
+  scheduledAt     DateTime? // When to send (null for immediate)
+  completedAt     DateTime?
+
+  // Target audience configuration
+  targetType      String   // 'all' | 'leads' | 'contacts' | 'custom' | 'tags' | 'stage'
+  targetFilters   Json?    // Store filter criteria as JSON
+
+  // Statistics
+  totalRecipients Int      @default(0)
+  sentCount       Int      @default(0)
+  failedCount     Int      @default(0)
+  deliveredCount  Int      @default(0) // For WhatsApp
+  openedCount     Int      @default(0) // For emails (if tracking enabled)
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User relation
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relations
+  recipients      CampaignRecipient[]
+  logs            CampaignLog[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([channel])
+}
+
+// Campaign Recipient - Individual recipient tracking
+model CampaignRecipient {
+  id              String   @id @default(uuid())
+  campaignId      String
+  campaign        Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Recipient details
+  recipientType   String   // 'lead' | 'contact'
+  recipientId     String   // ID of lead or contact
+  recipientName   String
+  recipientEmail  String?  // For email campaigns
+  recipientPhone  String?  // For WhatsApp campaigns
+
+  // Delivery status
+  status          String   @default("pending") // 'pending' | 'sent' | 'failed' | 'delivered' | 'opened'
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  openedAt        DateTime?
+  failedAt        DateTime?
+  errorMessage    String?  @db.Text
+
+  // External IDs
+  messageId       String?  // Email/WhatsApp message ID
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([recipientType, recipientId])
+}
+
+// Campaign Log - Audit trail
+model CampaignLog {
+  id          String   @id @default(uuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  action      String   // 'created' | 'scheduled' | 'started' | 'paused' | 'resumed' | 'completed' | 'failed'
+  message     String   @db.Text
+  metadata    Json?    // Additional context
+
+  createdAt   DateTime @default(now())
+
+  @@index([campaignId])
   @@index([createdAt])
 }
