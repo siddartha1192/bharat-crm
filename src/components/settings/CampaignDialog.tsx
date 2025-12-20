@@ -22,7 +22,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
-import { Mail, MessageSquare, ChevronLeft, ChevronRight, Send, CalendarIcon } from 'lucide-react';
+import { Mail, MessageSquare, ChevronLeft, ChevronRight, Send, CalendarIcon, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { EmailEditor } from './EmailEditor';
 import api from '@/lib/api';
@@ -75,6 +75,27 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
       resetForm();
     }
   }, [editingCampaign, open]);
+
+  // Fetch estimated recipient count when targeting changes
+  useEffect(() => {
+    if (step === 3 && formData.channel && formData.targetType) {
+      fetchRecipientCount();
+    }
+  }, [step, formData.channel, formData.targetType, formData.targetFilters]);
+
+  const fetchRecipientCount = async () => {
+    try {
+      const response = await api.post('/campaigns/estimate-recipients', {
+        channel: formData.channel,
+        targetType: formData.targetType,
+        targetFilters: formData.targetFilters,
+      });
+      setRecipientCount(response.data.count || 0);
+    } catch (error) {
+      console.error('Error fetching recipient count:', error);
+      setRecipientCount(0);
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -379,12 +400,30 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
         </div>
       )}
 
-      <div className="bg-muted p-4 rounded-lg">
-        <p className="text-sm font-medium mb-2">Estimated Recipients</p>
-        <p className="text-2xl font-bold">{recipientCount > 0 ? recipientCount : '...'}</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Will be calculated based on your filters
-        </p>
+      <div className="bg-blue-50 border border-blue-200 p-6 rounded-lg">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-medium text-blue-900">Estimated Recipients</p>
+          <Users className="w-5 h-5 text-blue-600" />
+        </div>
+        {loading ? (
+          <div className="flex items-center gap-2">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
+            <p className="text-sm text-blue-700">Calculating...</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-3xl font-bold text-blue-900 mb-2">
+              {recipientCount.toLocaleString()}
+            </p>
+            <p className="text-xs text-blue-700">
+              {recipientCount === 0
+                ? 'No recipients found with current filters'
+                : formData.channel === 'email'
+                ? `${recipientCount} ${recipientCount === 1 ? 'email' : 'emails'} will be sent`
+                : `${recipientCount} WhatsApp ${recipientCount === 1 ? 'message' : 'messages'} will be sent`}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

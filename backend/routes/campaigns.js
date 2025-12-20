@@ -529,4 +529,50 @@ router.post('/preview', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/campaigns/estimate-recipients
+ * Estimate recipient count based on targeting filters
+ */
+router.post('/estimate-recipients', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { channel, targetType, targetFilters } = req.body;
+
+    if (!channel || !targetType) {
+      return res.status(400).json({
+        success: false,
+        message: 'channel and targetType are required',
+      });
+    }
+
+    // Create a temporary campaign object for recipient list building
+    const tempCampaign = {
+      userId,
+      channel,
+      targetType,
+      targetFilters: targetFilters || {},
+    };
+
+    // Build recipient list to get count
+    const recipients = await campaignService.buildRecipientList(tempCampaign);
+
+    res.json({
+      success: true,
+      count: recipients.length,
+      details: {
+        channel,
+        targetType,
+        filters: targetFilters,
+      },
+    });
+  } catch (error) {
+    console.error('Error estimating recipients:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to estimate recipients',
+      count: 0,
+    });
+  }
+});
+
 module.exports = router;
