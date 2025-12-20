@@ -899,7 +899,8 @@ async function processIncomingMessage(message, value) {
             const aiResult = await whatsappAIService.processMessage(
               conversation.id,
               messageText,
-              conversation.userId
+              conversation.userId,
+              contactName
             );
 
             console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
@@ -1053,7 +1054,8 @@ async function processIncomingMessage(message, value) {
             const aiResult = await whatsappAIService.processMessage(
               conversation.id,
               messageText,
-              conversation.userId
+              conversation.userId,
+              contactName
             );
 
             console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
