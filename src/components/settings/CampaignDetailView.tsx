@@ -3,6 +3,16 @@ import { Campaign, CampaignRecipient, CampaignLog, CampaignStats } from '@/types
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -21,6 +31,10 @@ import {
   Mail,
   MessageSquare,
   Download,
+  Edit,
+  UserPlus,
+  Trash,
+  Search,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api';
@@ -38,6 +52,19 @@ export function CampaignDetailView({ campaign, onBack, onUpdate }: Props) {
   const [logs, setLogs] = useState<CampaignLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'recipients' | 'logs'>('recipients');
+
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editName, setEditName] = useState(campaign.name);
+  const [editDescription, setEditDescription] = useState(campaign.description || '');
+  const [editLoading, setEditLoading] = useState(false);
+
+  // Manage recipients dialog state
+  const [manageRecipientsOpen, setManageRecipientsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [availableContacts, setAvailableContacts] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [addingRecipients, setAddingRecipients] = useState(false);
 
   useEffect(() => {
     fetchDetails();
@@ -64,6 +91,147 @@ export function CampaignDetailView({ campaign, onBack, onUpdate }: Props) {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEditCampaign = async () => {
+    if (!editName.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Campaign name is required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setEditLoading(true);
+      await api.put(`/campaigns/${campaign.id}`, {
+        name: editName,
+        description: editDescription,
+      });
+
+      toast({
+        title: 'Success',
+        description: 'Campaign updated successfully',
+      });
+
+      setEditDialogOpen(false);
+      onUpdate();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to update campaign',
+        variant: 'destructive',
+      });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const searchContacts = async (query: string) => {
+    if (!query || query.length < 2) {
+      setAvailableContacts([]);
+      return;
+    }
+
+    try {
+      setSearchLoading(true);
+      const response = await api.get(`/contacts?search=${encodeURIComponent(query)}`);
+      setAvailableContacts(response.data.contacts || []);
+    } catch (error) {
+      console.error('Error searching contacts:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to search contacts',
+        variant: 'destructive',
+      });
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleAddRecipient = async (contact: any) => {
+    try {
+      setAddingRecipients(true);
+
+      const recipientData = {
+        recipientType: 'contact',
+        recipientId: contact.id,
+        recipientName: contact.name,
+        recipientEmail: campaign.channel === 'email' ? contact.email : null,
+        recipientPhone: campaign.channel === 'whatsapp' ? (contact.whatsapp || contact.phone) : null,
+      };
+
+      // Validate contact info
+      if (campaign.channel === 'email' && !recipientData.recipientEmail) {
+        toast({
+          title: 'Invalid Contact',
+          description: 'This contact does not have an email address',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (campaign.channel === 'whatsapp' && !recipientData.recipientPhone) {
+        toast({
+          title: 'Invalid Contact',
+          description: 'This contact does not have a phone number',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Check if already added
+      const alreadyAdded = recipients.some(r => r.recipientId === contact.id);
+      if (alreadyAdded) {
+        toast({
+          title: 'Already Added',
+          description: 'This contact is already a recipient',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      await api.post(`/campaigns/${campaign.id}/recipients`, recipientData);
+
+      toast({
+        title: 'Success',
+        description: `${contact.name} added to campaign`,
+      });
+
+      // Refresh recipients list
+      fetchDetails();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to add recipient',
+        variant: 'destructive',
+      });
+    } finally {
+      setAddingRecipients(false);
+    }
+  };
+
+  const handleRemoveRecipient = async (recipientId: string) => {
+    if (!confirm('Are you sure you want to remove this recipient?')) return;
+
+    try {
+      await api.delete(`/campaigns/${campaign.id}/recipients/${recipientId}`);
+
+      toast({
+        title: 'Success',
+        description: 'Recipient removed successfully',
+      });
+
+      // Refresh recipients list
+      fetchDetails();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to remove recipient',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -114,6 +282,33 @@ export function CampaignDetailView({ campaign, onBack, onUpdate }: Props) {
               <p className="text-muted-foreground mt-1">{campaign.description}</p>
             )}
           </div>
+        </div>
+
+        <div className="flex gap-2">
+          {campaign.status === 'draft' && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditName(campaign.name);
+                  setEditDescription(campaign.description || '');
+                  setEditDialogOpen(true);
+                }}
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Edit Campaign
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setManageRecipientsOpen(true)}
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Manage Recipients
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -230,13 +425,14 @@ export function CampaignDetailView({ campaign, onBack, onUpdate }: Props) {
                 <TableHead>Status</TableHead>
                 <TableHead>Sent At</TableHead>
                 <TableHead>Error</TableHead>
+                {campaign.status === 'draft' && <TableHead>Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {recipients.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    No recipients yet
+                  <TableCell colSpan={campaign.status === 'draft' ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                    No recipients yet. Click "Manage Recipients" to add contacts.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -257,6 +453,18 @@ export function CampaignDetailView({ campaign, onBack, onUpdate }: Props) {
                     <TableCell className="text-red-600 text-sm">
                       {recipient.errorMessage || '-'}
                     </TableCell>
+                    {campaign.status === 'draft' && (
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveRecipient(recipient.id)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -296,6 +504,145 @@ export function CampaignDetailView({ campaign, onBack, onUpdate }: Props) {
           </div>
         </Card>
       )}
+
+      {/* Edit Campaign Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Campaign</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="edit-name">Campaign Name *</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Campaign name"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Campaign description"
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditCampaign} disabled={editLoading}>
+              {editLoading ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Recipients Dialog */}
+      <Dialog open={manageRecipientsOpen} onOpenChange={setManageRecipientsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Manage Recipients</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="search-contacts">Search Contacts</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="search-contacts"
+                  className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    searchContacts(e.target.value);
+                  }}
+                  placeholder="Search by name, email, phone, or company..."
+                />
+              </div>
+            </div>
+
+            <div className="border rounded-lg max-h-96 overflow-y-auto">
+              {searchLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto" />
+                  <p className="text-sm text-muted-foreground mt-2">Searching...</p>
+                </div>
+              ) : availableContacts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">
+                    {searchQuery.length < 2
+                      ? 'Type at least 2 characters to search'
+                      : 'No contacts found'}
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {availableContacts.map((contact) => (
+                    <div
+                      key={contact.id}
+                      className="flex items-center justify-between p-4 hover:bg-muted"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium">{contact.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {campaign.channel === 'email'
+                            ? contact.email || 'No email'
+                            : contact.whatsapp || contact.phone || 'No phone'}
+                        </p>
+                        {contact.company && (
+                          <p className="text-xs text-muted-foreground">{contact.company}</p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAddRecipient(contact)}
+                        disabled={
+                          addingRecipients ||
+                          recipients.some((r) => r.recipientId === contact.id)
+                        }
+                      >
+                        {recipients.some((r) => r.recipientId === contact.id) ? (
+                          <>
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Added
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            Add
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+              <p className="text-sm text-blue-900">
+                <strong>{recipients.length}</strong> recipient
+                {recipients.length !== 1 ? 's' : ''} currently in this campaign
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setManageRecipientsOpen(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

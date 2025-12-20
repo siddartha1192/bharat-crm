@@ -231,6 +231,65 @@ router.get('/:id/recipients', async (req, res) => {
 });
 
 /**
+ * POST /api/campaigns/:id/recipients
+ * Add a single recipient to campaign
+ */
+router.post('/:id/recipients', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const campaignId = req.params.id;
+    const recipientData = req.body;
+
+    // Validate required fields
+    if (!recipientData.recipientName) {
+      return res.status(400).json({
+        success: false,
+        message: 'recipientName is required',
+      });
+    }
+
+    const result = await campaignService.addRecipient(campaignId, userId, recipientData);
+
+    res.json({
+      success: true,
+      recipient: result,
+      message: 'Recipient added successfully',
+    });
+  } catch (error) {
+    console.error('Error adding recipient:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to add recipient',
+    });
+  }
+});
+
+/**
+ * DELETE /api/campaigns/:id/recipients/:recipientId
+ * Remove a recipient from campaign
+ */
+router.delete('/:id/recipients/:recipientId', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const campaignId = req.params.id;
+    const recipientId = req.params.recipientId;
+
+    await campaignService.removeRecipient(campaignId, userId, recipientId);
+
+    res.json({
+      success: true,
+      message: 'Recipient removed successfully',
+    });
+  } catch (error) {
+    console.error('Error removing recipient:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to remove recipient',
+    });
+  }
+});
+
+/**
  * GET /api/campaigns/:id/logs
  * Get campaign logs
  */

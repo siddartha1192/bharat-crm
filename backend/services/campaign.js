@@ -255,6 +255,108 @@ class CampaignService {
   }
 
   /**
+   * Add a single recipient to campaign
+   */
+  async addRecipient(campaignId, userId, recipientData) {
+    try {
+      // Verify ownership
+      const campaign = await this.getCampaignById(campaignId, userId);
+      if (!campaign) {
+        throw new Error('Campaign not found');
+      }
+
+      // Prevent adding to non-draft campaigns
+      if (campaign.status !== 'draft') {
+        throw new Error('Can only add recipients to draft campaigns');
+      }
+
+      // Create recipient record
+      const recipient = await prisma.campaignRecipient.create({
+        data: {
+          campaignId,
+          ...recipientData,
+          status: 'pending',
+        },
+      });
+
+      // Update campaign total recipients count
+      await prisma.campaign.update({
+        where: { id: campaignId },
+        data: {
+          totalRecipients: { increment: 1 },
+        },
+      });
+
+      await this.logCampaignAction(
+        campaignId,
+        'recipient_added',
+        `Added recipient: ${recipientData.recipientName}`,
+        { recipientId: recipient.id }
+      );
+
+      return recipient;
+    } catch (error) {
+      console.error('Error adding recipient:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove a recipient from campaign
+   */
+  async removeRecipient(campaignId, userId, recipientId) {
+    try {
+      // Verify ownership
+      const campaign = await this.getCampaignById(campaignId, userId);
+      if (!campaign) {
+        throw new Error('Campaign not found');
+      }
+
+      // Prevent removing from non-draft campaigns
+      if (campaign.status !== 'draft') {
+        throw new Error('Can only remove recipients from draft campaigns');
+      }
+
+      // Verify recipient belongs to this campaign
+      const recipient = await prisma.campaignRecipient.findFirst({
+        where: {
+          id: recipientId,
+          campaignId,
+        },
+      });
+
+      if (!recipient) {
+        throw new Error('Recipient not found in this campaign');
+      }
+
+      // Delete recipient
+      await prisma.campaignRecipient.delete({
+        where: { id: recipientId },
+      });
+
+      // Update campaign total recipients count
+      await prisma.campaign.update({
+        where: { id: campaignId },
+        data: {
+          totalRecipients: { decrement: 1 },
+        },
+      });
+
+      await this.logCampaignAction(
+        campaignId,
+        'recipient_removed',
+        `Removed recipient: ${recipient.recipientName}`,
+        { recipientId }
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error removing recipient:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Build recipient list based on campaign filters
    */
   async buildRecipientList(campaign) {
