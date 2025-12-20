@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Zap, Database } from 'lucide-react';
+import { Users, Zap, Database, Send } from 'lucide-react';
 import { UserManagement } from '@/components/settings/UserManagement';
 import AutomationSettings from '@/components/settings/AutomationSettings';
 import VectorDataUpload from '@/components/settings/VectorDataUpload';
+import CampaignSettings from '@/components/settings/CampaignSettings';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -25,7 +26,7 @@ export default function Settings() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
+        <TabsList className="grid w-full grid-cols-4 lg:w-[800px]">
           <ProtectedFeature permission="users:read">
             <TabsTrigger value="users">
               <Users className="w-4 h-4 mr-2" />
@@ -36,6 +37,11 @@ export default function Settings() {
           <TabsTrigger value="automation">
             <Zap className="w-4 h-4 mr-2" />
             Automation
+          </TabsTrigger>
+
+          <TabsTrigger value="campaigns">
+            <Send className="w-4 h-4 mr-2" />
+            Campaigns
           </TabsTrigger>
 
           <ProtectedFeature permission="users:read">
@@ -56,6 +62,11 @@ export default function Settings() {
         {/* Automation */}
         <TabsContent value="automation" className="space-y-4">
           <AutomationSettings />
+        </TabsContent>
+
+        {/* Campaigns */}
+        <TabsContent value="campaigns" className="space-y-4">
+          <CampaignSettings />
         </TabsContent>
 
         {/* Vector Data Upload (Admin/Manager Only) */}
