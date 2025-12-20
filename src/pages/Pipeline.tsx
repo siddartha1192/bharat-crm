@@ -61,10 +61,13 @@ export default function Pipeline() {
   const fetchStagesAndDeals = async () => {
     try {
       setLoading(true);
-      const [stagesData, dealsData] = await Promise.all([
+      const [stagesData, dealsResponse] = await Promise.all([
         pipelineStagesAPI.getAll().catch(() => defaultPipelineStages),
-        dealsAPI.getAll()
+        dealsAPI.getAll({ limit: 10000 }) // Get all deals for pipeline view
       ]);
+
+      // Handle paginated response
+      const dealsData = dealsResponse.data || dealsResponse;
 
       // Convert date strings to Date objects for stages
       const stagesWithDates = stagesData.map(s => ({
@@ -85,7 +88,8 @@ export default function Pipeline() {
 
   const fetchDeals = async () => {
     try {
-      const data = await dealsAPI.getAll();
+      const response = await dealsAPI.getAll({ limit: 10000 });
+      const data = response.data || response;
       setDeals(data);
     } catch (error) {
       toast.error('Failed to load deals');

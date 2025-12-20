@@ -36,15 +36,18 @@ export default function Dashboard() {
   const fetchAllStats = async () => {
     try {
       setLoading(true);
-      const [leads, contacts, invoices, allTasks] = await Promise.all([
+      const [leads, contacts, invoices, tasksResponse] = await Promise.all([
         leadsAPI.getStats(),
         contactsAPI.getStats(),
         invoicesAPI.getStats(),
-        tasksAPI.getAll()
+        tasksAPI.getAll({ limit: 100 }) // Get tasks for dashboard
       ]);
       setLeadStats(leads);
       setContactStats(contacts);
       setInvoiceStats(invoices);
+
+      // Handle paginated response
+      const allTasks = tasksResponse.data || tasksResponse;
       setTasks(allTasks);
     } catch (error) {
       toast({

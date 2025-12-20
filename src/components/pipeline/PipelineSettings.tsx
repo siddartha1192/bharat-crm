@@ -72,10 +72,13 @@ export function PipelineSettings({ open, onOpenChange, onUpdate }: PipelineSetti
   const fetchStages = async () => {
     setLoading(true);
     try {
-      const [stagesData, dealsData] = await Promise.all([
+      const [stagesData, dealsResponse] = await Promise.all([
         pipelineStagesAPI.getAll(),
-        dealsAPI.getAll()
+        dealsAPI.getAll({ limit: 10000 })
       ]);
+
+      // Handle paginated response
+      const dealsData = dealsResponse.data || dealsResponse;
 
       console.log('Fetched stages:', stagesData);
       console.log('Fetched deals:', dealsData);
