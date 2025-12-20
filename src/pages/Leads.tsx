@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { AdvancedFilters, FilterConfig } from '@/components/ui/advanced-filters';
+import { Pagination } from '@/components/ui/pagination';
 import {
   Plus,
   Search,
@@ -38,29 +40,101 @@ export default function Leads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('list'); // Default to list view
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Advanced filters state
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+
+  // Filter configurations
+  const filterConfigs: FilterConfig[] = [
+    {
+      key: 'status',
+      label: 'Status',
+      type: 'select',
+      options: [
+        { value: 'new', label: 'New' },
+        { value: 'contacted', label: 'Contacted' },
+        { value: 'qualified', label: 'Qualified' },
+        { value: 'proposal', label: 'Proposal' },
+        { value: 'negotiation', label: 'Negotiation' },
+        { value: 'won', label: 'Won' },
+        { value: 'lost', label: 'Lost' },
+      ],
+    },
+    {
+      key: 'priority',
+      label: 'Priority',
+      type: 'select',
+      options: [
+        { value: 'low', label: 'Low' },
+        { value: 'medium', label: 'Medium' },
+        { value: 'high', label: 'High' },
+      ],
+    },
+    {
+      key: 'tags',
+      label: 'Tags',
+      type: 'tags',
+      placeholder: 'Enter tags (comma-separated)',
+    },
+  ];
 
   // Fetch leads from API
   useEffect(() => {
     fetchLeads();
-  }, [statusFilter]);
+  }, [currentPage, itemsPerPage, searchQuery, advancedFilters]);
 
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const data = await leadsAPI.getAll({
-        status: statusFilter !== 'all' ? statusFilter : undefined
+
+      // Build query parameters
+      const params: Record<string, any> = {
+        page: currentPage,
+        limit: itemsPerPage,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      };
+
+      // Add search query
+      if (searchQuery) {
+        params.search = searchQuery;
+      }
+
+      // Add advanced filters
+      Object.entries(advancedFilters).forEach(([key, value]) => {
+        if (value && value !== 'all') {
+          params[key] = value;
+        }
       });
-      setLeads(data);
+
+      const response = await leadsAPI.getAll(params);
+
+      // Handle paginated response
+      if (response.data) {
+        setLeads(response.data);
+        setTotalItems(response.pagination.total);
+        setTotalPages(response.pagination.totalPages);
+      } else {
+        // Fallback for non-paginated response
+        setLeads(response);
+        setTotalItems(response.length);
+        setTotalPages(1);
+      }
     } catch (error) {
       toast({
         title: "Error fetching leads",
@@ -146,11 +220,11 @@ export default function Leads() {
 
   const handleExport = () => {
     try {
-      console.log('Exporting leads:', filteredLeads.length);
-      exportLeadsToCSV(filteredLeads, `leads-${new Date().toISOString().split('T')[0]}.csv`);
+      console.log('Exporting leads:', leads.length);
+      exportLeadsToCSV(leads, `leads-${new Date().toISOString().split('T')[0]}.csv`);
       toast({
         title: "Export successful",
-        description: `${filteredLeads.length} leads exported to CSV.`,
+        description: `${leads.length} leads exported to CSV.`,
       });
     } catch (error) {
       console.error('Export error:', error);
@@ -202,19 +276,8 @@ export default function Leads() {
     }
   };
 
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch =
-      (lead.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (lead.company || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (lead.email || '').toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
   const stats = {
-    total: leads.length,
+    total: totalItems, // Use total from pagination
     new: leads.filter(l => l.status === 'new').length,
     qualified: leads.filter(l => l.status === 'qualified').length,
     totalValue: leads.reduce((sum, l) => sum + (l.estimatedValue || 0), 0),
@@ -316,49 +379,52 @@ export default function Leads() {
 
         {/* Filters */}
         <Card className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search leads by name, company, or email..."
-                className="pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as any)}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="new">New</SelectItem>
-                <SelectItem value="contacted">Contacted</SelectItem>
-                <SelectItem value="qualified">Qualified</SelectItem>
-                <SelectItem value="proposal">Proposal</SelectItem>
-                <SelectItem value="negotiation">Negotiation</SelectItem>
-                <SelectItem value="won">Won</SelectItem>
-                <SelectItem value="lost">Lost</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex gap-1 border rounded-md p-1">
-              <Button
-                variant={viewMode === 'card' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('card')}
-              >
-                <LayoutGrid className="w-4 h-4 mr-2" />
-                Card
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('list')}
-              >
-                <List className="w-4 h-4 mr-2" />
-                List
-              </Button>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search leads by name, company, email, or phone..."
+                  className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1); // Reset to first page on search
+                  }}
+                />
+              </div>
+              <div className="flex gap-2">
+                <AdvancedFilters
+                  filters={filterConfigs}
+                  values={advancedFilters}
+                  onChange={(filters) => {
+                    setAdvancedFilters(filters);
+                    setCurrentPage(1); // Reset to first page on filter change
+                  }}
+                  onReset={() => {
+                    setAdvancedFilters({});
+                    setCurrentPage(1);
+                  }}
+                />
+                <div className="flex gap-1 border rounded-md p-1">
+                  <Button
+                    variant={viewMode === 'card' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('card')}
+                  >
+                    <LayoutGrid className="w-4 h-4 mr-2" />
+                    Card
+                  </Button>
+                  <Button
+                    variant={viewMode === 'list' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('list')}
+                  >
+                    <List className="w-4 h-4 mr-2" />
+                    List
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </Card>
@@ -376,7 +442,7 @@ export default function Leads() {
           <>
             {viewMode === 'card' ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {filteredLeads.map(lead => (
+                {leads.map(lead => (
                   <LeadCard
                     key={lead.id}
                     lead={lead}
@@ -388,20 +454,37 @@ export default function Leads() {
               </div>
             ) : (
               <LeadListView
-                leads={filteredLeads}
+                leads={leads}
                 onViewDetails={handleViewDetails}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
               />
             )}
 
-            {filteredLeads.length === 0 && (
+            {leads.length === 0 && (
               <Card className="p-12 text-center">
                 <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No leads found</h3>
                 <p className="text-muted-foreground">
                   Try adjusting your search or filters
                 </p>
+              </Card>
+            )}
+
+            {/* Pagination */}
+            {!loading && totalPages > 1 && (
+              <Card>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  onItemsPerPageChange={(newLimit) => {
+                    setItemsPerPage(newLimit);
+                    setCurrentPage(1); // Reset to first page when changing items per page
+                  }}
+                />
               </Card>
             )}
           </>
