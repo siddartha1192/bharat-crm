@@ -70,7 +70,7 @@ export default function Login() {
               <Building2 className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Bharat CRM</h1>
+          <h1 className="text-3xl font-bold text-foreground">CLiM</h1>
           <p className="text-muted-foreground">
             {isLogin ? 'Welcome back! Please login to continue.' : 'Create your account to get started.'}
           </p>
