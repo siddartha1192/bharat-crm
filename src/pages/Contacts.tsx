@@ -205,13 +205,35 @@ export default function Contacts() {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     try {
-      console.log('Exporting contacts:', contacts.length);
-      exportContactsToCSV(contacts, `contacts-${new Date().toISOString().split('T')[0]}.csv`);
+      toast({
+        title: "Exporting...",
+        description: "Fetching all contacts for export. Please wait...",
+      });
+
+      // Fetch ALL contacts (not just current page) with current filters
+      const params: Record<string, any> = {
+        limit: 50000, // High limit to get all records
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      };
+
+      // Apply current search and filters
+      if (searchQuery) params.search = searchQuery;
+      Object.entries(advancedFilters).forEach(([key, value]) => {
+        if (value && value !== 'all') params[key] = value;
+      });
+
+      const response = await contactsAPI.getAll(params);
+      const allContacts = response.data || response;
+
+      console.log('Exporting contacts:', allContacts.length);
+      exportContactsToCSV(allContacts, `contacts-${new Date().toISOString().split('T')[0]}.csv`);
+
       toast({
         title: "Export successful",
-        description: `${contacts.length} contacts exported to CSV.`,
+        description: `${allContacts.length} contacts exported to CSV.`,
       });
     } catch (error) {
       console.error('Export error:', error);
