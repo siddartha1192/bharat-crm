@@ -218,13 +218,35 @@ export default function Leads() {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     try {
-      console.log('Exporting leads:', leads.length);
-      exportLeadsToCSV(leads, `leads-${new Date().toISOString().split('T')[0]}.csv`);
+      toast({
+        title: "Exporting...",
+        description: "Fetching all leads for export. Please wait...",
+      });
+
+      // Fetch ALL leads (not just current page) with current filters
+      const params: Record<string, any> = {
+        limit: 50000, // High limit to get all records
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      };
+
+      // Apply current search and filters
+      if (searchQuery) params.search = searchQuery;
+      Object.entries(advancedFilters).forEach(([key, value]) => {
+        if (value && value !== 'all') params[key] = value;
+      });
+
+      const response = await leadsAPI.getAll(params);
+      const allLeads = response.data || response;
+
+      console.log('Exporting leads:', allLeads.length);
+      exportLeadsToCSV(allLeads, `leads-${new Date().toISOString().split('T')[0]}.csv`);
+
       toast({
         title: "Export successful",
-        description: `${leads.length} leads exported to CSV.`,
+        description: `${allLeads.length} leads exported to CSV.`,
       });
     } catch (error) {
       console.error('Export error:', error);

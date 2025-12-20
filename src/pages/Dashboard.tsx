@@ -36,16 +36,26 @@ export default function Dashboard() {
   const fetchAllStats = async () => {
     try {
       setLoading(true);
-      const [leads, contacts, invoices, allTasks] = await Promise.all([
+      const [leads, contacts, invoices, upcomingTasksResponse] = await Promise.all([
         leadsAPI.getStats(),
         contactsAPI.getStats(),
         invoicesAPI.getStats(),
-        tasksAPI.getAll()
+        // Fetch upcoming tasks (not completed, sorted by due date)
+        tasksAPI.getAll({
+          limit: 50,
+          sortBy: 'dueDate',
+          sortOrder: 'asc'
+        })
       ]);
       setLeadStats(leads);
       setContactStats(contacts);
       setInvoiceStats(invoices);
-      setTasks(allTasks);
+
+      // Handle paginated response and filter out completed tasks
+      const allTasks = upcomingTasksResponse.data || upcomingTasksResponse;
+      // Filter completed tasks on client side for dashboard
+      const incompleteTasks = allTasks.filter(t => t.status !== 'completed');
+      setTasks(incompleteTasks);
     } catch (error) {
       toast({
         title: "Error fetching stats",
@@ -58,10 +68,8 @@ export default function Dashboard() {
     }
   };
 
-  const upcomingTasks = tasks
-    .filter(t => t.status !== 'completed')
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-    .slice(0, 3);
+  // Tasks are already sorted by due date and filtered (non-completed), just take first 3
+  const upcomingTasks = tasks.slice(0, 3);
 
   const handleViewAllTasks = () => {
     navigate('/tasks');

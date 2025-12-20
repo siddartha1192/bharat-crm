@@ -22,10 +22,18 @@ function mapDealStageToLeadStatus(dealStage) {
 // Apply authentication to all routes
 router.use(authenticate);
 
-// GET all deals (with role-based visibility)
+// GET all deals (with role-based visibility, pagination, and advanced filtering)
 router.get('/', async (req, res) => {
   try {
-    const { stage } = req.query;
+    const {
+      stage,
+      assignedTo,
+      search,
+      page,
+      limit,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
 
     // Get role-based visibility filter
     const visibilityFilter = await getVisibilityFilter(req.user);
@@ -33,11 +41,57 @@ router.get('/', async (req, res) => {
     // Build where clause
     const where = { ...visibilityFilter };
 
+    // Apply filters
     if (stage && stage !== 'all') where.stage = stage;
+    if (assignedTo && assignedTo !== 'all') where.assignedTo = assignedTo;
 
+    // Search across multiple fields
+    if (search && search.trim()) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { company: { contains: search, mode: 'insensitive' } },
+        { contactName: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Check if pagination is requested
+    if (page && limit) {
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
+      const skip = (pageNum - 1) * limitNum;
+
+      // Sorting
+      const orderBy = {};
+      orderBy[sortBy] = sortOrder;
+
+      // Execute query with pagination
+      const [deals, total] = await Promise.all([
+        prisma.deal.findMany({
+          where,
+          orderBy,
+          skip,
+          take: limitNum,
+        }),
+        prisma.deal.count({ where })
+      ]);
+
+      // Return paginated response
+      return res.json({
+        data: deals,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+          hasMore: skip + deals.length < total,
+        }
+      });
+    }
+
+    // Non-paginated response (backward compatibility)
     const deals = await prisma.deal.findMany({
       where,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { [sortBy]: sortOrder }
     });
 
     res.json(deals);

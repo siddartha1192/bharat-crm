@@ -153,11 +153,29 @@ export default function Tasks() {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     try {
-      console.log('Exporting tasks:', tasks.length);
-      exportTasksToCSV(tasks, `tasks-${new Date().toISOString().split('T')[0]}.csv`);
-      toast.success(`${tasks.length} tasks exported to CSV`);
+      toast.success('Exporting... Fetching all tasks. Please wait...');
+
+      // Fetch ALL tasks (not just current page) with current filters
+      const params: Record<string, any> = {
+        limit: 50000, // High limit to get all records
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      };
+
+      // Apply current search and filters
+      if (searchQuery) params.search = searchQuery;
+      Object.entries(advancedFilters).forEach(([key, value]) => {
+        if (value && value !== 'all') params[key] = value;
+      });
+
+      const response = await tasksAPI.getAll(params);
+      const allTasks = response.data || response;
+
+      console.log('Exporting tasks:', allTasks.length);
+      exportTasksToCSV(allTasks, `tasks-${new Date().toISOString().split('T')[0]}.csv`);
+      toast.success(`${allTasks.length} tasks exported to CSV`);
     } catch (error) {
       console.error('Export error:', error);
       toast.error('Failed to export tasks. Please try again.');

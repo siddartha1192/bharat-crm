@@ -53,10 +53,15 @@ export default function Reports() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [leadsData, dealsData] = await Promise.all([
-        leadsAPI.getAll(),
-        dealsAPI.getAll()
+      const [leadsResponse, dealsResponse] = await Promise.all([
+        leadsAPI.getAll({ limit: 10000 }), // Get all leads for reports
+        dealsAPI.getAll({ limit: 10000 }) // Get all deals for reports
       ]);
+
+      // Handle paginated responses
+      const leadsData = leadsResponse.data || leadsResponse;
+      const dealsData = dealsResponse.data || dealsResponse;
+
       setLeads(leadsData);
       setDeals(dealsData);
     } catch (error) {
