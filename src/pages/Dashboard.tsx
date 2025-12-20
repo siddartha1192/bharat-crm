@@ -80,7 +80,7 @@ export default function Dashboard() {
           <div className="absolute -left-6 top-0 bottom-0 w-1 bg-primary rounded-r" />
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">
-              Bharat CRM Dashboard
+              Dashboard
             </h1>
             <p className="text-muted-foreground">Welcome back! Here's your business overview</p>
           </div>
