@@ -39,6 +39,37 @@ class CampaignService {
         },
       });
 
+      // Build initial recipient list based on targetType filters
+      // This allows users to see and manage recipients before starting the campaign
+      if (campaignData.targetType && campaignData.targetType !== 'custom') {
+        try {
+          const recipients = await this.buildRecipientList(campaign);
+
+          if (recipients.length > 0) {
+            // Create recipient records
+            await prisma.campaignRecipient.createMany({
+              data: recipients.map(r => ({
+                campaignId: campaign.id,
+                ...r,
+              })),
+            });
+
+            // Update campaign with recipient count
+            await prisma.campaign.update({
+              where: { id: campaign.id },
+              data: {
+                totalRecipients: recipients.length,
+              },
+            });
+
+            console.log(`Created campaign with ${recipients.length} recipients`);
+          }
+        } catch (recipientError) {
+          console.error('Error building initial recipient list:', recipientError);
+          // Continue even if recipient building fails
+        }
+      }
+
       // Log campaign creation
       await this.logCampaignAction(campaign.id, 'created', `Campaign "${campaign.name}" created`, {
         channel: campaign.channel,
@@ -569,20 +600,35 @@ class CampaignService {
         throw new Error('Only draft campaigns can be scheduled');
       }
 
-      // Build recipient list
-      const recipients = await this.buildRecipientList(campaign);
+      // Check if recipients already exist
+      const existingCount = await prisma.campaignRecipient.count({
+        where: { campaignId }
+      });
 
-      if (recipients.length === 0) {
-        throw new Error('No valid recipients found for this campaign');
+      let totalRecipients = existingCount;
+
+      // Only build and create recipients if none exist
+      if (existingCount === 0) {
+        const recipients = await this.buildRecipientList(campaign);
+
+        if (recipients.length === 0) {
+          throw new Error('No valid recipients found for this campaign');
+        }
+
+        // Create recipient records
+        await prisma.campaignRecipient.createMany({
+          data: recipients.map(r => ({
+            campaignId,
+            ...r,
+          })),
+        });
+
+        totalRecipients = recipients.length;
       }
 
-      // Create recipient records
-      await prisma.campaignRecipient.createMany({
-        data: recipients.map(r => ({
-          campaignId,
-          ...r,
-        })),
-      });
+      if (totalRecipients === 0) {
+        throw new Error('No valid recipients found for this campaign');
+      }
 
       // Update campaign
       const updatedCampaign = await prisma.campaign.update({
@@ -590,7 +636,7 @@ class CampaignService {
         data: {
           scheduledAt: new Date(scheduledAt),
           status: 'scheduled',
-          totalRecipients: recipients.length,
+          totalRecipients,
         },
       });
 
@@ -598,7 +644,7 @@ class CampaignService {
         campaignId,
         'scheduled',
         `Campaign scheduled for ${new Date(scheduledAt).toLocaleString()}`,
-        { recipientCount: recipients.length }
+        { recipientCount: totalRecipients }
       );
 
       return updatedCampaign;
@@ -622,27 +668,36 @@ class CampaignService {
         throw new Error('Campaign is already running');
       }
 
-      // If draft, build recipient list first
+      // If draft, check if recipients exist, if not build recipient list
       if (campaign.status === 'draft') {
-        const recipients = await this.buildRecipientList(campaign);
+        const existingCount = await prisma.campaignRecipient.count({
+          where: { campaignId }
+        });
 
-        if (recipients.length === 0) {
+        // Only build and create recipients if none exist
+        if (existingCount === 0) {
+          const recipients = await this.buildRecipientList(campaign);
+
+          if (recipients.length === 0) {
+            throw new Error('No valid recipients found for this campaign');
+          }
+
+          await prisma.campaignRecipient.createMany({
+            data: recipients.map(r => ({
+              campaignId,
+              ...r,
+            })),
+          });
+
+          await prisma.campaign.update({
+            where: { id: campaignId },
+            data: {
+              totalRecipients: recipients.length,
+            },
+          });
+        } else if (existingCount === 0) {
           throw new Error('No valid recipients found for this campaign');
         }
-
-        await prisma.campaignRecipient.createMany({
-          data: recipients.map(r => ({
-            campaignId,
-            ...r,
-          })),
-        });
-
-        await prisma.campaign.update({
-          where: { id: campaignId },
-          data: {
-            totalRecipients: recipients.length,
-          },
-        });
       }
 
       // Update status to running
