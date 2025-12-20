@@ -242,9 +242,10 @@ For appointments, ALWAYS require complete dates:
    * @param {string} conversationId - Conversation ID
    * @param {string} userMessage - User's message
    * @param {string} userId - User ID
+   * @param {string} contactName - Name of the contact (optional)
    * @returns {Object} Structured response { message, actions, metadata }
    */
-  async processMessage(conversationId, userMessage, userId) {
+  async processMessage(conversationId, userMessage, userId, contactName = null) {
     await this.initialize();
 
     try {
@@ -334,8 +335,8 @@ For appointments, ALWAYS require complete dates:
 
       // Save messages to database and manage memory
       try {
-        await this.saveMessage(conversationId, 'contact', userMessage);
-        await this.saveMessage(conversationId, 'ai', structuredResponse.message);
+        await this.saveMessage(conversationId, 'contact', userMessage, contactName);
+        await this.saveMessage(conversationId, 'ai', structuredResponse.message, 'AI Assistant');
 
         // Check if we need to summarize conversation
         const conversation = await prisma.whatsAppConversation.findUnique({
@@ -366,14 +367,16 @@ For appointments, ALWAYS require complete dates:
    * @param {string} conversationId - Conversation ID
    * @param {string} sender - 'contact' or 'ai'
    * @param {string} message - Message content
+   * @param {string} senderName - Name of the sender
    */
-  async saveMessage(conversationId, sender, message) {
+  async saveMessage(conversationId, sender, message, senderName) {
     try {
       await prisma.whatsAppMessage.create({
         data: {
           conversationId,
           message,
           sender,
+          senderName: senderName || (sender === 'ai' ? 'AI Assistant' : 'Contact'),
           isAiGenerated: sender === 'ai',
         },
       });
