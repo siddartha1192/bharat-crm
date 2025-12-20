@@ -262,7 +262,7 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
           onValueChange={(value) => updateFormData({ channel: value as CampaignChannel })}
         >
           <div className="flex items-center space-x-4 mt-2">
-            <div className="flex items-center space-x-2 border rounded-lg p-4 flex-1 cursor-pointer hover:bg-accent">
+            <div className="flex items-center space-x-2 border rounded-lg p-4 flex-1 cursor-pointer hover:border-gray-400 hover:shadow-sm transition-all">
               <RadioGroupItem value="email" id="email" />
               <Label htmlFor="email" className="flex items-center gap-2 cursor-pointer">
                 <Mail className="w-5 h-5 text-blue-600" />
@@ -273,7 +273,7 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
               </Label>
             </div>
 
-            <div className="flex items-center space-x-2 border rounded-lg p-4 flex-1 cursor-pointer hover:bg-accent">
+            <div className="flex items-center space-x-2 border rounded-lg p-4 flex-1 cursor-pointer hover:border-gray-400 hover:shadow-sm transition-all">
               <RadioGroupItem value="whatsapp" id="whatsapp" />
               <Label htmlFor="whatsapp" className="flex items-center gap-2 cursor-pointer">
                 <MessageSquare className="w-5 h-5 text-green-600" />
