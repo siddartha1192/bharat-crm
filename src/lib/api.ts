@@ -449,3 +449,6 @@ export const api = {
   },
 };
 
+// Export api as default for convenience
+export default api;
+
