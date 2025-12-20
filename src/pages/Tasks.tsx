@@ -6,8 +6,10 @@ import { TaskListView } from '@/components/tasks/TaskListView';
 import { TaskDialog } from '@/components/tasks/TaskDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Filter, Loader2, Download, Upload, LayoutGrid, List } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { AdvancedFilters, FilterConfig } from '@/components/ui/advanced-filters';
+import { Pagination } from '@/components/ui/pagination';
+import { Plus, Search, Loader2, Download, Upload, LayoutGrid, List } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import { exportTasksToCSV, importTasksFromCSV } from '@/lib/csvUtils';
@@ -17,22 +19,91 @@ export default function Tasks() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
-  const [filter, setFilter] = useState<'all' | 'todo' | 'in-progress' | 'completed'>('all');
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('list'); // Default to list view
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Advanced filters state
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+
+  // Filter configurations
+  const filterConfigs: FilterConfig[] = [
+    {
+      key: 'status',
+      label: 'Status',
+      type: 'select',
+      options: [
+        { value: 'todo', label: 'To Do' },
+        { value: 'in-progress', label: 'In Progress' },
+        { value: 'completed', label: 'Completed' },
+      ],
+    },
+    {
+      key: 'priority',
+      label: 'Priority',
+      type: 'select',
+      options: [
+        { value: 'low', label: 'Low' },
+        { value: 'medium', label: 'Medium' },
+        { value: 'high', label: 'High' },
+      ],
+    },
+    {
+      key: 'tags',
+      label: 'Tags',
+      type: 'tags',
+      placeholder: 'Enter tags (comma-separated)',
+    },
+  ];
 
   // Fetch tasks from API
   useEffect(() => {
     fetchTasks();
-  }, [filter]);
+  }, [currentPage, itemsPerPage, searchQuery, advancedFilters]);
 
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const data = await tasksAPI.getAll({
-        status: filter !== 'all' ? filter : undefined
+
+      // Build query parameters
+      const params: Record<string, any> = {
+        page: currentPage,
+        limit: itemsPerPage,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      };
+
+      // Add search query
+      if (searchQuery) {
+        params.search = searchQuery;
+      }
+
+      // Add advanced filters
+      Object.entries(advancedFilters).forEach(([key, value]) => {
+        if (value && value !== 'all') {
+          params[key] = value;
+        }
       });
-      setTasks(data);
+
+      const response = await tasksAPI.getAll(params);
+
+      // Handle paginated response
+      if (response.data) {
+        setTasks(response.data);
+        setTotalItems(response.pagination.total);
+        setTotalPages(response.pagination.totalPages);
+      } else {
+        // Fallback for non-paginated response
+        setTasks(response);
+        setTotalItems(response.length);
+        setTotalPages(1);
+      }
     } catch (error) {
       toast.error('Failed to load tasks. Please check if the backend is running.');
       console.error('Error fetching tasks:', error);
@@ -40,10 +111,6 @@ export default function Tasks() {
       setLoading(false);
     }
   };
-
-  const filteredTasks = tasks.filter(task => 
-    filter === 'all' ? true : task.status === filter
-  );
 
   const handleSaveTask = async (taskData: Partial<Task>) => {
     try {
@@ -88,9 +155,9 @@ export default function Tasks() {
 
   const handleExport = () => {
     try {
-      console.log('Exporting tasks:', filteredTasks.length);
-      exportTasksToCSV(filteredTasks, `tasks-${new Date().toISOString().split('T')[0]}.csv`);
-      toast.success(`${filteredTasks.length} tasks exported to CSV`);
+      console.log('Exporting tasks:', tasks.length);
+      exportTasksToCSV(tasks, `tasks-${new Date().toISOString().split('T')[0]}.csv`);
+      toast.success(`${tasks.length} tasks exported to CSV`);
     } catch (error) {
       console.error('Export error:', error);
       toast.error('Failed to export tasks. Please try again.');
@@ -137,101 +204,142 @@ export default function Tasks() {
           <h1 className="text-3xl font-bold text-foreground mb-2">Tasks</h1>
           <p className="text-muted-foreground">Manage your follow-ups and to-dos</p>
         </div>
-        <ProtectedFeature permission="tasks:create">
-          <Button onClick={handleCreateTask} size="lg" className="shadow-primary">
-            <Plus className="w-5 h-5 mr-2" />
-            New Task
+        <div className="flex gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImport}
+            accept=".csv"
+            className="hidden"
+          />
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="w-4 h-4 mr-2" />
+            Import CSV
           </Button>
-        </ProtectedFeature>
+          <ProtectedFeature permission="tasks:export">
+            <Button variant="outline" onClick={handleExport}>
+              <Download className="w-4 h-4 mr-2" />
+              Export
+            </Button>
+          </ProtectedFeature>
+          <ProtectedFeature permission="tasks:create">
+            <Button onClick={handleCreateTask}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Task
+            </Button>
+          </ProtectedFeature>
+        </div>
       </div>
 
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as any)} className="w-full">
-        <div className="flex items-center justify-between mb-6">
-          <TabsList className="bg-muted">
-            <TabsTrigger value="all">All Tasks</TabsTrigger>
-            <TabsTrigger value="todo">To Do</TabsTrigger>
-            <TabsTrigger value="in-progress">In Progress</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
-          </TabsList>
-
-          <div className="flex gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImport}
-              accept=".csv"
-              className="hidden"
-            />
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="w-4 h-4 mr-2" />
-              Import
-            </Button>
-            <ProtectedFeature permission="tasks:export">
-              <Button variant="outline" size="sm" onClick={handleExport}>
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-            </ProtectedFeature>
-            <div className="flex gap-1 border rounded-md p-1">
-              <Button
-                variant={viewMode === 'card' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('card')}
-              >
-                <LayoutGrid className="w-4 h-4 mr-2" />
-                Card
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('list')}
-              >
-                <List className="w-4 h-4 mr-2" />
-                List
-              </Button>
+      {/* Filters */}
+      <Card className="p-4">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search tasks by title or description..."
+                className="pl-10"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1); // Reset to first page on search
+                }}
+              />
+            </div>
+            <div className="flex gap-2">
+              <AdvancedFilters
+                filters={filterConfigs}
+                values={advancedFilters}
+                onChange={(filters) => {
+                  setAdvancedFilters(filters);
+                  setCurrentPage(1); // Reset to first page on filter change
+                }}
+                onReset={() => {
+                  setAdvancedFilters({});
+                  setCurrentPage(1);
+                }}
+              />
+              <div className="flex gap-1 border rounded-md p-1">
+                <Button
+                  variant={viewMode === 'card' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('card')}
+                >
+                  <LayoutGrid className="w-4 h-4 mr-2" />
+                  Card
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                >
+                  <List className="w-4 h-4 mr-2" />
+                  List
+                </Button>
+              </div>
             </div>
           </div>
         </div>
+      </Card>
 
-        <TabsContent value={filter} className="mt-0">
-          {loading ? (
-            <Card className="p-12 text-center">
-              <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">Loading tasks...</h3>
-              <p className="text-muted-foreground">
-                Please wait while we fetch your data
-              </p>
-            </Card>
-          ) : (
-            <>
-              {viewMode === 'card' ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {filteredTasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      onClick={() => handleEditTask(task)}
-                      onDelete={handleDeleteTask}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <TaskListView
-                  tasks={filteredTasks}
-                  onClick={handleEditTask}
+      {/* Tasks Grid/List */}
+      {loading ? (
+        <Card className="p-12 text-center">
+          <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
+          <h3 className="text-lg font-semibold text-foreground mb-2">Loading tasks...</h3>
+          <p className="text-muted-foreground">
+            Please wait while we fetch your data
+          </p>
+        </Card>
+      ) : (
+        <>
+          {viewMode === 'card' ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {tasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onClick={() => handleEditTask(task)}
                   onDelete={handleDeleteTask}
                 />
-              )}
-
-              {filteredTasks.length === 0 && (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground">No tasks found in this category</p>
-                </div>
-              )}
-            </>
+              ))}
+            </div>
+          ) : (
+            <TaskListView
+              tasks={tasks}
+              onClick={handleEditTask}
+              onDelete={handleDeleteTask}
+            />
           )}
-        </TabsContent>
-      </Tabs>
+
+          {tasks.length === 0 && (
+            <Card className="p-12 text-center">
+              <p className="text-muted-foreground">No tasks found</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Try adjusting your search or filters
+              </p>
+            </Card>
+          )}
+
+          {/* Pagination */}
+          {!loading && totalPages > 1 && (
+            <Card>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                onItemsPerPageChange={(newLimit) => {
+                  setItemsPerPage(newLimit);
+                  setCurrentPage(1); // Reset to first page when changing items per page
+                }}
+              />
+            </Card>
+          )}
+        </>
+      )}
 
       <TaskDialog
         open={dialogOpen}

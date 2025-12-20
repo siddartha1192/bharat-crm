@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { AdvancedFilters, FilterConfig } from '@/components/ui/advanced-filters';
+import { Pagination } from '@/components/ui/pagination';
 import {
   Plus,
   Search,
@@ -38,29 +40,88 @@ export default function Contacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<ContactType | 'all'>('all');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('list'); // Default to list view
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Advanced filters state
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+
+  // Filter configurations
+  const filterConfigs: FilterConfig[] = [
+    {
+      key: 'type',
+      label: 'Type',
+      type: 'select',
+      options: [
+        { value: 'customer', label: 'Customer' },
+        { value: 'partner', label: 'Partner' },
+        { value: 'vendor', label: 'Vendor' },
+        { value: 'other', label: 'Other' },
+      ],
+    },
+    {
+      key: 'tags',
+      label: 'Tags',
+      type: 'tags',
+      placeholder: 'Enter tags (comma-separated)',
+    },
+  ];
 
   // Fetch contacts from API
   useEffect(() => {
     fetchContacts();
-  }, [typeFilter]);
+  }, [currentPage, itemsPerPage, searchQuery, advancedFilters]);
 
   const fetchContacts = async () => {
     try {
       setLoading(true);
-      const data = await contactsAPI.getAll({
-        type: typeFilter !== 'all' ? typeFilter : undefined
+
+      // Build query parameters
+      const params: Record<string, any> = {
+        page: currentPage,
+        limit: itemsPerPage,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      };
+
+      // Add search query
+      if (searchQuery) {
+        params.search = searchQuery;
+      }
+
+      // Add advanced filters
+      Object.entries(advancedFilters).forEach(([key, value]) => {
+        if (value && value !== 'all') {
+          params[key] = value;
+        }
       });
-      setContacts(data);
+
+      const response = await contactsAPI.getAll(params);
+
+      // Handle paginated response
+      if (response.data) {
+        setContacts(response.data);
+        setTotalItems(response.pagination.total);
+        setTotalPages(response.pagination.totalPages);
+      } else {
+        // Fallback for non-paginated response
+        setContacts(response);
+        setTotalItems(response.length);
+        setTotalPages(1);
+      }
     } catch (error) {
       toast({
         title: "Error fetching contacts",
@@ -146,11 +207,11 @@ export default function Contacts() {
 
   const handleExport = () => {
     try {
-      console.log('Exporting contacts:', filteredContacts.length);
-      exportContactsToCSV(filteredContacts, `contacts-${new Date().toISOString().split('T')[0]}.csv`);
+      console.log('Exporting contacts:', contacts.length);
+      exportContactsToCSV(contacts, `contacts-${new Date().toISOString().split('T')[0]}.csv`);
       toast({
         title: "Export successful",
-        description: `${filteredContacts.length} contacts exported to CSV.`,
+        description: `${contacts.length} contacts exported to CSV.`,
       });
     } catch (error) {
       console.error('Export error:', error);
@@ -202,19 +263,8 @@ export default function Contacts() {
     }
   };
 
-  const filteredContacts = contacts.filter(contact => {
-    const matchesSearch =
-      contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.email.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesType = typeFilter === 'all' || contact.type === typeFilter;
-
-    return matchesSearch && matchesType;
-  });
-
   const stats = {
-    total: contacts.length,
+    total: totalItems, // Use total from pagination
     customers: contacts.filter(c => c.type === 'customer').length,
     prospects: contacts.filter(c => c.type === 'prospect').length,
     totalValue: contacts.reduce((sum, c) => sum + c.lifetimeValue, 0),
@@ -316,46 +366,52 @@ export default function Contacts() {
 
         {/* Filters */}
         <Card className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search contacts by name, company, or email..."
-                className="pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as any)}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="customer">Customer</SelectItem>
-                <SelectItem value="prospect">Prospect</SelectItem>
-                <SelectItem value="partner">Partner</SelectItem>
-                <SelectItem value="vendor">Vendor</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex gap-1 border rounded-md p-1">
-              <Button
-                variant={viewMode === 'card' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('card')}
-              >
-                <LayoutGrid className="w-4 h-4 mr-2" />
-                Card
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('list')}
-              >
-                <List className="w-4 h-4 mr-2" />
-                List
-              </Button>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search contacts by name, company, email, or phone..."
+                  className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1); // Reset to first page on search
+                  }}
+                />
+              </div>
+              <div className="flex gap-2">
+                <AdvancedFilters
+                  filters={filterConfigs}
+                  values={advancedFilters}
+                  onChange={(filters) => {
+                    setAdvancedFilters(filters);
+                    setCurrentPage(1); // Reset to first page on filter change
+                  }}
+                  onReset={() => {
+                    setAdvancedFilters({});
+                    setCurrentPage(1);
+                  }}
+                />
+                <div className="flex gap-1 border rounded-md p-1">
+                  <Button
+                    variant={viewMode === 'card' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('card')}
+                  >
+                    <LayoutGrid className="w-4 h-4 mr-2" />
+                    Card
+                  </Button>
+                  <Button
+                    variant={viewMode === 'list' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('list')}
+                  >
+                    <List className="w-4 h-4 mr-2" />
+                    List
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </Card>
@@ -373,7 +429,7 @@ export default function Contacts() {
           <>
             {viewMode === 'card' ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {filteredContacts.map(contact => (
+                {contacts.map(contact => (
                   <ContactCard
                     key={contact.id}
                     contact={contact}
@@ -385,20 +441,37 @@ export default function Contacts() {
               </div>
             ) : (
               <ContactListView
-                contacts={filteredContacts}
+                contacts={contacts}
                 onViewProfile={handleViewProfile}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
               />
             )}
 
-            {filteredContacts.length === 0 && (
+            {contacts.length === 0 && (
               <Card className="p-12 text-center">
                 <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No contacts found</h3>
                 <p className="text-muted-foreground">
                   Try adjusting your search or filters
                 </p>
+              </Card>
+            )}
+
+            {/* Pagination */}
+            {!loading && totalPages > 1 && (
+              <Card>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  onItemsPerPageChange={(newLimit) => {
+                    setItemsPerPage(newLimit);
+                    setCurrentPage(1); // Reset to first page when changing items per page
+                  }}
+                />
               </Card>
             )}
           </>
