@@ -382,21 +382,53 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
             <SelectItem value="all">All Leads & Contacts</SelectItem>
             <SelectItem value="leads">All Leads</SelectItem>
             <SelectItem value="contacts">All Contacts</SelectItem>
-            <SelectItem value="tags">By Tags</SelectItem>
+            <SelectItem value="tags">Filter by Tags</SelectItem>
+            <SelectItem value="custom">Custom List (Manual Entry)</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {formData.targetType === 'tags' && (
         <div>
-          <Label>Tags (comma-separated)</Label>
+          <Label>Tags (comma-separated) *</Label>
           <Input
-            placeholder="e.g., interested, demo-requested"
+            placeholder="e.g., interested, demo-requested, vip"
             onChange={(e) => {
-              const tags = e.target.value.split(',').map((t) => t.trim());
+              const tags = e.target.value.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
               updateFormData({ targetFilters: { ...formData.targetFilters, tags } });
             }}
           />
+          <p className="text-xs text-muted-foreground mt-1">
+            Enter tags separated by commas. Recipients with ANY of these tags will be included.
+          </p>
+        </div>
+      )}
+
+      {formData.targetType === 'custom' && (
+        <div>
+          <Label>
+            {formData.channel === 'email' ? 'Email Addresses *' : 'Phone Numbers *'}
+          </Label>
+          <Textarea
+            placeholder={
+              formData.channel === 'email'
+                ? 'Enter email addresses (one per line):\njohn@example.com\njane@example.com\nbob@company.com'
+                : 'Enter phone numbers (one per line):\n+919876543210\n+919123456789\n+919999888877'
+            }
+            rows={8}
+            onChange={(e) => {
+              const lines = e.target.value.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+              const customList = formData.channel === 'email'
+                ? { emails: lines }
+                : { phones: lines };
+              updateFormData({ targetFilters: { customList } });
+            }}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            {formData.channel === 'email'
+              ? 'Enter one email address per line. Invalid emails will be filtered out.'
+              : 'Enter one phone number per line with country code (e.g., +91 for India).'}
+          </p>
         </div>
       )}
 

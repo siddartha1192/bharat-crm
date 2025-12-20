@@ -4,9 +4,9 @@
 
 export type CampaignChannel = 'email' | 'whatsapp';
 export type CampaignStatus = 'draft' | 'scheduled' | 'running' | 'completed' | 'paused' | 'failed';
-export type CampaignTargetType = 'all' | 'leads' | 'contacts' | 'custom' | 'tags' | 'stage';
+export type CampaignTargetType = 'all' | 'leads' | 'contacts' | 'tags' | 'custom';
 export type RecipientStatus = 'pending' | 'sent' | 'failed' | 'delivered' | 'opened';
-export type RecipientType = 'lead' | 'contact';
+export type RecipientType = 'lead' | 'contact' | 'custom';
 
 export interface Campaign {
   id: string;
@@ -136,4 +136,10 @@ export interface TargetFilters {
 
   // For contacts
   type?: string[];
+
+  // For custom list
+  customList?: {
+    emails?: string[];
+    phones?: string[];
+  };
 }
