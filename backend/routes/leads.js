@@ -36,10 +36,20 @@ function mapDealStageToLeadStatus(dealStage) {
 // Apply authentication to all lead routes
 router.use(authenticate);
 
-// GET all leads (with role-based visibility)
+// GET all leads (with role-based visibility, pagination, and advanced filtering)
 router.get('/', async (req, res) => {
   try {
-    const { status, assignedTo } = req.query;
+    const {
+      status,
+      assignedTo,
+      priority,
+      tags,
+      search,
+      page = '1',
+      limit = '100',
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
 
     // Get role-based visibility filter
     const visibilityFilter = await getVisibilityFilter(req.user);
@@ -47,15 +57,58 @@ router.get('/', async (req, res) => {
     // Build where clause
     const where = { ...visibilityFilter };
 
+    // Apply filters
     if (status && status !== 'all') where.status = status;
-    if (assignedTo) where.assignedTo = assignedTo;
+    if (assignedTo && assignedTo !== 'all') where.assignedTo = assignedTo;
+    if (priority && priority !== 'all') where.priority = priority;
 
-    const leads = await prisma.lead.findMany({
-      where,
-      orderBy: { createdAt: 'desc' }
+    // Tags filter (multiple tags support)
+    if (tags) {
+      const tagArray = tags.split(',').map(t => t.trim());
+      where.tags = { hasSome: tagArray };
+    }
+
+    // Search across multiple fields
+    if (search && search.trim()) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { company: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search } },
+      ];
+    }
+
+    // Pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Sorting
+    const orderBy = {};
+    orderBy[sortBy] = sortOrder;
+
+    // Execute query with pagination
+    const [leads, total] = await Promise.all([
+      prisma.lead.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limitNum,
+      }),
+      prisma.lead.count({ where })
+    ]);
+
+    // Return paginated response
+    res.json({
+      data: leads,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+        hasMore: skip + leads.length < total,
+      }
     });
-
-    res.json(leads);
   } catch (error) {
     console.error('Error fetching leads:', error);
     res.status(500).json({ error: 'Failed to fetch leads' });
