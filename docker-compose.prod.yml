@@ -36,10 +36,10 @@ services:
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
       PGADMIN_CONFIG_SERVER_MODE: 'False'
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+      SCRIPT_NAME: /pgadmin
     volumes:
       - pgadmin_data:/var/lib/pgadmin
-    ports:
-      - "5050:80"
+    # No external port - only accessible via Nginx reverse proxy at /pgadmin/
     networks:
       - crm-network
     depends_on:
