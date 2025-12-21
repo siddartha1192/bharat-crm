@@ -81,17 +81,18 @@ function convertInvoiceDates(invoice: any): Invoice {
 
 // ============ LEADS API ============
 export const leadsAPI = {
-  // Get all leads with optional filters
-  getAll: async (filters?: { status?: string; assignedTo?: string }): Promise<Lead[]> => {
+  // Get all leads with optional filters and pagination
+  getAll: async (filters?: Record<string, any>): Promise<any> => {
     const params = new URLSearchParams();
-    if (filters?.status && filters.status !== 'all') {
-      params.append('status', filters.status);
-    }
-    if (filters?.assignedTo) {
-      params.append('assignedTo', filters.assignedTo);
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '' && value !== 'all') {
+          params.append(key, String(value));
+        }
+      });
     }
     const query = params.toString() ? `?${params.toString()}` : '';
-    return fetchAPI<Lead[]>(`/leads${query}`);
+    return fetchAPI<any>(`/leads${query}`);
   },
 
   // Get single lead by ID
@@ -135,17 +136,18 @@ export const leadsAPI = {
 
 // ============ CONTACTS API ============
 export const contactsAPI = {
-  // Get all contacts with optional filters
-  getAll: async (filters?: { type?: string; assignedTo?: string }): Promise<Contact[]> => {
+  // Get all contacts with optional filters and pagination
+  getAll: async (filters?: Record<string, any>): Promise<any> => {
     const params = new URLSearchParams();
-    if (filters?.type && filters.type !== 'all') {
-      params.append('type', filters.type);
-    }
-    if (filters?.assignedTo) {
-      params.append('assignedTo', filters.assignedTo);
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '' && value !== 'all') {
+          params.append(key, String(value));
+        }
+      });
     }
     const query = params.toString() ? `?${params.toString()}` : '';
-    return fetchAPI<Contact[]>(`/contacts${query}`);
+    return fetchAPI<any>(`/contacts${query}`);
   },
 
   // Get single contact by ID
@@ -198,18 +200,28 @@ export const contactsAPI = {
 
 // ============ INVOICES API ============
 export const invoicesAPI = {
-  // Get all invoices with optional filters
-  getAll: async (filters?: { status?: string; clientId?: string }): Promise<Invoice[]> => {
+  // Get all invoices with optional filters and pagination
+  getAll: async (filters?: Record<string, any>): Promise<any> => {
     const params = new URLSearchParams();
-    if (filters?.status && filters.status !== 'all') {
-      params.append('status', filters.status);
-    }
-    if (filters?.clientId) {
-      params.append('clientId', filters.clientId);
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '' && value !== 'all') {
+          params.append(key, String(value));
+        }
+      });
     }
     const query = params.toString() ? `?${params.toString()}` : '';
-    const invoices = await fetchAPI<any[]>(`/invoices${query}`);
-    return invoices.map(convertInvoiceDates);
+    const response = await fetchAPI<any>(`/invoices${query}`);
+
+    // Handle paginated response
+    if (response.data) {
+      return {
+        ...response,
+        data: response.data.map(convertInvoiceDates)
+      };
+    }
+    // Handle non-paginated response (backward compatibility)
+    return Array.isArray(response) ? response.map(convertInvoiceDates) : response;
   },
 
   // Get single invoice by ID
@@ -256,18 +268,28 @@ export const invoicesAPI = {
 
 // ============ DEALS API ============
 export const dealsAPI = {
-  // Get all deals with optional filters
-  getAll: async (filters?: { stage?: string; assignedTo?: string }): Promise<Deal[]> => {
+  // Get all deals with optional filters and pagination
+  getAll: async (filters?: Record<string, any>): Promise<any> => {
     const params = new URLSearchParams();
-    if (filters?.stage && filters.stage !== 'all') {
-      params.append('stage', filters.stage);
-    }
-    if (filters?.assignedTo) {
-      params.append('assignedTo', filters.assignedTo);
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '' && value !== 'all') {
+          params.append(key, String(value));
+        }
+      });
     }
     const query = params.toString() ? `?${params.toString()}` : '';
-    const deals = await fetchAPI<any[]>(`/deals${query}`);
-    return deals.map(convertDealDates);
+    const response = await fetchAPI<any>(`/deals${query}`);
+
+    // Handle paginated response
+    if (response.data) {
+      return {
+        ...response,
+        data: response.data.map(convertDealDates)
+      };
+    }
+    // Handle non-paginated response (backward compatibility)
+    return Array.isArray(response) ? response.map(convertDealDates) : response;
   },
 
   // Get single deal by ID
@@ -304,21 +326,28 @@ export const dealsAPI = {
 
 // ============ TASKS API ============
 export const tasksAPI = {
-  // Get all tasks with optional filters
-  getAll: async (filters?: { status?: string; priority?: string; assignedTo?: string }): Promise<Task[]> => {
+  // Get all tasks with optional filters and pagination
+  getAll: async (filters?: Record<string, any>): Promise<any> => {
     const params = new URLSearchParams();
-    if (filters?.status && filters.status !== 'all') {
-      params.append('status', filters.status);
-    }
-    if (filters?.priority && filters.priority !== 'all') {
-      params.append('priority', filters.priority);
-    }
-    if (filters?.assignedTo) {
-      params.append('assignedTo', filters.assignedTo);
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '' && value !== 'all') {
+          params.append(key, String(value));
+        }
+      });
     }
     const query = params.toString() ? `?${params.toString()}` : '';
-    const tasks = await fetchAPI<any[]>(`/tasks${query}`);
-    return tasks.map(convertTaskDates);
+    const response = await fetchAPI<any>(`/tasks${query}`);
+
+    // Handle paginated response
+    if (response.data) {
+      return {
+        ...response,
+        data: response.data.map(convertTaskDates)
+      };
+    }
+    // Handle non-paginated response (backward compatibility)
+    return Array.isArray(response) ? response.map(convertTaskDates) : response;
   },
 
   // Get single task by ID
