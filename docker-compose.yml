@@ -32,6 +32,7 @@ services:
       PGADMIN_DEFAULT_PASSWORD: admin123
       PGADMIN_CONFIG_SERVER_MODE: 'False'
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+      # Reverse proxy configuration
       SCRIPT_NAME: /pgadmin
     volumes:
       - pgadmin_data:/var/lib/pgadmin
