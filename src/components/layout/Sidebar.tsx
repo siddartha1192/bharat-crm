@@ -15,6 +15,8 @@ import {
   Bot,
   Shield,
   TrendingUp,
+  FormInput,
+  Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -26,6 +28,8 @@ const navigation = [
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
   { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
   { name: 'Emails', href: '/emails', icon: Mail },
+  { name: 'Forms', href: '/forms', icon: FormInput, badge: 'New' },
+  { name: 'Landing Pages', href: '/landing-pages', icon: Globe, badge: 'New' },
   { name: 'Invoices', href: '/invoices', icon: FileText },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'Sales Forecast', href: '/forecast', icon: TrendingUp, badge: 'New' },
