@@ -31,6 +31,9 @@ import Settings from "./pages/Settings";
 import UserManagement from "./pages/UserManagement";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
+import Forms from "./pages/Forms";
+import LandingPages from "./pages/LandingPages";
+import LandingPageBuilder from "./pages/LandingPageBuilder";
 
 const queryClient = new QueryClient();
 
@@ -88,6 +91,18 @@ const App = () => (
               <Route
                 path="/users"
                 element={<ProtectedLayout><UserManagement /></ProtectedLayout>}
+              />
+              <Route
+                path="/forms"
+                element={<ProtectedLayout><Forms /></ProtectedLayout>}
+              />
+              <Route
+                path="/landing-pages"
+                element={<ProtectedLayout><LandingPages /></ProtectedLayout>}
+              />
+              <Route
+                path="/landing-pages/builder/:id"
+                element={<LandingPageBuilder />}
               />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

@@ -67,6 +67,8 @@ model User {
   vectorDataUploads       VectorDataUpload[]
   aiConversations         AIConversation[]
   campaigns               Campaign[]
+  forms                   Form[]
+  landingPages            LandingPage[]
 
   @@index([email])
   @@index([googleId])
@@ -756,4 +758,132 @@ model CampaignLog {
 
   @@index([campaignId])
   @@index([createdAt])
+}
+
+// Form Model - Embeddable lead capture forms
+model Form {
+  id              String   @id @default(uuid())
+  name            String   // Form name (internal use)
+  slug            String   @unique // URL-friendly identifier for embedding
+  title           String   // Form heading shown to users
+  description     String?  @db.Text // Subtitle or description
+
+  // Form fields configuration
+  fields          Json     // Array of field definitions (name, email, phone, custom fields)
+
+  // Styling & branding
+  primaryColor    String   @default("#3b82f6") // Brand color
+  buttonText      String   @default("Submit")
+  successMessage  String   @default("Thank you! We'll be in touch soon.")
+
+  // Behavior
+  redirectUrl     String?  // Optional redirect after submission
+  notificationEmail String? // Email to notify on new submission
+  autoAssignTo    String?  // Auto-assign leads to specific user
+
+  // Settings
+  isActive        Boolean  @default(true)
+  requireEmail    Boolean  @default(true)
+  requirePhone    Boolean  @default(false)
+
+  // Tracking
+  viewCount       Int      @default(0)
+  submissionCount Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User relation
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relations
+  submissions     FormSubmission[]
+  landingPages    LandingPage[]
+
+  @@index([userId])
+  @@index([slug])
+  @@index([isActive])
+}
+
+// Form Submission Model - Captured leads from forms
+model FormSubmission {
+  id              String   @id @default(uuid())
+  formId          String
+  form            Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  // Submission data
+  data            Json     // All form field values
+
+  // Lead information (extracted from data)
+  name            String?
+  email           String?
+  phone           String?
+  company         String?
+
+  // Source tracking
+  ipAddress       String?
+  userAgent       String?
+  referrer        String?
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+
+  // Lead creation
+  leadId          String?  @unique // Created lead ID
+  status          String   @default("new") // 'new' | 'converted' | 'spam'
+
+  createdAt       DateTime @default(now())
+
+  @@index([formId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([leadId])
+}
+
+// Landing Page Model - AI-powered landing pages
+model LandingPage {
+  id              String   @id @default(uuid())
+  name            String   // Page name (internal)
+  slug            String   @unique // URL-friendly identifier
+
+  // SEO
+  title           String   // Page title (SEO)
+  metaDescription String?  @db.Text
+
+  // Content blocks (JSON structure for each component)
+  content         Json     // {header, hero, about, services, testimonials, etc.}
+
+  // Styling
+  theme           Json     // Color scheme, fonts, spacing
+
+  // Code snippets
+  headScripts     String?  @db.Text // Google Analytics, Meta Pixel, etc.
+  bodyScripts     String?  @db.Text // Additional tracking scripts
+
+  // Form integration
+  formId          String?
+  form            Form?    @relation(fields: [formId], references: [id], onDelete: SetNull)
+
+  // Settings
+  isPublished     Boolean  @default(false)
+  customDomain    String?  // Optional custom domain
+
+  // Tracking
+  viewCount       Int      @default(0)
+
+  // AI editing history
+  aiPrompts       Json?    // Array of AI prompts used for editing
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  publishedAt     DateTime?
+
+  // User relation
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([slug])
+  @@index([isPublished])
 }

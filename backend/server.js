@@ -67,6 +67,8 @@ const documentsRoutes = require('./routes/documents');
 const vectorDataRoutes = require('./routes/vectorData');
 const migrateRoutes = require('./routes/migrate');
 const campaignsRoutes = require('./routes/campaigns');
+const formsRoutes = require('./routes/forms');
+const landingPagesRoutes = require('./routes/landingPages');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -89,6 +91,8 @@ app.use('/api/documents', documentsRoutes);
 app.use('/api/vector-data', vectorDataRoutes);
 app.use('/api/migrate', migrateRoutes);
 app.use('/api/campaigns', campaignsRoutes);
+app.use('/api/forms', formsRoutes);
+app.use('/api/landing-pages', landingPagesRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
