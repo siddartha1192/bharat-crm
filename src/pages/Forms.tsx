@@ -231,7 +231,8 @@ export default function Forms() {
   };
 
   const copyEmbedCode = (slug: string) => {
-    const baseUrl = API_URL.replace('/api', '');
+    // Use window.location.origin to get full domain URL (e.g., https://climcrm.com)
+    const baseUrl = window.location.origin;
     const embedCode = `<script src="${baseUrl}/embed.js"></script>
 <div id="bharat-form" data-form-slug="${slug}"></div>`;
 

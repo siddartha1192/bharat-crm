@@ -211,7 +211,8 @@ export default function LandingPages() {
   };
 
   const copyPageUrl = (slug: string) => {
-    const baseUrl = API_URL.replace('/api', '');
+    // Use window.location.origin to get full domain URL (e.g., https://climcrm.com)
+    const baseUrl = window.location.origin;
     const url = `${baseUrl}/page/${slug}`;
     navigator.clipboard.writeText(url);
     toast({
