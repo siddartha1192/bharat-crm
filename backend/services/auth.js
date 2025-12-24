@@ -19,11 +19,11 @@ const googleClient = new OAuth2Client(
 
 class AuthService {
   /**
-   * Generate JWT token
+   * Generate JWT token with tenant context
    */
-  generateToken(userId, role) {
+  generateToken(userId, role, tenantId) {
     return jwt.sign(
-      { userId, role },
+      { userId, role, tenantId },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
@@ -62,12 +62,19 @@ class AuthService {
   }
 
   /**
-   * Create session
+   * Create session with tenant context
    */
   async createSession(userId, ipAddress, userAgent) {
-    const token = this.generateToken(userId,
-      (await prisma.user.findUnique({ where: { id: userId } }))?.role
-    );
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, tenantId: true }
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const token = this.generateToken(userId, user.role, user.tenantId);
     const refreshToken = this.generateRefreshToken();
 
     const expiresAt = new Date();
@@ -89,18 +96,35 @@ class AuthService {
   }
 
   /**
-   * Register new user with email/password
+   * Register new user with email/password (tenant-aware)
    */
   async register(data) {
-    const { email, password, name, company, role = 'AGENT' } = data;
+    const { email, password, name, company, role = 'AGENT', tenantId } = data;
 
-    // Check if user exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+    // Validate tenantId is provided
+    if (!tenantId) {
+      throw new Error('Tenant ID is required for registration');
+    }
+
+    // Verify tenant exists
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId }
+    });
+
+    if (!tenant) {
+      throw new Error('Invalid tenant');
+    }
+
+    // Check if user exists in this tenant
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email,
+        tenantId
+      },
     });
 
     if (existingUser) {
-      throw new Error('User with this email already exists');
+      throw new Error('User with this email already exists in this organization');
     }
 
     // Hash password
@@ -112,8 +136,9 @@ class AuthService {
         email,
         password: hashedPassword,
         name,
-        company: company || '',
+        company: company || tenant.name,
         role,
+        tenantId,
         isActive: true,
       },
       select: {
@@ -122,6 +147,7 @@ class AuthService {
         name: true,
         company: true,
         role: true,
+        tenantId: true,
         createdAt: true,
       },
     });
@@ -172,6 +198,7 @@ class AuthService {
         name: user.name,
         company: user.company,
         role: user.role,
+        tenantId: user.tenantId,
       },
       token,
       refreshToken,

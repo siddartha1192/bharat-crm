@@ -75,8 +75,10 @@ const migrateRoutes = require('./routes/migrate');
 const campaignsRoutes = require('./routes/campaigns');
 const formsRoutes = require('./routes/forms');
 const landingPagesRoutes = require('./routes/landingPages');
+const tenantsRoutes = require('./routes/tenants');
 
 // Use routes
+app.use('/api/tenants', tenantsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/leads', leadRoutes);
