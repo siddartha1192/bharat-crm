@@ -233,7 +233,7 @@ export default function Forms() {
   const copyEmbedCode = (slug: string) => {
     // Use window.location.origin to get full domain URL (e.g., https://climcrm.com)
     const baseUrl = window.location.origin;
-    const embedCode = `<script src="${baseUrl}/embed.js"></script>
+    const embedCode = `<script async src="${baseUrl}/embed.js"></script>
 <div id="bharat-form" data-form-slug="${slug}"></div>`;
 
     navigator.clipboard.writeText(embedCode);
