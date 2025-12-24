@@ -88,7 +88,7 @@ services:
       - "3001:3001"
     networks:
       - crm-network
-    command: sh -c "npx prisma migrate deploy && node server.js"
+    command: sh -c "npx prisma db push --accept-data-loss --skip-generate && node server.js"
 
   # Frontend (React + Nginx)
   frontend:
