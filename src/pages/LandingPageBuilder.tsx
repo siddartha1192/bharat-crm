@@ -18,6 +18,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
 interface ContentSection {
   [key: string]: any;
 }
@@ -78,7 +80,7 @@ export default function LandingPageBuilder() {
   const fetchPage = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/landing-pages/${id}`, {
+      const response = await fetch(`${API_URL}/landing-pages/${id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -106,7 +108,7 @@ export default function LandingPageBuilder() {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/landing-pages/${id}`, {
+      const response = await fetch(`${API_URL}/landing-pages/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -146,7 +148,7 @@ export default function LandingPageBuilder() {
     setAiLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/landing-pages/${id}/ai-edit`, {
+      const response = await fetch(`${API_URL}/landing-pages/${id}/ai-edit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -215,7 +217,7 @@ export default function LandingPageBuilder() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/landing-pages/${id}`, {
+      const response = await fetch(`${API_URL}/landing-pages/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
