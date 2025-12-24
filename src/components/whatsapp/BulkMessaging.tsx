@@ -66,7 +66,7 @@ export default function BulkMessaging() {
   const fetchContacts = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/contacts`, {
+      const response = await fetch(`${API_URL}/contacts?limit=1000`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -74,9 +74,12 @@ export default function BulkMessaging() {
 
       if (!response.ok) throw new Error('Failed to fetch contacts');
 
-      const data = await response.json();
+      const responseData = await response.json();
+      // API returns {data: [...], pagination: {...}}
+      const contactsList = responseData.data || responseData;
+
       // Filter contacts that have WhatsApp numbers
-      const whatsappContacts = data.filter((c: Contact) => c.whatsapp || c.phone);
+      const whatsappContacts = contactsList.filter((c: Contact) => c.whatsapp || c.phone);
       setContacts(whatsappContacts);
     } catch (error) {
       toast({
