@@ -330,24 +330,45 @@ router.post('/public/submit/:slug', async (req, res) => {
     // Auto-create lead if configured
     if (name && email) {
       try {
-        const leadData = {
-          name,
-          email,
-          phone: phone || '',
-          company: company || '',
-          source: 'web-form',
-          status: 'new',
-          priority: 'medium',
-          estimatedValue: 0,
-          assignedTo: form.autoAssignTo || form.user.name,
-          createdBy: form.userId,
-          notes: `Form submission from: ${form.name}\n\nSubmission data:\n${JSON.stringify(data, null, 2)}`,
-          tags: ['web-form', form.slug],
-          userId: form.userId
-        };
+        // Check if lead with this email already exists to prevent duplicates
+        const existingLead = await prisma.lead.findFirst({
+          where: {
+            userId: form.userId,
+            email
+          }
+        });
 
-        // Create lead and associated deal
-        const result = await prisma.$transaction(async (tx) => {
+        if (existingLead) {
+          console.log(`⚠️ Lead with email ${email} already exists, skipping lead creation but keeping form submission`);
+
+          // Update submission to reference existing lead
+          await prisma.formSubmission.update({
+            where: { id: submission.id },
+            data: {
+              leadId: existingLead.id,
+              status: 'duplicate'
+            }
+          });
+        } else {
+          // Create new lead
+          const leadData = {
+            name,
+            email,
+            phone: phone || '',
+            company: company || '',
+            source: 'web-form',
+            status: 'new',
+            priority: 'medium',
+            estimatedValue: 0,
+            assignedTo: form.autoAssignTo || form.user.name,
+            createdBy: form.userId,
+            notes: `Form submission from: ${form.name}\n\nSubmission data:\n${JSON.stringify(data, null, 2)}`,
+            tags: ['web-form', form.slug],
+            userId: form.userId
+          };
+
+          // Create lead and associated deal
+          const result = await prisma.$transaction(async (tx) => {
           const deal = await tx.deal.create({
             data: {
               title: `${company || 'Lead'} - ${name}`,
@@ -387,6 +408,7 @@ router.post('/public/submit/:slug', async (req, res) => {
         });
 
         console.log(`✅ Lead created from form submission: ${result.lead.id}`);
+        }
       } catch (error) {
         console.error('Error creating lead from submission:', error);
         // Don't fail the submission if lead creation fails

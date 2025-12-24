@@ -149,6 +149,23 @@ router.post('/', validateAssignment, async (req, res) => {
     const assignedTo = leadData.assignedTo || req.user.name;
     const createdBy = userId;
 
+    // Check for duplicates based on email to prevent duplicate entries
+    if (leadData.email) {
+      const existingLead = await prisma.lead.findFirst({
+        where: {
+          userId,
+          email: leadData.email
+        }
+      });
+
+      if (existingLead) {
+        return res.status(400).json({
+          error: 'Duplicate lead',
+          message: `A lead with email '${leadData.email}' already exists`
+        });
+      }
+    }
+
     // Use transaction to ensure both Lead and Deal are created together
     const result = await prisma.$transaction(async (tx) => {
       // Create the Deal first in the pipeline
@@ -629,9 +646,10 @@ router.post('/import', async (req, res) => {
             company: leadData.company || leadData.Company || '',
             status: leadData.status || leadData.Status || 'new',
             source: leadData.source || leadData.Source || 'import',
+            priority: leadData.priority || leadData.Priority || 'medium',
             notes: leadData.notes || leadData.Notes || '',
             estimatedValue: parseFloat(leadData.estimated_value || leadData.EstimatedValue || leadData.value || 0),
-            assignedTo: leadData.assigned_to || userId,
+            assignedTo: leadData.assigned_to || leadData.assignedTo || req.user.name,
             tags: leadData.tags ? (typeof leadData.tags === 'string' ? leadData.tags.split(',').map(t => t.trim()) : []) : [],
             userId
           };
@@ -643,10 +661,46 @@ router.post('/import', async (req, res) => {
             continue;
           }
 
-          // Create lead and associated deal in transaction
+          // Check for duplicates based on email (skip if email matches existing lead)
+          if (lead.email) {
+            const existingLead = await prisma.lead.findFirst({
+              where: {
+                userId,
+                email: lead.email
+              }
+            });
+
+            if (existingLead) {
+              results.failed++;
+              results.errors.push(`Row ${i + 1}: Duplicate email '${lead.email}' - lead already exists`);
+              continue;
+            }
+          }
+
+          // Create lead and associated deal in transaction (properly linked)
           await prisma.$transaction(async (tx) => {
-            // Create Lead
-            const createdLead = await tx.lead.create({
+            // Create the Deal first
+            const deal = await tx.deal.create({
+              data: {
+                title: `${lead.company} - ${lead.name}`,
+                company: lead.company,
+                contactName: lead.name,
+                email: lead.email,
+                phone: lead.phone || '',
+                value: lead.estimatedValue,
+                stage: mapLeadStatusToDealStage(lead.status),
+                probability: lead.status === 'qualified' ? 60 : lead.status === 'proposal' ? 70 : 20,
+                expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                assignedTo: lead.assignedTo,
+                createdBy: userId,
+                notes: lead.notes,
+                tags: lead.tags,
+                userId: lead.userId
+              }
+            });
+
+            // Create the Lead and link it to the Deal
+            await tx.lead.create({
               data: {
                 name: lead.name,
                 email: lead.email,
@@ -654,32 +708,14 @@ router.post('/import', async (req, res) => {
                 company: lead.company,
                 status: lead.status,
                 source: lead.source,
+                priority: lead.priority || 'medium',
                 notes: lead.notes,
                 estimatedValue: lead.estimatedValue,
                 assignedTo: lead.assignedTo,
                 createdBy: userId,
                 tags: lead.tags,
-                userId: lead.userId
-              }
-            });
-
-            // Create associated Deal
-            await tx.deal.create({
-              data: {
-                title: `Deal - ${lead.name}`,
-                company: lead.company,
-                contactName: lead.name,
-                email: lead.email,
-                phone: lead.phone || '',
-                value: lead.estimatedValue,
-                stage: 'lead',
-                probability: 10,
-                expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-                assignedTo: lead.assignedTo,
-                createdBy: userId,
-                notes: lead.notes,
-                tags: lead.tags,
-                userId: lead.userId
+                userId: lead.userId,
+                dealId: deal.id  // Link to the created deal
               }
             });
           });
