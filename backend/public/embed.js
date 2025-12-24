@@ -33,13 +33,16 @@
       const formConfig = await response.json();
 
       // Create form element
-      const form = createFormElement(formConfig);
-      container.appendChild(form);
+      const formWrapper = createFormElement(formConfig);
+      container.appendChild(formWrapper);
+
+      // Get the actual form element from the wrapper
+      const actualForm = formWrapper.querySelector('form');
 
       // Add event listener for form submission
-      form.addEventListener('submit', async (e) => {
+      actualForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        await handleFormSubmission(form, formConfig);
+        await handleFormSubmission(actualForm, formConfig);
       });
 
     } catch (error) {
