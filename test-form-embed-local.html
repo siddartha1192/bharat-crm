@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Form Embed Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Local Form Test</h1>
+
+        <div class="info">
+            <p><strong>Testing locally with:</strong></p>
+            <p>📍 Form Slug: <code>lead-capture</code></p>
+            <p>🌐 API: <code>http://localhost:3001</code></p>
+            <p>💡 Make sure your backend is running on port 3001</p>
+        </div>
+
+        <hr style="margin: 30px 0;">
+
+        <!-- EMBEDDED FORM -->
+        <script src="http://localhost:3001/embed.js"></script>
+        <div id="bharat-form" data-form-slug="lead-capture"></div>
+
+    </div>
+
+    <script>
+        console.log('🧪 Local test page loaded');
+        console.log('📍 Looking for form: lead-capture');
+        console.log('🔧 Using local backend: http://localhost:3001');
+    </script>
+</body>
+</html>

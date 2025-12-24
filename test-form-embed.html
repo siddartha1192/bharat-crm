@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Embed Test - Lead Capture</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 1.1rem;
+        }
+
+        .info-box {
+            background: rgba(255,255,255,0.95);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .info-box h3 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+
+        .info-box ul {
+            list-style: none;
+            color: #4a5568;
+        }
+
+        .info-box ul li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .info-box ul li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #48bb78;
+            font-weight: bold;
+        }
+
+        .form-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .form-container h2 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .test-info {
+            background: #edf2f7;
+            border-left: 4px solid #3182ce;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .test-info strong {
+            color: #2c5282;
+        }
+
+        .test-info code {
+            background: #2d3748;
+            color: #68d391;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        /* Loading state */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        .loading:after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🚀 Form Embed Test Page</h1>
+            <p>Testing CLiM CRM Lead Capture Form</p>
+        </div>
+
+        <!-- Info Box -->
+        <div class="info-box">
+            <h3>📋 What to Test:</h3>
+            <ul>
+                <li>Form should load with all input fields (Name, Email, Phone, Company, Message)</li>
+                <li>Fields should be styled with your brand colors</li>
+                <li>Submit button should be visible and clickable</li>
+                <li>Form submission should create a lead in your CRM</li>
+                <li>Success message should appear after submission</li>
+                <li>Check browser console for any errors (F12 → Console tab)</li>
+            </ul>
+        </div>
+
+        <!-- Form Container -->
+        <div class="form-container">
+            <h2>Contact Us - Lead Capture Form</h2>
+
+            <div class="test-info">
+                <strong>Embedded Form ID:</strong> <code>lead-capture</code><br>
+                <strong>Script Source:</strong> <code>https://climcrm.com/embed.js</code>
+            </div>
+
+            <!-- Loading message (will be replaced by the form) -->
+            <div id="loading-message" class="loading">Loading form</div>
+
+            <!-- EMBEDDED FORM CODE STARTS HERE -->
+            <script src="https://climcrm.com/embed.js"></script>
+            <div id="bharat-form" data-form-slug="lead-capture"></div>
+            <!-- EMBEDDED FORM CODE ENDS HERE -->
+
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>💡 Open browser console (F12) to see detailed logs</p>
+            <p>✅ If the form loads, check your CRM's Leads section after submitting</p>
+        </div>
+    </div>
+
+    <script>
+        // Hide loading message once form is loaded
+        setTimeout(() => {
+            const loadingMsg = document.getElementById('loading-message');
+            if (loadingMsg) {
+                // Check if form was actually loaded
+                const formElement = document.querySelector('.bharat-form-wrapper');
+                if (formElement) {
+                    loadingMsg.style.display = 'none';
+                    console.log('✅ Form loaded successfully!');
+                } else {
+                    loadingMsg.innerHTML = '⚠️ Form failed to load. Check console for errors.';
+                    loadingMsg.style.color = '#e53e3e';
+                }
+            }
+        }, 3000);
+
+        // Log script loading
+        console.log('🎯 Test page loaded');
+        console.log('📍 Expected form slug: lead-capture');
+        console.log('🌐 Script source: https://climcrm.com/embed.js');
+        console.log('⏳ Waiting for form to load...');
+    </script>
+</body>
+</html>
