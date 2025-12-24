@@ -11,10 +11,12 @@
     API_BASE = scriptUrl.origin; // e.g., https://climcrm.com
   }
 
-  // Find all form containers
-  const containers = document.querySelectorAll('[id^="bharat-form"]');
+  // Main initialization function
+  function initializeForms() {
+    // Find all form containers
+    const containers = document.querySelectorAll('[id^="bharat-form"]');
 
-  containers.forEach(async (container) => {
+    containers.forEach(async (container) => {
     const formSlug = container.getAttribute('data-form-slug');
 
     if (!formSlug) {
@@ -50,6 +52,16 @@
       container.innerHTML = `<p style="color: red;">Error loading form</p>`;
     }
   });
+  }
+
+  // Initialize forms when DOM is ready
+  if (document.readyState === 'loading') {
+    // DOM is still loading, wait for DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', initializeForms);
+  } else {
+    // DOM is already ready, initialize immediately
+    initializeForms();
+  }
 
   function createFormElement(config) {
     const formWrapper = document.createElement('div');
