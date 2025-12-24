@@ -24,6 +24,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
 interface Form {
   id: string;
   name: string;
@@ -67,7 +69,7 @@ export default function Forms() {
   const fetchForms = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/forms', {
+      const response = await fetch(`${API_URL}/forms`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -94,7 +96,7 @@ export default function Forms() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/forms', {
+      const response = await fetch(`${API_URL}/forms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -138,7 +140,7 @@ export default function Forms() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/forms/${selectedForm.id}`, {
+      const response = await fetch(`${API_URL}/forms/${selectedForm.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -173,7 +175,7 @@ export default function Forms() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/forms/${id}`, {
+      const response = await fetch(`${API_URL}/forms/${id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -201,7 +203,7 @@ export default function Forms() {
   const handleToggleActive = async (form: Form) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/forms/${form.id}`, {
+      const response = await fetch(`${API_URL}/forms/${form.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -229,7 +231,8 @@ export default function Forms() {
   };
 
   const copyEmbedCode = (slug: string) => {
-    const embedCode = `<script src="http://localhost:3001/embed.js"></script>
+    const baseUrl = API_URL.replace('/api', '');
+    const embedCode = `<script src="${baseUrl}/embed.js"></script>
 <div id="bharat-form" data-form-slug="${slug}"></div>`;
 
     navigator.clipboard.writeText(embedCode);

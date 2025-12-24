@@ -26,6 +26,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
 interface LandingPage {
   id: string;
   name: string;
@@ -60,7 +62,7 @@ export default function LandingPages() {
   const fetchPages = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/landing-pages', {
+      const response = await fetch(`${API_URL}/landing-pages`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -87,7 +89,7 @@ export default function LandingPages() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/landing-pages', {
+      const response = await fetch(`${API_URL}/landing-pages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -125,7 +127,7 @@ export default function LandingPages() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/landing-pages/${id}`, {
+      const response = await fetch(`${API_URL}/landing-pages/${id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -153,7 +155,7 @@ export default function LandingPages() {
   const handleTogglePublish = async (page: LandingPage) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/landing-pages/${page.id}`, {
+      const response = await fetch(`${API_URL}/landing-pages/${page.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -183,7 +185,7 @@ export default function LandingPages() {
   const handleDuplicate = async (id: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/landing-pages/${id}/duplicate`, {
+      const response = await fetch(`${API_URL}/landing-pages/${id}/duplicate`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -209,7 +211,8 @@ export default function LandingPages() {
   };
 
   const copyPageUrl = (slug: string) => {
-    const url = `http://localhost:3001/page/${slug}`;
+    const baseUrl = API_URL.replace('/api', '');
+    const url = `${baseUrl}/page/${slug}`;
     navigator.clipboard.writeText(url);
     toast({
       title: 'Copied!',
