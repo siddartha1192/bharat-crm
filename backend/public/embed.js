@@ -1,7 +1,15 @@
 (function() {
   'use strict';
 
-  const API_BASE = window.location.origin || 'http://localhost:3001';
+  // Get API base from the script's own src URL
+  // This ensures we always call the CRM domain, not the embedding site's domain
+  let API_BASE = 'http://localhost:3001';
+
+  const currentScript = document.currentScript || document.querySelector('script[src*="embed.js"]');
+  if (currentScript && currentScript.src) {
+    const scriptUrl = new URL(currentScript.src);
+    API_BASE = scriptUrl.origin; // e.g., https://climcrm.com
+  }
 
   // Find all form containers
   const containers = document.querySelectorAll('[id^="bharat-form"]');
