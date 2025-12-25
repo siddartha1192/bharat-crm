@@ -12,10 +12,14 @@ const prisma = new PrismaClient();
 // Import io instance for WebSocket broadcasts
 const { io } = require('../server');
 
+// Apply authentication and tenant context to all routes
+router.use(authenticate);
+router.use(tenantContext);
+
 // ============ PROTECTED ENDPOINTS (REQUIRE AUTH) ============
 
 // Send WhatsApp message to a contact
-router.post('/send', authenticate, async (req, res) => {
+router.post('/send', async (req, res) => {
   try {
     const userId = req.user.id;
     const { message, phoneNumber, contactId } = req.body;
@@ -153,7 +157,7 @@ router.post('/send', authenticate, async (req, res) => {
 });
 
 // Send template message
-router.post('/send-template', authenticate, async (req, res) => {
+router.post('/send-template', async (req, res) => {
   try {
     const userId = req.user.id;
     const { contactId, templateName, phoneNumber, parameters } = req.body;
@@ -214,7 +218,7 @@ router.post('/send-template', authenticate, async (req, res) => {
 });
 
 // Send bulk WhatsApp messages to multiple contacts
-router.post('/bulk-send', authenticate, async (req, res) => {
+router.post('/bulk-send', async (req, res) => {
   try {
     const userId = req.user.id;
     const { message, contacts } = req.body;
@@ -374,7 +378,7 @@ router.post('/bulk-send', authenticate, async (req, res) => {
 });
 
 // Check WhatsApp configuration status
-router.get('/status', authenticate, async (req, res) => {
+router.get('/status', async (req, res) => {
   const userId = req.user.id;
 
   res.json({
@@ -388,7 +392,7 @@ router.get('/status', authenticate, async (req, res) => {
 // ============ CONVERSATION MANAGEMENT ============
 
 // Get all conversations for a user
-router.get('/conversations', authenticate, async (req, res) => {
+router.get('/conversations', async (req, res) => {
   try {
     const userId = req.user.id;
     const { search, limit = '50', offset = '0' } = req.query;
@@ -435,7 +439,7 @@ router.get('/conversations', authenticate, async (req, res) => {
 });
 
 // Get a single conversation with messages
-router.get('/conversations/:conversationId', authenticate, async (req, res) => {
+router.get('/conversations/:conversationId', async (req, res) => {
   try {
     const userId = req.user.id;
     const { conversationId } = req.params;
@@ -479,7 +483,7 @@ router.get('/conversations/:conversationId', authenticate, async (req, res) => {
 });
 
 // Start a new conversation or get existing one
-router.post('/conversations/start', authenticate, async (req, res) => {
+router.post('/conversations/start', async (req, res) => {
   try {
     const userId = req.user.id;
     const { contactPhone, contactName, contactId } = req.body;
@@ -532,7 +536,7 @@ router.post('/conversations/start', authenticate, async (req, res) => {
 });
 
 // Search contacts for new conversation
-router.get('/search-contacts', authenticate, async (req, res) => {
+router.get('/search-contacts', async (req, res) => {
   try {
     const userId = req.user.id;
     const { query } = req.query;
@@ -573,7 +577,7 @@ router.get('/search-contacts', authenticate, async (req, res) => {
 });
 
 // Delete a conversation
-router.delete('/conversations/:conversationId', authenticate, async (req, res) => {
+router.delete('/conversations/:conversationId', async (req, res) => {
   try {
     const userId = req.user.id;
     const { conversationId } = req.params;
@@ -608,7 +612,7 @@ router.delete('/conversations/:conversationId', authenticate, async (req, res) =
 });
 
 // Toggle AI assistant for a conversation
-router.patch('/conversations/:conversationId/ai-toggle', authenticate, async (req, res) => {
+router.patch('/conversations/:conversationId/ai-toggle', async (req, res) => {
   try {
     const userId = req.user.id;
     const { conversationId } = req.params;
@@ -650,7 +654,7 @@ router.patch('/conversations/:conversationId/ai-toggle', authenticate, async (re
 });
 
 // Get AI feature status
-router.get('/ai-status', authenticate, async (req, res) => {
+router.get('/ai-status', async (req, res) => {
   try {
     const userId = req.user.id;
 
