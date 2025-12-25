@@ -224,6 +224,7 @@ router.post('/upload', authorize('ADMIN', 'MANAGER'), (req, res) => {
 router.get('/uploads', authorize('ADMIN', 'MANAGER'), async (req, res) => {
   try {
     const uploads = await prisma.vectorDataUpload.findMany({
+      where: getTenantFilter(req),
       include: {
         user: {
           select: {
@@ -257,8 +258,8 @@ router.get('/uploads', authorize('ADMIN', 'MANAGER'), async (req, res) => {
  */
 router.get('/uploads/:id', async (req, res) => {
   try {
-    const upload = await prisma.vectorDataUpload.findUnique({
-      where: { id: req.params.id },
+    const upload = await prisma.vectorDataUpload.findFirst({
+      where: getTenantFilter(req, { id: req.params.id }),
       include: {
         user: {
           select: {
@@ -290,8 +291,8 @@ router.get('/uploads/:id', async (req, res) => {
  */
 router.delete('/uploads/:id', authorize('ADMIN'), async (req, res) => {
   try {
-    const upload = await prisma.vectorDataUpload.findUnique({
-      where: { id: req.params.id }
+    const upload = await prisma.vectorDataUpload.findFirst({
+      where: getTenantFilter(req, { id: req.params.id })
     });
 
     if (!upload) {

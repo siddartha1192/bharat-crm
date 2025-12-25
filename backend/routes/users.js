@@ -48,6 +48,7 @@ const hasPermission = (requiredRole) => {
 router.get('/', hasPermission('MANAGER'), async (req, res) => {
   try {
     const users = await prisma.user.findMany({
+      where: getTenantFilter(req),
       select: {
         id: true,
         name: true,

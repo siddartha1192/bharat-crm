@@ -19,13 +19,13 @@ router.get('/departments', async (req, res) => {
   try {
     const { includeInactive = 'false' } = req.query;
 
-    const where = {};
+    const baseWhere = {};
     if (includeInactive === 'false') {
-      where.isActive = true;
+      baseWhere.isActive = true;
     }
 
     const departments = await prisma.department.findMany({
-      where,
+      where: getTenantFilter(req, baseWhere),
       include: {
         users: {
           select: {
@@ -148,8 +148,8 @@ router.delete('/departments/:id', authorize('ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
 
-    const department = await prisma.department.findUnique({
-      where: { id },
+    const department = await prisma.department.findFirst({
+      where: getTenantFilter(req, { id }),
     });
 
     if (!department) {
@@ -184,12 +184,12 @@ router.get('/', async (req, res) => {
   try {
     const { departmentId, includeInactive = 'false' } = req.query;
 
-    const where = {};
-    if (departmentId) where.departmentId = departmentId;
-    if (includeInactive === 'false') where.isActive = true;
+    const baseWhere = {};
+    if (departmentId) baseWhere.departmentId = departmentId;
+    if (includeInactive === 'false') baseWhere.isActive = true;
 
     const teams = await prisma.team.findMany({
-      where,
+      where: getTenantFilter(req, baseWhere),
       include: {
         department: {
           select: {
@@ -309,8 +309,8 @@ router.delete('/:id', authorize('ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
 
-    const team = await prisma.team.findUnique({
-      where: { id },
+    const team = await prisma.team.findFirst({
+      where: getTenantFilter(req, { id }),
     });
 
     if (!team) {
