@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
+const { tenantContext, getTenantFilter } = require('../middleware/tenant');
 const prisma = new PrismaClient();
 
-// Apply authentication to all routes
+// Apply authentication and tenant context to all routes
 router.use(authenticate);
+router.use(tenantContext);
 
 // Global search endpoint
 router.get('/', async (req, res) => {
@@ -22,7 +24,7 @@ router.get('/', async (req, res) => {
 
     // Search Contacts
     const contacts = await prisma.contact.findMany({
-      where: {
+      where: getTenantFilter(req, {
         userId,
         OR: [
           { name: { contains: searchQuery, mode: 'insensitive' } },
@@ -31,7 +33,7 @@ router.get('/', async (req, res) => {
           { phone: { contains: searchQuery } },
           { designation: { contains: searchQuery, mode: 'insensitive' } },
         ],
-      },
+      }),
       take: 5,
     });
 
@@ -47,7 +49,7 @@ router.get('/', async (req, res) => {
 
     // Search Leads
     const leads = await prisma.lead.findMany({
-      where: {
+      where: getTenantFilter(req, {
         userId,
         OR: [
           { name: { contains: searchQuery, mode: 'insensitive' } },
@@ -55,7 +57,7 @@ router.get('/', async (req, res) => {
           { email: { contains: searchQuery, mode: 'insensitive' } },
           { phone: { contains: searchQuery } },
         ],
-      },
+      }),
       take: 5,
     });
 
@@ -71,13 +73,13 @@ router.get('/', async (req, res) => {
 
     // Search Tasks
     const tasks = await prisma.task.findMany({
-      where: {
+      where: getTenantFilter(req, {
         userId,
         OR: [
           { title: { contains: searchQuery, mode: 'insensitive' } },
           { description: { contains: searchQuery, mode: 'insensitive' } },
         ],
-      },
+      }),
       take: 5,
     });
 
@@ -93,14 +95,14 @@ router.get('/', async (req, res) => {
 
     // Search Deals
     const deals = await prisma.deal.findMany({
-      where: {
+      where: getTenantFilter(req, {
         userId,
         OR: [
           { title: { contains: searchQuery, mode: 'insensitive' } },
           { company: { contains: searchQuery, mode: 'insensitive' } },
           { contactName: { contains: searchQuery, mode: 'insensitive' } },
         ],
-      },
+      }),
       take: 5,
     });
 
@@ -116,14 +118,14 @@ router.get('/', async (req, res) => {
 
     // Search Invoices
     const invoices = await prisma.invoice.findMany({
-      where: {
+      where: getTenantFilter(req, {
         userId,
         OR: [
           { invoiceNumber: { contains: searchQuery, mode: 'insensitive' } },
           { customerName: { contains: searchQuery, mode: 'insensitive' } },
           { customerEmail: { contains: searchQuery, mode: 'insensitive' } },
         ],
-      },
+      }),
       take: 5,
     });
 
@@ -139,14 +141,14 @@ router.get('/', async (req, res) => {
 
     // Search Calendar Events
     const events = await prisma.calendarEvent.findMany({
-      where: {
+      where: getTenantFilter(req, {
         userId,
         OR: [
           { title: { contains: searchQuery, mode: 'insensitive' } },
           { description: { contains: searchQuery, mode: 'insensitive' } },
           { location: { contains: searchQuery, mode: 'insensitive' } },
         ],
-      },
+      }),
       take: 5,
     });
 
