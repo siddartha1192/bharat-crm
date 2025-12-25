@@ -1,13 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const automationService = require('../services/automation');
+
+// Apply authentication and tenant context to all routes
+router.use(authenticate);
+router.use(tenantContext);
 
 /**
  * Get all automation rules
  * GET /api/automation/rules
  */
-router.get('/rules', authenticate, async (req, res) => {
+router.get('/rules', async (req, res) => {
   try {
     const rules = await automationService.getAutomationRules(req.user.id);
     res.json(rules);
@@ -21,7 +26,7 @@ router.get('/rules', authenticate, async (req, res) => {
  * Create automation rule
  * POST /api/automation/rules
  */
-router.post('/rules', authenticate, async (req, res) => {
+router.post('/rules', async (req, res) => {
   try {
     const ruleData = req.body;
     const rule = await automationService.saveAutomationRule(req.user.id, ruleData);
@@ -36,7 +41,7 @@ router.post('/rules', authenticate, async (req, res) => {
  * Update automation rule
  * PUT /api/automation/rules/:id
  */
-router.put('/rules/:id', authenticate, async (req, res) => {
+router.put('/rules/:id', async (req, res) => {
   try {
     const ruleData = { ...req.body, id: req.params.id };
     const rule = await automationService.saveAutomationRule(req.user.id, ruleData);
@@ -51,7 +56,7 @@ router.put('/rules/:id', authenticate, async (req, res) => {
  * Delete automation rule
  * DELETE /api/automation/rules/:id
  */
-router.delete('/rules/:id', authenticate, async (req, res) => {
+router.delete('/rules/:id', async (req, res) => {
   try {
     await automationService.deleteAutomationRule(req.params.id, req.user.id);
     res.json({ message: 'Automation rule deleted successfully' });
@@ -65,7 +70,7 @@ router.delete('/rules/:id', authenticate, async (req, res) => {
  * Toggle automation rule enabled/disabled
  * PATCH /api/automation/rules/:id/toggle
  */
-router.patch('/rules/:id/toggle', authenticate, async (req, res) => {
+router.patch('/rules/:id/toggle', async (req, res) => {
   try {
     const { isEnabled } = req.body;
     const rule = await automationService.toggleAutomationRule(
@@ -84,7 +89,7 @@ router.patch('/rules/:id/toggle', authenticate, async (req, res) => {
  * Get default email templates
  * GET /api/automation/templates
  */
-router.get('/templates', authenticate, async (req, res) => {
+router.get('/templates', async (req, res) => {
   try {
     res.json(automationService.DEFAULT_TEMPLATES);
   } catch (error) {
@@ -97,7 +102,7 @@ router.get('/templates', authenticate, async (req, res) => {
  * Test automation rule (send test email)
  * POST /api/automation/rules/:id/test
  */
-router.post('/rules/:id/test', authenticate, async (req, res) => {
+router.post('/rules/:id/test', async (req, res) => {
   try {
     const { testData } = req.body;
 

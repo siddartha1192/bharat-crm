@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
 const { uploadVectorData, deleteFile, formatFileSize } = require('../middleware/upload');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { PrismaClient } = require('@prisma/client');
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -9,6 +10,10 @@ const path = require('path');
 const { PDFParse } = require('pdf-parse');
 
 const prisma = new PrismaClient();
+
+// Apply authentication and tenant context to all routes
+router.use(authenticate);
+router.use(tenantContext);
 
 // Track ingest process status in memory (could be moved to Redis for production)
 let ingestStatus = {
@@ -113,7 +118,7 @@ async function processVectorData(filePath, fileName) {
  * POST /api/vector-data/upload
  * Only admins can upload
  */
-router.post('/upload', authenticate, authorize('ADMIN', 'MANAGER'), (req, res) => {
+router.post('/upload', authorize('ADMIN', 'MANAGER'), (req, res) => {
   // Use multer with error handling
   uploadVectorData.single('file')(req, res, async (err) => {
     // Handle multer errors
@@ -215,7 +220,7 @@ router.post('/upload', authenticate, authorize('ADMIN', 'MANAGER'), (req, res) =
  * Get all vector data uploads
  * GET /api/vector-data/uploads
  */
-router.get('/uploads', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res) => {
+router.get('/uploads', authorize('ADMIN', 'MANAGER'), async (req, res) => {
   try {
     const uploads = await prisma.vectorDataUpload.findMany({
       include: {
@@ -249,7 +254,7 @@ router.get('/uploads', authenticate, authorize('ADMIN', 'MANAGER'), async (req, 
  * Get upload status
  * GET /api/vector-data/uploads/:id
  */
-router.get('/uploads/:id', authenticate, async (req, res) => {
+router.get('/uploads/:id', async (req, res) => {
   try {
     const upload = await prisma.vectorDataUpload.findUnique({
       where: { id: req.params.id },
@@ -282,7 +287,7 @@ router.get('/uploads/:id', authenticate, async (req, res) => {
  * Delete vector data upload
  * DELETE /api/vector-data/uploads/:id
  */
-router.delete('/uploads/:id', authenticate, authorize('ADMIN'), async (req, res) => {
+router.delete('/uploads/:id', authorize('ADMIN'), async (req, res) => {
   try {
     const upload = await prisma.vectorDataUpload.findUnique({
       where: { id: req.params.id }
@@ -312,7 +317,7 @@ router.delete('/uploads/:id', authenticate, authorize('ADMIN'), async (req, res)
  * POST /api/vector-data/ingest
  * Admin only
  */
-router.post('/ingest', authenticate, authorize('ADMIN'), async (req, res) => {
+router.post('/ingest', authorize('ADMIN'), async (req, res) => {
   try {
     if (ingestStatus.isRunning) {
       return res.status(409).json({ error: 'Ingest process is already running' });
@@ -394,7 +399,7 @@ router.post('/ingest', authenticate, authorize('ADMIN'), async (req, res) => {
  * Get ingest process status
  * GET /api/vector-data/ingest/status
  */
-router.get('/ingest/status', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res) => {
+router.get('/ingest/status', authorize('ADMIN', 'MANAGER'), async (req, res) => {
   try {
     res.json(ingestStatus);
   } catch (error) {
@@ -408,7 +413,7 @@ router.get('/ingest/status', authenticate, authorize('ADMIN', 'MANAGER'), async 
  * POST /api/vector-data/restart-backend
  * Admin only
  */
-router.post('/restart-backend', authenticate, authorize('ADMIN'), async (req, res) => {
+router.post('/restart-backend', authorize('ADMIN'), async (req, res) => {
   try {
     // Send response before restarting
     res.json({

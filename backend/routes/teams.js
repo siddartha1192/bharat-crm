@@ -1,16 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { PrismaClient } = require('@prisma/client');
 const authService = require('../services/auth');
 
 const prisma = new PrismaClient();
 
+// Apply authentication and tenant context to all routes
+router.use(authenticate);
+router.use(tenantContext);
+
 /**
  * Get all departments
  * GET /api/teams/departments
  */
-router.get('/departments', authenticate, async (req, res) => {
+router.get('/departments', async (req, res) => {
   try {
     const { includeInactive = 'false' } = req.query;
 
@@ -58,7 +63,7 @@ router.get('/departments', authenticate, async (req, res) => {
  * Create department (Admin/Manager only)
  * POST /api/teams/departments
  */
-router.post('/departments', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res) => {
+router.post('/departments', authorize('ADMIN', 'MANAGER'), async (req, res) => {
   try {
     const { name, description, managerId } = req.body;
 
@@ -99,7 +104,7 @@ router.post('/departments', authenticate, authorize('ADMIN', 'MANAGER'), async (
  * Update department (Admin/Manager only)
  * PUT /api/teams/departments/:id
  */
-router.put('/departments/:id', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res) => {
+router.put('/departments/:id', authorize('ADMIN', 'MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, managerId, isActive } = req.body;
@@ -138,7 +143,7 @@ router.put('/departments/:id', authenticate, authorize('ADMIN', 'MANAGER'), asyn
  * Delete department (Admin only)
  * DELETE /api/teams/departments/:id
  */
-router.delete('/departments/:id', authenticate, authorize('ADMIN'), async (req, res) => {
+router.delete('/departments/:id', authorize('ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -174,7 +179,7 @@ router.delete('/departments/:id', authenticate, authorize('ADMIN'), async (req, 
  * Get all teams
  * GET /api/teams
  */
-router.get('/', authenticate, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { departmentId, includeInactive = 'false' } = req.query;
 
@@ -216,7 +221,7 @@ router.get('/', authenticate, async (req, res) => {
  * Create team (Admin/Manager only)
  * POST /api/teams
  */
-router.post('/', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res) => {
+router.post('/', authorize('ADMIN', 'MANAGER'), async (req, res) => {
   try {
     const { name, description, departmentId, managerId } = req.body;
 
@@ -258,7 +263,7 @@ router.post('/', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res) =
  * Update team (Admin/Manager only)
  * PUT /api/teams/:id
  */
-router.put('/:id', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res) => {
+router.put('/:id', authorize('ADMIN', 'MANAGER'), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, departmentId, managerId, isActive } = req.body;
@@ -298,7 +303,7 @@ router.put('/:id', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res)
  * Delete team (Admin only)
  * DELETE /api/teams/:id
  */
-router.delete('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
+router.delete('/:id', authorize('ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -334,7 +339,7 @@ router.delete('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
  * Assign user to team (Admin/Manager only)
  * POST /api/teams/:teamId/users/:userId
  */
-router.post('/:teamId/users/:userId', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res) => {
+router.post('/:teamId/users/:userId', authorize('ADMIN', 'MANAGER'), async (req, res) => {
   try {
     const { teamId, userId } = req.params;
 
@@ -367,7 +372,7 @@ router.post('/:teamId/users/:userId', authenticate, authorize('ADMIN', 'MANAGER'
  * Remove user from team (Admin/Manager only)
  * DELETE /api/teams/:teamId/users/:userId
  */
-router.delete('/:teamId/users/:userId', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res) => {
+router.delete('/:teamId/users/:userId', authorize('ADMIN', 'MANAGER'), async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -400,7 +405,7 @@ router.delete('/:teamId/users/:userId', authenticate, authorize('ADMIN', 'MANAGE
  * Get team members
  * GET /api/teams/:id/users
  */
-router.get('/:id/users', authenticate, async (req, res) => {
+router.get('/:id/users', async (req, res) => {
   try {
     const { id } = req.params;
 

@@ -5,6 +5,7 @@ const conversationStorage = require('../services/conversationStorage');
 const whatsappAIService = require('../services/ai/whatsappAI.service');
 const actionHandlerService = require('../services/ai/actionHandler.service');
 const { authenticate } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -29,10 +30,10 @@ router.post('/send', authenticate, async (req, res) => {
 
     if (contactId) {
       const contact = await prisma.contact.findFirst({
-        where: {
+        where: getTenantFilter(req, {
           id: contactId,
           userId
-        }
+        })
       });
 
       if (!contact) {
@@ -166,10 +167,10 @@ router.post('/send-template', authenticate, async (req, res) => {
 
     if (contactId) {
       const contact = await prisma.contact.findFirst({
-        where: {
+        where: getTenantFilter(req, {
           id: contactId,
           userId
-        }
+        })
       });
 
       if (!contact) {
@@ -392,7 +393,7 @@ router.get('/conversations', authenticate, async (req, res) => {
     const userId = req.user.id;
     const { search, limit = '50', offset = '0' } = req.query;
 
-    const where = { userId };
+    const where = getTenantFilter(req, { userId });
 
     // Add search filter if provided
     if (search) {
@@ -441,10 +442,10 @@ router.get('/conversations/:conversationId', authenticate, async (req, res) => {
     const { limit = '100', offset = '0' } = req.query;
 
     const conversation = await prisma.whatsAppConversation.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: conversationId,
         userId
-      },
+      }),
       include: {
         messages: {
           orderBy: { createdAt: 'desc' },
@@ -541,7 +542,7 @@ router.get('/search-contacts', authenticate, async (req, res) => {
     }
 
     const contacts = await prisma.contact.findMany({
-      where: {
+      where: getTenantFilter(req, {
         userId,
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
@@ -549,7 +550,7 @@ router.get('/search-contacts', authenticate, async (req, res) => {
           { whatsapp: { contains: query } },
           { company: { contains: query, mode: 'insensitive' } }
         ]
-      },
+      }),
       select: {
         id: true,
         name: true,
@@ -578,10 +579,10 @@ router.delete('/conversations/:conversationId', authenticate, async (req, res) =
     const { conversationId } = req.params;
 
     const conversation = await prisma.whatsAppConversation.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: conversationId,
         userId
-      }
+      })
     });
 
     if (!conversation) {
@@ -618,10 +619,10 @@ router.patch('/conversations/:conversationId/ai-toggle', authenticate, async (re
     }
 
     const conversation = await prisma.whatsAppConversation.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: conversationId,
         userId
-      }
+      })
     });
 
     if (!conversation) {

@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate, authorize } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const prisma = new PrismaClient();
 
 // Apply authentication to all routes
 router.use(authenticate);
+router.use(tenantContext);
 
 // GET all active pipeline stages for current user
 router.get('/', async (req, res) => {
@@ -196,13 +198,13 @@ router.delete('/:id', async (req, res) => {
 
     // Check if any deals are using this stage
     const dealsCount = await prisma.deal.count({
-      where: {
+      where: getTenantFilter(req, {
         OR: [
           { stageId: id },
           { stage: existingStage.slug }
         ],
         userId
-      }
+      })
     });
 
     if (dealsCount > 0) {

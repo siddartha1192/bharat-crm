@@ -3,10 +3,12 @@ const router = express.Router();
 const googleCalendarService = require('../services/googleCalendar');
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const prisma = new PrismaClient();
 
 // Apply authentication to all routes
 router.use(authenticate);
+router.use(tenantContext);
 
 // Get Google Calendar authorization URL
 router.get('/auth/url', (req, res) => {
@@ -120,11 +122,11 @@ router.get('/events', async (req, res) => {
 
     // Fetch from database
     const dbEvents = await prisma.calendarEvent.findMany({
-      where: {
+      where: getTenantFilter(req, {
         userId,
         ...(start && { startTime: { gte: new Date(start) } }),
         ...(end && { endTime: { lte: new Date(end) } })
-      },
+      }),
       orderBy: { startTime: 'asc' }
     });
 
@@ -257,10 +259,10 @@ router.put('/events/:eventId', async (req, res) => {
     const { title, description, startTime, endTime, location, attendees, isAllDay, color, reminders, syncWithGoogle } = req.body;
 
     const existingEvent = await prisma.calendarEvent.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: eventId,
         userId
-      }
+      })
     });
 
     if (!existingEvent) {
@@ -331,10 +333,10 @@ router.delete('/events/:eventId', async (req, res) => {
     const { eventId } = req.params;
 
     const event = await prisma.calendarEvent.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: eventId,
         userId
-      }
+      })
     });
 
     if (!event) {

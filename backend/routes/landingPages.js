@@ -2,7 +2,25 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const prisma = new PrismaClient();
+
+// Apply authentication and tenant context to authenticated routes
+router.use((req, res, next) => {
+  // Skip auth for public routes
+  if (req.path.startsWith('/public/')) {
+    return next();
+  }
+  authenticate(req, res, next);
+});
+
+router.use((req, res, next) => {
+  // Skip tenant context for public routes
+  if (req.path.startsWith('/public/')) {
+    return next();
+  }
+  tenantContext(req, res, next);
+});
 
 // Default landing page content structure
 const getDefaultContent = () => ({
@@ -115,10 +133,10 @@ const getDefaultTheme = () => ({
 });
 
 // GET all landing pages for authenticated user
-router.get('/', authenticate, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const pages = await prisma.landingPage.findMany({
-      where: { userId: req.user.id },
+      where: getTenantFilter(req, { userId: req.user.id }),
       include: {
         form: {
           select: {
@@ -139,13 +157,13 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // GET single landing page by ID
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const page = await prisma.landingPage.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId: req.user.id
-      },
+      }),
       include: {
         form: true
       }
@@ -163,7 +181,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // POST create new landing page
-router.post('/', authenticate, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const {
       name,
@@ -214,13 +232,13 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 // PUT update landing page
-router.put('/:id', authenticate, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const existingPage = await prisma.landingPage.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId: req.user.id
-      }
+      })
     });
 
     if (!existingPage) {
@@ -275,13 +293,13 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 // DELETE landing page
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const existingPage = await prisma.landingPage.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId: req.user.id
-      }
+      })
     });
 
     if (!existingPage) {
@@ -300,13 +318,13 @@ router.delete('/:id', authenticate, async (req, res) => {
 });
 
 // POST AI edit landing page
-router.post('/:id/ai-edit', authenticate, async (req, res) => {
+router.post('/:id/ai-edit', async (req, res) => {
   try {
     const page = await prisma.landingPage.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId: req.user.id
-      }
+      })
     });
 
     if (!page) {
@@ -422,13 +440,13 @@ router.get('/public/slug/:slug', async (req, res) => {
 });
 
 // GET landing page stats
-router.get('/:id/stats', authenticate, async (req, res) => {
+router.get('/:id/stats', async (req, res) => {
   try {
     const page = await prisma.landingPage.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId: req.user.id
-      },
+      }),
       include: {
         form: {
           include: {
@@ -462,13 +480,13 @@ router.get('/:id/stats', authenticate, async (req, res) => {
 });
 
 // POST duplicate landing page
-router.post('/:id/duplicate', authenticate, async (req, res) => {
+router.post('/:id/duplicate', async (req, res) => {
   try {
     const originalPage = await prisma.landingPage.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId: req.user.id
-      }
+      })
     });
 
     if (!originalPage) {

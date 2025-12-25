@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate, authorize, authorizeOwnerOrAdmin } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const prisma = new PrismaClient();
 
 // Apply authentication to all routes
 router.use(authenticate);
+router.use(tenantContext);
 
 // Helper function to check if user can access all invoices
 const canViewAllInvoices = (role) => {
@@ -29,7 +31,7 @@ router.get('/', async (req, res) => {
     const userId = req.user.id;
 
     // ADMIN and MANAGER can see all invoices, others see only their own
-    const where = canViewAllInvoices(req.user.role) ? {} : { userId };
+    const where = getTenantFilter(req, canViewAllInvoices(req.user.role) ? {} : { userId });
 
     if (status && status !== 'all') where.status = status;
 
@@ -53,10 +55,10 @@ router.get('/:id', async (req, res) => {
     const userId = req.user.id;
 
     const invoice = await prisma.invoice.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId
-      }
+      })
     });
 
     if (!invoice) {
@@ -212,17 +214,17 @@ router.get('/stats/summary', async (req, res) => {
     const userId = req.user.id;
 
     const [total, paid, pending, overdue] = await Promise.all([
-      prisma.invoice.count({ where: { userId } }),
+      prisma.invoice.count({ where: getTenantFilter(req, { userId }) }),
       prisma.invoice.aggregate({
-        where: { userId, status: 'paid' },
+        where: getTenantFilter(req, { userId, status: 'paid' }),
         _sum: { total: true }
       }),
       prisma.invoice.aggregate({
-        where: { userId, status: 'sent' },
+        where: getTenantFilter(req, { userId, status: 'sent' }),
         _sum: { total: true }
       }),
       prisma.invoice.aggregate({
-        where: { userId, status: 'overdue' },
+        where: getTenantFilter(req, { userId, status: 'overdue' }),
         _sum: { total: true }
       })
     ]);

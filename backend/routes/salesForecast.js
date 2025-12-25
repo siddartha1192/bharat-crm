@@ -1,14 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const salesForecastService = require('../services/salesForecast');
+
+// Apply authentication and tenant context to all routes
+router.use(authenticate);
+router.use(tenantContext);
 
 /**
  * Get sales forecast for a specific period
  * GET /api/forecast/calculate
  * Query params: period, startDate, endDate, userId (optional)
  */
-router.get('/calculate', authenticate, async (req, res) => {
+router.get('/calculate', async (req, res) => {
   try {
     const { period = 'monthly', startDate, endDate, userId } = req.query;
 
@@ -39,7 +44,7 @@ router.get('/calculate', authenticate, async (req, res) => {
  * Save forecast to database
  * POST /api/forecast/save
  */
-router.post('/save', authenticate, async (req, res) => {
+router.post('/save', async (req, res) => {
   try {
     const { forecastData } = req.body;
 
@@ -60,7 +65,7 @@ router.post('/save', authenticate, async (req, res) => {
  * GET /api/forecast/history
  * Query params: period, limit
  */
-router.get('/history', authenticate, async (req, res) => {
+router.get('/history', async (req, res) => {
   try {
     const { period = 'monthly', limit = 10, userId } = req.query;
 
@@ -87,7 +92,7 @@ router.get('/history', authenticate, async (req, res) => {
  * GET /api/forecast/trends
  * Query params: period, months
  */
-router.get('/trends', authenticate, async (req, res) => {
+router.get('/trends', async (req, res) => {
   try {
     const { period = 'monthly', months = 6, userId } = req.query;
 
@@ -113,7 +118,7 @@ router.get('/trends', authenticate, async (req, res) => {
  * Get pipeline health metrics
  * GET /api/forecast/pipeline-health
  */
-router.get('/pipeline-health', authenticate, async (req, res) => {
+router.get('/pipeline-health', async (req, res) => {
   try {
     const { userId } = req.query;
 
@@ -135,7 +140,7 @@ router.get('/pipeline-health', authenticate, async (req, res) => {
  * Get organization-wide forecast (admin/manager only)
  * GET /api/forecast/organization
  */
-router.get('/organization', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res) => {
+router.get('/organization', authorize('ADMIN', 'MANAGER'), async (req, res) => {
   try {
     const { period = 'monthly', startDate, endDate } = req.query;
 
@@ -162,7 +167,7 @@ router.get('/organization', authenticate, authorize('ADMIN', 'MANAGER'), async (
  * Create or update revenue goal
  * POST /api/forecast/revenue-goal
  */
-router.post('/revenue-goal', authenticate, async (req, res) => {
+router.post('/revenue-goal', async (req, res) => {
   try {
     const { goalData } = req.body;
 
@@ -184,7 +189,7 @@ router.post('/revenue-goal', authenticate, async (req, res) => {
  * Get revenue goals
  * GET /api/forecast/revenue-goals
  */
-router.get('/revenue-goals', authenticate, async (req, res) => {
+router.get('/revenue-goals', async (req, res) => {
   try {
     const { period, userId } = req.query;
 
@@ -206,7 +211,7 @@ router.get('/revenue-goals', authenticate, async (req, res) => {
  * Get active revenue goal
  * GET /api/forecast/revenue-goal/active
  */
-router.get('/revenue-goal/active', authenticate, async (req, res) => {
+router.get('/revenue-goal/active', async (req, res) => {
   try {
     const { period = 'monthly', userId } = req.query;
 
@@ -228,7 +233,7 @@ router.get('/revenue-goal/active', authenticate, async (req, res) => {
  * Delete revenue goal
  * DELETE /api/forecast/revenue-goal/:id
  */
-router.delete('/revenue-goal/:id', authenticate, async (req, res) => {
+router.delete('/revenue-goal/:id', async (req, res) => {
   try {
     const goalId = req.params.id;
 

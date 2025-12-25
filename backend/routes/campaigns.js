@@ -6,9 +6,11 @@ const express = require('express');
 const router = express.Router();
 const campaignService = require('../services/campaign');
 const { authenticate } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 
 // All routes require authentication
 router.use(authenticate);
+router.use(tenantContext);
 
 /**
  * GET /api/campaigns

@@ -3,25 +3,30 @@ const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
 const emailService = require('../services/email');
 const authService = require('../services/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
+
+// Apply tenant context middleware to all routes
+router.use(authenticate);
+router.use(tenantContext);
 
 /**
  * Send email to lead
  * POST /api/emails/lead/:leadId
  */
-router.post('/lead/:leadId', authenticate, async (req, res) => {
+router.post('/lead/:leadId', async (req, res) => {
   try {
     const { leadId } = req.params;
     const { subject, text, html, cc, bcc, attachments } = req.body;
 
     // Get lead details
     const lead = await prisma.lead.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: leadId,
         userId: req.user.id,
-      },
+      }),
     });
 
     if (!lead) {
@@ -66,17 +71,17 @@ router.post('/lead/:leadId', authenticate, async (req, res) => {
  * Send email to contact
  * POST /api/emails/contact/:contactId
  */
-router.post('/contact/:contactId', authenticate, async (req, res) => {
+router.post('/contact/:contactId', async (req, res) => {
   try {
     const { contactId } = req.params;
     const { subject, text, html, cc, bcc, attachments } = req.body;
 
     // Get contact details
     const contact = await prisma.contact.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: contactId,
         userId: req.user.id,
-      },
+      }),
     });
 
     if (!contact) {
@@ -121,17 +126,17 @@ router.post('/contact/:contactId', authenticate, async (req, res) => {
  * Send email to deal
  * POST /api/emails/deal/:dealId
  */
-router.post('/deal/:dealId', authenticate, async (req, res) => {
+router.post('/deal/:dealId', async (req, res) => {
   try {
     const { dealId } = req.params;
     const { to, subject, text, html, cc, bcc, attachments } = req.body;
 
     // Get deal details
     const deal = await prisma.deal.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: dealId,
         userId: req.user.id,
-      },
+      }),
     });
 
     if (!deal) {
@@ -176,7 +181,7 @@ router.post('/deal/:dealId', authenticate, async (req, res) => {
  * Send manual/custom email
  * POST /api/emails/send
  */
-router.post('/send', authenticate, async (req, res) => {
+router.post('/send', async (req, res) => {
   try {
     const { to, subject, text, html, cc, bcc, attachments } = req.body;
 
@@ -217,7 +222,7 @@ router.post('/send', authenticate, async (req, res) => {
  * Get email logs
  * GET /api/emails
  */
-router.get('/', authenticate, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { status, entityType, limit = 50, offset = 0 } = req.query;
 
@@ -240,7 +245,7 @@ router.get('/', authenticate, async (req, res) => {
  * Get email log by ID
  * GET /api/emails/:id
  */
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -261,7 +266,7 @@ router.get('/:id', authenticate, async (req, res) => {
  * Get email stats
  * GET /api/emails/stats/summary
  */
-router.get('/stats/summary', authenticate, async (req, res) => {
+router.get('/stats/summary', async (req, res) => {
   try {
     const stats = await emailService.getEmailStats(req.user.id);
     res.json(stats);
@@ -275,16 +280,16 @@ router.get('/stats/summary', authenticate, async (req, res) => {
  * Delete email log
  * DELETE /api/emails/:id
  */
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
     // Check if email belongs to user
     const emailLog = await prisma.emailLog.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id,
         userId: req.user.id,
-      },
+      }),
     });
 
     if (!emailLog) {
@@ -316,7 +321,7 @@ router.delete('/:id', authenticate, async (req, res) => {
  * Check for new email replies
  * POST /api/emails/check-replies
  */
-router.post('/check-replies', authenticate, async (req, res) => {
+router.post('/check-replies', async (req, res) => {
   try {
     const result = await emailService.checkForReplies(req.user.id);
 
@@ -340,7 +345,7 @@ router.post('/check-replies', authenticate, async (req, res) => {
  * Get email with replies
  * GET /api/emails/:id/replies
  */
-router.get('/:id/replies', authenticate, async (req, res) => {
+router.get('/:id/replies', async (req, res) => {
   try {
     const { id } = req.params;
 

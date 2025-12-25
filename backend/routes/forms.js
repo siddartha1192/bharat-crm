@@ -2,13 +2,31 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const prisma = new PrismaClient();
 
+// Apply authentication and tenant context to authenticated routes
+router.use((req, res, next) => {
+  // Skip auth for public routes
+  if (req.path.startsWith('/public/')) {
+    return next();
+  }
+  authenticate(req, res, next);
+});
+
+router.use((req, res, next) => {
+  // Skip tenant context for public routes
+  if (req.path.startsWith('/public/')) {
+    return next();
+  }
+  tenantContext(req, res, next);
+});
+
 // GET all forms for authenticated user
-router.get('/', authenticate, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const forms = await prisma.form.findMany({
-      where: { userId: req.user.id },
+      where: getTenantFilter(req, { userId: req.user.id }),
       include: {
         _count: {
           select: { submissions: true }
@@ -25,13 +43,13 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // GET single form by ID
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const form = await prisma.form.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId: req.user.id
-      },
+      }),
       include: {
         _count: {
           select: { submissions: true }
@@ -51,7 +69,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // POST create new form
-router.post('/', authenticate, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const {
       name,
@@ -106,13 +124,13 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 // PUT update form
-router.put('/:id', authenticate, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const existingForm = await prisma.form.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId: req.user.id
-      }
+      })
     });
 
     if (!existingForm) {
@@ -163,13 +181,13 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 // DELETE form
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const existingForm = await prisma.form.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId: req.user.id
-      }
+      })
     });
 
     if (!existingForm) {
@@ -188,13 +206,13 @@ router.delete('/:id', authenticate, async (req, res) => {
 });
 
 // GET form submissions
-router.get('/:id/submissions', authenticate, async (req, res) => {
+router.get('/:id/submissions', async (req, res) => {
   try {
     const form = await prisma.form.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId: req.user.id
-      }
+      })
     });
 
     if (!form) {
@@ -439,13 +457,13 @@ router.post('/public/submit/:slug', async (req, res) => {
 });
 
 // GET form stats
-router.get('/:id/stats', authenticate, async (req, res) => {
+router.get('/:id/stats', async (req, res) => {
   try {
     const form = await prisma.form.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         userId: req.user.id
-      }
+      })
     });
 
     if (!form) {

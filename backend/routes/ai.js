@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const portalAIService = require('../services/ai/portalAI.service');
 const whatsappAIService = require('../services/ai/whatsappAI.service');
 const vectorDBService = require('../services/ai/vectorDB.service');
 
 // Apply authentication to all AI routes
 router.use(authenticate);
+router.use(tenantContext);
 
 /**
  * Portal AI Chat - Ask anything about the CRM
