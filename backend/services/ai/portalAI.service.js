@@ -178,9 +178,10 @@ Remember: Use your functions! You have direct database access - use it to provid
   /**
    * Get or create user's AI conversation
    * @param {string} userId - User ID
+   * @param {string} tenantId - Tenant ID
    * @returns {Object} AI conversation with messages
    */
-  async getOrCreateConversation(userId) {
+  async getOrCreateConversation(userId, tenantId) {
     try {
       // Try to find existing conversation
       let conversation = await prisma.aIConversation.findFirst({
@@ -198,6 +199,7 @@ Remember: Use your functions! You have direct database access - use it to provid
         conversation = await prisma.aIConversation.create({
           data: {
             userId,
+            tenantId,
             messageCount: 0,
           },
           include: {
@@ -345,10 +347,11 @@ Summary:`;
    * Process chat message in Portal with function calling and persistent memory
    * @param {string} userMessage - User's message
    * @param {string} userId - User ID
+   * @param {string} tenantId - Tenant ID
    * @param {Array} conversationHistory - Deprecated: Previous messages (now loaded from DB)
    * @returns {Object} AI response with optional data
    */
-  async processMessage(userMessage, userId, conversationHistory = []) {
+  async processMessage(userMessage, userId, tenantId, conversationHistory = []) {
     await this.initialize();
 
     try {
@@ -357,7 +360,7 @@ Summary:`;
       console.log(`Query: "${userMessage}"`);
 
       // Get or create conversation with persistent memory
-      const conversation = await this.getOrCreateConversation(userId);
+      const conversation = await this.getOrCreateConversation(userId, tenantId);
       console.log(`💬 Loaded conversation ${conversation.id} (${conversation.messageCount} total messages)`);
 
       // Get database stats for context

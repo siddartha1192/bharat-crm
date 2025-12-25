@@ -21,11 +21,12 @@ class CampaignService {
   /**
    * Create a new campaign
    */
-  async createCampaign(userId, campaignData) {
+  async createCampaign(userId, campaignData, tenantId) {
     try {
       const campaign = await prisma.campaign.create({
         data: {
           userId,
+          tenantId,
           name: campaignData.name,
           description: campaignData.description || null,
           channel: campaignData.channel, // 'email' | 'whatsapp'
@@ -305,6 +306,7 @@ class CampaignService {
       const recipient = await prisma.campaignRecipient.create({
         data: {
           campaignId,
+          tenantId: campaign.tenantId,
           ...recipientData,
           status: 'pending',
         },
@@ -1066,9 +1068,21 @@ class CampaignService {
    */
   async logCampaignAction(campaignId, action, message, metadata = null) {
     try {
+      // Get campaign to retrieve tenantId
+      const campaign = await prisma.campaign.findUnique({
+        where: { id: campaignId },
+        select: { tenantId: true }
+      });
+
+      if (!campaign) {
+        console.error('Campaign not found for logging');
+        return;
+      }
+
       await prisma.campaignLog.create({
         data: {
           campaignId,
+          tenantId: campaign.tenantId,
           action,
           message,
           metadata,

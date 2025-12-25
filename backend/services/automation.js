@@ -260,6 +260,7 @@ async function executeTaskAction(rule, data, user) {
         assignedTo: data.assignedTo || user.name,
         createdBy: user.id,
         userId: user.id,
+        tenantId: user.tenantId,
         tags: actionConfig.tags || []
       }
     });
@@ -297,7 +298,7 @@ async function executeAssignAction(rule, data, user) {
 /**
  * Create or update automation rule
  */
-async function saveAutomationRule(userId, ruleData) {
+async function saveAutomationRule(userId, ruleData, tenantId) {
   try {
     // Helper to convert empty strings to null
     const sanitizeField = (value) => {
@@ -334,6 +335,7 @@ async function saveAutomationRule(userId, ruleData) {
       return await prisma.automationRule.create({
         data: {
           userId,
+          tenantId,
           ...cleanData
         }
       });
