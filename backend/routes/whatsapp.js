@@ -825,7 +825,7 @@ async function processIncomingMessage(message, value) {
       },
       include: {
         user: {
-          select: { id: true, name: true }
+          select: { id: true, name: true, tenantId: true }
         }
       }
     });
@@ -843,7 +843,7 @@ async function processIncomingMessage(message, value) {
         },
         include: {
           user: {
-            select: { id: true, name: true }
+            select: { id: true, name: true, tenantId: true }
           }
         }
       });
