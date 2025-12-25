@@ -2,18 +2,23 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const { uploadDocument, deleteFile, formatFileSize } = require('../middleware/upload');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { PrismaClient } = require('@prisma/client');
 const path = require('path');
 const fs = require('fs');
 
 const prisma = new PrismaClient();
 
+// Apply authentication and tenant context to all routes
+router.use(authenticate);
+router.use(tenantContext);
+
 /**
  * Upload document for entity (Lead, Contact, Deal, Task)
  * POST /api/documents/upload
  * FormData: file, entityType, entityId, description, tags
  */
-router.post('/upload', authenticate, uploadDocument.single('file'), async (req, res) => {
+router.post('/upload', uploadDocument.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -68,7 +73,7 @@ router.post('/upload', authenticate, uploadDocument.single('file'), async (req, 
  * Get documents for entity
  * GET /api/documents/:entityType/:entityId
  */
-router.get('/:entityType/:entityId', authenticate, async (req, res) => {
+router.get('/:entityType/:entityId', async (req, res) => {
   try {
     const { entityType, entityId } = req.params;
 
@@ -108,7 +113,7 @@ router.get('/:entityType/:entityId', authenticate, async (req, res) => {
  * Download document
  * GET /api/documents/download/:id
  */
-router.get('/download/:id', authenticate, async (req, res) => {
+router.get('/download/:id', async (req, res) => {
   try {
     const document = await prisma.document.findUnique({
       where: { id: req.params.id }
@@ -135,7 +140,7 @@ router.get('/download/:id', authenticate, async (req, res) => {
  * Delete document
  * DELETE /api/documents/:id
  */
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const document = await prisma.document.findUnique({
       where: { id: req.params.id }
@@ -169,7 +174,7 @@ router.delete('/:id', authenticate, async (req, res) => {
  * Update document metadata
  * PATCH /api/documents/:id
  */
-router.patch('/:id', authenticate, async (req, res) => {
+router.patch('/:id', async (req, res) => {
   try {
     const { description, tags } = req.body;
 

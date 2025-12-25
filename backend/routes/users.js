@@ -2,9 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const emailService = require('../services/email');
 
 const prisma = new PrismaClient();
+
+// Apply authentication and tenant context to all routes
+router.use(authenticate);
+router.use(tenantContext);
 
 // Middleware to check if user has specific permission
 const hasPermission = (requiredRole) => {
@@ -40,7 +45,7 @@ const hasPermission = (requiredRole) => {
 };
 
 // GET /api/users - Get all users (requires at least MANAGER role)
-router.get('/', authenticate, hasPermission('MANAGER'), async (req, res) => {
+router.get('/', hasPermission('MANAGER'), async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       select: {
@@ -66,7 +71,7 @@ router.get('/', authenticate, hasPermission('MANAGER'), async (req, res) => {
 
 // GET /api/users/assignable - Get list of users that current user can assign to
 // IMPORTANT: This route must come BEFORE /:id to avoid matching "assignable" as an ID
-router.get('/assignable', authenticate, async (req, res) => {
+router.get('/assignable', async (req, res) => {
   try {
     const { getAssignableUsers } = require('../middleware/assignment');
 
@@ -80,7 +85,7 @@ router.get('/assignable', authenticate, async (req, res) => {
 });
 
 // GET /api/users/:id - Get user by ID
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -128,7 +133,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // POST /api/users - Create new user (ADMIN only)
-router.post('/', authenticate, hasPermission('ADMIN'), async (req, res) => {
+router.post('/', hasPermission('ADMIN'), async (req, res) => {
   try {
     const { name, email, role } = req.body;
     const adminId = req.user.id;
@@ -319,7 +324,7 @@ function getRoleDescriptionText(role) {
 }
 
 // PUT /api/users/:id/role - Update user role (ADMIN only)
-router.put('/:id/role', authenticate, hasPermission('ADMIN'), async (req, res) => {
+router.put('/:id/role', hasPermission('ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     const { role } = req.body;
@@ -370,7 +375,7 @@ router.put('/:id/role', authenticate, hasPermission('ADMIN'), async (req, res) =
 });
 
 // PUT /api/users/:id/status - Update user active status (ADMIN only)
-router.put('/:id/status', authenticate, hasPermission('ADMIN'), async (req, res) => {
+router.put('/:id/status', hasPermission('ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     const { isActive } = req.body;
@@ -420,7 +425,7 @@ router.put('/:id/status', authenticate, hasPermission('ADMIN'), async (req, res)
 });
 
 // PUT /api/users/:id - Update user profile
-router.put('/:id', authenticate, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { name, email } = req.body;
@@ -476,7 +481,7 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 // DELETE /api/users/:id - Delete user (ADMIN only)
-router.delete('/:id', authenticate, hasPermission('ADMIN'), async (req, res) => {
+router.delete('/:id', hasPermission('ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
 

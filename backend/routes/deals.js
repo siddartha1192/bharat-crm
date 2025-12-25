@@ -4,6 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const automationService = require('../services/automation');
 const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const prisma = new PrismaClient();
 
 // Helper function: Map deal stage to lead status
@@ -21,6 +22,7 @@ function mapDealStageToLeadStatus(dealStage) {
 
 // Apply authentication to all routes
 router.use(authenticate);
+router.use(tenantContext);
 
 // GET all deals (with role-based visibility, pagination, and advanced filtering)
 router.get('/', async (req, res) => {
@@ -39,7 +41,7 @@ router.get('/', async (req, res) => {
     const visibilityFilter = await getVisibilityFilter(req.user);
 
     // Build where clause
-    const where = { ...visibilityFilter };
+    const where = getTenantFilter(req, { ...visibilityFilter });
 
     // Apply filters
     if (stage && stage !== 'all') where.stage = stage;
@@ -108,10 +110,10 @@ router.get('/:id', async (req, res) => {
     const visibilityFilter = await getVisibilityFilter(req.user);
 
     const deal = await prisma.deal.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         ...visibilityFilter
-      }
+      })
     });
 
     if (!deal) {
@@ -176,10 +178,10 @@ router.put('/:id', async (req, res) => {
 
     // First verify the deal is visible to the user
     const existingDeal = await prisma.deal.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         ...visibilityFilter
-      }
+      })
     });
 
     if (!existingDeal) {
@@ -340,10 +342,10 @@ router.delete('/:id', async (req, res) => {
 
     // First verify the deal is visible to the user
     const existingDeal = await prisma.deal.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         ...visibilityFilter
-      }
+      })
     });
 
     if (!existingDeal) {

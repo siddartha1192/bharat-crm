@@ -2,11 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
 const prisma = new PrismaClient();
 
-// Apply authentication to all routes
+// Apply authentication and tenant context to all routes
 router.use(authenticate);
+router.use(tenantContext);
 
 // Helper function to transform contact data
 const transformContactForFrontend = (contact) => {
@@ -40,8 +42,8 @@ router.get('/', async (req, res) => {
     // Get role-based visibility filter
     const visibilityFilter = await getVisibilityFilter(req.user);
 
-    // Build where clause
-    const where = { ...visibilityFilter };
+    // Build where clause with tenant filtering
+    const where = getTenantFilter(req, { ...visibilityFilter });
 
     // Apply filters
     if (type && type !== 'all') where.type = type;

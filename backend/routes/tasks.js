@@ -3,10 +3,12 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
+const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const prisma = new PrismaClient();
 
 // Apply authentication to all routes
 router.use(authenticate);
+router.use(tenantContext);
 
 // GET all tasks (with role-based visibility, pagination, and advanced filtering)
 router.get('/', async (req, res) => {
@@ -27,7 +29,7 @@ router.get('/', async (req, res) => {
     const visibilityFilter = await getVisibilityFilter(req.user);
 
     // Build where clause
-    const where = { ...visibilityFilter };
+    const where = getTenantFilter(req, { ...visibilityFilter });
 
     // Apply filters
     if (status && status !== 'all') where.status = status;
@@ -92,10 +94,10 @@ router.get('/:id', async (req, res) => {
     const visibilityFilter = await getVisibilityFilter(req.user);
 
     const task = await prisma.task.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         ...visibilityFilter
-      }
+      })
     });
 
     if (!task) {
@@ -150,10 +152,10 @@ router.put('/:id', async (req, res) => {
 
     // First verify the task is visible to the user
     const existingTask = await prisma.task.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         ...visibilityFilter
-      }
+      })
     });
 
     if (!existingTask) {
@@ -196,10 +198,10 @@ router.delete('/:id', async (req, res) => {
 
     // First verify the task is visible to the user
     const existingTask = await prisma.task.findFirst({
-      where: {
+      where: getTenantFilter(req, {
         id: req.params.id,
         ...visibilityFilter
-      }
+      })
     });
 
     if (!existingTask) {
