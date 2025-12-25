@@ -98,6 +98,7 @@ router.post('/', authorize('AGENT', 'MANAGER', 'ADMIN'), async (req, res) => {
     const data = {
       ...invoiceData,
       userId,
+      tenantId: req.tenant.id,
       customerGST: customerGSTIN || '',
       companyGST: companyGSTIN || '',
       customerPhone: invoiceData.customerPhone || '',
@@ -133,9 +134,9 @@ router.put('/:id', authorize('AGENT', 'MANAGER', 'ADMIN'), async (req, res) => {
     const userId = req.user.id;
 
     // ADMIN and MANAGER can update any invoice, AGENT can only update their own
-    const where = canViewAllInvoices(req.user.role)
+    const where = getTenantFilter(req, canViewAllInvoices(req.user.role)
       ? { id: req.params.id }
-      : { id: req.params.id, userId };
+      : { id: req.params.id, userId });
 
     const existingInvoice = await prisma.invoice.findFirst({ where });
 
@@ -190,7 +191,7 @@ router.delete('/:id', authorize('MANAGER', 'ADMIN'), async (req, res) => {
   try {
     // ADMIN and MANAGER can delete any invoice
     const existingInvoice = await prisma.invoice.findFirst({
-      where: { id: req.params.id }
+      where: getTenantFilter(req, { id: req.params.id })
     });
 
     if (!existingInvoice) {

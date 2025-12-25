@@ -112,7 +112,8 @@ router.post('/', async (req, res) => {
         autoAssignTo,
         requireEmail: requireEmail !== false,
         requirePhone: requirePhone || false,
-        userId: req.user.id
+        userId: req.user.id,
+        tenantId: req.tenant.id
       }
     });
 
@@ -330,6 +331,7 @@ router.post('/public/submit/:slug', async (req, res) => {
     const submission = await prisma.formSubmission.create({
       data: {
         formId: form.id,
+        tenantId: form.tenantId,
         data,
         name,
         email,
@@ -402,14 +404,16 @@ router.post('/public/submit/:slug', async (req, res) => {
               createdBy: form.userId,
               notes: leadData.notes,
               tags: leadData.tags,
-              userId: form.userId
+              userId: form.userId,
+              tenantId: form.tenantId
             }
           });
 
           const lead = await tx.lead.create({
             data: {
               ...leadData,
-              dealId: deal.id
+              dealId: deal.id,
+              tenantId: form.tenantId
             }
           });
 

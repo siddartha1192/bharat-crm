@@ -106,7 +106,8 @@ router.post('/', async (req, res) => {
         color: color || 'blue',
         order: stageOrder,
         isDefault: false,
-        userId
+        userId,
+        tenantId: req.tenant.id
       }
     });
 
