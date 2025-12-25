@@ -155,7 +155,8 @@ router.post('/upload', authorize('ADMIN', 'MANAGER'), (req, res) => {
           filePath: req.file.path,
           status: 'pending',
           uploadedBy: req.user.id,
-          userId: req.user.id
+          userId: req.user.id,
+          tenantId: req.tenant.id
         }
       });
 

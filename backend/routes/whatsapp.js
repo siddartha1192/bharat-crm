@@ -85,6 +85,7 @@ router.post('/send', async (req, res) => {
       conversation = await prisma.whatsAppConversation.create({
         data: {
           userId,
+          tenantId: req.tenant.id,
           contactName,
           contactPhone: recipientPhone,
           contactId: contactId || null,
@@ -108,6 +109,7 @@ router.post('/send', async (req, res) => {
     const savedMessage = await prisma.whatsAppMessage.create({
       data: {
         conversationId: conversation.id,
+        tenantId: req.tenant.id,
         message,
         sender: 'user',
         senderName: user?.name || 'User',
@@ -281,6 +283,7 @@ router.post('/bulk-send', async (req, res) => {
           conversation = await prisma.whatsAppConversation.create({
             data: {
               userId,
+              tenantId: req.tenant.id,
               contactName,
               contactPhone: phone,
               contactId: contactId || null,
@@ -304,6 +307,7 @@ router.post('/bulk-send', async (req, res) => {
         const savedMessage = await prisma.whatsAppMessage.create({
           data: {
             conversationId: conversation.id,
+            tenantId: req.tenant.id,
             message,
             sender: 'user',
             senderName: user?.name || 'User',
@@ -514,6 +518,7 @@ router.post('/conversations/start', async (req, res) => {
       conversation = await prisma.whatsAppConversation.create({
         data: {
           userId,
+          tenantId: req.tenant.id,
           contactName: contactName || contactPhone,
           contactPhone,
           contactId: contactId || null,
@@ -840,6 +845,7 @@ async function processIncomingMessage(message, value) {
         const conversation = await prisma.whatsAppConversation.create({
           data: {
             userId: contact.userId,
+            tenantId: contact.user.tenantId,
             contactName: contactName,
             contactPhone: fromPhone,
             contactId: contact.id,
@@ -854,6 +860,7 @@ async function processIncomingMessage(message, value) {
         const savedMessage = await prisma.whatsAppMessage.create({
           data: {
             conversationId: conversation.id,
+            tenantId: contact.user.tenantId,
             message: messageText,
             sender: 'contact',
             senderName: contactName,
@@ -948,6 +955,7 @@ async function processIncomingMessage(message, value) {
               const aiMessage = await prisma.whatsAppMessage.create({
                 data: {
                   conversationId: conversation.id,
+                  tenantId: contact.user.tenantId,
                   message: messageToSend,
                   sender: 'ai',
                   senderName: 'AI Assistant',
@@ -1009,6 +1017,7 @@ async function processIncomingMessage(message, value) {
         const savedMessage = await prisma.whatsAppMessage.create({
           data: {
             conversationId: conversation.id,
+            tenantId: conversation.tenantId,
             message: messageText,
             sender: 'contact',
             senderName: contactName,
@@ -1103,6 +1112,7 @@ async function processIncomingMessage(message, value) {
               const aiMessage = await prisma.whatsAppMessage.create({
                 data: {
                   conversationId: conversation.id,
+                  tenantId: contact.user.tenantId,
                   message: messageToSend,
                   sender: 'ai',
                   senderName: 'AI Assistant',

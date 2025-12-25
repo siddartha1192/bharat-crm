@@ -145,6 +145,7 @@ router.post('/', validateAssignment, async (req, res) => {
       assignedTo,
       createdBy,
       userId,
+      tenantId: req.tenant.id,
       notes: dealData.notes || '',
       tags: dealData.tags || [],
     };

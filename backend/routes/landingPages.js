@@ -217,7 +217,8 @@ router.post('/', async (req, res) => {
         headScripts,
         bodyScripts,
         isPublished: false,
-        userId: req.user.id
+        userId: req.user.id,
+        tenantId: req.tenant.id
       },
       include: {
         form: true
@@ -515,7 +516,8 @@ router.post('/:id/duplicate', async (req, res) => {
         bodyScripts: originalPage.bodyScripts,
         formId: originalPage.formId,
         isPublished: false,
-        userId: req.user.id
+        userId: req.user.id,
+        tenantId: req.tenant.id
       },
       include: {
         form: true

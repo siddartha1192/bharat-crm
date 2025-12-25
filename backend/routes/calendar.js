@@ -145,7 +145,7 @@ router.get('/events', async (req, res) => {
         // Sync Google events to database
         for (const gEvent of googleEvents) {
           const existingEvent = await prisma.calendarEvent.findFirst({
-            where: { googleEventId: gEvent.id }
+            where: getTenantFilter(req, { googleEventId: gEvent.id })
           });
 
           if (!existingEvent) {
@@ -153,6 +153,7 @@ router.get('/events', async (req, res) => {
             const newEvent = await prisma.calendarEvent.create({
               data: {
                 userId,
+                tenantId: req.tenant.id,
                 title: gEvent.summary || 'Untitled Event',
                 description: gEvent.description || '',
                 startTime: new Date(gEvent.start?.dateTime || gEvent.start?.date),
@@ -231,6 +232,7 @@ router.post('/events', async (req, res) => {
     const event = await prisma.calendarEvent.create({
       data: {
         userId,
+        tenantId: req.tenant.id,
         title,
         description: description || '',
         startTime: new Date(startTime),

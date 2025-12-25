@@ -46,6 +46,7 @@ router.post('/upload', uploadDocument.single('file'), async (req, res) => {
         description: description || null,
         uploadedBy: req.user.id,
         userId: req.user.id,
+        tenantId: req.tenant.id,
         tags: tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : []
       }
     });

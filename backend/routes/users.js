@@ -164,6 +164,7 @@ router.post('/', hasPermission('ADMIN'), async (req, res) => {
         name,
         email,
         role,
+        tenantId: req.tenant.id,
         isActive: true,
         password: null, // No password initially
       },

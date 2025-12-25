@@ -76,6 +76,7 @@ router.post('/departments', authorize('ADMIN', 'MANAGER'), async (req, res) => {
         name,
         description,
         managerId,
+        tenantId: req.tenant.id,
         isActive: true,
       },
       include: {
@@ -235,6 +236,7 @@ router.post('/', authorize('ADMIN', 'MANAGER'), async (req, res) => {
         description,
         departmentId,
         managerId,
+        tenantId: req.tenant.id,
         isActive: true,
       },
       include: {
