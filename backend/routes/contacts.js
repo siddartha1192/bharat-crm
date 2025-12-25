@@ -151,6 +151,7 @@ router.post('/', validateAssignment, async (req, res) => {
       assignedTo,
       createdBy,
       userId,
+      tenantId: req.tenant.id,
       addressStreet: address?.street || '',
       addressCity: address?.city || '',
       addressState: address?.state || '',

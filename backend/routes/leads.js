@@ -186,7 +186,8 @@ router.post('/', validateAssignment, async (req, res) => {
           createdBy,
           notes: leadData.notes || '',
           tags: leadData.tags || [],
-          userId
+          userId,
+          tenantId: req.tenant.id
         }
       });
 
@@ -197,6 +198,7 @@ router.post('/', validateAssignment, async (req, res) => {
           assignedTo,
           createdBy,
           userId,
+          tenantId: req.tenant.id,
           dealId: deal.id
         }
       });
@@ -511,6 +513,7 @@ router.post('/:id/documents/upload', async (req, res) => {
           description: description || null,
           uploadedBy: userId,
           userId,
+          tenantId: req.tenant.id,
           tags: tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : []
         }
       });
@@ -697,7 +700,8 @@ router.post('/import', async (req, res) => {
                 createdBy: userId,
                 notes: lead.notes,
                 tags: lead.tags,
-                userId: lead.userId
+                userId: lead.userId,
+                tenantId: req.tenant.id
               }
             });
 
@@ -717,6 +721,7 @@ router.post('/import', async (req, res) => {
                 createdBy: userId,
                 tags: lead.tags,
                 userId: lead.userId,
+                tenantId: req.tenant.id,
                 dealId: deal.id  // Link to the created deal
               }
             });
