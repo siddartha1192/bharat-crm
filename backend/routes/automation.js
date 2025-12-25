@@ -29,7 +29,7 @@ router.get('/rules', async (req, res) => {
 router.post('/rules', async (req, res) => {
   try {
     const ruleData = req.body;
-    const rule = await automationService.saveAutomationRule(req.user.id, ruleData);
+    const rule = await automationService.saveAutomationRule(req.user.id, ruleData, req.tenant.id);
     res.json(rule);
   } catch (error) {
     console.error('Error creating automation rule:', error);
@@ -44,7 +44,7 @@ router.post('/rules', async (req, res) => {
 router.put('/rules/:id', async (req, res) => {
   try {
     const ruleData = { ...req.body, id: req.params.id };
-    const rule = await automationService.saveAutomationRule(req.user.id, ruleData);
+    const rule = await automationService.saveAutomationRule(req.user.id, ruleData, req.tenant.id);
     res.json(rule);
   } catch (error) {
     console.error('Error updating automation rule:', error);

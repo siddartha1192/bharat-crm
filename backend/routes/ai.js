@@ -28,6 +28,7 @@ router.post('/chat', async (req, res) => {
     const response = await portalAIService.processMessage(
       message,
       userId,
+      req.user.tenantId,
       conversationHistory || []
     );
 

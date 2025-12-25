@@ -72,7 +72,7 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const campaign = await campaignService.createCampaign(userId, campaignData);
+    const campaign = await campaignService.createCampaign(userId, campaignData, req.tenant.id);
 
     res.status(201).json({
       success: true,

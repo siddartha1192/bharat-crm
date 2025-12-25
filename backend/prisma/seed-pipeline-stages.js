@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function seedPipelineStages() {
-  console.log('🌱 Seeding default pipeline stages...');
+  console.log('🌱 Seeding default pipeline stages for all tenants...');
 
   const defaultStages = [
     { name: 'Lead', slug: 'lead', color: 'blue', order: 1 },
@@ -14,34 +14,52 @@ async function seedPipelineStages() {
   ];
 
   try {
-    for (const stage of defaultStages) {
-      // Check if stage already exists
-      const existing = await prisma.pipelineStage.findFirst({
-        where: {
-          isDefault: true,
-          userId: null,
-          slug: stage.slug
-        }
-      });
+    // Get all tenants
+    const tenants = await prisma.tenant.findMany({
+      select: { id: true, name: true }
+    });
 
-      if (existing) {
-        console.log(`✓ Default stage "${stage.name}" already exists`);
-        continue;
-      }
-
-      // Create default stage
-      await prisma.pipelineStage.create({
-        data: {
-          ...stage,
-          isDefault: true,
-          isActive: true,
-          userId: null // System-wide default
-        }
-      });
-      console.log(`✓ Created default stage: ${stage.name}`);
+    if (tenants.length === 0) {
+      console.log('⚠️  No tenants found. Please create a tenant first.');
+      return;
     }
 
-    console.log('✅ Default pipeline stages seeded successfully!');
+    console.log(`Found ${tenants.length} tenant(s)`);
+
+    // Create default stages for each tenant
+    for (const tenant of tenants) {
+      console.log(`\n📋 Creating stages for tenant: ${tenant.name}`);
+
+      for (const stage of defaultStages) {
+        // Check if stage already exists for this tenant
+        const existing = await prisma.pipelineStage.findFirst({
+          where: {
+            tenantId: tenant.id,
+            slug: stage.slug,
+            userId: null // System default for tenant
+          }
+        });
+
+        if (existing) {
+          console.log(`  ✓ Stage "${stage.name}" already exists`);
+          continue;
+        }
+
+        // Create default stage for this tenant
+        await prisma.pipelineStage.create({
+          data: {
+            ...stage,
+            isDefault: true,
+            isActive: true,
+            userId: null, // System default for this tenant
+            tenantId: tenant.id
+          }
+        });
+        console.log(`  ✓ Created stage: ${stage.name}`);
+      }
+    }
+
+    console.log('\n✅ Default pipeline stages seeded successfully for all tenants!');
   } catch (error) {
     console.error('❌ Error seeding pipeline stages:', error);
     throw error;
