@@ -97,34 +97,79 @@ class AuthService {
 
   /**
    * Register new user with email/password (tenant-aware)
+   * If tenantId is not provided, auto-creates a new tenant for the user
    */
   async register(data) {
     const { email, password, name, company, role = 'AGENT', tenantId } = data;
 
-    // Validate tenantId is provided
+    let finalTenantId = tenantId;
+    let finalRole = role;
+    let finalCompany = company;
+
+    // If no tenantId provided, auto-create a new tenant
     if (!tenantId) {
-      throw new Error('Tenant ID is required for registration');
-    }
+      // Check if user with this email already exists in any tenant
+      const existingUser = await prisma.user.findFirst({
+        where: { email }
+      });
 
-    // Verify tenant exists
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
-    });
+      if (existingUser) {
+        throw new Error('User with this email already exists. Please login or use a different email.');
+      }
 
-    if (!tenant) {
-      throw new Error('Invalid tenant');
-    }
+      // Auto-create tenant for new signup
+      const tenantSlug = `${email.split('@')[0]}-${crypto.randomBytes(3).toString('hex')}`;
+      const newTenant = await prisma.tenant.create({
+        data: {
+          name: company || `${name}'s Organization`,
+          slug: tenantSlug,
+          contactEmail: email,
+          status: 'TRIAL',
+          plan: 'FREE',
+          maxUsers: 5,
+          subscriptionStart: new Date(),
+          subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+          settings: {
+            branding: {
+              primaryColor: '#3b82f6',
+              logoUrl: null
+            },
+            features: {
+              whatsapp: true,
+              email: true,
+              ai: true,
+              calendar: true
+            }
+          }
+        }
+      });
 
-    // Check if user exists in this tenant
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        email,
-        tenantId
-      },
-    });
+      finalTenantId = newTenant.id;
+      finalRole = 'ADMIN'; // First user is admin of their tenant
+      finalCompany = newTenant.name;
+    } else {
+      // Verify tenant exists
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId }
+      });
 
-    if (existingUser) {
-      throw new Error('User with this email already exists in this organization');
+      if (!tenant) {
+        throw new Error('Invalid tenant');
+      }
+
+      // Check if user exists in this tenant
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email,
+          tenantId
+        },
+      });
+
+      if (existingUser) {
+        throw new Error('User with this email already exists in this organization');
+      }
+
+      finalCompany = company || tenant.name;
     }
 
     // Hash password
@@ -136,9 +181,9 @@ class AuthService {
         email,
         password: hashedPassword,
         name,
-        company: company || tenant.name,
-        role,
-        tenantId,
+        company: finalCompany,
+        role: finalRole,
+        tenantId: finalTenantId,
         isActive: true,
       },
       select: {
@@ -268,7 +313,10 @@ class AuthService {
         // Log activity
         await this.logActivity(user.id, 'LOGIN', 'User', user.id, 'User logged in with Google', { ipAddress });
       } else {
-        // Create new user
+        // Create new user with auto-tenant creation
+        // For Google OAuth, we auto-create a personal tenant for the user
+        const tenantSlug = `${email.split('@')[0]}-${crypto.randomBytes(3).toString('hex')}`;
+
         user = await prisma.user.create({
           data: {
             email,
@@ -276,9 +324,36 @@ class AuthService {
             googleId,
             googleEmail: email,
             googleProfilePic: picture,
-            role: 'AGENT',
+            role: 'ADMIN', // First user in their tenant is admin
             isActive: true,
+            tenant: {
+              create: {
+                name: `${name}'s Organization`,
+                slug: tenantSlug,
+                contactEmail: email,
+                status: 'TRIAL',
+                plan: 'FREE',
+                maxUsers: 5,
+                subscriptionStart: new Date(),
+                subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+                settings: {
+                  branding: {
+                    primaryColor: '#3b82f6',
+                    logoUrl: picture
+                  },
+                  features: {
+                    whatsapp: true,
+                    email: true,
+                    ai: true,
+                    calendar: true
+                  }
+                }
+              }
+            }
           },
+          include: {
+            tenant: true
+          }
         });
 
         // Log activity
@@ -299,6 +374,7 @@ class AuthService {
           name: user.name,
           company: user.company,
           role: user.role,
+          tenantId: user.tenantId,
           profilePic: user.googleProfilePic,
         },
         token,
