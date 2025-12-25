@@ -39,6 +39,7 @@ async function authenticate(req, res, next) {
             company: true,
             departmentId: true,
             teamId: true,
+            tenantId: true,
           },
         },
       },
