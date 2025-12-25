@@ -207,8 +207,8 @@ class AuthService {
    * Login with email/password
    */
   async login(email, password, ipAddress, userAgent) {
-    // Find user
-    const user = await prisma.user.findUnique({
+    // Find user (use findFirst since email is no longer unique globally, only per tenant)
+    const user = await prisma.user.findFirst({
       where: { email },
     });
 
