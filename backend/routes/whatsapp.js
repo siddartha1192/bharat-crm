@@ -12,9 +12,22 @@ const prisma = new PrismaClient();
 // Import io instance for WebSocket broadcasts
 const { io } = require('../server');
 
-// Apply authentication and tenant context to all routes
-router.use(authenticate);
-router.use(tenantContext);
+// Apply authentication and tenant context to all routes EXCEPT webhooks
+router.use((req, res, next) => {
+  // Skip auth for webhook endpoints (called by WhatsApp servers)
+  if (req.path === '/webhook') {
+    return next();
+  }
+  authenticate(req, res, next);
+});
+
+router.use((req, res, next) => {
+  // Skip tenant context for webhook endpoints
+  if (req.path === '/webhook') {
+    return next();
+  }
+  tenantContext(req, res, next);
+});
 
 // ============ PROTECTED ENDPOINTS (REQUIRE AUTH) ============
 
