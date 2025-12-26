@@ -28,9 +28,6 @@ router.get('/api/tenants', async (req, res) => {
         _count: {
           select: {
             users: true,
-            contacts: true,
-            leads: true,
-            deals: true,
           }
         },
         users: {
@@ -63,9 +60,6 @@ router.get('/api/tenants', async (req, res) => {
         updatedAt: tenant.updatedAt,
         stats: {
           userCount: tenant._count.users,
-          contactCount: tenant._count.contacts,
-          leadCount: tenant._count.leads,
-          dealCount: tenant._count.deals,
         },
         users: tenant.users
       }))
@@ -112,12 +106,6 @@ router.get('/api/tenants/:id', async (req, res) => {
         _count: {
           select: {
             users: true,
-            contacts: true,
-            leads: true,
-            deals: true,
-            tasks: true,
-            invoices: true,
-            campaigns: true,
           }
         }
       }
@@ -239,7 +227,7 @@ router.get('/api/stats', async (req, res) => {
       totalDeals,
     ] = await Promise.all([
       prisma.tenant.count(),
-      prisma.tenant.count({ where: { status: 'active' } }),
+      prisma.tenant.count({ where: { status: 'ACTIVE' } }),
       prisma.user.count(),
       prisma.user.count({ where: { isActive: true } }),
       prisma.contact.count(),
