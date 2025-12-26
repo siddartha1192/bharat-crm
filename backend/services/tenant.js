@@ -194,7 +194,12 @@ async function canAddUser(tenantId) {
  * @param {string} tenantId - Tenant ID
  * @returns {Promise<Object>} - Tenant statistics
  */
-async function getTenantStats(tenantId) {
+async function getTenantStats(tenantId, userId = null) {
+  // If userId is provided, filter by user; otherwise show tenant-wide stats
+  const whereClause = userId
+    ? { tenantId, userId }
+    : { tenantId };
+
   const [
     userCount,
     leadCount,
@@ -203,9 +208,9 @@ async function getTenantStats(tenantId) {
     activeUsers
   ] = await Promise.all([
     prisma.user.count({ where: { tenantId } }),
-    prisma.lead.count({ where: { tenantId } }),
-    prisma.contact.count({ where: { tenantId } }),
-    prisma.deal.count({ where: { tenantId } }),
+    prisma.lead.count({ where: whereClause }),
+    prisma.contact.count({ where: whereClause }),
+    prisma.deal.count({ where: whereClause }),
     prisma.user.count({ where: { tenantId, isActive: true } })
   ]);
 

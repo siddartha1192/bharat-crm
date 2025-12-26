@@ -93,11 +93,14 @@ router.put('/current', authenticate, tenantContext, authorize(['ADMIN']), async 
 /**
  * Get tenant statistics
  * GET /api/tenants/current/stats
- * Requires authentication and ADMIN role
+ * Requires authentication
+ * ADMIN sees all tenant data, AGENT/MANAGER see only their own data
  */
-router.get('/current/stats', authenticate, tenantContext, authorize(['ADMIN']), async (req, res) => {
+router.get('/current/stats', authenticate, tenantContext, async (req, res) => {
   try {
-    const stats = await tenantService.getTenantStats(req.tenant.id);
+    // ADMIN sees tenant-wide stats, others see only their own data
+    const userId = req.user.role === 'ADMIN' ? null : req.user.id;
+    const stats = await tenantService.getTenantStats(req.tenant.id, userId);
     res.json({ stats });
   } catch (error) {
     console.error('Get tenant stats error:', error);
