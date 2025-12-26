@@ -729,9 +729,6 @@
               <th>Plan</th>
               <th>Status</th>
               <th>Users</th>
-              <th>Contacts</th>
-              <th>Leads</th>
-              <th>Deals</th>
               <th>Created</th>
               <th>Actions</th>
             </tr>
@@ -744,11 +741,8 @@
                   <small style="color: #718096;">${tenant.slug}</small>
                 </td>
                 <td><span class="badge badge-info">${tenant.plan}</span></td>
-                <td><span class="badge badge-${tenant.status === 'active' ? 'success' : 'danger'}">${tenant.status}</span></td>
+                <td><span class="badge badge-${tenant.status === 'ACTIVE' ? 'success' : 'danger'}">${tenant.status}</span></td>
                 <td>${tenant.stats.userCount} / ${tenant.maxUsers}</td>
-                <td>${tenant.stats.contactCount}</td>
-                <td>${tenant.stats.leadCount}</td>
-                <td>${tenant.stats.dealCount}</td>
                 <td>${new Date(tenant.createdAt).toLocaleDateString()}</td>
                 <td>
                   <div class="action-buttons">
@@ -810,7 +804,7 @@
           </div>
           <div class="detail-item">
             <label>Status</label>
-            <div class="value"><span class="badge badge-${tenant.status === 'active' ? 'success' : 'danger'}">${tenant.status}</span></div>
+            <div class="value"><span class="badge badge-${tenant.status === 'ACTIVE' ? 'success' : 'danger'}">${tenant.status}</span></div>
           </div>
         </div>
         <div class="detail-row">
@@ -827,22 +821,12 @@
         <h3 style="margin-bottom: 15px; color: #2d3748;">Statistics</h3>
         <div class="detail-row">
           <div class="detail-item">
-            <label>Users</label>
-            <div class="value">${tenant.stats.users}</div>
+            <label>Total Users</label>
+            <div class="value">${tenant.stats.users || tenant._count?.users || 0}</div>
           </div>
           <div class="detail-item">
-            <label>Contacts</label>
-            <div class="value">${tenant.stats.contacts}</div>
-          </div>
-        </div>
-        <div class="detail-row">
-          <div class="detail-item">
-            <label>Leads</label>
-            <div class="value">${tenant.stats.leads}</div>
-          </div>
-          <div class="detail-item">
-            <label>Deals</label>
-            <div class="value">${tenant.stats.deals}</div>
+            <label>Max Users</label>
+            <div class="value">${tenant.maxUsers}</div>
           </div>
         </div>
         <hr style="margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;">
