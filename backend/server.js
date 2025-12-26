@@ -76,8 +76,10 @@ const campaignsRoutes = require('./routes/campaigns');
 const formsRoutes = require('./routes/forms');
 const landingPagesRoutes = require('./routes/landingPages');
 const tenantsRoutes = require('./routes/tenants');
+const tenantAdminRoutes = require('./routes/tenantAdmin');
 
 // Use routes
+app.use('/tenant-admin', tenantAdminRoutes);
 app.use('/api/tenants', tenantsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
