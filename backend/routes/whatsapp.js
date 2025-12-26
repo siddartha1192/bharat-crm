@@ -968,7 +968,7 @@ async function processIncomingMessage(message, value) {
               const aiMessage = await prisma.whatsAppMessage.create({
                 data: {
                   conversationId: conversation.id,
-                  tenantId: contact.user.tenantId,
+                  tenantId: conversation.tenantId,
                   message: messageToSend,
                   sender: 'ai',
                   senderName: 'AI Assistant',
@@ -1125,7 +1125,7 @@ async function processIncomingMessage(message, value) {
               const aiMessage = await prisma.whatsAppMessage.create({
                 data: {
                   conversationId: conversation.id,
-                  tenantId: contact.user.tenantId,
+                  tenantId: conversation.tenantId,
                   message: messageToSend,
                   sender: 'ai',
                   senderName: 'AI Assistant',

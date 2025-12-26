@@ -335,8 +335,14 @@ For appointments, ALWAYS require complete dates:
 
       // Save messages to database and manage memory
       try {
-        await this.saveMessage(conversationId, 'contact', userMessage, contactName);
-        await this.saveMessage(conversationId, 'ai', structuredResponse.message, 'AI Assistant');
+        // Get conversation tenantId for saving messages
+        const conv = await prisma.whatsAppConversation.findUnique({
+          where: { id: conversationId },
+          select: { tenantId: true }
+        });
+
+        await this.saveMessage(conversationId, 'contact', userMessage, contactName, conv.tenantId);
+        await this.saveMessage(conversationId, 'ai', structuredResponse.message, 'AI Assistant', conv.tenantId);
 
         // Check if we need to summarize conversation
         const conversation = await prisma.whatsAppConversation.findUnique({
@@ -368,8 +374,9 @@ For appointments, ALWAYS require complete dates:
    * @param {string} sender - 'contact' or 'ai'
    * @param {string} message - Message content
    * @param {string} senderName - Name of the sender
+   * @param {string} tenantId - Tenant ID
    */
-  async saveMessage(conversationId, sender, message, senderName) {
+  async saveMessage(conversationId, sender, message, senderName, tenantId) {
     try {
       await prisma.whatsAppMessage.create({
         data: {
@@ -378,6 +385,7 @@ For appointments, ALWAYS require complete dates:
           sender,
           senderName: senderName || (sender === 'ai' ? 'AI Assistant' : 'Contact'),
           isAiGenerated: sender === 'ai',
+          tenantId,
         },
       });
 
