@@ -92,7 +92,6 @@ router.get('/api/tenants/:id', async (req, res) => {
             role: true,
             isActive: true,
             createdAt: true,
-            lastLogin: true,
             company: true,
             department: {
               select: { id: true, name: true }
