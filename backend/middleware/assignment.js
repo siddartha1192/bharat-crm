@@ -3,22 +3,25 @@ const prisma = new PrismaClient();
 
 /**
  * Get visibility filter for entities based on user role
- * @param {Object} user - User object with role, id, departmentId, teamId
+ * @param {Object} user - User object with role, id, departmentId, teamId, tenantId
  * @returns {Object} Prisma where clause for filtering entities
  */
 async function getVisibilityFilter(user) {
-  const { role, id: userId, departmentId, teamId } = user;
+  const { role, id: userId, departmentId, teamId, tenantId } = user;
 
   switch (role) {
     case 'ADMIN':
-      // Admins see everything - no filter
+      // Admins see everything in their tenant - no additional filter
       return {};
 
     case 'MANAGER':
-      // Managers see items in their department/team
+      // Managers see items in their department/team (within their tenant only)
       if (departmentId) {
         const departmentUsers = await prisma.user.findMany({
-          where: { departmentId },
+          where: {
+            departmentId,
+            tenantId  // CRITICAL: Filter by tenant
+          },
           select: { id: true, name: true }
         });
 
@@ -34,7 +37,10 @@ async function getVisibilityFilter(user) {
         };
       } else if (teamId) {
         const teamUsers = await prisma.user.findMany({
-          where: { teamId },
+          where: {
+            teamId,
+            tenantId  // CRITICAL: Filter by tenant
+          },
           select: { id: true, name: true }
         });
 
@@ -69,10 +75,13 @@ async function getVisibilityFilter(user) {
       };
 
     case 'VIEWER':
-      // Viewers see team's items in read-only mode
+      // Viewers see team's items in read-only mode (within their tenant only)
       if (teamId) {
         const teamUsers = await prisma.user.findMany({
-          where: { teamId },
+          where: {
+            teamId,
+            tenantId  // CRITICAL: Filter by tenant
+          },
           select: { id: true }
         });
 
