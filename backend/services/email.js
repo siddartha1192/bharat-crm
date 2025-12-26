@@ -768,17 +768,19 @@ class EmailService {
 
    */
 
-  async getEmailStats(userId) {
+  async getEmailStats(userId, tenantId) {
 
-    const total = await prisma.emailLog.count({ where: { userId } });
+    const where = tenantId ? { userId, tenantId } : { userId };
 
-    const sent = await prisma.emailLog.count({ where: { userId, status: 'sent' } });
+    const total = await prisma.emailLog.count({ where });
 
-    const failed = await prisma.emailLog.count({ where: { userId, status: 'failed' } });
+    const sent = await prisma.emailLog.count({ where: { ...where, status: 'sent' } });
 
-    const pending = await prisma.emailLog.count({ where: { userId, status: 'pending' } });
+    const failed = await prisma.emailLog.count({ where: { ...where, status: 'failed' } });
 
- 
+    const pending = await prisma.emailLog.count({ where: { ...where, status: 'pending' } });
+
+
 
     return { total, sent, failed, pending };
 

@@ -268,7 +268,7 @@ router.get('/:id', async (req, res) => {
  */
 router.get('/stats/summary', async (req, res) => {
   try {
-    const stats = await emailService.getEmailStats(req.user.id);
+    const stats = await emailService.getEmailStats(req.user.id, req.user.tenantId);
     res.json(stats);
   } catch (error) {
     console.error('Get email stats error:', error);
