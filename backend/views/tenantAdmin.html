@@ -476,18 +476,19 @@
           <div class="form-group">
             <label>Subscription Plan</label>
             <select id="editTenantPlan">
-              <option value="free">Free</option>
-              <option value="starter">Starter</option>
-              <option value="professional">Professional</option>
-              <option value="enterprise">Enterprise</option>
+              <option value="FREE">Free</option>
+              <option value="BASIC">Basic</option>
+              <option value="PROFESSIONAL">Professional</option>
+              <option value="ENTERPRISE">Enterprise</option>
             </select>
           </div>
           <div class="form-group">
             <label>Status</label>
             <select id="editTenantStatus">
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
+              <option value="ACTIVE">Active</option>
+              <option value="TRIAL">Trial</option>
+              <option value="SUSPENDED">Suspended</option>
+              <option value="CANCELLED">Cancelled</option>
             </select>
           </div>
           <div class="form-group">
@@ -520,12 +521,16 @@
             <input type="text" id="newTenantDomain" placeholder="e.g., acme.example.com (optional)">
           </div>
           <div class="form-group">
+            <label>Contact Email *</label>
+            <input type="email" id="newTenantContactEmail" required placeholder="e.g., admin@acme.com">
+          </div>
+          <div class="form-group">
             <label>Subscription Plan</label>
             <select id="newTenantPlan">
-              <option value="free">Free</option>
-              <option value="starter">Starter</option>
-              <option value="professional">Professional</option>
-              <option value="enterprise">Enterprise</option>
+              <option value="FREE">Free</option>
+              <option value="BASIC">Basic</option>
+              <option value="PROFESSIONAL">Professional</option>
+              <option value="ENTERPRISE">Enterprise</option>
             </select>
           </div>
           <div class="form-group">
@@ -936,12 +941,18 @@
       const data = {
         name: document.getElementById('newTenantName').value,
         domain: document.getElementById('newTenantDomain').value || null,
+        contactEmail: document.getElementById('newTenantContactEmail').value,
         plan: document.getElementById('newTenantPlan').value,
         maxUsers: parseInt(document.getElementById('newTenantMaxUsers').value),
       };
 
       if (!data.name) {
         alert('Tenant name is required');
+        return;
+      }
+
+      if (!data.contactEmail) {
+        alert('Contact email is required');
         return;
       }
 
