@@ -150,14 +150,23 @@ router.post('/', hasPermission('ADMIN'), async (req, res) => {
       return res.status(400).json({ error: 'Invalid role. Must be one of: ADMIN, MANAGER, AGENT, VIEWER' });
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
+    // Check if user already exists in this tenant
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email,
+        tenantId: req.tenant.id
+      }
     });
 
     if (existingUser) {
-      return res.status(400).json({ error: 'User with this email already exists' });
+      return res.status(400).json({ error: 'User with this email already exists in your organization' });
     }
+
+    // Get tenant info for company field
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: req.tenant.id },
+      select: { name: true }
+    });
 
     // Create user without password (they'll set it via forgot password)
     const newUser = await prisma.user.create({
@@ -165,6 +174,7 @@ router.post('/', hasPermission('ADMIN'), async (req, res) => {
         name,
         email,
         role,
+        company: tenant?.name || "",
         tenantId: req.tenant.id,
         isActive: true,
         password: null, // No password initially
