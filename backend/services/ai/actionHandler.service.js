@@ -111,6 +111,7 @@ Notes: ${data.notes || 'None'}
         where: { email: aiConfig.company.ownerEmail },
         select: {
           id: true,
+          tenantId: true,
           googleAccessToken: true,
           googleRefreshToken: true,
         },
@@ -156,6 +157,7 @@ Notes: ${data.notes || 'None'}
       const event = await prisma.calendarEvent.create({
         data: {
           userId: ownerUser.id,
+          tenantId: ownerUser.tenantId,
           title,
           description,
           startTime,
@@ -198,6 +200,7 @@ Notes: ${data.notes || 'None'}
         where: { email: aiConfig.company.ownerEmail },
         select: {
           id: true,
+          tenantId: true,
           name: true,
           email: true,
         },
@@ -227,6 +230,7 @@ Notes: ${data.notes || 'None'}
           user: {
             connect: { id: ownerUser.id }
           },
+          tenantId: ownerUser.tenantId,
           assignedTo: assignedToName,
           createdBy: ownerUser.id,
           tags: data.tags || [],
@@ -259,6 +263,12 @@ Notes: ${data.notes || 'None'}
       // Get owner user ID
       const ownerUser = await prisma.user.findFirst({
         where: { email: aiConfig.company.ownerEmail },
+        select: {
+          id: true,
+          tenantId: true,
+          name: true,
+          email: true,
+        },
       });
 
       if (!ownerUser) {
@@ -303,7 +313,8 @@ Notes: ${data.notes || 'None'}
             createdBy: ownerUser.id,
             notes: data.notes || 'Lead captured via WhatsApp AI Assistant',
             tags: [],
-            userId: ownerUser.id
+            userId: ownerUser.id,
+            tenantId: ownerUser.tenantId
           }
         });
 
@@ -324,6 +335,7 @@ Notes: ${data.notes || 'None'}
             notes: data.notes || 'Lead captured via WhatsApp AI Assistant',
             tags: [],
             userId: ownerUser.id,
+            tenantId: ownerUser.tenantId,
             dealId: deal.id // Link lead to deal
           },
         });
