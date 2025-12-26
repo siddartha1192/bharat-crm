@@ -92,7 +92,6 @@ router.get('/api/tenants/:id', async (req, res) => {
             role: true,
             isActive: true,
             createdAt: true,
-            lastLogin: true,
             company: true,
             department: {
               select: { id: true, name: true }
@@ -297,12 +296,19 @@ router.delete('/api/users/:userId', async (req, res) => {
  */
 router.post('/api/tenants', async (req, res) => {
   try {
-    const { name, domain, plan, maxUsers } = req.body;
+    const { name, domain, plan, maxUsers, contactEmail } = req.body;
 
     if (!name) {
       return res.status(400).json({
         success: false,
         error: 'Tenant name is required'
+      });
+    }
+
+    if (!contactEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'Contact email is required'
       });
     }
 
@@ -314,9 +320,10 @@ router.post('/api/tenants', async (req, res) => {
         name,
         slug,
         domain: domain || null,
-        plan: plan || 'free',
-        status: 'active',
+        plan: plan || 'FREE',
+        status: 'ACTIVE',
         maxUsers: maxUsers || 10,
+        contactEmail,
         settings: {}
       }
     });
