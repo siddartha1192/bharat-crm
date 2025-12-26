@@ -634,16 +634,26 @@
     // Load statistics
     async function loadStats() {
       try {
+        console.log('Loading stats...');
         const response = await fetch('/tenant-admin/api/stats');
+        console.log('Stats response status:', response.status);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
+        console.log('Stats data:', data);
 
         if (data.success) {
           stats = data.stats;
           renderStats();
+        } else {
+          throw new Error(data.error || 'Failed to load stats');
         }
       } catch (error) {
         console.error('Error loading stats:', error);
-        document.getElementById('statsGrid').innerHTML = '<p style="color: #f56565;">Failed to load statistics</p>';
+        document.getElementById('statsGrid').innerHTML = `<div style="color: #f56565; padding: 20px;">Failed to load statistics: ${error.message}</div>`;
       }
     }
 
@@ -681,16 +691,26 @@
       try {
         document.getElementById('tenantsTable').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading tenants...</p></div>';
 
+        console.log('Loading tenants...');
         const response = await fetch('/tenant-admin/api/tenants');
+        console.log('Tenants response status:', response.status);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
+        console.log('Tenants data:', data);
 
         if (data.success) {
           tenants = data.tenants;
           renderTenants(tenants);
+        } else {
+          throw new Error(data.error || 'Failed to load tenants');
         }
       } catch (error) {
         console.error('Error loading tenants:', error);
-        document.getElementById('tenantsTable').innerHTML = '<p style="color: #f56565;">Failed to load tenants</p>';
+        document.getElementById('tenantsTable').innerHTML = `<div style="color: #f56565; padding: 20px;">Failed to load tenants: ${error.message}</div>`;
       }
     }
 
