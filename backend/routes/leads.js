@@ -391,12 +391,15 @@ router.get('/stats/summary', async (req, res) => {
     // Get role-based visibility filter
     const visibilityFilter = await getVisibilityFilter(req.user);
 
+    // CRITICAL: Add tenant filtering to prevent cross-tenant data leaks
+    const where = getTenantFilter(req, visibilityFilter);
+
     const [total, newLeads, qualified, totalValue] = await Promise.all([
-      prisma.lead.count({ where: visibilityFilter }),
-      prisma.lead.count({ where: { ...visibilityFilter, status: 'new' } }),
-      prisma.lead.count({ where: { ...visibilityFilter, status: 'qualified' } }),
+      prisma.lead.count({ where }),
+      prisma.lead.count({ where: { ...where, status: 'new' } }),
+      prisma.lead.count({ where: { ...where, status: 'qualified' } }),
       prisma.lead.aggregate({
-        where: visibilityFilter,
+        where,
         _sum: { estimatedValue: true }
       })
     ]);
