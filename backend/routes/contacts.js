@@ -276,12 +276,15 @@ router.get('/stats/summary', async (req, res) => {
     // Get role-based visibility filter
     const visibilityFilter = await getVisibilityFilter(req.user);
 
+    // CRITICAL: Add tenant filtering to prevent cross-tenant data leaks
+    const where = getTenantFilter(req, visibilityFilter);
+
     const [total, customers, prospects, totalValue] = await Promise.all([
-      prisma.contact.count({ where: visibilityFilter }),
-      prisma.contact.count({ where: { ...visibilityFilter, type: 'customer' } }),
-      prisma.contact.count({ where: { ...visibilityFilter, type: 'prospect' } }),
+      prisma.contact.count({ where }),
+      prisma.contact.count({ where: { ...where, type: 'customer' } }),
+      prisma.contact.count({ where: { ...where, type: 'prospect' } }),
       prisma.contact.aggregate({
-        where: visibilityFilter,
+        where,
         _sum: { lifetimeValue: true }
       })
     ]);
