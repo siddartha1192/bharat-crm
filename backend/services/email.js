@@ -240,7 +240,8 @@ class EmailService {
         email: true,
         googleEmail: true,
         googleAccessToken: true,
-        googleRefreshToken: true
+        googleRefreshToken: true,
+        tenantId: true
       }
     });
 
@@ -286,6 +287,8 @@ class EmailService {
         entityId,
 
         attachments: attachments.length > 0 ? attachments : null,
+
+        tenantId: user.tenantId,
 
       },
 
