@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tenant Administration - Bharat CRM</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .header h1 {
+      color: #2d3748;
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      color: #718096;
+      font-size: 16px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-card h3 {
+      color: #718096;
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .stat-card .value {
+      font-size: 36px;
+      font-weight: bold;
+      color: #2d3748;
+      margin-bottom: 5px;
+    }
+
+    .stat-card .change {
+      font-size: 14px;
+      color: #48bb78;
+    }
+
+    .main-content {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 2px solid #e2e8f0;
+      margin-bottom: 30px;
+      gap: 10px;
+    }
+
+    .tab {
+      padding: 12px 24px;
+      background: none;
+      border: none;
+      font-size: 16px;
+      font-weight: 500;
+      color: #718096;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s;
+    }
+
+    .tab:hover {
+      color: #667eea;
+    }
+
+    .tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .search-bar {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .search-bar input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .search-bar input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5a67d8;
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #2d3748;
+    }
+
+    .btn-secondary:hover {
+      background: #cbd5e0;
+    }
+
+    .btn-danger {
+      background: #f56565;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #e53e3e;
+    }
+
+    .btn-success {
+      background: #48bb78;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #38a169;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      background: #f7fafc;
+      padding: 12px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    td {
+      padding: 16px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #2d3748;
+    }
+
+    tr:hover {
+      background: #f7fafc;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-success {
+      background: #c6f6d5;
+      color: #22543d;
+    }
+
+    .badge-danger {
+      background: #fed7d7;
+      color: #742a2a;
+    }
+
+    .badge-warning {
+      background: #feebc8;
+      color: #7c2d12;
+    }
+
+    .badge-info {
+      background: #bee3f8;
+      color: #2c5282;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      margin-bottom: 20px;
+    }
+
+    .modal-header h2 {
+      color: #2d3748;
+      font-size: 24px;
+    }
+
+    .modal-body {
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #2d3748;
+      font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #718096;
+    }
+
+    .spinner {
+      border: 3px solid #e2e8f0;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #718096;
+    }
+
+    .empty-state svg {
+      width: 100px;
+      height: 100px;
+      margin-bottom: 20px;
+      opacity: 0.3;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .detail-row {
+      display: flex;
+      gap: 30px;
+      margin-bottom: 15px;
+    }
+
+    .detail-item {
+      flex: 1;
+    }
+
+    .detail-item label {
+      display: block;
+      font-size: 12px;
+      color: #718096;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .detail-item .value {
+      font-size: 16px;
+      color: #2d3748;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🏢 Tenant Administration</h1>
+      <p>Enterprise Multi-Tenant Management Dashboard</p>
+    </div>
+
+    <!-- Statistics -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Loading statistics...</p>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" data-tab="tenants">Tenants</button>
+        <button class="tab" data-tab="users">All Users</button>
+      </div>
+
+      <!-- Tenants Tab -->
+      <div id="tenants" class="tab-content active">
+        <div class="search-bar">
+          <input type="text" id="tenantSearch" placeholder="Search tenants...">
+          <button class="btn btn-primary" onclick="showCreateTenantModal()">+ Create Tenant</button>
+          <button class="btn btn-secondary" onclick="loadTenants()">🔄 Refresh</button>
+        </div>
+        <div id="tenantsTable">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading tenants...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users Tab -->
+      <div id="users" class="tab-content">
+        <div class="search-bar">
+          <input type="text" id="userSearch" placeholder="Search users...">
+          <button class="btn btn-secondary" onclick="loadAllUsers()">🔄 Refresh</button>
+        </div>
+        <div id="usersTable">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading users...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tenant Details Modal -->
+  <div id="tenantModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTenantName">Tenant Details</h2>
+      </div>
+      <div class="modal-body" id="modalTenantBody">
+        <!-- Content will be populated dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeTenantModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Tenant Modal -->
+  <div id="editTenantModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Edit Tenant</h2>
+      </div>
+      <div class="modal-body">
+        <form id="editTenantForm">
+          <input type="hidden" id="editTenantId">
+          <div class="form-group">
+            <label>Tenant Name</label>
+            <input type="text" id="editTenantName" required>
+          </div>
+          <div class="form-group">
+            <label>Domain</label>
+            <input type="text" id="editTenantDomain" placeholder="Optional">
+          </div>
+          <div class="form-group">
+            <label>Subscription Plan</label>
+            <select id="editTenantPlan">
+              <option value="free">Free</option>
+              <option value="starter">Starter</option>
+              <option value="professional">Professional</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="editTenantStatus">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Max Users</label>
+            <input type="number" id="editTenantMaxUsers" min="1" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeEditTenantModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveTenant()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Tenant Modal -->
+  <div id="createTenantModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Create New Tenant</h2>
+      </div>
+      <div class="modal-body">
+        <form id="createTenantForm">
+          <div class="form-group">
+            <label>Tenant Name *</label>
+            <input type="text" id="newTenantName" required placeholder="e.g., Acme Corporation">
+          </div>
+          <div class="form-group">
+            <label>Domain</label>
+            <input type="text" id="newTenantDomain" placeholder="e.g., acme.example.com (optional)">
+          </div>
+          <div class="form-group">
+            <label>Subscription Plan</label>
+            <select id="newTenantPlan">
+              <option value="free">Free</option>
+              <option value="starter">Starter</option>
+              <option value="professional">Professional</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Max Users</label>
+            <input type="number" id="newTenantMaxUsers" min="1" value="10" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeCreateTenantModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="createTenant()">Create Tenant</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit User Modal -->
+  <div id="editUserModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Edit User</h2>
+      </div>
+      <div class="modal-body">
+        <form id="editUserForm">
+          <input type="hidden" id="editUserId">
+          <div class="form-group">
+            <label>User Name</label>
+            <input type="text" id="editUserName" disabled>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="editUserEmail" disabled>
+          </div>
+          <div class="form-group">
+            <label>Role</label>
+            <select id="editUserRole">
+              <option value="user">User</option>
+              <option value="manager">Manager</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="editUserStatus">
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeEditUserModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveUser()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global state
+    let tenants = [];
+    let allUsers = [];
+    let stats = {};
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadStats();
+      loadTenants();
+      setupTabs();
+      setupSearch();
+    });
+
+    // Setup tabs
+    function setupTabs() {
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          const targetTab = tab.dataset.tab;
+
+          // Update tab buttons
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+
+          // Update tab content
+          document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+          });
+          document.getElementById(targetTab).classList.add('active');
+
+          // Load data for specific tabs
+          if (targetTab === 'users' && allUsers.length === 0) {
+            loadAllUsers();
+          }
+        });
+      });
+    }
+
+    // Setup search
+    function setupSearch() {
+      document.getElementById('tenantSearch').addEventListener('input', (e) => {
+        filterTenants(e.target.value);
+      });
+
+      document.getElementById('userSearch').addEventListener('input', (e) => {
+        filterUsers(e.target.value);
+      });
+    }
+
+    // Load statistics
+    async function loadStats() {
+      try {
+        const response = await fetch('/tenant-admin/api/stats');
+        const data = await response.json();
+
+        if (data.success) {
+          stats = data.stats;
+          renderStats();
+        }
+      } catch (error) {
+        console.error('Error loading stats:', error);
+        document.getElementById('statsGrid').innerHTML = '<p style="color: #f56565;">Failed to load statistics</p>';
+      }
+    }
+
+    // Render statistics
+    function renderStats() {
+      const html = `
+        <div class="stat-card">
+          <h3>Total Tenants</h3>
+          <div class="value">${stats.tenants.total}</div>
+          <div class="change">${stats.tenants.active} active</div>
+        </div>
+        <div class="stat-card">
+          <h3>Total Users</h3>
+          <div class="value">${stats.users.total}</div>
+          <div class="change">${stats.users.active} active</div>
+        </div>
+        <div class="stat-card">
+          <h3>Total Contacts</h3>
+          <div class="value">${stats.data.contacts.toLocaleString()}</div>
+        </div>
+        <div class="stat-card">
+          <h3>Total Leads</h3>
+          <div class="value">${stats.data.leads.toLocaleString()}</div>
+        </div>
+        <div class="stat-card">
+          <h3>Total Deals</h3>
+          <div class="value">${stats.data.deals.toLocaleString()}</div>
+        </div>
+      `;
+      document.getElementById('statsGrid').innerHTML = html;
+    }
+
+    // Load tenants
+    async function loadTenants() {
+      try {
+        document.getElementById('tenantsTable').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading tenants...</p></div>';
+
+        const response = await fetch('/tenant-admin/api/tenants');
+        const data = await response.json();
+
+        if (data.success) {
+          tenants = data.tenants;
+          renderTenants(tenants);
+        }
+      } catch (error) {
+        console.error('Error loading tenants:', error);
+        document.getElementById('tenantsTable').innerHTML = '<p style="color: #f56565;">Failed to load tenants</p>';
+      }
+    }
+
+    // Render tenants table
+    function renderTenants(tenantsToRender) {
+      if (tenantsToRender.length === 0) {
+        document.getElementById('tenantsTable').innerHTML = '<div class="empty-state"><p>No tenants found</p></div>';
+        return;
+      }
+
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Plan</th>
+              <th>Status</th>
+              <th>Users</th>
+              <th>Contacts</th>
+              <th>Leads</th>
+              <th>Deals</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tenantsToRender.map(tenant => `
+              <tr>
+                <td>
+                  <strong>${tenant.name}</strong><br>
+                  <small style="color: #718096;">${tenant.slug}</small>
+                </td>
+                <td><span class="badge badge-info">${tenant.plan}</span></td>
+                <td><span class="badge badge-${tenant.status === 'active' ? 'success' : 'danger'}">${tenant.status}</span></td>
+                <td>${tenant.stats.userCount} / ${tenant.maxUsers}</td>
+                <td>${tenant.stats.contactCount}</td>
+                <td>${tenant.stats.leadCount}</td>
+                <td>${tenant.stats.dealCount}</td>
+                <td>${new Date(tenant.createdAt).toLocaleDateString()}</td>
+                <td>
+                  <div class="action-buttons">
+                    <button class="btn btn-sm btn-primary" onclick="viewTenant('${tenant.id}')">View</button>
+                    <button class="btn btn-sm btn-secondary" onclick="editTenant('${tenant.id}')">Edit</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      document.getElementById('tenantsTable').innerHTML = html;
+    }
+
+    // Filter tenants
+    function filterTenants(searchTerm) {
+      const filtered = tenants.filter(tenant =>
+        tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.slug.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      renderTenants(filtered);
+    }
+
+    // View tenant details
+    async function viewTenant(tenantId) {
+      try {
+        const response = await fetch(`/tenant-admin/api/tenants/${tenantId}`);
+        const data = await response.json();
+
+        if (data.success) {
+          showTenantDetails(data.tenant);
+        }
+      } catch (error) {
+        console.error('Error loading tenant details:', error);
+        alert('Failed to load tenant details');
+      }
+    }
+
+    // Show tenant details modal
+    function showTenantDetails(tenant) {
+      document.getElementById('modalTenantName').textContent = tenant.name;
+
+      const html = `
+        <div class="detail-row">
+          <div class="detail-item">
+            <label>Tenant ID</label>
+            <div class="value">${tenant.id}</div>
+          </div>
+          <div class="detail-item">
+            <label>Slug</label>
+            <div class="value">${tenant.slug}</div>
+          </div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-item">
+            <label>Plan</label>
+            <div class="value"><span class="badge badge-info">${tenant.plan}</span></div>
+          </div>
+          <div class="detail-item">
+            <label>Status</label>
+            <div class="value"><span class="badge badge-${tenant.status === 'active' ? 'success' : 'danger'}">${tenant.status}</span></div>
+          </div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-item">
+            <label>Domain</label>
+            <div class="value">${tenant.domain || 'Not set'}</div>
+          </div>
+          <div class="detail-item">
+            <label>Max Users</label>
+            <div class="value">${tenant.maxUsers}</div>
+          </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;">
+        <h3 style="margin-bottom: 15px; color: #2d3748;">Statistics</h3>
+        <div class="detail-row">
+          <div class="detail-item">
+            <label>Users</label>
+            <div class="value">${tenant.stats.users}</div>
+          </div>
+          <div class="detail-item">
+            <label>Contacts</label>
+            <div class="value">${tenant.stats.contacts}</div>
+          </div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-item">
+            <label>Leads</label>
+            <div class="value">${tenant.stats.leads}</div>
+          </div>
+          <div class="detail-item">
+            <label>Deals</label>
+            <div class="value">${tenant.stats.deals}</div>
+          </div>
+        </div>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;">
+        <h3 style="margin-bottom: 15px; color: #2d3748;">Users (${tenant.users.length})</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tenant.users.map(user => `
+              <tr>
+                <td>${user.name}</td>
+                <td>${user.email}</td>
+                <td><span class="badge badge-info">${user.role}</span></td>
+                <td><span class="badge badge-${user.isActive ? 'success' : 'danger'}">${user.isActive ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                  <button class="btn btn-sm btn-secondary" onclick="editUser('${user.id}')">Edit</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      document.getElementById('modalTenantBody').innerHTML = html;
+      document.getElementById('tenantModal').classList.add('active');
+    }
+
+    // Close tenant modal
+    function closeTenantModal() {
+      document.getElementById('tenantModal').classList.remove('active');
+    }
+
+    // Edit tenant
+    function editTenant(tenantId) {
+      const tenant = tenants.find(t => t.id === tenantId);
+      if (!tenant) return;
+
+      document.getElementById('editTenantId').value = tenant.id;
+      document.getElementById('editTenantName').value = tenant.name;
+      document.getElementById('editTenantDomain').value = tenant.domain || '';
+      document.getElementById('editTenantPlan').value = tenant.plan;
+      document.getElementById('editTenantStatus').value = tenant.status;
+      document.getElementById('editTenantMaxUsers').value = tenant.maxUsers;
+
+      document.getElementById('editTenantModal').classList.add('active');
+    }
+
+    // Close edit tenant modal
+    function closeEditTenantModal() {
+      document.getElementById('editTenantModal').classList.remove('active');
+    }
+
+    // Save tenant
+    async function saveTenant() {
+      const id = document.getElementById('editTenantId').value;
+      const data = {
+        name: document.getElementById('editTenantName').value,
+        domain: document.getElementById('editTenantDomain').value || null,
+        plan: document.getElementById('editTenantPlan').value,
+        status: document.getElementById('editTenantStatus').value,
+        maxUsers: parseInt(document.getElementById('editTenantMaxUsers').value),
+      };
+
+      try {
+        const response = await fetch(`/tenant-admin/api/tenants/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert('Tenant updated successfully');
+          closeEditTenantModal();
+          loadTenants();
+          loadStats();
+        } else {
+          alert('Failed to update tenant: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Error updating tenant:', error);
+        alert('Failed to update tenant');
+      }
+    }
+
+    // Show create tenant modal
+    function showCreateTenantModal() {
+      document.getElementById('createTenantForm').reset();
+      document.getElementById('createTenantModal').classList.add('active');
+    }
+
+    // Close create tenant modal
+    function closeCreateTenantModal() {
+      document.getElementById('createTenantModal').classList.remove('active');
+    }
+
+    // Create tenant
+    async function createTenant() {
+      const data = {
+        name: document.getElementById('newTenantName').value,
+        domain: document.getElementById('newTenantDomain').value || null,
+        plan: document.getElementById('newTenantPlan').value,
+        maxUsers: parseInt(document.getElementById('newTenantMaxUsers').value),
+      };
+
+      if (!data.name) {
+        alert('Tenant name is required');
+        return;
+      }
+
+      try {
+        const response = await fetch('/tenant-admin/api/tenants', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert('Tenant created successfully');
+          closeCreateTenantModal();
+          loadTenants();
+          loadStats();
+        } else {
+          alert('Failed to create tenant: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Error creating tenant:', error);
+        alert('Failed to create tenant');
+      }
+    }
+
+    // Edit user
+    function editUser(userId) {
+      // First try to find user in current tenant view
+      let user = null;
+      for (const tenant of tenants) {
+        user = tenant.users.find(u => u.id === userId);
+        if (user) break;
+      }
+
+      // If not found and we have allUsers, search there
+      if (!user && allUsers.length > 0) {
+        user = allUsers.find(u => u.id === userId);
+      }
+
+      if (!user) return;
+
+      document.getElementById('editUserId').value = user.id;
+      document.getElementById('editUserName').value = user.name;
+      document.getElementById('editUserEmail').value = user.email;
+      document.getElementById('editUserRole').value = user.role;
+      document.getElementById('editUserStatus').value = user.isActive.toString();
+
+      document.getElementById('editUserModal').classList.add('active');
+    }
+
+    // Close edit user modal
+    function closeEditUserModal() {
+      document.getElementById('editUserModal').classList.remove('active');
+    }
+
+    // Save user
+    async function saveUser() {
+      const id = document.getElementById('editUserId').value;
+      const data = {
+        role: document.getElementById('editUserRole').value,
+        isActive: document.getElementById('editUserStatus').value === 'true',
+      };
+
+      try {
+        const response = await fetch(`/tenant-admin/api/users/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert('User updated successfully');
+          closeEditUserModal();
+          closeTenantModal();
+          loadTenants();
+          if (allUsers.length > 0) {
+            loadAllUsers();
+          }
+        } else {
+          alert('Failed to update user: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Error updating user:', error);
+        alert('Failed to update user');
+      }
+    }
+
+    // Load all users
+    async function loadAllUsers() {
+      try {
+        document.getElementById('usersTable').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading users...</p></div>';
+
+        // Extract all users from tenants data
+        allUsers = [];
+        tenants.forEach(tenant => {
+          tenant.users.forEach(user => {
+            allUsers.push({
+              ...user,
+              tenantName: tenant.name,
+              tenantPlan: tenant.plan
+            });
+          });
+        });
+
+        renderAllUsers(allUsers);
+      } catch (error) {
+        console.error('Error loading users:', error);
+        document.getElementById('usersTable').innerHTML = '<p style="color: #f56565;">Failed to load users</p>';
+      }
+    }
+
+    // Render all users table
+    function renderAllUsers(usersToRender) {
+      if (usersToRender.length === 0) {
+        document.getElementById('usersTable').innerHTML = '<div class="empty-state"><p>No users found</p></div>';
+        return;
+      }
+
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Tenant</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${usersToRender.map(user => `
+              <tr>
+                <td>${user.name}</td>
+                <td>${user.email}</td>
+                <td>
+                  <strong>${user.tenantName}</strong><br>
+                  <span class="badge badge-info">${user.tenantPlan}</span>
+                </td>
+                <td><span class="badge badge-warning">${user.role}</span></td>
+                <td><span class="badge badge-${user.isActive ? 'success' : 'danger'}">${user.isActive ? 'Active' : 'Inactive'}</span></td>
+                <td>${new Date(user.createdAt).toLocaleDateString()}</td>
+                <td>
+                  <button class="btn btn-sm btn-secondary" onclick="editUser('${user.id}')">Edit</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      document.getElementById('usersTable').innerHTML = html;
+    }
+
+    // Filter users
+    function filterUsers(searchTerm) {
+      const filtered = allUsers.filter(user =>
+        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.tenantName.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      renderAllUsers(filtered);
+    }
+
+    // Close modals on background click
+    document.querySelectorAll('.modal').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.classList.remove('active');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
