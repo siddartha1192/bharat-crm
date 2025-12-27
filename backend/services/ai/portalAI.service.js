@@ -251,15 +251,17 @@ Remember: Use your functions! You have direct database access - use it to provid
    * @param {string} conversationId - Conversation ID
    * @param {string} role - 'user' or 'assistant'
    * @param {string} content - Message content
+   * @param {string} tenantId - Tenant ID for multi-tenant isolation
    * @param {Array} functionCalls - Optional function calls made
    */
-  async saveMessage(conversationId, role, content, functionCalls = null) {
+  async saveMessage(conversationId, role, content, tenantId, functionCalls = null) {
     try {
       await prisma.aIMessage.create({
         data: {
           conversationId,
           role,
           content,
+          tenantId,
           functionCalls: functionCalls ? JSON.parse(JSON.stringify(functionCalls)) : null,
         },
       });
@@ -498,11 +500,12 @@ Summary:`;
       console.log('✅ Portal AI Response generated');
 
       // Save user message and assistant response to database
-      await this.saveMessage(conversation.id, 'user', userMessage);
+      await this.saveMessage(conversation.id, 'user', userMessage, tenantId);
       await this.saveMessage(
         conversation.id,
         'assistant',
         finalResponse,
+        tenantId,
         functionCallResults.length > 0 ? functionCallResults : null
       );
 
