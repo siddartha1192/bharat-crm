@@ -840,11 +840,11 @@ class DatabaseToolsService {
           select: { tenantId: true }
         });
 
-        // Find "won" stages dynamically (look for stages with "won" in slug)
+        // Find "won" stages using explicit stage mapping
         const wonStages = await prisma.pipelineStage.findMany({
           where: {
             tenantId: user.tenantId,
-            slug: { contains: 'won' },
+            isWonStage: true,
             isActive: true,
           },
           select: { id: true },

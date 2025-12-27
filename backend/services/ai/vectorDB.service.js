@@ -87,12 +87,17 @@ class VectorDBService {
   /**
    * Add documents to vector database
    * @param {Array} documents - Array of { content, metadata } objects
+   * @param {string} tenantId - Tenant ID for multi-tenant isolation
    */
-  async addDocuments(documents) {
+  async addDocuments(documents, tenantId) {
     await this.initialize();
 
+    if (!tenantId) {
+      throw new Error('tenantId is required for document upload');
+    }
+
     try {
-      console.log(`📚 Adding ${documents.length} documents to vector database...`);
+      console.log(`📚 Adding ${documents.length} documents to vector database for tenant ${tenantId}...`);
 
       // Split documents into chunks for better retrieval
       const textSplitter = new RecursiveCharacterTextSplitter({
@@ -102,7 +107,9 @@ class VectorDBService {
 
       const splitDocs = [];
       for (const doc of documents) {
-        const chunks = await textSplitter.createDocuments([doc.content], [doc.metadata || {}]);
+        // Ensure tenantId is included in metadata for all chunks
+        const metadata = { ...(doc.metadata || {}), tenantId };
+        const chunks = await textSplitter.createDocuments([doc.content], [metadata]);
         splitDocs.push(...chunks);
       }
 
@@ -111,7 +118,7 @@ class VectorDBService {
       // Add to vector store
       await this.vectorStore.addDocuments(splitDocs);
 
-      console.log('✅ Documents added successfully');
+      console.log('✅ Documents added successfully with tenant isolation');
       return { success: true, chunksAdded: splitDocs.length };
     } catch (error) {
       console.error('❌ Error adding documents:', error);
@@ -120,16 +127,31 @@ class VectorDBService {
   }
 
   /**
-   * Search for relevant documents
+   * Search for relevant documents with tenant isolation
    * @param {string} query - Search query
    * @param {number} k - Number of results to return
+   * @param {string} tenantId - Tenant ID for filtering results
    * @returns {Array} - Array of relevant documents
    */
-  async search(query, k = 5) {
+  async search(query, k = 5, tenantId = null) {
     await this.initialize();
 
+    if (!tenantId) {
+      throw new Error('tenantId is required for vector search to enforce tenant isolation');
+    }
+
     try {
-      const results = await this.vectorStore.similaritySearch(query, k);
+      // Use Qdrant filter to only return documents from this tenant
+      const filter = {
+        must: [
+          {
+            key: 'metadata.tenantId',
+            match: { value: tenantId }
+          }
+        ]
+      };
+
+      const results = await this.vectorStore.similaritySearch(query, k, filter);
 
       return results.map(doc => ({
         content: doc.pageContent,
@@ -142,16 +164,31 @@ class VectorDBService {
   }
 
   /**
-   * Search with relevance scores
+   * Search with relevance scores and tenant isolation
    * @param {string} query - Search query
    * @param {number} k - Number of results
    * @param {number} minScore - Minimum relevance score (0-1)
+   * @param {string} tenantId - Tenant ID for filtering results
    */
-  async searchWithScore(query, k = 5, minScore = 0.7) {
+  async searchWithScore(query, k = 5, minScore = 0.7, tenantId = null) {
     await this.initialize();
 
+    if (!tenantId) {
+      throw new Error('tenantId is required for vector search to enforce tenant isolation');
+    }
+
     try {
-      const results = await this.vectorStore.similaritySearchWithScore(query, k);
+      // Use Qdrant filter to only return documents from this tenant
+      const filter = {
+        must: [
+          {
+            key: 'metadata.tenantId',
+            match: { value: tenantId }
+          }
+        ]
+      };
+
+      const results = await this.vectorStore.similaritySearchWithScore(query, k, filter);
 
       // Filter by minimum score
       const filtered = results

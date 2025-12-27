@@ -243,9 +243,10 @@ For appointments, ALWAYS require complete dates:
    * @param {string} userMessage - User's message
    * @param {string} userId - User ID
    * @param {string} contactName - Name of the contact (optional)
+   * @param {string} tenantId - Tenant ID for multi-tenant isolation (optional, will be fetched from conversation if not provided)
    * @returns {Object} Structured response { message, actions, metadata }
    */
-  async processMessage(conversationId, userMessage, userId, contactName = null) {
+  async processMessage(conversationId, userMessage, userId, contactName = null, tenantId = null) {
     await this.initialize();
 
     try {
@@ -263,10 +264,13 @@ For appointments, ALWAYS require complete dates:
         },
       });
 
-      // Search vector DB for relevant product information (optional)
+      // Use tenantId from parameter or fetch from conversation
+      const effectiveTenantId = tenantId || conversation?.tenantId;
+
+      // Search vector DB for relevant product information with tenant isolation
       let productContext = '';
       try {
-        const relevantDocs = await vectorDBService.search(userMessage, 3);
+        const relevantDocs = await vectorDBService.search(userMessage, 3, effectiveTenantId);
         if (relevantDocs.length > 0) {
           productContext = `\n\nRELEVANT PRODUCT INFORMATION:\n${relevantDocs.map(doc => doc.content).join('\n\n')}`;
           console.log(`📚 Found ${relevantDocs.length} relevant docs from vector DB`);

@@ -70,9 +70,10 @@ router.get('/validate', async (req, res) => {
       }
     });
 
-    const hasWonStage = stages.some(s => s.slug.includes('won'));
-    const hasLostStage = stages.some(s => s.slug.includes('lost'));
+    const hasWonStage = stages.some(s => s.isWonStage);
+    const hasLostStage = stages.some(s => s.isLostStage);
     const hasLeadStage = stages.some(s => s.stageType === 'LEAD' || s.stageType === 'BOTH');
+    const hasNewLeadStage = stages.some(s => s.isNewLeadStage);
 
     const errors = [];
     const warnings = [];
@@ -86,11 +87,15 @@ router.get('/validate', async (req, res) => {
     }
 
     if (!hasWonStage) {
-      warnings.push('No "won" stage detected. Create a stage with "won" in the name for accurate forecasting.');
+      warnings.push('No "won" stage configured. Please mark a stage as "Won Stage" in Pipeline Settings for accurate forecasting.');
     }
 
     if (!hasLostStage) {
-      warnings.push('No "lost" stage detected. Create a stage with "lost" in the name for accurate forecasting.');
+      warnings.push('No "lost" stage configured. Please mark a stage as "Lost Stage" in Pipeline Settings for accurate forecasting.');
+    }
+
+    if (!hasNewLeadStage) {
+      warnings.push('No "new lead" stage configured. Please mark a stage as "New Lead Stage" in Pipeline Settings for accurate conversion tracking.');
     }
 
     res.json({

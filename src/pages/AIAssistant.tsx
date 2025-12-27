@@ -43,11 +43,41 @@ export default function AIAssistant() {
 
   useEffect(() => {
     fetchAIStatus();
-    // Add welcome message
-    setMessages([
-      {
-        role: 'assistant',
-        content: `👋 Hello! I'm your enterprise AI assistant with **full database access**.
+    loadConversationHistory();
+  }, []);
+
+  const loadConversationHistory = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(`${API_URL}/ai/conversation`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load conversation history');
+      }
+
+      const data = await response.json();
+
+      // If there are existing messages, load them
+      if (data.conversation && data.conversation.messages && data.conversation.messages.length > 0) {
+        setMessages(data.conversation.messages.map((msg: any) => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: new Date(msg.timestamp),
+          data: msg.data,
+        })));
+        console.log(`📖 Loaded ${data.conversation.messages.length} messages from conversation history`);
+      } else {
+        // No conversation history, show welcome message
+        setMessages([
+          {
+            role: 'assistant',
+            content: `👋 Hello! I'm your enterprise AI assistant with **full database access**.
 
 I can query your CRM data in real-time and provide insights:
 
@@ -70,10 +100,44 @@ I can query your CRM data in real-time and provide insights:
 - "Show upcoming events this week"
 
 Try the quick action buttons below or ask me anything!`,
-        timestamp: new Date(),
-      },
-    ]);
-  }, []);
+            timestamp: new Date(),
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error('Error loading conversation history:', error);
+      // Show welcome message on error
+      setMessages([
+        {
+          role: 'assistant',
+          content: `👋 Hello! I'm your enterprise AI assistant with **full database access**.
+
+I can query your CRM data in real-time and provide insights:
+
+**🔍 Query Data:**
+- "Show me top 5 leads from last week"
+- "List all high priority pending tasks"
+- "Find contacts added this month"
+
+**📊 Get Analytics:**
+- "What's our conversion rate this month?"
+- "Show me total pipeline value"
+- "How many deals are in negotiation?"
+
+**💼 Search Deals & Invoices:**
+- "Show deals worth over $10,000"
+- "List all paid invoices from this quarter"
+
+**📅 Check Calendar:**
+- "What meetings do I have today?"
+- "Show upcoming events this week"
+
+Try the quick action buttons below or ask me anything!`,
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  };
 
   useEffect(() => {
     scrollToBottom();
