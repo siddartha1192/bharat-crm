@@ -9,19 +9,16 @@ const prisma = new PrismaClient();
 router.use(authenticate);
 router.use(tenantContext);
 
-// GET all active pipeline stages for current user
+// GET all active pipeline stages for current tenant
 router.get('/', async (req, res) => {
   try {
-    const userId = req.user.id;
+    const tenantId = req.tenant.id;
 
-    // Get user's custom stages and default stages
+    // Get all active stages for this tenant
     const stages = await prisma.pipelineStage.findMany({
       where: {
-        isActive: true,
-        OR: [
-          { userId }, // User's custom stages
-          { isDefault: true, userId: null } // System default stages
-        ]
+        tenantId,
+        isActive: true
       },
       orderBy: { order: 'asc' }
     });
@@ -36,16 +33,13 @@ router.get('/', async (req, res) => {
 // GET single pipeline stage
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    const tenantId = req.tenant.id;
     const { id } = req.params;
 
     const stage = await prisma.pipelineStage.findFirst({
       where: {
         id,
-        OR: [
-          { userId },
-          { isDefault: true, userId: null }
-        ]
+        tenantId
       }
     });
 
@@ -63,27 +57,30 @@ router.get('/:id', async (req, res) => {
 // POST create new custom pipeline stage
 router.post('/', async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { name, slug, color, order } = req.body;
+    const tenantId = req.tenant.id;
+    const { name, slug, color, order, stageType, description } = req.body;
 
     // Validate required fields
-    if (!name || !slug) {
-      return res.status(400).json({ error: 'Name and slug are required' });
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
     }
 
-    // Check if slug already exists for this user
+    // Auto-generate slug from name if not provided
+    const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+    // Check if slug already exists for this tenant
     const existing = await prisma.pipelineStage.findUnique({
       where: {
-        userId_slug: {
-          userId,
-          slug
+        tenantId_slug: {
+          tenantId,
+          slug: finalSlug
         }
       }
     });
 
     if (existing) {
       return res.status(400).json({
-        error: 'A stage with this slug already exists'
+        error: 'A stage with this name already exists. Please choose a different name.'
       });
     }
 
@@ -91,9 +88,7 @@ router.post('/', async (req, res) => {
     let stageOrder = order;
     if (stageOrder === undefined || stageOrder === null) {
       const lastStage = await prisma.pipelineStage.findFirst({
-        where: {
-          OR: [{ userId }, { isDefault: true, userId: null }]
-        },
+        where: { tenantId },
         orderBy: { order: 'desc' }
       });
       stageOrder = lastStage ? lastStage.order + 1 : 1;
@@ -102,15 +97,19 @@ router.post('/', async (req, res) => {
     const stage = await prisma.pipelineStage.create({
       data: {
         name,
-        slug,
+        slug: finalSlug,
         color: color || 'blue',
         order: stageOrder,
+        stageType: stageType || 'BOTH',
+        description: description || null,
         isDefault: false,
-        userId,
-        tenantId: req.tenant.id
+        isSystemDefault: false,
+        isActive: true,
+        tenantId
       }
     });
 
+    console.log(`✨ Created new pipeline stage: ${stage.name} for tenant ${tenantId}`);
     res.status(201).json(stage);
   } catch (error) {
     console.error('Error creating pipeline stage:', error);
@@ -121,46 +120,88 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT update pipeline stage
+// PUT update/rename pipeline stage
 router.put('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    const tenantId = req.tenant.id;
     const { id } = req.params;
-    const { name, color, order, isActive } = req.body;
+    const { name, color, order, isActive, stageType, description } = req.body;
 
     // Find the stage
     const existingStage = await prisma.pipelineStage.findFirst({
       where: {
         id,
-        userId // Can only update own custom stages
+        tenantId
       }
     });
 
     if (!existingStage) {
       return res.status(404).json({
-        error: 'Pipeline stage not found or cannot be modified'
+        error: 'Pipeline stage not found'
       });
     }
 
-    // Cannot modify default stages
-    if (existingStage.isDefault) {
+    // Only admins can modify system default stages
+    if (existingStage.isSystemDefault && req.user.role !== 'ADMIN') {
       return res.status(403).json({
-        error: 'Cannot modify default pipeline stages'
+        error: 'Only administrators can modify system default stages'
       });
     }
 
     const data = {};
-    if (name !== undefined) data.name = name;
+
+    // Update name and auto-generate new slug if name changed
+    if (name !== undefined && name !== existingStage.name) {
+      const newSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+      // Check if new slug conflicts with existing stages
+      const conflicting = await prisma.pipelineStage.findFirst({
+        where: {
+          tenantId,
+          slug: newSlug,
+          id: { not: id }
+        }
+      });
+
+      if (conflicting) {
+        return res.status(400).json({
+          error: 'A stage with this name already exists. Please choose a different name.'
+        });
+      }
+
+      data.name = name;
+      data.slug = newSlug;
+
+      console.log(`📝 Renaming stage from "${existingStage.name}" to "${name}"`);
+    }
+
     if (color !== undefined) data.color = color;
     if (order !== undefined) data.order = order;
     if (isActive !== undefined) data.isActive = isActive;
+    if (stageType !== undefined) data.stageType = stageType;
+    if (description !== undefined) data.description = description;
 
+    // Update the stage
     const stage = await prisma.pipelineStage.update({
       where: { id },
       data
     });
 
-    res.json(stage);
+    // Count affected leads and deals
+    const [leadsCount, dealsCount] = await Promise.all([
+      prisma.lead.count({ where: { stageId: id } }),
+      prisma.deal.count({ where: { stageId: id } })
+    ]);
+
+    console.log(`✅ Updated stage "${stage.name}" - affects ${leadsCount} leads and ${dealsCount} deals`);
+
+    res.json({
+      ...stage,
+      _affected: {
+        leads: leadsCount,
+        deals: dealsCount
+      }
+    });
   } catch (error) {
     console.error('Error updating pipeline stage:', error);
     res.status(500).json({
@@ -173,44 +214,45 @@ router.put('/:id', async (req, res) => {
 // DELETE pipeline stage (soft delete)
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    const tenantId = req.tenant.id;
     const { id } = req.params;
 
     // Find the stage
     const existingStage = await prisma.pipelineStage.findFirst({
       where: {
         id,
-        userId
+        tenantId
       }
     });
 
     if (!existingStage) {
       return res.status(404).json({
-        error: 'Pipeline stage not found or cannot be deleted'
+        error: 'Pipeline stage not found'
       });
     }
 
-    // Cannot delete default stages
-    if (existingStage.isDefault) {
+    // Cannot delete system default stages
+    if (existingStage.isSystemDefault) {
       return res.status(403).json({
-        error: 'Cannot delete default pipeline stages'
+        error: 'Cannot delete system default stages'
       });
     }
 
-    // Check if any deals are using this stage
-    const dealsCount = await prisma.deal.count({
-      where: getTenantFilter(req, {
-        OR: [
-          { stageId: id },
-          { stage: existingStage.slug }
-        ],
-        userId
-      })
-    });
+    // Check if any leads or deals are using this stage
+    const [leadsCount, dealsCount] = await Promise.all([
+      prisma.lead.count({ where: { stageId: id } }),
+      prisma.deal.count({ where: { stageId: id } })
+    ]);
 
-    if (dealsCount > 0) {
+    const totalCount = leadsCount + dealsCount;
+
+    if (totalCount > 0) {
       return res.status(400).json({
-        error: `Cannot delete stage "${existingStage.name}" because it has ${dealsCount} active deal${dealsCount > 1 ? 's' : ''}. Please move these deals to another stage first.`
+        error: `Cannot delete stage "${existingStage.name}" because it has ${leadsCount} lead${leadsCount !== 1 ? 's' : ''} and ${dealsCount} deal${dealsCount !== 1 ? 's' : ''}. Please move them to another stage first.`,
+        details: {
+          leads: leadsCount,
+          deals: dealsCount
+        }
       });
     }
 
@@ -220,6 +262,7 @@ router.delete('/:id', async (req, res) => {
       data: { isActive: false }
     });
 
+    console.log(`🗑️  Deleted pipeline stage: ${existingStage.name}`);
     res.status(200).json({ message: 'Pipeline stage deleted successfully' });
   } catch (error) {
     console.error('Error deleting pipeline stage:', error);
@@ -233,75 +276,44 @@ router.delete('/:id', async (req, res) => {
 // POST reorder pipeline stages
 router.post('/reorder', async (req, res) => {
   try {
-    const userId = req.user.id;
+    const tenantId = req.tenant.id;
     const { stageOrders } = req.body; // Array of { id, order }
 
     if (!Array.isArray(stageOrders)) {
       return res.status(400).json({ error: 'stageOrders must be an array' });
     }
 
+    // Verify all stages belong to this tenant
+    const stageIds = stageOrders.map(s => s.id);
+    const stages = await prisma.pipelineStage.findMany({
+      where: {
+        id: { in: stageIds },
+        tenantId
+      }
+    });
+
+    if (stages.length !== stageIds.length) {
+      return res.status(403).json({
+        error: 'Some stages do not belong to your tenant'
+      });
+    }
+
     // Update all stages in transaction
     await prisma.$transaction(
       stageOrders.map(({ id, order }) =>
-        prisma.pipelineStage.updateMany({
-          where: {
-            id,
-            userId // Can only reorder own custom stages
-          },
+        prisma.pipelineStage.update({
+          where: { id },
           data: { order }
         })
       )
     );
 
+    console.log(`🔄 Reordered ${stageOrders.length} pipeline stages`);
     res.json({ message: 'Pipeline stages reordered successfully' });
   } catch (error) {
     console.error('Error reordering pipeline stages:', error);
     res.status(500).json({
       error: 'Failed to reorder pipeline stages',
-      message: error.message
-    });
-  }
-});
-
-// POST initialize default stages for new user
-router.post('/initialize-defaults', async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    // Check if user already has default stages
-    const existing = await prisma.pipelineStage.findFirst({
-      where: { userId }
-    });
-
-    if (existing) {
-      return res.status(400).json({
-        error: 'User already has pipeline stages initialized'
-      });
-    }
-
-    // Get system default stages
-    const defaultStages = await prisma.pipelineStage.findMany({
-      where: {
-        isDefault: true,
-        userId: null
-      },
-      orderBy: { order: 'asc' }
-    });
-
-    if (defaultStages.length === 0) {
-      return res.status(404).json({
-        error: 'No default pipeline stages found in system'
-      });
-    }
-
-    res.json({
-      message: 'Default pipeline stages are available for use',
-      stages: defaultStages
-    });
-  } catch (error) {
-    console.error('Error initializing default stages:', error);
-    res.status(500).json({
-      error: 'Failed to initialize default stages',
       message: error.message
     });
   }
