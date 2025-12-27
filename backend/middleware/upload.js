@@ -68,30 +68,12 @@ const vectorDataStorage = multer.diskStorage({
 
 /**
  * File filter for documents
+ * Updated to allow ALL file types for maximum flexibility
  */
 const documentFileFilter = (req, file, cb) => {
-  // Allowed file types for documents
-  const allowedTypes = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'text/plain',
-    'application/zip',
-    'application/x-zip-compressed'
-  ];
-
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error(`File type ${file.mimetype} is not allowed`), false);
-  }
+  // Allow all file types - no restrictions
+  // Security note: File content validation should be done at the application level
+  cb(null, true);
 };
 
 /**
@@ -116,13 +98,13 @@ const vectorDataFileFilter = (req, file, cb) => {
 };
 
 /**
- * Document upload middleware (max 100MB)
+ * Document upload middleware (max 50MB)
  */
 const uploadDocument = multer({
   storage: documentStorage,
   fileFilter: documentFileFilter,
   limits: {
-    fileSize: 100 * 1024 * 1024 // 100MB in bytes
+    fileSize: 50 * 1024 * 1024 // 50MB in bytes
   }
 });
 
