@@ -139,7 +139,7 @@ class DatabaseToolsService {
         type: 'function',
         function: {
           name: 'query_leads',
-          description: 'Query leads from the CRM database. IMPORTANT: Every lead automatically creates a linked deal in the pipeline. When a lead status changes, the linked deal stage updates automatically. Lead statuses map to deal stages: new/contacted->lead, qualified->qualified, proposal->proposal, negotiation->negotiation, won->closed-won, lost->closed-lost.',
+          description: 'Query leads from the CRM database. IMPORTANT: Every lead automatically creates a linked deal in the pipeline. When a lead status changes, the linked deal stage updates automatically. The user has configured their own custom pipeline stages - use the AVAILABLE PIPELINE STAGES section in your system prompt to see the exact stage names and slugs for this tenant.',
           parameters: {
             type: 'object',
             properties: {
@@ -215,13 +215,13 @@ class DatabaseToolsService {
         type: 'function',
         function: {
           name: 'query_deals',
-          description: 'Query deals/opportunities from the pipeline. IMPORTANT: Deals are automatically created when leads are created - each lead has a linked deal. Pipeline stages are customizable - common stages include lead, qualified, proposal, negotiation, closed-won, closed-lost. When deal stages change, linked lead statuses update automatically.',
+          description: 'Query deals/opportunities from the pipeline. IMPORTANT: Deals are automatically created when leads are created - each lead has a linked deal. The user has configured their own custom pipeline stages - refer to the AVAILABLE PIPELINE STAGES section in your system prompt to see the exact stage names and slugs for this tenant. When deal stages change, linked lead statuses update automatically.',
           parameters: {
             type: 'object',
             properties: {
               stage: {
                 type: 'string',
-                description: 'OPTIONAL - Filter by specific pipeline stage slug (e.g., "lead", "qualified", "proposal"). IMPORTANT: Omit this parameter entirely to get ALL deals across all stages. Do NOT use "all" or empty string - simply omit the parameter.',
+                description: 'OPTIONAL - Filter by specific pipeline stage slug. Use the exact slug values from the AVAILABLE PIPELINE STAGES section in your system prompt. IMPORTANT: Omit this parameter entirely to get ALL deals across all stages. Do NOT use "all" or empty string - simply omit the parameter.',
               },
               minValue: {
                 type: 'number',

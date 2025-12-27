@@ -19,6 +19,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { AssignmentDropdown } from '@/components/common/AssignmentDropdown';
+import { pipelineStagesAPI, pipelineConfigAPI } from '@/lib/api';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 interface LeadDialogProps {
   lead?: Lead | null;
@@ -46,6 +49,11 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
     facebook: '',
     tags: '',
   });
+
+  const [pipelineStages, setPipelineStages] = useState<any[]>([]);
+  const [loadingStages, setLoadingStages] = useState(true);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [canCreateLeads, setCanCreateLeads] = useState(true);
 
   useEffect(() => {
     if (lead) {
@@ -90,6 +98,46 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
     }
   }, [lead, open]);
 
+  // Fetch pipeline stages and validate on mount
+  useEffect(() => {
+    const fetchStagesAndValidate = async () => {
+      try {
+        setLoadingStages(true);
+        const [stages, validation] = await Promise.all([
+          pipelineStagesAPI.getAll(),
+          pipelineConfigAPI.validate()
+        ]);
+
+        // Filter only LEAD or BOTH stages
+        const leadStages = stages.filter(
+          (s: any) => s.stageType === 'LEAD' || s.stageType === 'BOTH'
+        );
+
+        setPipelineStages(leadStages);
+        setCanCreateLeads(validation.canCreateLeads);
+        setValidationErrors(validation.errors);
+
+        // Set default stage if no lead is being edited
+        if (!lead && leadStages.length > 0) {
+          setFormData(prev => ({
+            ...prev,
+            status: leadStages[0].slug
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching pipeline stages:', error);
+        setValidationErrors(['Failed to load pipeline stages. Please refresh and try again.']);
+        setCanCreateLeads(false);
+      } finally {
+        setLoadingStages(false);
+      }
+    };
+
+    if (open) {
+      fetchStagesAndValidate();
+    }
+  }, [open, lead]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -126,6 +174,25 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
         <DialogHeader>
           <DialogTitle>{lead ? 'Edit Lead' : 'Add New Lead'}</DialogTitle>
         </DialogHeader>
+
+        {/* Validation Errors */}
+        {validationErrors.length > 0 && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="space-y-1">
+                {validationErrors.map((error, index) => (
+                  <div key={index}>{error}</div>
+                ))}
+                <div className="mt-2">
+                  <a href="/settings/pipeline" className="underline font-medium">
+                    Go to Pipeline Settings to create stages
+                  </a>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
@@ -208,20 +275,35 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
               </div>
               <div>
                 <Label htmlFor="status">Status</Label>
-                <Select value={formData.status} onValueChange={(value: LeadStatus) => setFormData({ ...formData, status: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="contacted">Contacted</SelectItem>
-                    <SelectItem value="qualified">Qualified</SelectItem>
-                    <SelectItem value="proposal">Proposal</SelectItem>
-                    <SelectItem value="negotiation">Negotiation</SelectItem>
-                    <SelectItem value="won">Won</SelectItem>
-                    <SelectItem value="lost">Lost</SelectItem>
-                  </SelectContent>
-                </Select>
+                {loadingStages ? (
+                  <Select disabled>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Loading stages..." />
+                    </SelectTrigger>
+                  </Select>
+                ) : pipelineStages.length === 0 ? (
+                  <Select disabled>
+                    <SelectTrigger>
+                      <SelectValue placeholder="No pipeline stages available" />
+                    </SelectTrigger>
+                  </Select>
+                ) : (
+                  <Select
+                    value={formData.status}
+                    onValueChange={(value: LeadStatus) => setFormData({ ...formData, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pipelineStages.map((stage) => (
+                        <SelectItem key={stage.id} value={stage.slug}>
+                          {stage.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
 
@@ -334,7 +416,7 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">
+            <Button type="submit" disabled={!canCreateLeads || loadingStages}>
               {lead ? 'Update Lead' : 'Create Lead'}
             </Button>
           </DialogFooter>

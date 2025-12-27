@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { dealsAPI, pipelineStagesAPI } from '@/lib/api';
-import { defaultPipelineStages, PipelineStage, PipelineStageConfig, Deal } from '@/types/pipeline';
+import { dealsAPI, pipelineStagesAPI, pipelineConfigAPI } from '@/lib/api';
+import { PipelineStage, PipelineStageConfig, Deal } from '@/types/pipeline';
 import { DealCard } from '@/components/pipeline/DealCard';
 import { DealListView } from '@/components/pipeline/DealListView';
 import { StageColumn } from '@/components/pipeline/StageColumn';
@@ -41,7 +41,7 @@ import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 
 export default function Pipeline() {
   const [deals, setDeals] = useState<Deal[]>([]);
-  const [stages, setStages] = useState<PipelineStageConfig[]>(defaultPipelineStages);
+  const [stages, setStages] = useState<PipelineStageConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
   const [originalDealStage, setOriginalDealStage] = useState<string | null>(null);
@@ -51,6 +51,7 @@ export default function Pipeline() {
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch stages and deals from API
@@ -61,8 +62,20 @@ export default function Pipeline() {
   const fetchStagesAndDeals = async () => {
     try {
       setLoading(true);
+      setPipelineError(null);
+
+      // Validate pipeline configuration first
+      const validation = await pipelineConfigAPI.validate();
+
+      if (!validation.valid || validation.stageCount === 0) {
+        setPipelineError(validation.errors.join(' ') || 'No pipeline stages found. Please create pipeline stages to use the CRM.');
+        setStages([]);
+        setDeals([]);
+        return;
+      }
+
       const [stagesData, dealsResponse] = await Promise.all([
-        pipelineStagesAPI.getAll().catch(() => defaultPipelineStages),
+        pipelineStagesAPI.getAll(),
         dealsAPI.getAll({ limit: 10000 }) // Get all deals for pipeline view
       ]);
 
@@ -79,7 +92,9 @@ export default function Pipeline() {
       setStages(stagesWithDates.sort((a, b) => a.order - b.order));
       setDeals(dealsData);
     } catch (error) {
-      toast.error('Failed to load pipeline data');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load pipeline data';
+      setPipelineError(errorMessage);
+      toast.error(errorMessage);
       console.error('Error fetching pipeline data:', error);
     } finally {
       setLoading(false);
@@ -472,6 +487,20 @@ export default function Pipeline() {
             <p className="text-muted-foreground">
               Please wait while we fetch your deals
             </p>
+          </Card>
+        ) : pipelineError ? (
+          <Card className="p-12 text-center border-destructive">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
+              <Settings className="w-6 h-6 text-destructive" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Pipeline Setup Required</h3>
+            <p className="text-muted-foreground mb-6">
+              {pipelineError}
+            </p>
+            <Button onClick={() => setSettingsOpen(true)}>
+              <Settings className="w-4 h-4 mr-2" />
+              Go to Pipeline Settings
+            </Button>
           </Card>
         ) : viewMode === 'board' ? (
           <DndContext
