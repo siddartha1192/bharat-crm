@@ -34,6 +34,37 @@ function mapDealStageToLeadStatus(dealStage) {
   return stageMapping[dealStage] || 'contacted';
 }
 
+// Helper function: Get default lead stage for tenant
+async function getDefaultLeadStage(tenantId) {
+  const defaultStage = await prisma.pipelineStage.findFirst({
+    where: {
+      tenantId,
+      isSystemDefault: true,
+      stageType: { in: ['LEAD', 'BOTH'] }
+    }
+  });
+
+  if (!defaultStage) {
+    // Fallback: get any active lead stage
+    const anyStage = await prisma.pipelineStage.findFirst({
+      where: {
+        tenantId,
+        isActive: true,
+        stageType: { in: ['LEAD', 'BOTH'] }
+      },
+      orderBy: { order: 'asc' }
+    });
+
+    if (!anyStage) {
+      throw new Error('No lead stages found for tenant. Please create pipeline stages first.');
+    }
+
+    return anyStage;
+  }
+
+  return defaultStage;
+}
+
 // Apply authentication and tenant context to all lead routes
 router.use(authenticate);
 router.use(tenantContext);
@@ -168,8 +199,35 @@ router.post('/', validateAssignment, async (req, res) => {
       }
     }
 
+    // Get default stage for lead (or use provided stageId)
+    const defaultLeadStage = await getDefaultLeadStage(req.tenant.id);
+    const leadStageId = leadData.stageId || defaultLeadStage.id;
+
     // Use transaction to ensure both Lead and Deal are created together
     const result = await prisma.$transaction(async (tx) => {
+      // Get lead stage for deal mapping
+      const leadStage = await tx.pipelineStage.findUnique({
+        where: { id: leadStageId }
+      });
+
+      // Find suitable deal stage
+      let dealStageId;
+      if (leadStage && leadStage.stageType === 'BOTH') {
+        // Use same stage if it works for both
+        dealStageId = leadStageId;
+      } else {
+        // Find first available deal stage
+        const dealStage = await tx.pipelineStage.findFirst({
+          where: {
+            tenantId: req.tenant.id,
+            stageType: { in: ['DEAL', 'BOTH'] },
+            isActive: true
+          },
+          orderBy: { order: 'asc' }
+        });
+        dealStageId = dealStage?.id || leadStageId; // Fallback to lead stage
+      }
+
       // Create the Deal first in the pipeline
       const deal = await tx.deal.create({
         data: {
@@ -179,7 +237,8 @@ router.post('/', validateAssignment, async (req, res) => {
           email: leadData.email,
           phone: leadData.phone || '',
           value: leadData.estimatedValue || 0,
-          stage: mapLeadStatusToDealStage(leadData.status || 'new'),
+          stage: mapLeadStatusToDealStage(leadData.status || 'new'), // Backward compatibility
+          stageId: dealStageId, // NEW: Required field
           probability: leadData.priority === 'urgent' ? 80 : leadData.priority === 'high' ? 60 : leadData.priority === 'medium' ? 40 : 20,
           expectedCloseDate: leadData.nextFollowUpAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           assignedTo,
@@ -199,7 +258,9 @@ router.post('/', validateAssignment, async (req, res) => {
           createdBy,
           userId,
           tenantId: req.tenant.id,
-          dealId: deal.id
+          dealId: deal.id,
+          stageId: leadStageId, // NEW: Required field
+          status: leadData.status || 'new' // Keep for backward compatibility
         }
       });
 
@@ -275,9 +336,37 @@ router.put('/:id', async (req, res) => {
       if (lead.dealId) {
         const dealUpdateData = {};
 
-        // Sync status/stage if changed
+        // Sync stageId if changed (NEW: Dynamic pipeline stages)
+        if (updateData.stageId) {
+          const pipelineStage = await tx.pipelineStage.findUnique({
+            where: { id: updateData.stageId }
+          });
+
+          if (pipelineStage) {
+            dealUpdateData.stageId = pipelineStage.id;
+            // Keep old stage field in sync for backward compatibility
+            dealUpdateData.stage = pipelineStage.slug;
+          }
+        }
+
+        // Also sync status field for backward compatibility
         if (updateData.status) {
-          dealUpdateData.stage = mapLeadStatusToDealStage(updateData.status);
+          // Find matching stage by slug
+          const matchingStage = await tx.pipelineStage.findFirst({
+            where: {
+              tenantId: req.tenant.id,
+              slug: updateData.status.toLowerCase().replace(/\s+/g, '-')
+            }
+          });
+
+          if (matchingStage) {
+            updateData.stageId = matchingStage.id;
+            dealUpdateData.stageId = matchingStage.id;
+            dealUpdateData.stage = matchingStage.slug;
+          } else {
+            // Fallback to old mapping
+            dealUpdateData.stage = mapLeadStatusToDealStage(updateData.status);
+          }
         }
 
         // Sync other fields
@@ -308,8 +397,32 @@ router.put('/:id', async (req, res) => {
       return lead;
     });
 
-    // Trigger automation for status change
-    if (updateData.status && updateData.status !== existingLead.status) {
+    // Trigger automation for stage change (using stageId for dynamic stages)
+    if (updateData.stageId && updateData.stageId !== existingLead.stageId) {
+      try {
+        // Fetch stage details for better context
+        const [fromStage, toStage] = await Promise.all([
+          existingLead.stageId ? prisma.pipelineStage.findUnique({ where: { id: existingLead.stageId } }) : null,
+          prisma.pipelineStage.findUnique({ where: { id: updateData.stageId } })
+        ]);
+
+        await automationService.triggerAutomation('lead.stage_changed', {
+          id: result.id,
+          name: result.name,
+          email: result.email,
+          company: result.company,
+          fromStage: fromStage?.name || existingLead.status,
+          toStage: toStage?.name || updateData.status,
+          fromStageId: existingLead.stageId,
+          toStageId: updateData.stageId,
+          entityType: 'Lead'
+        }, req.user);
+      } catch (automationError) {
+        console.error('Error triggering lead stage change automation:', automationError);
+        // Don't fail the request if automation fails
+      }
+    } else if (updateData.status && updateData.status !== existingLead.status) {
+      // Fallback for backward compatibility when only status is provided
       try {
         await automationService.triggerAutomation('lead.stage_changed', {
           id: result.id,
@@ -394,10 +507,30 @@ router.get('/stats/summary', async (req, res) => {
     // CRITICAL: Add tenant filtering to prevent cross-tenant data leaks
     const where = getTenantFilter(req, visibilityFilter);
 
+    // Get stage IDs for filtering (dynamic pipeline stages)
+    const [newLeadStage, qualifiedStage] = await Promise.all([
+      prisma.pipelineStage.findFirst({
+        where: {
+          tenantId: req.tenant.id,
+          OR: [
+            { isSystemDefault: true },
+            { slug: 'new-lead' },
+            { slug: 'new' }
+          ]
+        }
+      }),
+      prisma.pipelineStage.findFirst({
+        where: {
+          tenantId: req.tenant.id,
+          slug: { in: ['qualified', 'qualification'] }
+        }
+      })
+    ]);
+
     const [total, newLeads, qualified, totalValue] = await Promise.all([
       prisma.lead.count({ where }),
-      prisma.lead.count({ where: { ...where, status: 'new' } }),
-      prisma.lead.count({ where: { ...where, status: 'qualified' } }),
+      newLeadStage ? prisma.lead.count({ where: { ...where, stageId: newLeadStage.id } }) : 0,
+      qualifiedStage ? prisma.lead.count({ where: { ...where, stageId: qualifiedStage.id } }) : 0,
       prisma.lead.aggregate({
         where,
         _sum: { estimatedValue: true }
@@ -687,6 +820,48 @@ router.post('/import', async (req, res) => {
 
           // Create lead and associated deal in transaction (properly linked)
           await prisma.$transaction(async (tx) => {
+            // Get default stage or map from status
+            let leadStageId;
+            if (lead.status) {
+              const matchingStage = await tx.pipelineStage.findFirst({
+                where: {
+                  tenantId: req.tenant.id,
+                  slug: lead.status.toLowerCase().replace(/\s+/g, '-')
+                }
+              });
+              leadStageId = matchingStage?.id;
+            }
+
+            if (!leadStageId) {
+              const defaultStage = await tx.pipelineStage.findFirst({
+                where: {
+                  tenantId: req.tenant.id,
+                  isSystemDefault: true
+                }
+              });
+              leadStageId = defaultStage?.id;
+            }
+
+            // Find suitable deal stage
+            let dealStageId;
+            const leadStage = await tx.pipelineStage.findUnique({
+              where: { id: leadStageId }
+            });
+
+            if (leadStage && leadStage.stageType === 'BOTH') {
+              dealStageId = leadStageId;
+            } else {
+              const dealStage = await tx.pipelineStage.findFirst({
+                where: {
+                  tenantId: req.tenant.id,
+                  stageType: { in: ['DEAL', 'BOTH'] },
+                  isActive: true
+                },
+                orderBy: { order: 'asc' }
+              });
+              dealStageId = dealStage?.id || leadStageId;
+            }
+
             // Create the Deal first
             const deal = await tx.deal.create({
               data: {
@@ -696,7 +871,8 @@ router.post('/import', async (req, res) => {
                 email: lead.email,
                 phone: lead.phone || '',
                 value: lead.estimatedValue,
-                stage: mapLeadStatusToDealStage(lead.status),
+                stage: mapLeadStatusToDealStage(lead.status), // Keep for backward compatibility
+                stageId: dealStageId, // NEW: Required field
                 probability: lead.status === 'qualified' ? 60 : lead.status === 'proposal' ? 70 : 20,
                 expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 assignedTo: lead.assignedTo,
@@ -715,7 +891,8 @@ router.post('/import', async (req, res) => {
                 email: lead.email,
                 phone: lead.phone,
                 company: lead.company,
-                status: lead.status,
+                status: lead.status, // Keep for backward compatibility
+                stageId: leadStageId, // NEW: Required field
                 source: lead.source,
                 priority: lead.priority || 'medium',
                 notes: lead.notes,
