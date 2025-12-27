@@ -67,8 +67,12 @@ export default function Pipeline() {
       // Validate pipeline configuration first
       const validation = await pipelineConfigAPI.validate();
 
-      if (!validation.valid || validation.stageCount === 0) {
-        setPipelineError(validation.errors.join(' ') || 'No pipeline stages found. Please create pipeline stages to use the CRM.');
+      // For Pipeline (deals) page, only check if we can create deals, not leads
+      if (!validation.canCreateDeals || validation.stageCount === 0) {
+        const errorMsg = validation.stageCount === 0
+          ? 'No pipeline stages found. Please create pipeline stages to use the Pipeline.'
+          : 'No deal stages found. Please create a stage with stageType="DEAL" or "BOTH" to view deals.';
+        setPipelineError(errorMsg);
         setStages([]);
         setDeals([]);
         return;
@@ -82,12 +86,14 @@ export default function Pipeline() {
       // Handle paginated response
       const dealsData = dealsResponse.data || dealsResponse;
 
-      // Convert date strings to Date objects for stages
-      const stagesWithDates = stagesData.map(s => ({
-        ...s,
-        createdAt: new Date(s.createdAt),
-        updatedAt: new Date(s.updatedAt)
-      }));
+      // Convert date strings to Date objects for stages and filter for DEAL/BOTH stages only
+      const stagesWithDates = stagesData
+        .filter(s => s.stageType === 'DEAL' || s.stageType === 'BOTH')
+        .map(s => ({
+          ...s,
+          createdAt: new Date(s.createdAt),
+          updatedAt: new Date(s.updatedAt)
+        }));
 
       setStages(stagesWithDates.sort((a, b) => a.order - b.order));
       setDeals(dealsData);

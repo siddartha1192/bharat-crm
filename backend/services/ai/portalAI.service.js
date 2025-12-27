@@ -13,11 +13,11 @@ const databaseTools = require('./databaseTools.service');
 
 const prisma = new PrismaClient();
 
-// Configuration for conversation memory
+// Configuration for conversation memory (increased limits for better context retention)
 const MEMORY_CONFIG = {
-  MAX_MESSAGES: 20, // Keep last 20 messages before summarizing
-  MESSAGES_TO_KEEP: 10, // Keep most recent 10 messages after summarization
-  SUMMARIZE_THRESHOLD: 15, // Summarize when messages exceed this count
+  MAX_MESSAGES: 50, // Keep last 50 messages before summarizing (increased from 20)
+  MESSAGES_TO_KEEP: 25, // Keep most recent 25 messages after summarization (increased from 10)
+  SUMMARIZE_THRESHOLD: 40, // Summarize when messages exceed this count (increased from 15)
 };
 
 class PortalAIService {
@@ -217,6 +217,36 @@ Remember: Use your functions! You have direct database access - use it to provid
   }
 
   /**
+   * Get conversation history for frontend
+   * @param {string} userId - User ID
+   * @param {string} tenantId - Tenant ID
+   * @returns {Object} Conversation with messages formatted for frontend
+   */
+  async getConversationHistory(userId, tenantId) {
+    try {
+      const conversation = await this.getOrCreateConversation(userId, tenantId);
+
+      // Format messages for frontend
+      const messages = conversation.messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+        timestamp: msg.createdAt,
+        data: msg.functionCalls ? JSON.parse(msg.functionCalls) : null,
+      }));
+
+      return {
+        id: conversation.id,
+        messageCount: conversation.messageCount,
+        summary: conversation.summary,
+        messages,
+      };
+    } catch (error) {
+      console.error('Error getting conversation history:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Save message to conversation
    * @param {string} conversationId - Conversation ID
    * @param {string} role - 'user' or 'assistant'
@@ -370,10 +400,10 @@ Summary:`;
       const pipelineStages = await databaseTools.getPipelineStages(userId);
       console.log(`📊 Found ${pipelineStages.length} pipeline stages for user`);
 
-      // Search vector DB for relevant documentation with error handling
+      // Search vector DB for relevant documentation with error handling and tenant isolation
       let relevantDocs = [];
       try {
-        relevantDocs = await vectorDBService.search(userMessage, 3);
+        relevantDocs = await vectorDBService.search(userMessage, 3, tenantId);
       } catch (error) {
         console.warn('⚠️  Vector DB search failed (continuing without context):', error.message);
         // Continue without vector search results - don't fail the entire request

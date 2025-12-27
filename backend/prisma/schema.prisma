@@ -400,6 +400,11 @@ model PipelineStage {
   // Stage type: LEAD, DEAL, or BOTH
   stageType StageType @default(BOTH)
 
+  // Stage mapping for conversion rate calculations
+  isNewLeadStage Boolean @default(false) // Mark as default stage for new leads
+  isWonStage     Boolean @default(false) // Mark as won/closed-won stage
+  isLostStage    Boolean @default(false) // Mark as lost/closed-lost stage
+
   // Multi-tenant relationship (stages are tenant-level, not user-level)
   tenantId String
 
@@ -413,6 +418,9 @@ model PipelineStage {
   @@index([order])
   @@index([isActive])
   @@index([isSystemDefault])
+  @@index([isWonStage])
+  @@index([isLostStage])
+  @@index([isNewLeadStage])
 }
 
 model Deal {

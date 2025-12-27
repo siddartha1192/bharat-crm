@@ -17,8 +17,9 @@ import {
   DialogTrigger
 } from '../ui/dialog';
 import { Badge } from '../ui/badge';
-import { api } from '../../lib/api';
-import { Plus, Trash2, Edit, Power, Mail, CheckCircle2, XCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '../ui/alert';
+import { api, pipelineStagesAPI } from '../../lib/api';
+import { Plus, Trash2, Edit, Power, Mail, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AutomationRule {
@@ -36,8 +37,15 @@ interface AutomationRule {
   createdAt?: string;
 }
 
-const LEAD_STAGES = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
-const DEAL_STAGES = ['lead', 'qualified', 'proposal', 'negotiation', 'closed-won', 'closed-lost'];
+interface PipelineStage {
+  id: string;
+  name: string;
+  slug: string;
+  stageType: 'LEAD' | 'DEAL' | 'BOTH';
+  color: string;
+  order: number;
+  isActive: boolean;
+}
 
 export default function AutomationSettings() {
   const { user } = useAuth();
@@ -45,6 +53,8 @@ export default function AutomationSettings() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
+  const [pipelineStages, setPipelineStages] = useState<PipelineStage[]>([]);
+  const [stagesLoading, setStagesLoading] = useState(true);
 
   // Form state
   const [formData, setFormData] = useState<AutomationRule>({
@@ -62,6 +72,7 @@ export default function AutomationSettings() {
 
   useEffect(() => {
     loadRules();
+    loadPipelineStages();
   }, []);
 
   const loadRules = async () => {
@@ -74,6 +85,28 @@ export default function AutomationSettings() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadPipelineStages = async () => {
+    try {
+      const stages = await pipelineStagesAPI.getAll();
+      setPipelineStages(stages);
+    } catch (error) {
+      console.error('Error loading pipeline stages:', error);
+      toast.error('Failed to load pipeline stages');
+    } finally {
+      setStagesLoading(false);
+    }
+  };
+
+  // Get filtered stages based on entity type
+  const getStagesForEntityType = (entityType: string) => {
+    if (entityType === 'lead') {
+      return pipelineStages.filter(s => s.isActive && (s.stageType === 'LEAD' || s.stageType === 'BOTH'));
+    } else if (entityType === 'deal') {
+      return pipelineStages.filter(s => s.isActive && (s.stageType === 'DEAL' || s.stageType === 'BOTH'));
+    }
+    return [];
   };
 
   const handleOpenDialog = (rule?: AutomationRule) => {
@@ -309,35 +342,53 @@ export default function AutomationSettings() {
             )}
 
             {formData.type === 'stage_change' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fromStage">From Stage</Label>
-                  <Select value={formData.fromStage} onValueChange={(value) => setFormData({ ...formData, fromStage: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select stage" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(formData.entityType === 'deal' ? DEAL_STAGES : LEAD_STAGES).map((stage) => (
-                        <SelectItem key={stage} value={stage}>{stage}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <>
+                {getStagesForEntityType(formData.entityType || 'lead').length === 0 && (
+                  <Alert className="bg-amber-50 border-amber-200">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800">
+                      No {formData.entityType === 'deal' ? 'deal' : 'lead'} stages found. Please create pipeline stages with stageType="{formData.entityType === 'deal' ? 'DEAL' : 'LEAD'}" or "BOTH" to set up stage-based automation.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fromStage">From Stage</Label>
+                    <Select
+                      value={formData.fromStage}
+                      onValueChange={(value) => setFormData({ ...formData, fromStage: value })}
+                      disabled={getStagesForEntityType(formData.entityType || 'lead').length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select stage" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getStagesForEntityType(formData.entityType || 'lead').map((stage) => (
+                          <SelectItem key={stage.id} value={stage.slug}>{stage.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="toStage">To Stage</Label>
-                  <Select value={formData.toStage} onValueChange={(value) => setFormData({ ...formData, toStage: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select stage" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(formData.entityType === 'deal' ? DEAL_STAGES : LEAD_STAGES).map((stage) => (
-                        <SelectItem key={stage} value={stage}>{stage}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-2">
+                    <Label htmlFor="toStage">To Stage</Label>
+                    <Select
+                      value={formData.toStage}
+                      onValueChange={(value) => setFormData({ ...formData, toStage: value })}
+                      disabled={getStagesForEntityType(formData.entityType || 'lead').length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select stage" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getStagesForEntityType(formData.entityType || 'lead').map((stage) => (
+                          <SelectItem key={stage.id} value={stage.slug}>{stage.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
 
             <div className="space-y-2">

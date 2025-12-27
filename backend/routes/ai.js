@@ -49,6 +49,31 @@ router.post('/chat', async (req, res) => {
 });
 
 /**
+ * Get conversation history for current user
+ */
+router.get('/conversation', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const tenantId = req.user.tenantId;
+
+    console.log(`\n📖 Loading conversation history for user ${userId}`);
+
+    const conversation = await portalAIService.getConversationHistory(userId, tenantId);
+
+    res.json({
+      success: true,
+      conversation,
+    });
+  } catch (error) {
+    console.error('Error loading conversation:', error);
+    res.status(500).json({
+      error: 'Failed to load conversation',
+      message: error.message,
+    });
+  }
+});
+
+/**
  * Clear conversation history for current user
  */
 router.delete('/conversation', async (req, res) => {

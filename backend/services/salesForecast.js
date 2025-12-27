@@ -67,10 +67,11 @@ async function calculateForecast(userId, period, startDate, endDate) {
     let stageWarnings = [];
 
     if (tenantId) {
+      // Use explicit stage mapping (isWonStage, isLostStage) for accurate conversion rate calculations
       const wonStages = await prisma.pipelineStage.findMany({
         where: {
           tenantId,
-          slug: { contains: 'won' },
+          isWonStage: true,
           isActive: true,
         },
         select: { id: true, name: true, slug: true },
@@ -79,7 +80,7 @@ async function calculateForecast(userId, period, startDate, endDate) {
       const lostStages = await prisma.pipelineStage.findMany({
         where: {
           tenantId,
-          slug: { contains: 'lost' },
+          isLostStage: true,
           isActive: true,
         },
         select: { id: true, name: true, slug: true },
@@ -90,18 +91,18 @@ async function calculateForecast(userId, period, startDate, endDate) {
 
       // STRICT VALIDATION: Warn user if critical stages are missing
       if (wonStageIds.length === 0) {
-        stageWarnings.push('⚠️  No "won" stage found. Please create a pipeline stage with "won" in the name (e.g., "Closed Won") for accurate revenue forecasting. Go to Pipeline Settings to add this stage.');
+        stageWarnings.push('⚠️  No "won" stage configured. Please go to Pipeline Settings and mark a stage as "Won Stage" (e.g., "Closed Won") for accurate revenue forecasting.');
       }
       if (lostStageIds.length === 0) {
-        stageWarnings.push('⚠️  No "lost" stage found. Please create a pipeline stage with "lost" in the name (e.g., "Closed Lost") for accurate conversion rate tracking. Go to Pipeline Settings to add this stage.');
+        stageWarnings.push('⚠️  No "lost" stage configured. Please go to Pipeline Settings and mark a stage as "Lost Stage" (e.g., "Closed Lost") for accurate conversion rate tracking.');
       }
 
       // Log detected stages for transparency
       if (wonStageIds.length > 0) {
-        console.log(`✅ Detected won stages: ${wonStages.map(s => s.name).join(', ')}`);
+        console.log(`✅ Using won stages for conversion rate: ${wonStages.map(s => s.name).join(', ')}`);
       }
       if (lostStageIds.length > 0) {
-        console.log(`✅ Detected lost stages: ${lostStages.map(s => s.name).join(', ')}`);
+        console.log(`✅ Using lost stages for conversion rate: ${lostStages.map(s => s.name).join(', ')}`);
       }
     }
 

@@ -37,9 +37,16 @@ function addIngestLog(message) {
 
 /**
  * Process and upload data to vector database
+ * @param {string} filePath - Path to the uploaded file
+ * @param {string} fileName - Original filename
+ * @param {string} tenantId - Tenant ID for multi-tenant isolation
  */
-async function processVectorData(filePath, fileName) {
+async function processVectorData(filePath, fileName, tenantId) {
   try {
+    if (!tenantId) {
+      throw new Error('tenantId is required for vector data processing');
+    }
+
     // Determine file type and process accordingly
     const ext = path.extname(fileName).toLowerCase();
 
@@ -61,7 +68,7 @@ async function processVectorData(filePath, fileName) {
 
       // Split text into chunks (by paragraphs or pages)
       const chunks = content.split('\n\n').filter(chunk => chunk.trim());
-      documents = chunks.map(chunk => ({ content: chunk }));
+      documents = chunks.map(chunk => ({ content: chunk, metadata: { fileName } }));
     } else {
       // Read file content as text
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -69,7 +76,7 @@ async function processVectorData(filePath, fileName) {
       if (ext === '.txt' || ext === '.md') {
         // Split text into chunks
         const chunks = content.split('\n\n').filter(chunk => chunk.trim());
-        documents = chunks.map(chunk => ({ content: chunk }));
+        documents = chunks.map(chunk => ({ content: chunk, metadata: { fileName } }));
       } else if (ext === '.csv') {
         // Parse CSV
         const lines = content.split('\n').filter(line => line.trim());
@@ -81,26 +88,27 @@ async function processVectorData(filePath, fileName) {
           headers.forEach((header, index) => {
             obj[header.trim()] = values[index]?.trim() || '';
           });
-          return { content: JSON.stringify(obj) };
+          return { content: JSON.stringify(obj), metadata: { fileName, fileType: 'csv' } };
         });
       } else if (ext === '.json') {
         // Parse JSON
         const data = JSON.parse(content);
         if (Array.isArray(data)) {
-          documents = data.map(item => ({ content: JSON.stringify(item) }));
+          documents = data.map(item => ({ content: JSON.stringify(item), metadata: { fileName, fileType: 'json' } }));
         } else {
-          documents = [{ content: JSON.stringify(data) }];
+          documents = [{ content: JSON.stringify(data), metadata: { fileName, fileType: 'json' } }];
         }
       }
     }
 
-    // Import documents to vector database (if vectorDB service is available)
+    // Import documents to vector database with tenant isolation
     try {
       const vectorDBService = require('../services/ai/vectorDB.service');
 
-      // addDocuments expects an array of documents
-      await vectorDBService.addDocuments(documents);
+      // addDocuments now requires tenantId for isolation
+      await vectorDBService.addDocuments(documents, tenantId);
 
+      console.log(`✅ Uploaded ${documents.length} documents to vector database for tenant ${tenantId}`);
       return documents.length;
     } catch (error) {
       console.error('VectorDB service not available or error:', error);
@@ -169,8 +177,8 @@ router.post('/upload', authorize('ADMIN', 'MANAGER'), (req, res) => {
             data: { status: 'processing' }
           });
 
-          // Process the file
-          const recordsProcessed = await processVectorData(req.file.path, req.file.originalname);
+          // Process the file with tenant isolation
+          const recordsProcessed = await processVectorData(req.file.path, req.file.originalname, req.tenant.id);
 
           // Update status to completed
           await prisma.vectorDataUpload.update({
@@ -182,7 +190,7 @@ router.post('/upload', authorize('ADMIN', 'MANAGER'), (req, res) => {
             }
           });
 
-          console.log(`Vector data upload ${upload.id} completed: ${recordsProcessed} records`);
+          console.log(`Vector data upload ${upload.id} completed: ${recordsProcessed} records for tenant ${req.tenant.id}`);
         } catch (error) {
           console.error('Error processing vector data:', error);
 
