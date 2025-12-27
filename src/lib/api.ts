@@ -436,6 +436,34 @@ export const pipelineStagesAPI = {
   },
 };
 
+// Pipeline Configuration API
+export const pipelineConfigAPI = {
+  // Validate if tenant has required pipeline stages
+  validate: async (): Promise<{
+    valid: boolean;
+    canCreateLeads: boolean;
+    canCreateDeals: boolean;
+    errors: string[];
+    warnings: string[];
+    stageCount: number;
+  }> => {
+    return fetchAPI('/pipeline-config/validate');
+  },
+
+  // Get pipeline configuration with auto-detected won/lost/new stages
+  getConfig: async (): Promise<{
+    stages: any[];
+    autoDetected: {
+      wonStages: any[];
+      lostStages: any[];
+      newStages: any[];
+    };
+    message: string | null;
+  }> => {
+    return fetchAPI('/pipeline-config/config');
+  },
+};
+
 // ============ GENERIC API CLIENT ============
 // Generic API client for custom endpoints
 export const api = {

@@ -64,6 +64,7 @@ async function calculateForecast(userId, period, startDate, endDate) {
     // Find "won" and "lost" stages dynamically
     let wonStageIds = [];
     let lostStageIds = [];
+    let stageWarnings = [];
 
     if (tenantId) {
       const wonStages = await prisma.pipelineStage.findMany({
@@ -72,7 +73,7 @@ async function calculateForecast(userId, period, startDate, endDate) {
           slug: { contains: 'won' },
           isActive: true,
         },
-        select: { id: true },
+        select: { id: true, name: true, slug: true },
       });
 
       const lostStages = await prisma.pipelineStage.findMany({
@@ -81,11 +82,27 @@ async function calculateForecast(userId, period, startDate, endDate) {
           slug: { contains: 'lost' },
           isActive: true,
         },
-        select: { id: true },
+        select: { id: true, name: true, slug: true },
       });
 
       wonStageIds = wonStages.map(s => s.id);
       lostStageIds = lostStages.map(s => s.id);
+
+      // STRICT VALIDATION: Warn user if critical stages are missing
+      if (wonStageIds.length === 0) {
+        stageWarnings.push('⚠️  No "won" stage found. Please create a pipeline stage with "won" in the name (e.g., "Closed Won") for accurate revenue forecasting. Go to Pipeline Settings to add this stage.');
+      }
+      if (lostStageIds.length === 0) {
+        stageWarnings.push('⚠️  No "lost" stage found. Please create a pipeline stage with "lost" in the name (e.g., "Closed Lost") for accurate conversion rate tracking. Go to Pipeline Settings to add this stage.');
+      }
+
+      // Log detected stages for transparency
+      if (wonStageIds.length > 0) {
+        console.log(`✅ Detected won stages: ${wonStages.map(s => s.name).join(', ')}`);
+      }
+      if (lostStageIds.length > 0) {
+        console.log(`✅ Detected lost stages: ${lostStages.map(s => s.name).join(', ')}`);
+      }
     }
 
     // Calculate metrics with DYNAMIC stage detection (works with any custom stages)
@@ -221,7 +238,8 @@ async function calculateForecast(userId, period, startDate, endDate) {
       previousPeriodRevenue,
       growthRate,
       wonRevenue,                              // Kept for backward compatibility
-      revenueGoal                              // NEW: Revenue goal tracking
+      revenueGoal,                             // NEW: Revenue goal tracking
+      stageWarnings: stageWarnings.length > 0 ? stageWarnings : null  // CRITICAL: Stage configuration warnings
     };
   } catch (error) {
     console.error('Error calculating forecast:', error);
