@@ -89,17 +89,25 @@ class DatabaseToolsService {
   }
 
   /**
-   * Get available pipeline stages for a user
-   * Returns both default stages (userId = null) and user-specific custom stages
+   * Get available pipeline stages for a user (tenant-based)
+   * Returns all active pipeline stages for the user's tenant
    */
   async getPipelineStages(userId) {
     try {
+      // Get user's tenantId first
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { tenantId: true }
+      });
+
+      if (!user) {
+        console.error('User not found:', userId);
+        return [];
+      }
+
       const stages = await prisma.pipelineStage.findMany({
         where: {
-          OR: [
-            { userId: null, isDefault: true }, // Default stages
-            { userId }, // User's custom stages
-          ],
+          tenantId: user.tenantId,
           isActive: true,
         },
         orderBy: { order: 'asc' },
@@ -110,6 +118,8 @@ class DatabaseToolsService {
           color: true,
           order: true,
           isDefault: true,
+          isSystemDefault: true,
+          stageType: true,
         },
       });
 
@@ -421,6 +431,7 @@ class DatabaseToolsService {
       userId, // Filter by logged-in user
     };
 
+    // Support both old status field and new stageId
     if (args.status) where.status = args.status;
     if (args.source) where.source = { contains: args.source, mode: 'insensitive' };
     if (args.dateFrom || args.dateTo) {
@@ -457,6 +468,15 @@ class DatabaseToolsService {
         phone: true,
         company: true,
         status: true,
+        stageId: true,
+        pipelineStage: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            color: true,
+          },
+        },
         source: true,
         priority: true,
         estimatedValue: true,
@@ -466,9 +486,17 @@ class DatabaseToolsService {
       },
     });
 
+    // Format leads with stage information
+    const formattedLeads = leads.map(lead => ({
+      ...lead,
+      stage: lead.pipelineStage?.name || lead.status,
+      stageSlug: lead.pipelineStage?.slug || lead.status,
+      stageColor: lead.pipelineStage?.color,
+    }));
+
     return {
-      count: leads.length,
-      leads,
+      count: formattedLeads.length,
+      leads: formattedLeads,
       filters: args,
     };
   }
@@ -525,6 +553,7 @@ class DatabaseToolsService {
     };
 
     // Only filter by stage if it's a valid stage (not 'all' or empty)
+    // Support both old stage field and new stageId
     if (args.stage && args.stage !== 'all' && args.stage.trim() !== '') {
       where.stage = args.stage;
     }
@@ -554,6 +583,15 @@ class DatabaseToolsService {
         company: true,
         contactName: true,
         stage: true,
+        stageId: true,
+        pipelineStage: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            color: true,
+          },
+        },
         value: true,
         probability: true,
         expectedCloseDate: true,
@@ -561,12 +599,20 @@ class DatabaseToolsService {
       },
     });
 
-    const totalValue = deals.reduce((sum, deal) => sum + deal.value, 0);
+    // Format deals with stage information
+    const formattedDeals = deals.map(deal => ({
+      ...deal,
+      stageName: deal.pipelineStage?.name || deal.stage,
+      stageSlug: deal.pipelineStage?.slug || deal.stage,
+      stageColor: deal.pipelineStage?.color,
+    }));
+
+    const totalValue = formattedDeals.reduce((sum, deal) => sum + deal.value, 0);
 
     return {
-      count: deals.length,
+      count: formattedDeals.length,
       totalValue,
-      deals,
+      deals: formattedDeals,
     };
   }
 
@@ -749,9 +795,9 @@ class DatabaseToolsService {
         };
 
       case 'deals_by_stage':
-        // Pipeline stages are customizable - this will group by whatever stages exist in the database
+        // Pipeline stages are customizable - get actual stage names from PipelineStage table
         const dealsByStage = await prisma.deal.groupBy({
-          by: ['stage'],
+          by: ['stageId'],
           _count: { id: true },
           _sum: { value: true },
           where: {
@@ -759,10 +805,22 @@ class DatabaseToolsService {
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
         });
+
+        // Get stage names for each stageId
+        const stageIds = dealsByStage.map(g => g.stageId).filter(Boolean);
+        const stages = await prisma.pipelineStage.findMany({
+          where: { id: { in: stageIds } },
+          select: { id: true, name: true, slug: true },
+        });
+
+        const stageMap = Object.fromEntries(stages.map(s => [s.id, s]));
+
         return {
           metric: 'deals_by_stage',
           data: dealsByStage.map(g => ({
-            stage: g.stage,
+            stageId: g.stageId,
+            stage: stageMap[g.stageId]?.name || 'Unknown',
+            stageSlug: stageMap[g.stageId]?.slug || g.stageId,
             count: g._count.id,
             totalValue: g._sum.value || 0,
           })),
@@ -775,13 +833,33 @@ class DatabaseToolsService {
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
         });
-        const wonDeals = await prisma.deal.count({
+
+        // Get user's tenantId to find won stages
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { tenantId: true }
+        });
+
+        // Find "won" stages dynamically (look for stages with "won" in slug)
+        const wonStages = await prisma.pipelineStage.findMany({
+          where: {
+            tenantId: user.tenantId,
+            slug: { contains: 'won' },
+            isActive: true,
+          },
+          select: { id: true },
+        });
+
+        const wonStageIds = wonStages.map(s => s.id);
+
+        const wonDeals = wonStageIds.length > 0 ? await prisma.deal.count({
           where: {
             userId, // Filter by logged-in user
-            stage: 'closed-won',
+            stageId: { in: wonStageIds },
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
-        });
+        }) : 0;
+
         return {
           metric: 'conversion_rate',
           data: {
@@ -808,14 +886,37 @@ class DatabaseToolsService {
         };
 
       case 'pipeline_value':
+        // Get user's tenantId to find closed stages
+        const pipelineUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { tenantId: true }
+        });
+
+        // Find "closed" stages dynamically (won/lost)
+        const closedStages = await prisma.pipelineStage.findMany({
+          where: {
+            tenantId: pipelineUser.tenantId,
+            OR: [
+              { slug: { contains: 'won' } },
+              { slug: { contains: 'lost' } },
+              { slug: { contains: 'closed' } },
+            ],
+            isActive: true,
+          },
+          select: { id: true },
+        });
+
+        const closedStageIds = closedStages.map(s => s.id);
+
         const pipelineValue = await prisma.deal.aggregate({
           _sum: { value: true },
           where: {
             userId, // Filter by logged-in user
-            stage: { notIn: ['closed-won', 'closed-lost'] },
+            ...(closedStageIds.length > 0 ? { stageId: { notIn: closedStageIds } } : {}),
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
         });
+
         return {
           metric: 'pipeline_value',
           data: {
