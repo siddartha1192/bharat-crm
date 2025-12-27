@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { leadsAPI, dealsAPI } from '@/lib/api';
+import { leadsAPI, dealsAPI, pipelineStagesAPI } from '@/lib/api';
 import { Lead } from '@/types/lead';
 import { Deal } from '@/types/pipeline';
 import { Card } from '@/components/ui/card';
@@ -40,9 +40,22 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+interface PipelineStage {
+  id: string;
+  name: string;
+  slug: string;
+  color: string;
+  order: number;
+  stageType: 'LEAD' | 'DEAL' | 'BOTH';
+  isActive: boolean;
+  isWonStage?: boolean;
+  isLostStage?: boolean;
+}
+
 export default function Reports() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [pipelineStages, setPipelineStages] = useState<PipelineStage[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch data from API
@@ -53,9 +66,10 @@ export default function Reports() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [leadsResponse, dealsResponse] = await Promise.all([
+      const [leadsResponse, dealsResponse, stagesData] = await Promise.all([
         leadsAPI.getAll({ limit: 10000 }), // Get all leads for reports
-        dealsAPI.getAll({ limit: 10000 }) // Get all deals for reports
+        dealsAPI.getAll({ limit: 10000 }), // Get all deals for reports
+        pipelineStagesAPI.getAll() // Get pipeline stages
       ]);
 
       // Handle paginated responses
@@ -64,6 +78,7 @@ export default function Reports() {
 
       setLeads(leadsData);
       setDeals(dealsData);
+      setPipelineStages(stagesData.filter((s: PipelineStage) => s.isActive));
     } catch (error) {
       toast.error('Failed to load report data. Please check if the backend is running.');
       console.error('Error fetching report data:', error);
@@ -105,43 +120,38 @@ export default function Reports() {
     },
   ];
 
-  // Pipeline Value by Stage
-  const pipelineData = [
-    {
-      stage: 'Lead',
-      value: deals.filter(d => d.stage === 'lead').reduce((sum, d) => sum + d.value, 0) / 100000,
-      count: deals.filter(d => d.stage === 'lead').length,
-    },
-    {
-      stage: 'Qualified',
-      value: deals.filter(d => d.stage === 'qualified').reduce((sum, d) => sum + d.value, 0) / 100000,
-      count: deals.filter(d => d.stage === 'qualified').length,
-    },
-    {
-      stage: 'Proposal',
-      value: deals.filter(d => d.stage === 'proposal').reduce((sum, d) => sum + d.value, 0) / 100000,
-      count: deals.filter(d => d.stage === 'proposal').length,
-    },
-    {
-      stage: 'Negotiation',
-      value: deals.filter(d => d.stage === 'negotiation').reduce((sum, d) => sum + d.value, 0) / 100000,
-      count: deals.filter(d => d.stage === 'negotiation').length,
-    },
-    {
-      stage: 'Won',
-      value: deals.filter(d => d.stage === 'closed-won').reduce((sum, d) => sum + d.value, 0) / 100000,
-      count: deals.filter(d => d.stage === 'closed-won').length,
-    },
-  ];
+  // Pipeline Value by Stage - DYNAMIC based on actual pipeline stages
+  const pipelineData = pipelineStages
+    .filter(stage => stage.stageType === 'DEAL' || stage.stageType === 'BOTH')
+    .sort((a, b) => a.order - b.order)
+    .map(stage => {
+      const stageDeals = deals.filter(d => d.stageId === stage.id);
+      return {
+        stage: stage.name,
+        value: stageDeals.reduce((sum, d) => sum + d.value, 0) / 100000,
+        count: stageDeals.length,
+        color: stage.color,
+      };
+    })
+    .filter(d => d.count > 0); // Only show stages with deals
 
-  // Lead Status Distribution
-  const leadStatusData = [
-    { name: 'New', value: leads.filter(l => l.status === 'new').length, color: '#3b82f6' },
-    { name: 'Contacted', value: leads.filter(l => l.status === 'contacted').length, color: '#8b5cf6' },
-    { name: 'Qualified', value: leads.filter(l => l.status === 'qualified').length, color: '#06b6d4' },
-    { name: 'Proposal', value: leads.filter(l => l.status === 'proposal').length, color: '#f59e0b' },
-    { name: 'Won', value: leads.filter(l => l.status === 'won').length, color: '#138808' },
-  ];
+  // Lead Status Distribution - DYNAMIC based on actual pipeline stages
+  const leadStatusData = pipelineStages
+    .filter(stage => stage.stageType === 'LEAD' || stage.stageType === 'BOTH')
+    .sort((a, b) => a.order - b.order)
+    .map(stage => {
+      const stageLeads = leads.filter(l => l.stageId === stage.id);
+      return {
+        name: stage.name,
+        value: stageLeads.length,
+        color: `#${stage.color}`,
+      };
+    })
+    .filter(d => d.value > 0); // Only show stages with leads
+
+  // Get won and lost stage IDs for dynamic filtering
+  const wonStageIds = pipelineStages.filter(s => s.isWonStage).map(s => s.id);
+  const lostStageIds = pipelineStages.filter(s => s.isLostStage).map(s => s.id);
 
   // Monthly Performance - Calculate from real data
   const getMonthlyData = () => {
@@ -162,18 +172,18 @@ export default function Reports() {
                leadDate.getMonth() === date.getMonth();
       }).length;
 
-      // Count won deals in this month (closed-won)
+      // Count won deals in this month (using dynamic won stages)
       const monthDeals = deals.filter(d => {
-        if (d.stage !== 'closed-won') return false;
+        if (!wonStageIds.includes(d.stageId)) return false;
         const dealDate = new Date(d.updatedAt);
         return dealDate.getFullYear() === date.getFullYear() &&
                dealDate.getMonth() === date.getMonth();
       }).length;
 
-      // Calculate revenue from won deals in this month
+      // Calculate revenue from won deals in this month (using dynamic won stages)
       const monthRevenue = deals
         .filter(d => {
-          if (d.stage !== 'closed-won') return false;
+          if (!wonStageIds.includes(d.stageId)) return false;
           const dealDate = new Date(d.updatedAt);
           return dealDate.getFullYear() === date.getFullYear() &&
                  dealDate.getMonth() === date.getMonth();
@@ -193,11 +203,15 @@ export default function Reports() {
 
   const monthlyData = getMonthlyData();
 
+  // Calculate stats using dynamic stage mapping
+  const wonLeadsCount = leads.filter(l => wonStageIds.includes(l.stageId)).length;
+  const wonDealsRevenue = deals.filter(d => wonStageIds.includes(d.stageId)).reduce((sum, d) => sum + d.value, 0);
+
   const stats = {
     totalLeads: leads.length,
-    conversionRate: leads.length > 0 ? ((leads.filter(l => l.status === 'won').length / leads.length) * 100).toFixed(1) : '0.0',
+    conversionRate: leads.length > 0 ? ((wonLeadsCount / leads.length) * 100).toFixed(1) : '0.0',
     avgDealSize: deals.length > 0 ? (deals.reduce((sum, d) => sum + d.value, 0) / deals.length / 100000).toFixed(1) : '0.0',
-    totalRevenue: (deals.filter(d => d.stage === 'closed-won').reduce((sum, d) => sum + d.value, 0) / 100000).toFixed(1),
+    totalRevenue: (wonDealsRevenue / 100000).toFixed(1),
   };
 
   const handleExportLeads = () => {
