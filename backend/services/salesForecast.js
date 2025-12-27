@@ -31,12 +31,21 @@ async function calculateForecast(userId, period, startDate, endDate) {
     const deals = await prisma.deal.findMany({
       where: filter,
       include: {
-        pipelineStage: true,
+        pipelineStage: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            color: true,
+            stageType: true,
+          }
+        },
         user: {
           select: {
             id: true,
             name: true,
-            email: true
+            email: true,
+            tenantId: true
           }
         }
       }
@@ -47,11 +56,42 @@ async function calculateForecast(userId, period, startDate, endDate) {
       where: filter
     });
 
-    // Calculate metrics with CORRECT stage names
-    // Actual stages: 'lead', 'qualified', 'proposal', 'negotiation', 'closed-won', 'closed-lost'
-    const wonDeals = deals.filter(d => d.stage === 'closed-won');
-    const lostDeals = deals.filter(d => d.stage === 'closed-lost');
-    const activeDeals = deals.filter(d => d.stage !== 'closed-won' && d.stage !== 'closed-lost');
+    // Get tenantId to find closed stages dynamically
+    const tenantId = deals.length > 0 ? deals[0].user.tenantId :
+                     leads.length > 0 ? (await prisma.user.findUnique({ where: { id: userId }, select: { tenantId: true } }))?.tenantId :
+                     null;
+
+    // Find "won" and "lost" stages dynamically
+    let wonStageIds = [];
+    let lostStageIds = [];
+
+    if (tenantId) {
+      const wonStages = await prisma.pipelineStage.findMany({
+        where: {
+          tenantId,
+          slug: { contains: 'won' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+
+      const lostStages = await prisma.pipelineStage.findMany({
+        where: {
+          tenantId,
+          slug: { contains: 'lost' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+
+      wonStageIds = wonStages.map(s => s.id);
+      lostStageIds = lostStages.map(s => s.id);
+    }
+
+    // Calculate metrics with DYNAMIC stage detection (works with any custom stages)
+    const wonDeals = deals.filter(d => wonStageIds.includes(d.stageId));
+    const lostDeals = deals.filter(d => lostStageIds.includes(d.stageId));
+    const activeDeals = deals.filter(d => !wonStageIds.includes(d.stageId) && !lostStageIds.includes(d.stageId));
 
     // Won revenue = actual closed revenue in this period
     const wonRevenue = wonDeals.reduce((sum, deal) => sum + deal.value, 0);
@@ -102,7 +142,7 @@ async function calculateForecast(userId, period, startDate, endDate) {
         };
       }
       userBreakdown[deal.userId].deals += 1;
-      if (deal.stage === 'won') {
+      if (wonStageIds.includes(deal.stageId)) {
         userBreakdown[deal.userId].revenue += deal.value;
       }
     });
@@ -126,12 +166,12 @@ async function calculateForecast(userId, period, startDate, endDate) {
       }
     };
 
-    const previousWonDeals = await prisma.deal.findMany({
+    const previousWonDeals = wonStageIds.length > 0 ? await prisma.deal.findMany({
       where: {
         ...previousFilter,
-        stage: 'closed-won'  // FIXED: Use correct stage name
+        stageId: { in: wonStageIds }  // DYNAMIC: Use tenant's won stages
       }
-    });
+    }) : [];
 
     const previousPeriodRevenue = previousWonDeals.reduce((sum, deal) => sum + deal.value, 0);
     const growthRate = previousPeriodRevenue > 0
@@ -266,11 +306,34 @@ async function getTrendData(userId, period, months = 6) {
       orderBy: { forecastDate: 'asc' }
     });
 
-    // Also get actual revenue data
-    const actualDeals = await prisma.deal.groupBy({
+    // Get tenant's won stages
+    let wonStageIds = [];
+    if (userId || forecasts.length > 0) {
+      const user = userId ? await prisma.user.findUnique({
+        where: { id: userId },
+        select: { tenantId: true }
+      }) : await prisma.user.findFirst({
+        select: { tenantId: true }
+      });
+
+      if (user) {
+        const wonStages = await prisma.pipelineStage.findMany({
+          where: {
+            tenantId: user.tenantId,
+            slug: { contains: 'won' },
+            isActive: true,
+          },
+          select: { id: true },
+        });
+        wonStageIds = wonStages.map(s => s.id);
+      }
+    }
+
+    // Also get actual revenue data (using dynamic won stages)
+    const actualDeals = wonStageIds.length > 0 ? await prisma.deal.groupBy({
       by: ['createdAt'],
       where: {
-        stage: 'won',
+        stageId: { in: wonStageIds },
         createdAt: {
           gte: startDate,
           lte: endDate
@@ -280,7 +343,7 @@ async function getTrendData(userId, period, months = 6) {
       _sum: {
         value: true
       }
-    });
+    }) : [];
 
     return {
       forecasts,
@@ -299,16 +362,46 @@ async function getPipelineHealth(userId) {
   try {
     const filter = userId ? { userId } : {};
 
-    // Get all active deals (exclude closed deals)
+    // Get tenant's closed stages dynamically
+    let closedStageIds = [];
+    const user = userId ? await prisma.user.findUnique({
+      where: { id: userId },
+      select: { tenantId: true }
+    }) : await prisma.user.findFirst({
+      select: { tenantId: true }
+    });
+
+    if (user) {
+      const closedStages = await prisma.pipelineStage.findMany({
+        where: {
+          tenantId: user.tenantId,
+          OR: [
+            { slug: { contains: 'won' } },
+            { slug: { contains: 'lost' } },
+            { slug: { contains: 'closed' } },
+          ],
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      closedStageIds = closedStages.map(s => s.id);
+    }
+
+    // Get all active deals (exclude closed deals dynamically)
     const deals = await prisma.deal.findMany({
       where: {
         ...filter,
-        stage: {
-          notIn: ['closed-won', 'closed-lost']  // FIXED: Use correct stage names
-        }
+        ...(closedStageIds.length > 0 ? { stageId: { notIn: closedStageIds } } : {})
       },
       include: {
-        pipelineStage: true
+        pipelineStage: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            color: true,
+          }
+        }
       }
     });
 
@@ -319,14 +412,15 @@ async function getPipelineHealth(userId) {
       ? deals.reduce((sum, deal) => sum + deal.probability, 0) / deals.length
       : 0;
 
-    // Stage distribution
+    // Stage distribution (using pipeline stage name)
     const stageDistribution = {};
     deals.forEach(deal => {
-      if (!stageDistribution[deal.stage]) {
-        stageDistribution[deal.stage] = { count: 0, value: 0 };
+      const stageName = deal.pipelineStage?.name || deal.stage;
+      if (!stageDistribution[stageName]) {
+        stageDistribution[stageName] = { count: 0, value: 0 };
       }
-      stageDistribution[deal.stage].count += 1;
-      stageDistribution[deal.stage].value += deal.value;
+      stageDistribution[stageName].count += 1;
+      stageDistribution[stageName].value += deal.value;
     });
 
     // Aging analysis (deals older than 30, 60, 90 days)
