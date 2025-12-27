@@ -31,6 +31,12 @@ enum SubscriptionPlan {
   ENTERPRISE
 }
 
+enum StageType {
+  LEAD
+  DEAL
+  BOTH
+}
+
 // Tenant Model - Multi-tenant organization/company
 model Tenant {
   id     String  @id @default(uuid())
@@ -136,7 +142,6 @@ model User {
   activityLogs          ActivityLog[]
   sessions              Session[]
   emailLogs             EmailLog[]
-  pipelineStages        PipelineStage[]
   automationRules       AutomationRule[]
   documents             Document[]
   salesForecasts        SalesForecast[]
@@ -274,12 +279,17 @@ model Lead {
   dealId String? @unique
   deal   Deal?   @relation("LeadToDeal", fields: [dealId], references: [id], onDelete: SetNull)
 
+  // Pipeline Stage relation (single source of truth)
+  stageId       String
+  pipelineStage PipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+
   @@index([status, priority])
   @@index([assignedTo])
   @@index([userId])
   @@index([dealId])
   @@index([createdBy])
   @@index([tenantId])
+  @@index([stageId])
 }
 
 model Contact {
@@ -375,31 +385,34 @@ model Invoice {
 }
 
 model PipelineStage {
-  id        String   @id @default(uuid())
-  name      String // 'Lead', 'Qualified', 'Proposal', etc.
-  slug      String // 'lead', 'qualified', 'proposal', etc. (used as stage value in Deal)
-  color     String   @default("blue") // Tailwind color class (e.g., 'blue', 'green', 'red')
-  order     Int // Display order (1, 2, 3, etc.)
-  isDefault Boolean  @default(false) // True for system default stages
-  isActive  Boolean  @default(true) // Soft delete
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String    @id @default(uuid())
+  name            String // 'New Lead', 'Qualified', 'Proposal', etc.
+  slug            String // 'new-lead', 'qualified', 'proposal', etc.
+  color           String    @default("blue") // Tailwind color class (e.g., 'blue', 'green', 'red')
+  order           Int // Display order (1, 2, 3, etc.)
+  isDefault       Boolean   @default(false) // True for backward compatibility
+  isSystemDefault Boolean   @default(false) // True for the ONE default "New Lead" stage per tenant
+  isActive        Boolean   @default(true) // Soft delete
+  description     String? // Optional description for the stage
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  // Multi-tenant relationship
+  // Stage type: LEAD, DEAL, or BOTH
+  stageType StageType @default(BOTH)
+
+  // Multi-tenant relationship (stages are tenant-level, not user-level)
   tenantId String
 
-  // User relation (null for default stages, user-specific for custom)
-  userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Deals using this stage
+  // Relations: Leads and Deals using this stage
+  leads Lead[]
   deals Deal[]
 
-  @@unique([userId, slug]) // Each user can have only one stage with a specific slug
-  @@index([userId])
+  @@unique([tenantId, slug]) // Each tenant can have only one stage with a specific slug
+  @@index([tenantId])
+  @@index([tenantId, stageType])
   @@index([order])
   @@index([isActive])
-  @@index([tenantId])
+  @@index([isSystemDefault])
 }
 
 model Deal {
@@ -411,8 +424,8 @@ model Deal {
   phone             String   @default("") // Synced with lead phone
   contactId         String? // Optional link to Contact
   value             Float
-  stage             String // References PipelineStage.slug
-  stageId           String? // Direct reference to PipelineStage
+  stage             String // DEPRECATED: Use stageId instead (kept for backward compatibility)
+  stageId           String // Direct reference to PipelineStage (single source of truth)
   probability       Int // 0-100
   expectedCloseDate DateTime
   assignedTo        String
@@ -432,8 +445,8 @@ model Deal {
   // Contact relation (optional)
   contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
-  // Pipeline stage relation (optional, for custom stages)
-  pipelineStage PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  // Pipeline stage relation (single source of truth)
+  pipelineStage PipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
 
   // Lead relation (backref from Lead)
   lead Lead? @relation("LeadToDeal")

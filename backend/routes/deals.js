@@ -139,9 +139,35 @@ router.post('/', validateAssignment, async (req, res) => {
     const assignedTo = dealData.assignedTo || req.user.name;
     const createdBy = userId;
 
+    // Auto-assign default stage if not provided (NEW: Dynamic pipeline stages)
+    let stageId = dealData.stageId;
+    if (!stageId) {
+      const defaultStage = await prisma.pipelineStage.findFirst({
+        where: {
+          tenantId: req.tenant.id,
+          stageType: { in: ['DEAL', 'BOTH'] },
+          isActive: true
+        },
+        orderBy: { order: 'asc' }
+      });
+
+      if (!defaultStage) {
+        return res.status(400).json({
+          error: 'No deal stages found. Please create pipeline stages first.'
+        });
+      }
+
+      stageId = defaultStage.id;
+      // Set stage field for backward compatibility
+      if (!dealData.stage) {
+        dealData.stage = defaultStage.slug;
+      }
+    }
+
     // Ensure required fields have defaults
     const data = {
       ...dealData,
+      stageId, // NEW: Required field
       assignedTo,
       createdBy,
       userId,
@@ -212,7 +238,9 @@ router.put('/:id', async (req, res) => {
 
     // Check if stage is actually changing (store this before filtering fields)
     const isStageChanging = updateData.stage && updateData.stage !== existingDeal.stage;
+    const isStageIdChanging = updateData.stageId && updateData.stageId !== existingDeal.stageId;
     console.log('🔍 Stage changing?', isStageChanging, '(from', existingDeal.stage, 'to', updateData.stage, ')');
+    console.log('🔍 StageId changing?', isStageIdChanging, '(from', existingDeal.stageId, 'to', updateData.stageId, ')');
 
     // Remove fields that shouldn't be updated and CRITICAL: prevent userId from being changed
     const { id, createdAt, updatedAt, nextAction, source, userId: _, ...dealData } = updateData;
@@ -225,7 +253,7 @@ router.put('/:id', async (req, res) => {
         data: dealData
       });
 
-      console.log('✅ Deal updated to stage:', deal.stage);
+      console.log('✅ Deal updated to stage:', deal.stage, 'stageId:', deal.stageId);
 
       // Check if there's a linked Lead (find lead where dealId matches this deal)
       const linkedLead = await tx.lead.findFirst({
@@ -233,7 +261,7 @@ router.put('/:id', async (req, res) => {
       });
 
       if (linkedLead) {
-        console.log('🔗 Found linked lead:', linkedLead.id, 'current status:', linkedLead.status);
+        console.log('🔗 Found linked lead:', linkedLead.id, 'current status:', linkedLead.status, 'stageId:', linkedLead.stageId);
       } else {
         console.log('ℹ️  No linked lead found for deal:', deal.id);
       }
@@ -242,11 +270,39 @@ router.put('/:id', async (req, res) => {
       if (linkedLead) {
         const leadUpdateData = {};
 
-        // Sync stage/status if changed
-        if (isStageChanging) {
-          const newLeadStatus = mapDealStageToLeadStatus(updateData.stage);
-          leadUpdateData.status = newLeadStatus;
-          console.log('🔄 Syncing lead status from', linkedLead.status, 'to', newLeadStatus);
+        // Sync stageId if changed (NEW: Dynamic pipeline stages)
+        if (isStageIdChanging) {
+          const pipelineStage = await tx.pipelineStage.findUnique({
+            where: { id: updateData.stageId }
+          });
+
+          if (pipelineStage) {
+            leadUpdateData.stageId = pipelineStage.id;
+            // Keep old status field in sync for backward compatibility
+            leadUpdateData.status = pipelineStage.slug;
+            console.log('🔄 Syncing lead stageId from', linkedLead.stageId, 'to', pipelineStage.id);
+          }
+        }
+
+        // Also sync stage field for backward compatibility
+        if (isStageChanging && !isStageIdChanging) {
+          // Find matching stage by slug
+          const matchingStage = await tx.pipelineStage.findFirst({
+            where: {
+              tenantId: req.tenant.id,
+              slug: updateData.stage
+            }
+          });
+
+          if (matchingStage) {
+            leadUpdateData.stageId = matchingStage.id;
+            leadUpdateData.status = matchingStage.slug;
+          } else {
+            // Fallback to old mapping
+            const newLeadStatus = mapDealStageToLeadStatus(updateData.stage);
+            leadUpdateData.status = newLeadStatus;
+          }
+          console.log('🔄 Syncing lead status from', linkedLead.status, 'to', leadUpdateData.status);
         }
 
         // Sync other fields
@@ -266,7 +322,7 @@ router.put('/:id', async (req, res) => {
             data: leadUpdateData
           });
           console.log('✅ Synced Lead', linkedLead.id, 'with updates:', JSON.stringify(leadUpdateData, null, 2));
-          console.log('✅ Lead final status:', updatedLead.status);
+          console.log('✅ Lead final status:', updatedLead.status, 'stageId:', updatedLead.stageId);
         } else {
           console.log('ℹ️  No lead updates needed (no changes detected)');
         }
