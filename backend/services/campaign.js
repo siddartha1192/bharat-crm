@@ -47,10 +47,11 @@ class CampaignService {
           const recipients = await this.buildRecipientList(campaign);
 
           if (recipients.length > 0) {
-            // Create recipient records
+            // Create recipient records with tenantId for multi-tenant isolation
             await prisma.campaignRecipient.createMany({
               data: recipients.map(r => ({
                 campaignId: campaign.id,
+                tenantId: campaign.tenantId, // Add tenantId from campaign
                 ...r,
               })),
             });
@@ -617,10 +618,11 @@ class CampaignService {
           throw new Error('No valid recipients found for this campaign');
         }
 
-        // Create recipient records
+        // Create recipient records with tenantId for multi-tenant isolation
         await prisma.campaignRecipient.createMany({
           data: recipients.map(r => ({
             campaignId,
+            tenantId: campaign.tenantId, // Add tenantId from campaign
             ...r,
           })),
         });
@@ -687,6 +689,7 @@ class CampaignService {
           await prisma.campaignRecipient.createMany({
             data: recipients.map(r => ({
               campaignId,
+              tenantId: campaign.tenantId, // Add tenantId from campaign
               ...r,
             })),
           });
