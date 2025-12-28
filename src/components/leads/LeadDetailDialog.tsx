@@ -548,6 +548,7 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
                     className="hidden"
                     onChange={handleFileUpload}
                   />
+                </div>
                 {documents.length === 0 ? (
                   <div className="text-center py-12 bg-gradient-to-br from-indigo-50/50 to-transparent rounded-xl border-2 border-dashed border-indigo-200">
                     <div className="p-4 bg-white rounded-full w-fit mx-auto mb-3 shadow-sm">
