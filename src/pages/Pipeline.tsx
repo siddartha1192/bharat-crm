@@ -84,7 +84,13 @@ export default function Pipeline() {
 
       // Check if we have any deal stages
       if (stagesWithDates.length === 0) {
-        setPipelineError('No deal stages found. Please create a stage with stageType="DEAL" or "BOTH" in Pipeline Settings.');
+        setPipelineError(
+          'Welcome! You can create pipeline stages that match your business needs. ' +
+          'When you create a new deal, it will start in the "Lead" stage. ' +
+          'For sales forecasts and reports to work properly, please make sure to create at least three stages: ' +
+          '"Lead" (for new deals), "Closed Won" (for successful deals), and "Closed Lost" (for lost opportunities). ' +
+          'Click on Pipeline Settings to get started.'
+        );
         setStages([]);
         setDeals([]);
         return;

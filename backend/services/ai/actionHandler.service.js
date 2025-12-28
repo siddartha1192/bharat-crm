@@ -106,9 +106,9 @@ Notes: ${data.notes || 'None'}
         attendees.push(data.email);
       }
 
-      // Get owner user with Google Calendar tokens
+      // Get user from context with Google Calendar tokens
       const ownerUser = await prisma.user.findFirst({
-        where: { email: aiConfig.company.ownerEmail },
+        where: { id: context.userId },
         select: {
           id: true,
           tenantId: true,
@@ -118,7 +118,7 @@ Notes: ${data.notes || 'None'}
       });
 
       if (!ownerUser) {
-        return { success: false, error: 'Owner user not found' };
+        return { success: false, error: 'User not found' };
       }
 
       let googleEventId = null;
@@ -195,9 +195,9 @@ Notes: ${data.notes || 'None'}
         return { success: false, error: 'Task title is required' };
       }
 
-      // Get owner user with name
+      // Get user from context
       const ownerUser = await prisma.user.findFirst({
-        where: { email: aiConfig.company.ownerEmail },
+        where: { id: context.userId },
         select: {
           id: true,
           tenantId: true,
@@ -207,7 +207,7 @@ Notes: ${data.notes || 'None'}
       });
 
       if (!ownerUser) {
-        return { success: false, error: 'Owner user not found' };
+        return { success: false, error: 'User not found' };
       }
 
       // Parse due date if provided, otherwise default to 7 days from now
@@ -268,9 +268,9 @@ Notes: ${data.notes || 'None'}
         return { success: false, error: 'Name and email are required' };
       }
 
-      // Get owner user ID
+      // Get user from context
       const ownerUser = await prisma.user.findFirst({
-        where: { email: aiConfig.company.ownerEmail },
+        where: { id: context.userId },
         select: {
           id: true,
           tenantId: true,
@@ -280,7 +280,7 @@ Notes: ${data.notes || 'None'}
       });
 
       if (!ownerUser) {
-        return { success: false, error: 'Owner user not found' };
+        return { success: false, error: 'User not found' };
       }
 
       // Helper function: Map lead status to deal stage
