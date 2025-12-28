@@ -12,6 +12,7 @@ import {
   Settings,
   MessageSquare,
   Brain,
+  Cloud,
   CheckCircle,
   XCircle,
   Loader2,
@@ -44,6 +45,13 @@ interface OpenAISettings {
   enabled: boolean;
 }
 
+interface CloudinarySettings {
+  configured: boolean;
+  cloudName: string | null;
+  hasApiKey: boolean;
+  hasApiSecret: boolean;
+}
+
 export default function APISettings() {
   const [whatsappSettings, setWhatsappSettings] = useState<WhatsAppSettings>({
     configured: false,
@@ -60,6 +68,13 @@ export default function APISettings() {
     enabled: true,
   });
 
+  const [cloudinarySettings, setCloudinarySettings] = useState<CloudinarySettings>({
+    configured: false,
+    cloudName: null,
+    hasApiKey: false,
+    hasApiSecret: false,
+  });
+
   // Form states
   const [whatsappToken, setWhatsappToken] = useState('');
   const [whatsappPhoneId, setWhatsappPhoneId] = useState('');
@@ -68,15 +83,22 @@ export default function APISettings() {
   const [openaiModel, setOpenaiModel] = useState('gpt-4o-mini');
   const [openaiTemperature, setOpenaiTemperature] = useState(0.7);
   const [openaiEnabled, setOpenaiEnabled] = useState(true);
+  const [cloudinaryCloudName, setCloudinaryCloudName] = useState('');
+  const [cloudinaryApiKey, setCloudinaryApiKey] = useState('');
+  const [cloudinaryApiSecret, setCloudinaryApiSecret] = useState('');
 
   // UI states
   const [loading, setLoading] = useState(true);
   const [savingWhatsApp, setSavingWhatsApp] = useState(false);
   const [savingOpenAI, setSavingOpenAI] = useState(false);
+  const [savingCloudinary, setSavingCloudinary] = useState(false);
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [testingOpenAI, setTestingOpenAI] = useState(false);
+  const [testingCloudinary, setTestingCloudinary] = useState(false);
   const [showWhatsAppToken, setShowWhatsAppToken] = useState(false);
   const [showOpenAIKey, setShowOpenAIKey] = useState(false);
+  const [showCloudinaryApiKey, setShowCloudinaryApiKey] = useState(false);
+  const [showCloudinaryApiSecret, setShowCloudinaryApiSecret] = useState(false);
 
   const { toast } = useToast();
   const token = localStorage.getItem('token');
@@ -99,6 +121,7 @@ export default function APISettings() {
       const data = await response.json();
       setWhatsappSettings(data.settings.whatsapp);
       setOpenaiSettings(data.settings.openai);
+      setCloudinarySettings(data.settings.cloudinary);
 
       // Set form defaults
       setWhatsappPhoneId(data.settings.whatsapp.phoneId || '');
@@ -106,6 +129,7 @@ export default function APISettings() {
       setOpenaiModel(data.settings.openai.model);
       setOpenaiTemperature(data.settings.openai.temperature);
       setOpenaiEnabled(data.settings.openai.enabled);
+      setCloudinaryCloudName(data.settings.cloudinary.cloudName || '');
     } catch (error: any) {
       console.error('Error fetching settings:', error);
       toast({
@@ -323,6 +347,110 @@ export default function APISettings() {
     }
   };
 
+  const saveCloudinarySettings = async () => {
+    if (!cloudinaryCloudName || !cloudinaryApiKey || !cloudinaryApiSecret) {
+      toast({
+        title: 'Validation Error',
+        description: 'All Cloudinary fields are required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setSavingCloudinary(true);
+      const response = await fetch(`${API_URL}/settings/cloudinary`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          cloudName: cloudinaryCloudName,
+          apiKey: cloudinaryApiKey,
+          apiSecret: cloudinaryApiSecret,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save Cloudinary settings');
+      }
+
+      toast({
+        title: 'Settings Saved',
+        description: 'Cloudinary settings updated successfully',
+      });
+
+      // Refresh settings
+      await fetchSettings();
+
+      // Clear sensitive fields
+      setCloudinaryApiKey('');
+      setCloudinaryApiSecret('');
+    } catch (error: any) {
+      console.error('Error saving Cloudinary settings:', error);
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingCloudinary(false);
+    }
+  };
+
+  const testCloudinaryConnection = async () => {
+    if (!cloudinaryCloudName || !cloudinaryApiKey || !cloudinaryApiSecret) {
+      toast({
+        title: 'Validation Error',
+        description: 'All Cloudinary fields are required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setTestingCloudinary(true);
+      const response = await fetch(`${API_URL}/settings/test-cloudinary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          cloudName: cloudinaryCloudName,
+          apiKey: cloudinaryApiKey,
+          apiSecret: cloudinaryApiSecret,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.configured) {
+        toast({
+          title: 'Connection Successful',
+          description: 'Cloudinary configuration is valid',
+        });
+      } else {
+        toast({
+          title: 'Connection Failed',
+          description: data.error || 'Invalid Cloudinary configuration',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error testing Cloudinary:', error);
+      toast({
+        title: 'Test Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setTestingCloudinary(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -336,7 +464,7 @@ export default function APISettings() {
       <div>
         <h2 className="text-3xl font-bold tracking-tight">API Configuration</h2>
         <p className="text-muted-foreground">
-          Configure API credentials for WhatsApp and OpenAI services
+          Configure API credentials for WhatsApp, OpenAI, and Cloudinary services
         </p>
       </div>
 
@@ -350,8 +478,11 @@ export default function APISettings() {
             <Brain className="w-4 h-4" />
             OpenAI
           </TabsTrigger>
+          <TabsTrigger value="cloudinary" className="flex items-center gap-2">
+            <Cloud className="w-4 h-4" />
+            Cloudinary
+          </TabsTrigger>
         </TabsList>
-
         {/* WhatsApp Settings */}
         <TabsContent value="whatsapp">
           <Card>
@@ -601,6 +732,142 @@ export default function APISettings() {
                   disabled={savingOpenAI || !openaiApiKey}
                 >
                   {savingOpenAI ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Settings className="w-4 h-4 mr-2" />
+                  )}
+                  Save Settings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Cloudinary Settings */}
+        <TabsContent value="cloudinary">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Cloud className="w-5 h-5" />
+                    Cloudinary
+                  </CardTitle>
+                  <CardDescription>
+                    Configure Cloudinary for WhatsApp media uploads
+                  </CardDescription>
+                </div>
+                <Badge variant={cloudinarySettings.configured ? 'default' : 'secondary'}>
+                  {cloudinarySettings.configured ? (
+                    <>
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Configured
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Not Configured
+                    </>
+                  )}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {cloudinarySettings.configured && (
+                <Alert>
+                  <CheckCircle className="w-4 h-4" />
+                  <AlertDescription>
+                    Cloudinary is currently configured. Cloud: {cloudinarySettings.cloudName}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <Alert>
+                <AlertDescription>
+                  Cloudinary is used for uploading WhatsApp media files (images, documents, videos, audio).
+                  Sign up at <a href="https://cloudinary.com" target="_blank" rel="noopener noreferrer" className="underline">cloudinary.com</a> to get your credentials.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-2">
+                <Label htmlFor="cloudinary-cloud-name">Cloud Name *</Label>
+                <Input
+                  id="cloudinary-cloud-name"
+                  placeholder={cloudinarySettings.cloudName || 'Enter cloud name'}
+                  value={cloudinaryCloudName}
+                  onChange={(e) => setCloudinaryCloudName(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your Cloudinary cloud name (found in dashboard)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cloudinary-api-key">API Key *</Label>
+                <div className="relative">
+                  <Input
+                    id="cloudinary-api-key"
+                    type={showCloudinaryApiKey ? 'text' : 'password'}
+                    placeholder={cloudinarySettings.hasApiKey ? '••••••••••••••••' : 'Enter API key'}
+                    value={cloudinaryApiKey}
+                    onChange={(e) => setCloudinaryApiKey(e.target.value)}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0"
+                    onClick={() => setShowCloudinaryApiKey(!showCloudinaryApiKey)}
+                  >
+                    {showCloudinaryApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Your Cloudinary API key
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cloudinary-api-secret">API Secret *</Label>
+                <div className="relative">
+                  <Input
+                    id="cloudinary-api-secret"
+                    type={showCloudinaryApiSecret ? 'text' : 'password'}
+                    placeholder={cloudinarySettings.hasApiSecret ? '••••••••••••••••' : 'Enter API secret'}
+                    value={cloudinaryApiSecret}
+                    onChange={(e) => setCloudinaryApiSecret(e.target.value)}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0"
+                    onClick={() => setShowCloudinaryApiSecret(!showCloudinaryApiSecret)}
+                  >
+                    {showCloudinaryApiSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Your Cloudinary API secret
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={testCloudinaryConnection}
+                  variant="outline"
+                  disabled={testingCloudinary || !cloudinaryCloudName || !cloudinaryApiKey || !cloudinaryApiSecret}
+                >
+                  {testingCloudinary ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  Test Connection
+                </Button>
+                <Button
+                  onClick={saveCloudinarySettings}
+                  disabled={savingCloudinary || !cloudinaryCloudName || !cloudinaryApiKey || !cloudinaryApiSecret}
+                >
+                  {savingCloudinary ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <Settings className="w-4 h-4 mr-2" />

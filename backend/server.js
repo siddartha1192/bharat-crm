@@ -79,6 +79,7 @@ const landingPagesRoutes = require('./routes/landingPages');
 const tenantsRoutes = require('./routes/tenants');
 const tenantAdminRoutes = require('./routes/tenantAdmin');
 const settingsRoutes = require('./routes/settings');
+const mediaRoutes = require('./routes/media');
 
 // Use routes
 app.use('/tenant-admin', tenantAdminRoutes);
@@ -107,6 +108,7 @@ app.use('/api/campaigns', campaignsRoutes);
 app.use('/api/forms', formsRoutes);
 app.use('/api/landing-pages', landingPagesRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/media', mediaRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
