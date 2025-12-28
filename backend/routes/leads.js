@@ -827,26 +827,37 @@ router.post('/import', async (req, res) => {
 
         try {
           // Map CSV columns to lead fields (flexible mapping)
+          const rawSource = leadData.source || leadData.Source || '';
+          // Valid sources: 'web-form', 'whatsapp', 'call', 'email', 'referral', 'social-media', 'missed-call'
+          const validSources = ['web-form', 'whatsapp', 'call', 'email', 'referral', 'social-media', 'missed-call'];
+          const normalizedSource = rawSource.toLowerCase().replace(/[\s_]/g, '-');
+          const source = validSources.includes(normalizedSource) ? normalizedSource : 'referral'; // Default to 'referral' for imported leads
+
           const lead = {
             name: leadData.name || leadData.Name || leadData.contact_name || '',
             email: leadData.email || leadData.Email || '',
             phone: leadData.phone || leadData.Phone || leadData.mobile || '',
             company: leadData.company || leadData.Company || '',
             status: leadData.status || leadData.Status || 'new',
-            source: leadData.source || leadData.Source || 'import',
+            source: source,
             priority: leadData.priority || leadData.Priority || 'medium',
             notes: leadData.notes || leadData.Notes || '',
-            estimatedValue: parseFloat(leadData.estimated_value || leadData.EstimatedValue || leadData.value || 0),
+            estimatedValue: parseFloat(leadData.estimated_value || leadData.EstimatedValue || leadData.value || 0) || 0,
             assignedTo: leadData.assigned_to || leadData.assignedTo || req.user.name,
-            tags: leadData.tags ? (typeof leadData.tags === 'string' ? leadData.tags.split(',').map(t => t.trim()) : []) : [],
+            tags: leadData.tags ? (typeof leadData.tags === 'string' ? leadData.tags.split(',').map(t => t.trim()).filter(Boolean) : []) : [],
             userId
           };
 
           // Validate required fields
-          if (!lead.name) {
+          if (!lead.name || lead.name.trim() === '') {
             results.failed++;
             results.errors.push(`Row ${i + 1}: Missing required field 'name'`);
             continue;
+          }
+
+          // Ensure company has a default value if empty
+          if (!lead.company || lead.company.trim() === '') {
+            lead.company = 'No company';
           }
 
           // Check for duplicates based on email (skip if email matches existing lead)

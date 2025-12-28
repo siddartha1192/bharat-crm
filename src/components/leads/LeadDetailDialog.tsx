@@ -219,7 +219,8 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
 
   if (!lead) return null;
 
-  const SourceIcon = sourceIcons[lead.source];
+  // Safely get source icon with fallback to default icon
+  const SourceIcon = sourceIcons[lead.source as keyof typeof sourceIcons] || User;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -228,14 +229,14 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
           <DialogTitle className="flex items-center gap-3">
             <Avatar className="h-14 w-14">
               <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground font-semibold text-xl">
-                {lead.name.split(' ').map(n => n[0]).join('')}
+                {lead.name?.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || 'L'}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <div className="text-2xl font-bold">{lead.name}</div>
+              <div className="text-2xl font-bold">{lead.name || 'Unnamed Lead'}</div>
               <div className="text-sm font-normal text-muted-foreground flex items-center gap-2">
                 <Building2 className="w-4 h-4" />
-                {lead.company}
+                {lead.company || 'No company'}
               </div>
             </div>
             {!lead.dealId && (
@@ -280,7 +281,7 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
               <div className="text-xs text-muted-foreground mb-1">Estimated Value</div>
               <div className="flex items-center gap-1 text-lg font-bold text-foreground">
                 <IndianRupee className="w-5 h-5" />
-                ₹{lead.estimatedValue.toLocaleString('en-IN')}
+                ₹{(lead.estimatedValue || 0).toLocaleString('en-IN')}
               </div>
             </div>
           </div>
@@ -426,22 +427,24 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
                   <div className="text-sm font-medium">{lead.assignedTo}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg">
-                <Calendar className="w-5 h-5 text-primary" />
-                <div>
-                  <div className="text-xs text-muted-foreground">Created</div>
-                  <div className="text-sm font-medium">
-                    {format(lead.createdAt, 'PPP')} ({formatDistanceToNow(lead.createdAt, { addSuffix: true })})
+              {lead.createdAt && (
+                <div className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  <div>
+                    <div className="text-xs text-muted-foreground">Created</div>
+                    <div className="text-sm font-medium">
+                      {format(new Date(lead.createdAt), 'PPP')} ({formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })})
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
               {lead.lastContactedAt && (
                 <div className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg">
                   <Clock className="w-5 h-5 text-primary" />
                   <div>
                     <div className="text-xs text-muted-foreground">Last Contacted</div>
                     <div className="text-sm font-medium">
-                      {format(lead.lastContactedAt, 'PPP')} ({formatDistanceToNow(lead.lastContactedAt, { addSuffix: true })})
+                      {format(new Date(lead.lastContactedAt), 'PPP')} ({formatDistanceToNow(new Date(lead.lastContactedAt), { addSuffix: true })})
                     </div>
                   </div>
                 </div>
@@ -452,7 +455,7 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
                   <div>
                     <div className="text-xs text-muted-foreground">Next Follow-up</div>
                     <div className="text-sm font-medium">
-                      {format(lead.nextFollowUpAt, 'PPP')} ({formatDistanceToNow(lead.nextFollowUpAt, { addSuffix: true })})
+                      {format(new Date(lead.nextFollowUpAt), 'PPP')} ({formatDistanceToNow(new Date(lead.nextFollowUpAt), { addSuffix: true })})
                     </div>
                   </div>
                 </div>
@@ -474,7 +477,7 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
           )}
 
           {/* Tags */}
-          {lead.tags.length > 0 && (
+          {lead.tags && Array.isArray(lead.tags) && lead.tags.length > 0 && (
             <>
               <Separator />
               <div>
