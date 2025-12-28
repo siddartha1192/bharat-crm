@@ -24,6 +24,12 @@ import {
   Bot,
   BotOff,
   Users,
+  Paperclip,
+  Image as ImageIcon,
+  FileText,
+  Video,
+  Music,
+  X,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
@@ -72,6 +78,12 @@ interface Conversation {
   aiEnabled: boolean;
 }
 
+interface MediaFile {
+  file: File;
+  type: 'image' | 'document' | 'video' | 'audio';
+  preview?: string;
+}
+
 export default function WhatsApp() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -85,6 +97,9 @@ export default function WhatsApp() {
   const [searchResults, setSearchResults] = useState<Contact[]>([]);
   const [searchingContacts, setSearchingContacts] = useState(false);
   const [aiFeatureAvailable, setAiFeatureAvailable] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { socket, isConnected } = useSocket();
@@ -379,6 +394,148 @@ export default function WhatsApp() {
       });
     } finally {
       setSending(false);
+    }
+  };
+
+  // Media handling functions
+  const getMediaType = (file: File): 'image' | 'document' | 'video' | 'audio' | null => {
+    const type = file.type;
+    if (type.startsWith('image/')) return 'image';
+    if (type.startsWith('video/')) return 'video';
+    if (type.startsWith('audio/')) return 'audio';
+    if (type === 'application/pdf' || type.includes('document') || type.includes('sheet') || type.includes('presentation')) {
+      return 'document';
+    }
+    return null;
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const mediaType = getMediaType(file);
+    if (!mediaType) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please select an image, document, video, or audio file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Check file size (16MB for video/audio, 5MB for images, 100MB for documents)
+    const maxSize = mediaType === 'document' ? 100 * 1024 * 1024 : mediaType === 'image' ? 5 * 1024 * 1024 : 16 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: 'File too large',
+        description: `${mediaType === 'document' ? 'Documents' : mediaType === 'image' ? 'Images' : 'Videos/Audio'} must be less than ${maxSize / (1024 * 1024)}MB`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Create preview for images
+    let preview: string | undefined;
+    if (mediaType === 'image') {
+      preview = URL.createObjectURL(file);
+    }
+
+    setSelectedMedia({ file, type: mediaType, preview });
+  };
+
+  const handleMediaRemove = () => {
+    if (selectedMedia?.preview) {
+      URL.revokeObjectURL(selectedMedia.preview);
+    }
+    setSelectedMedia(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const sendMedia = async () => {
+    if (!selectedMedia || !selectedConversation || uploadingMedia) return;
+
+    try {
+      setUploadingMedia(true);
+
+      // Upload media to a hosting service or send directly
+      // For now, we'll send the file URL directly (you'll need to host files somewhere)
+      const formData = new FormData();
+      formData.append('file', selectedMedia.file);
+
+      // Option 1: Upload to your backend first, then get URL
+      // Option 2: Use a service like Cloudinary, AWS S3, etc.
+      // For now, we'll use a placeholder URL - you need to implement file upload
+
+      // Temporary: Show a message that file hosting is needed
+      toast({
+        title: 'Media Upload',
+        description: 'Uploading media file...',
+      });
+
+      // For demonstration, we'll create a temporary local URL
+      // In production, you should upload to a file hosting service first
+      const tempUrl = URL.createObjectURL(selectedMedia.file);
+
+      const endpoint = {
+        image: '/whatsapp/send-image',
+        document: '/whatsapp/send-document',
+        video: '/whatsapp/send-video',
+        audio: '/whatsapp/send-audio',
+      }[selectedMedia.type];
+
+      const payload: any = {
+        phoneNumber: selectedConversation.contactPhone,
+      };
+
+      if (selectedMedia.type === 'image') {
+        payload.imageUrl = tempUrl; // Replace with actual hosted URL
+        payload.caption = newMessage.trim();
+      } else if (selectedMedia.type === 'document') {
+        payload.documentUrl = tempUrl; // Replace with actual hosted URL
+        payload.filename = selectedMedia.file.name;
+        payload.caption = newMessage.trim();
+      } else if (selectedMedia.type === 'video') {
+        payload.videoUrl = tempUrl; // Replace with actual hosted URL
+        payload.caption = newMessage.trim();
+      } else if (selectedMedia.type === 'audio') {
+        payload.audioUrl = tempUrl; // Replace with actual hosted URL
+      }
+
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error('Failed to send media');
+
+      const data = await response.json();
+
+      toast({
+        title: 'Media sent',
+        description: `Your ${selectedMedia.type} has been delivered`,
+      });
+
+      // Clear states
+      handleMediaRemove();
+      setNewMessage('');
+
+      // Refresh messages
+      await loadConversation(selectedConversation);
+    } catch (error: any) {
+      console.error('Error sending media:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to send media. Please ensure media is hosted on a public URL.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingMedia(false);
     }
   };
 
@@ -699,26 +856,104 @@ export default function WhatsApp() {
 
           {/* Message Input */}
           <div className="p-4 border-t border-border bg-muted/30">
+            {/* Media Preview */}
+            {selectedMedia && (
+              <div className="mb-3 p-3 bg-card rounded-lg border border-border">
+                <div className="flex items-center gap-3">
+                  {selectedMedia.preview && (
+                    <img
+                      src={selectedMedia.preview}
+                      alt="Preview"
+                      className="w-16 h-16 object-cover rounded"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {selectedMedia.type === 'image' && <ImageIcon className="w-4 h-4" />}
+                      {selectedMedia.type === 'document' && <FileText className="w-4 h-4" />}
+                      {selectedMedia.type === 'video' && <Video className="w-4 h-4" />}
+                      {selectedMedia.type === 'audio' && <Music className="w-4 h-4" />}
+                      <span className="font-medium">{selectedMedia.file.name}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {(selectedMedia.file.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleMediaRemove}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-end gap-2">
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {/* Media attachment button */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                    <ImageIcon className="w-4 h-4 mr-2" />
+                    Image
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Document
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                    <Video className="w-4 h-4 mr-2" />
+                    Video
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                    <Music className="w-4 h-4 mr-2" />
+                    Audio
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <Textarea
-                placeholder="Type a message..."
+                placeholder={selectedMedia ? "Add a caption..." : "Type a message..."}
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessage();
+                    if (selectedMedia) {
+                      sendMedia();
+                    } else {
+                      sendMessage();
+                    }
                   }
                 }}
                 rows={1}
                 className="resize-none rounded-xl shadow-sm"
               />
               <Button
-                onClick={sendMessage}
-                disabled={!newMessage.trim() || sending}
+                onClick={selectedMedia ? sendMedia : sendMessage}
+                disabled={selectedMedia ? uploadingMedia : (!newMessage.trim() || sending)}
                 className="bg-green-600 hover:bg-green-700"
               >
-                {sending ? (
+                {(sending || uploadingMedia) ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Send className="w-4 h-4" />
