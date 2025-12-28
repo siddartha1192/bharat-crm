@@ -32,6 +32,7 @@ import {
   Download,
   Trash2,
   Loader2,
+  ArrowRight,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -84,6 +85,7 @@ interface Document {
 export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogProps) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [creatingDeal, setCreatingDeal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -192,6 +194,27 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
     if (!lead) return;
     // Navigate to calendar page
     window.location.href = `/calendar?new=true&title=${encodeURIComponent(`Meeting with ${lead.name}`)}&attendees=${encodeURIComponent(lead.email)}`;
+  };
+
+  const handleCreateDeal = async () => {
+    if (!lead) return;
+
+    try {
+      setCreatingDeal(true);
+      const response = await api.post(`/leads/${lead.id}/create-deal`);
+      toast.success('Deal created successfully from lead!');
+
+      // Navigate to the pipeline page to show the newly created deal
+      setTimeout(() => {
+        window.location.href = '/pipeline';
+      }, 1000);
+    } catch (error: any) {
+      console.error('Error creating deal:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to create deal';
+      toast.error(errorMessage);
+    } finally {
+      setCreatingDeal(false);
+    }
   };
 
   if (!lead) return null;
@@ -515,6 +538,26 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4">
+            {!lead.dealId && (
+              <Button
+                className="flex-1"
+                onClick={handleCreateDeal}
+                disabled={creatingDeal}
+                variant="default"
+              >
+                {creatingDeal ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating Deal...
+                  </>
+                ) : (
+                  <>
+                    <ArrowRight className="w-4 h-4 mr-2" />
+                    Create Deal
+                  </>
+                )}
+              </Button>
+            )}
             <Button className="flex-1" onClick={handleSendEmail}>
               <Mail className="w-4 h-4 mr-2" />
               Send Email

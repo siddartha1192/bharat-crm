@@ -387,49 +387,42 @@ router.post('/public/submit/:slug', async (req, res) => {
             userId: form.userId
           };
 
-          // Create lead and associated deal
+          // Get default lead stage
+          const defaultStage = await prisma.pipelineStage.findFirst({
+            where: {
+              tenantId: form.tenantId,
+              isSystemDefault: true,
+              stageType: { in: ['LEAD', 'BOTH'] }
+            }
+          });
+
+          if (!defaultStage) {
+            throw new Error('No default lead stage found for tenant');
+          }
+
+          // Create lead only (no automatic deal creation)
           const result = await prisma.$transaction(async (tx) => {
-          const deal = await tx.deal.create({
-            data: {
-              title: `${company || 'Lead'} - ${name}`,
-              company: company || '',
-              contactName: name,
-              email,
-              phone: phone || '',
-              value: 0,
-              stage: 'lead',
-              probability: 20,
-              expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-              assignedTo: form.autoAssignTo || form.user.name,
-              createdBy: form.userId,
-              notes: leadData.notes,
-              tags: leadData.tags,
-              userId: form.userId,
-              tenantId: form.tenantId
-            }
+            const lead = await tx.lead.create({
+              data: {
+                ...leadData,
+                stageId: defaultStage.id,
+                tenantId: form.tenantId
+              }
+            });
+
+            // Update submission with lead ID
+            await tx.formSubmission.update({
+              where: { id: submission.id },
+              data: {
+                leadId: lead.id,
+                status: 'converted'
+              }
+            });
+
+            return { lead };
           });
 
-          const lead = await tx.lead.create({
-            data: {
-              ...leadData,
-              dealId: deal.id,
-              tenantId: form.tenantId
-            }
-          });
-
-          // Update submission with lead ID
-          await tx.formSubmission.update({
-            where: { id: submission.id },
-            data: {
-              leadId: lead.id,
-              status: 'converted'
-            }
-          });
-
-          return { lead, deal };
-        });
-
-        console.log(`✅ Lead created from form submission: ${result.lead.id}`);
+          console.log(`✅ Lead created from form submission: ${result.lead.id}`);
         }
       } catch (error) {
         console.error('Error creating lead from submission:', error);

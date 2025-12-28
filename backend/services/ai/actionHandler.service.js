@@ -295,64 +295,51 @@ Notes: ${data.notes || 'None'}
       const estimatedValue = data.estimatedValue || 0;
       const company = data.company || '';
 
-      // Use transaction to ensure both Lead and Deal are created together
-      const result = await prisma.$transaction(async (tx) => {
-        // Create the Deal first in the pipeline
-        const deal = await tx.deal.create({
-          data: {
-            title: `${company || 'WhatsApp Lead'} - ${data.name}`,
-            company: company,
-            contactName: data.name,
-            email: data.email,
-            phone: data.phone || context.contactPhone || '',
-            value: estimatedValue,
-            stage: mapLeadStatusToDealStage(status),
-            probability: priority === 'urgent' ? 80 : priority === 'high' ? 60 : priority === 'medium' ? 40 : 20,
-            expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-            assignedTo: assignedToName,
-            createdBy: ownerUser.id,
-            notes: data.notes || 'Lead captured via WhatsApp AI Assistant',
-            tags: [],
-            userId: ownerUser.id,
-            tenantId: ownerUser.tenantId
-          }
-        });
-
-        // Create the Lead and link it to the Deal
-        const lead = await tx.lead.create({
-          data: {
-            name: data.name,
-            email: data.email,
-            phone: data.phone || context.contactPhone || '',
-            whatsapp: context.contactPhone || data.phone || '',
-            company: company,
-            source: 'whatsapp', // WhatsApp AI-created leads
-            status: status,
-            priority: priority,
-            estimatedValue: estimatedValue,
-            assignedTo: assignedToName,
-            createdBy: ownerUser.id,
-            notes: data.notes || 'Lead captured via WhatsApp AI Assistant',
-            tags: [],
-            userId: ownerUser.id,
-            tenantId: ownerUser.tenantId,
-            dealId: deal.id // Link lead to deal
-          },
-        });
-
-        return { lead, deal };
+      // Get default lead stage
+      const defaultStage = await prisma.pipelineStage.findFirst({
+        where: {
+          tenantId: ownerUser.tenantId,
+          isSystemDefault: true,
+          stageType: { in: ['LEAD', 'BOTH'] }
+        }
       });
 
-      console.log(`   ✅ Lead created with auto-generated Deal: Lead ${result.lead.id} -> Deal ${result.deal.id}`);
+      if (!defaultStage) {
+        return { success: false, error: 'No default lead stage found for tenant' };
+      }
+
+      // Create the Lead only (no automatic deal creation)
+      const lead = await prisma.lead.create({
+        data: {
+          name: data.name,
+          email: data.email,
+          phone: data.phone || context.contactPhone || '',
+          whatsapp: context.contactPhone || data.phone || '',
+          company: company,
+          source: 'whatsapp', // WhatsApp AI-created leads
+          status: status,
+          stageId: defaultStage.id,
+          priority: priority,
+          estimatedValue: estimatedValue,
+          assignedTo: assignedToName,
+          createdBy: ownerUser.id,
+          notes: data.notes || 'Lead captured via WhatsApp AI Assistant',
+          tags: [],
+          userId: ownerUser.id,
+          tenantId: ownerUser.tenantId
+        }
+      });
+
+      console.log(`   ✅ Lead created: ${lead.id} - Use manual conversion to create deal`);
 
       // Trigger automation for lead creation (to send email notifications)
       try {
         await automationService.triggerAutomation('lead.created', {
-          id: result.lead.id,
-          name: result.lead.name,
-          email: result.lead.email,
-          company: result.lead.company,
-          status: result.lead.status,
+          id: lead.id,
+          name: lead.name,
+          email: lead.email,
+          company: lead.company,
+          status: lead.status,
           entityType: 'Lead'
         }, ownerUser);
         console.log('   ✅ Lead creation automation triggered');
@@ -364,11 +351,10 @@ Notes: ${data.notes || 'None'}
       return {
         success: true,
         data: {
-          leadId: result.lead.id,
-          dealId: result.deal.id,
-          name: result.lead.name,
-          email: result.lead.email,
-          status: result.lead.status,
+          leadId: lead.id,
+          name: lead.name,
+          email: lead.email,
+          status: lead.status,
         },
       };
     } catch (error) {
