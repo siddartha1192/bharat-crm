@@ -256,13 +256,18 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    // Soft delete
+    // Soft delete - append timestamp to slug to free up the name for reuse
+    const deletedSlug = `${existingStage.slug}-deleted-${Date.now()}`;
+
     await prisma.pipelineStage.update({
       where: { id },
-      data: { isActive: false }
+      data: {
+        isActive: false,
+        slug: deletedSlug
+      }
     });
 
-    console.log(`🗑️  Deleted pipeline stage: ${existingStage.name}`);
+    console.log(`🗑️  Deleted pipeline stage: ${existingStage.name} (slug renamed to ${deletedSlug})`);
     res.status(200).json({ message: 'Pipeline stage deleted successfully' });
   } catch (error) {
     console.error('Error deleting pipeline stage:', error);
