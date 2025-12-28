@@ -266,46 +266,24 @@ router.put('/:id', async (req, res) => {
         console.log('ℹ️  No linked lead found for deal:', deal.id);
       }
 
-      // If Deal has a linked Lead, update it too
-      if (linkedLead) {
+      // If Deal has a linked Lead, sync stageId if it changed
+      if (linkedLead && deal.stageId !== linkedLead.stageId) {
+        console.log('🔄 Deal stageId changed from', linkedLead.stageId, 'to', deal.stageId, '- syncing to lead');
+
         const leadUpdateData = {};
 
-        // Sync stageId if changed (NEW: Dynamic pipeline stages)
-        if (isStageIdChanging) {
-          const pipelineStage = await tx.pipelineStage.findUnique({
-            where: { id: updateData.stageId }
-          });
+        // Get the new stage details
+        const pipelineStage = await tx.pipelineStage.findUnique({
+          where: { id: deal.stageId }
+        });
 
-          if (pipelineStage) {
-            leadUpdateData.stageId = pipelineStage.id;
-            // Keep old status field in sync for backward compatibility
-            leadUpdateData.status = pipelineStage.slug;
-            console.log('🔄 Syncing lead stageId from', linkedLead.stageId, 'to', pipelineStage.id);
-          }
+        if (pipelineStage) {
+          leadUpdateData.stageId = pipelineStage.id;
+          leadUpdateData.status = pipelineStage.slug;
+          console.log('🔄 Syncing lead to stage:', pipelineStage.name, '(', pipelineStage.slug, ')');
         }
 
-        // Also sync stage field for backward compatibility
-        if (isStageChanging && !isStageIdChanging) {
-          // Find matching stage by slug
-          const matchingStage = await tx.pipelineStage.findFirst({
-            where: {
-              tenantId: req.tenant.id,
-              slug: updateData.stage
-            }
-          });
-
-          if (matchingStage) {
-            leadUpdateData.stageId = matchingStage.id;
-            leadUpdateData.status = matchingStage.slug;
-          } else {
-            // Fallback to old mapping
-            const newLeadStatus = mapDealStageToLeadStatus(updateData.stage);
-            leadUpdateData.status = newLeadStatus;
-          }
-          console.log('🔄 Syncing lead status from', linkedLead.status, 'to', leadUpdateData.status);
-        }
-
-        // Sync other fields
+        // Sync other fields if provided
         if (updateData.contactName) leadUpdateData.name = updateData.contactName;
         if (updateData.email) leadUpdateData.email = updateData.email;
         if (updateData.phone !== undefined) leadUpdateData.phone = updateData.phone;
@@ -315,7 +293,7 @@ router.put('/:id', async (req, res) => {
         if (updateData.tags) leadUpdateData.tags = updateData.tags;
         if (updateData.assignedTo) leadUpdateData.assignedTo = updateData.assignedTo;
 
-        // Update the linked Lead if there are changes
+        // Update the linked Lead
         if (Object.keys(leadUpdateData).length > 0) {
           const updatedLead = await tx.lead.update({
             where: { id: linkedLead.id },
@@ -323,6 +301,37 @@ router.put('/:id', async (req, res) => {
           });
           console.log('✅ Synced Lead', linkedLead.id, 'with updates:', JSON.stringify(leadUpdateData, null, 2));
           console.log('✅ Lead final status:', updatedLead.status, 'stageId:', updatedLead.stageId);
+        }
+      } else if (linkedLead) {
+        console.log('ℹ️  Deal stageId unchanged, checking other fields for sync');
+
+        const leadUpdateData = {};
+
+        // Sync other fields even if stage didn't change
+        if (updateData.contactName && updateData.contactName !== linkedLead.name)
+          leadUpdateData.name = updateData.contactName;
+        if (updateData.email && updateData.email !== linkedLead.email)
+          leadUpdateData.email = updateData.email;
+        if (updateData.phone !== undefined && updateData.phone !== linkedLead.phone)
+          leadUpdateData.phone = updateData.phone;
+        if (updateData.company && updateData.company !== linkedLead.company)
+          leadUpdateData.company = updateData.company;
+        if (updateData.value !== undefined && updateData.value !== linkedLead.estimatedValue)
+          leadUpdateData.estimatedValue = updateData.value;
+        if (updateData.notes && updateData.notes !== linkedLead.notes)
+          leadUpdateData.notes = updateData.notes;
+        if (updateData.tags && JSON.stringify(updateData.tags) !== JSON.stringify(linkedLead.tags))
+          leadUpdateData.tags = updateData.tags;
+        if (updateData.assignedTo && updateData.assignedTo !== linkedLead.assignedTo)
+          leadUpdateData.assignedTo = updateData.assignedTo;
+
+        // Update the linked Lead if there are changes
+        if (Object.keys(leadUpdateData).length > 0) {
+          await tx.lead.update({
+            where: { id: linkedLead.id },
+            data: leadUpdateData
+          });
+          console.log('✅ Synced other fields to Lead', linkedLead.id, ':', JSON.stringify(leadUpdateData, null, 2));
         } else {
           console.log('ℹ️  No lead updates needed (no changes detected)');
         }
