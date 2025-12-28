@@ -54,6 +54,12 @@ router.get('/api-config', authenticate, async (req, res) => {
           model: settings.openai?.model || 'gpt-4o-mini',
           temperature: settings.openai?.temperature !== undefined ? settings.openai.temperature : 0.7,
           enabled: settings.openai?.enabled !== false
+        },
+        cloudinary: {
+          configured: !!(settings.cloudinary?.cloudName && settings.cloudinary?.apiKey && settings.cloudinary?.apiSecret),
+          cloudName: settings.cloudinary?.cloudName || null,
+          hasApiKey: !!settings.cloudinary?.apiKey,
+          hasApiSecret: !!settings.cloudinary?.apiSecret
         }
       }
     });
@@ -347,6 +353,152 @@ router.post('/test-openai', authenticate, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to test OpenAI connection: ' + error.message
+    });
+  }
+});
+
+/**
+ * Update Cloudinary API settings
+ * PUT /api/settings/cloudinary
+ */
+router.put('/cloudinary', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { cloudName, apiKey, apiSecret } = req.body;
+
+    // Validate required fields
+    if (!cloudName || !apiKey || !apiSecret) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cloudinary cloud name, API key, and API secret are required'
+      });
+    }
+
+    // Get user's tenant
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            settings: true
+          }
+        }
+      }
+    });
+
+    if (!user || !user.tenant) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tenant not found'
+      });
+    }
+
+    // Only ADMIN users can update API settings
+    if (user.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only administrators can update API settings'
+      });
+    }
+
+    // Test Cloudinary configuration before saving
+    try {
+      const cloudinary = require('cloudinary').v2;
+      cloudinary.config({
+        cloud_name: cloudName,
+        api_key: apiKey,
+        api_secret: apiSecret
+      });
+
+      // Test with a simple API call to verify credentials
+      await cloudinary.api.ping();
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        error: 'Failed to validate Cloudinary configuration: ' + error.message
+      });
+    }
+
+    // Update tenant settings
+    const currentSettings = user.tenant.settings || {};
+    const updatedSettings = {
+      ...currentSettings,
+      cloudinary: {
+        cloudName,
+        apiKey,
+        apiSecret
+      }
+    };
+
+    await prisma.tenant.update({
+      where: { id: user.tenant.id },
+      data: { settings: updatedSettings }
+    });
+
+    res.json({
+      success: true,
+      message: 'Cloudinary settings updated successfully',
+      settings: {
+        configured: true,
+        cloudName
+      }
+    });
+  } catch (error) {
+    console.error('Error updating Cloudinary settings:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update Cloudinary settings'
+    });
+  }
+});
+
+/**
+ * Test Cloudinary connection
+ * POST /api/settings/test-cloudinary
+ */
+router.post('/test-cloudinary', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { cloudName, apiKey, apiSecret } = req.body;
+
+    if (!cloudName || !apiKey || !apiSecret) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cloud name, API key, and API secret are required'
+      });
+    }
+
+    // Test the configuration
+    try {
+      const cloudinary = require('cloudinary').v2;
+      cloudinary.config({
+        cloud_name: cloudName,
+        api_key: apiKey,
+        api_secret: apiSecret
+      });
+
+      // Test with a ping to verify credentials
+      await cloudinary.api.ping();
+
+      res.json({
+        success: true,
+        configured: true,
+        message: 'Cloudinary configuration is valid',
+        cloudName
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        configured: false,
+        error: 'Invalid Cloudinary configuration: ' + error.message
+      });
+    }
+  } catch (error) {
+    console.error('Error testing Cloudinary connection:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to test Cloudinary connection: ' + error.message
     });
   }
 });

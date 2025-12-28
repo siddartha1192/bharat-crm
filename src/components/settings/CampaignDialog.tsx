@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Campaign, CampaignChannel, CampaignTargetType, CreateCampaignData, WhatsAppMessageType, WhatsAppMediaType } from '@/types/campaign';
 import {
   Dialog,
@@ -23,7 +23,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Mail, MessageSquare, ChevronLeft, ChevronRight, Send, CalendarIcon, Users, Image, FileText, Video, Music, Plus, X, AlertCircle } from 'lucide-react';
+import { Mail, MessageSquare, ChevronLeft, ChevronRight, Send, CalendarIcon, Users, Image, FileText, Video, Music, Plus, X, AlertCircle, Upload, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { EmailEditor } from './EmailEditor';
 import api from '@/lib/api';
@@ -37,11 +37,16 @@ interface Props {
   editingCampaign?: Campaign | null;
 }
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
 export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign }: Props) {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [recipientCount, setRecipientCount] = useState(0);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const token = localStorage.getItem('token');
 
   // Form state
   const [formData, setFormData] = useState<CreateCampaignData>({
@@ -304,6 +309,51 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
     }
   };
 
+  const handleFileUploadToCloudinary = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_URL}/media/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to upload file');
+      }
+
+      const data = await response.json();
+      updateFormData({ whatsappMediaUrl: data.url });
+
+      toast({
+        title: 'File Uploaded',
+        description: 'File uploaded to Cloudinary successfully',
+      });
+    } catch (error: any) {
+      console.error('Error uploading file:', error);
+      toast({
+        title: 'Upload Failed',
+        description: error.message || 'Failed to upload file to Cloudinary',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploading(false);
+      // Reset file input
+      if (uploadInputRef.current) {
+        uploadInputRef.current.value = '';
+      }
+    }
+  };
+
   const renderStep1 = () => (
     <div className="space-y-4">
       <div>
@@ -523,15 +573,43 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
 
             <div>
               <Label htmlFor="mediaUrl">Media URL *</Label>
-              <Input
-                id="mediaUrl"
-                value={formData.whatsappMediaUrl}
-                onChange={(e) => updateFormData({ whatsappMediaUrl: e.target.value })}
-                placeholder="https://example.com/media.jpg"
-                type="url"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="mediaUrl"
+                  value={formData.whatsappMediaUrl}
+                  onChange={(e) => updateFormData({ whatsappMediaUrl: e.target.value })}
+                  placeholder="https://example.com/media.jpg"
+                  type="url"
+                  className="flex-1"
+                />
+                <input
+                  ref={uploadInputRef}
+                  type="file"
+                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                  onChange={handleFileUploadToCloudinary}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => uploadInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Uploading
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload
+                    </>
+                  )}
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Enter the publicly accessible URL of your media file
+                Enter a public URL or upload a file to Cloudinary
               </p>
             </div>
 

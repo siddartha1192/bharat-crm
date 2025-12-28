@@ -26,6 +26,7 @@ import {
   X,
   Plus,
   Paperclip,
+  Upload,
 } from 'lucide-react';
 import {
   Select,
@@ -76,7 +77,9 @@ export default function BulkMessaging() {
   // Media state
   const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
   const [mediaUrl, setMediaUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   // Template state
   const [templateName, setTemplateName] = useState('');
@@ -203,6 +206,66 @@ export default function BulkMessaging() {
     setSelectedMedia(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileUploadToCloudinary = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const mediaType = getMediaType(file);
+    if (!mediaType) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please select an image, document, video, or audio file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_URL}/media/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to upload file');
+      }
+
+      const data = await response.json();
+      setMediaUrl(data.url);
+      setSelectedMedia({
+        file,
+        type: mediaType,
+        preview: file.type.startsWith('image/') ? data.url : undefined,
+      });
+
+      toast({
+        title: 'File Uploaded',
+        description: 'File uploaded to Cloudinary successfully',
+      });
+    } catch (error: any) {
+      console.error('Error uploading file:', error);
+      toast({
+        title: 'Upload Failed',
+        description: error.message || 'Failed to upload file to Cloudinary',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploading(false);
+      // Reset file input
+      if (uploadInputRef.current) {
+        uploadInputRef.current.value = '';
+      }
     }
   };
 
@@ -557,13 +620,40 @@ export default function BulkMessaging() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Media URL (Public URL)</Label>
-                  <Input
-                    placeholder="https://example.com/image.jpg"
-                    value={mediaUrl}
-                    onChange={(e) => setMediaUrl(e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="https://example.com/image.jpg"
+                      value={mediaUrl}
+                      onChange={(e) => setMediaUrl(e.target.value)}
+                      className="flex-1"
+                    />
+                    <input
+                      ref={uploadInputRef}
+                      type="file"
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                      onChange={handleFileUploadToCloudinary}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => uploadInputRef.current?.click()}
+                      disabled={uploading}
+                    >
+                      {uploading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Uploading
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload
+                        </>
+                      )}
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Enter a public URL to your hosted media file
+                    Enter a public URL or upload a file to Cloudinary
                   </p>
                 </div>
 
@@ -573,7 +663,7 @@ export default function BulkMessaging() {
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
                     <span className="bg-background px-2 text-muted-foreground">
-                      Or upload file (local testing)
+                      Or choose file (local preview)
                     </span>
                   </div>
                 </div>
@@ -592,8 +682,11 @@ export default function BulkMessaging() {
                     className="w-full"
                   >
                     <Paperclip className="w-4 h-4 mr-2" />
-                    Choose File
+                    Choose File (Preview Only)
                   </Button>
+                  <p className="text-xs text-muted-foreground">
+                    For local testing - file won't be sent, only used for preview
+                  </p>
                 </div>
 
                 {/* Media Preview */}
