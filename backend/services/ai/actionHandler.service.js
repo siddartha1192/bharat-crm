@@ -22,6 +22,21 @@ class ActionHandlerService {
       return [];
     }
 
+    // Check if user has permission to execute actions (only ADMIN role)
+    const user = await prisma.user.findUnique({
+      where: { id: context.userId },
+      select: { role: true, name: true }
+    });
+
+    if (!user) {
+      console.log(`⚠️ User ${context.userId} not found. Cannot execute actions.`);
+      return [{
+        action: 'permission_check',
+        success: false,
+        error: 'User not found'
+      }];
+    }
+
     const results = [];
 
     for (const action of actions) {
@@ -30,8 +45,22 @@ class ActionHandlerService {
       }
 
       console.log(`\n⚡ Executing action: ${action.type}`);
+      console.log(`   User: ${user.name} (${user.role})`);
       console.log(`   Confidence: ${action.confidence || 'N/A'}`);
       console.log(`   Data:`, JSON.stringify(action.data, null, 2));
+
+      // ROLE-BASED RESTRICTION: Only ADMIN users can execute actions
+      if (user.role !== 'ADMIN') {
+        console.log(`🚫 PERMISSION DENIED: User role '${user.role}' is not authorized to execute actions via WhatsApp`);
+        console.log(`   Only users with 'ADMIN' role (owner designation) can create appointments, tasks, and leads from WhatsApp`);
+
+        results.push({
+          action: action.type,
+          success: false,
+          error: `Permission denied. Only admin users can execute actions via WhatsApp. Current role: ${user.role}`,
+        });
+        continue;  // Skip to next action
+      }
 
       try {
         let result;
