@@ -866,17 +866,20 @@ router.post('/import', async (req, res) => {
           }
 
           // Get default stage or map from status
+          // Default to "lead" stage if no status provided
+          const leadStatus = lead.status || 'lead';
           let leadStageId;
-          if (lead.status) {
-            const matchingStage = await prisma.pipelineStage.findFirst({
-              where: {
-                tenantId: req.tenant.id,
-                slug: lead.status.toLowerCase().replace(/\s+/g, '-')
-              }
-            });
-            leadStageId = matchingStage?.id;
-          }
 
+          // Try to find stage by slug
+          const matchingStage = await prisma.pipelineStage.findFirst({
+            where: {
+              tenantId: req.tenant.id,
+              slug: leadStatus.toLowerCase().replace(/\s+/g, '-')
+            }
+          });
+          leadStageId = matchingStage?.id;
+
+          // Fallback to system default if no match found
           if (!leadStageId) {
             const defaultStage = await prisma.pipelineStage.findFirst({
               where: {
@@ -894,7 +897,7 @@ router.post('/import', async (req, res) => {
               email: lead.email,
               phone: lead.phone,
               company: lead.company,
-              status: lead.status, // Keep for backward compatibility
+              status: leadStatus, // Default to "lead" if not provided
               stageId: leadStageId,
               source: lead.source,
               priority: lead.priority || 'medium',
