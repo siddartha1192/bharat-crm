@@ -177,25 +177,32 @@ export default function Pipeline() {
     const activeDeal = deals.find(d => d.id === active.id);
     if (!activeDeal) return;
 
-    let targetStage: string | null = null;
+    let targetStageConfig: PipelineStageConfig | null = null;
 
     // Check if we're over a stage column directly
     const stageConfig = stages.find(s => s.id === over.id);
     if (stageConfig) {
-      targetStage = stageConfig.slug;
+      targetStageConfig = stageConfig;
     } else {
       // We're over a deal, find which stage it belongs to
       const overDeal = deals.find(d => d.id === over.id);
-      if (overDeal) {
-        targetStage = overDeal.stage;
+      if (overDeal && overDeal.stageId) {
+        targetStageConfig = stages.find(s => s.id === overDeal.stageId) || null;
       }
     }
 
-    // Update the deal's stage if it's different
-    if (targetStage && activeDeal.stage !== targetStage) {
+    // Update the deal's stage if it's different (optimistic update for smooth UX)
+    if (targetStageConfig && activeDeal.stageId !== targetStageConfig.id) {
       setDeals(prevDeals =>
         prevDeals.map(d =>
-          d.id === activeDeal.id ? { ...d, stage: targetStage, updatedAt: new Date() } : d
+          d.id === activeDeal.id
+            ? {
+                ...d,
+                stage: targetStageConfig.slug,
+                stageId: targetStageConfig.id,
+                updatedAt: new Date()
+              }
+            : d
         )
       );
     }
@@ -211,6 +218,7 @@ export default function Pipeline() {
     setActiveDeal(null);
 
     if (!over || !activeDeal || !originalDealStage) {
+      console.log('⚠️ Drag ended without valid target or deal');
       setOriginalDealStage(null);
       return;
     }
@@ -224,41 +232,67 @@ export default function Pipeline() {
     } else {
       // We're over a deal, find which stage it belongs to
       const overDeal = deals.find(d => d.id === over.id);
-      if (overDeal) {
+      if (overDeal && overDeal.stageId) {
         targetStageConfig = stages.find(s => s.id === overDeal.stageId) || null;
       }
     }
 
+    if (!targetStageConfig) {
+      console.log('⚠️ Could not determine target stage');
+      setOriginalDealStage(null);
+      return;
+    }
+
     // Update the deal's stage if it changed from the original
-    if (targetStageConfig && originalDealStage !== targetStageConfig.slug) {
+    if (originalDealStage !== targetStageConfig.slug) {
       try {
         // Update in backend - send BOTH stageId and stage for backward compatibility
-        console.log('🎯 Updating deal via drag-and-drop:', activeDeal.id);
-        console.log('📤 Stage update:', originalDealStage, '→', targetStageConfig.slug, '(stageId:', targetStageConfig.id, ')');
+        console.log('🎯 Drag-and-drop: Updating deal', activeDeal.id);
+        console.log('📤 Stage change:', originalDealStage, '→', targetStageConfig.slug);
+        console.log('📤 StageId:', targetStageConfig.id);
+
         const updatedDeal = await dealsAPI.update(activeDeal.id, {
           stage: targetStageConfig.slug,
           stageId: targetStageConfig.id
         });
 
+        console.log('✅ Backend updated successfully');
+
         // Update local state with the backend response to ensure consistency
         setDeals(prevDeals =>
           prevDeals.map(d =>
-            d.id === activeDeal.id ? { ...updatedDeal, updatedAt: new Date(updatedDeal.updatedAt) } : d
+            d.id === activeDeal.id
+              ? { ...updatedDeal, updatedAt: new Date(updatedDeal.updatedAt) }
+              : d
           )
         );
 
         toast.success(`Deal moved to ${targetStageConfig.name}!`);
-        console.log('✅ Deal stage updated successfully');
-      } catch (error) {
+        console.log('✅ Local state updated - drag complete');
+      } catch (error: any) {
         // Revert on error - restore to original stage
+        console.error('❌ Error updating deal stage:', error);
+        console.error('❌ Error details:', error.response?.data || error.message);
+
+        // Find original stage config to get its ID
+        const originalStageConfig = stages.find(s => s.slug === originalDealStage);
+
         setDeals(prevDeals =>
           prevDeals.map(d =>
-            d.id === activeDeal.id ? { ...d, stage: originalDealStage } : d
+            d.id === activeDeal.id
+              ? {
+                  ...d,
+                  stage: originalDealStage,
+                  stageId: originalStageConfig?.id || d.stageId
+                }
+              : d
           )
         );
-        toast.error('Failed to update deal. Please try again.');
-        console.error('Error updating deal stage:', error);
+
+        toast.error(`Failed to update deal: ${error.response?.data?.message || error.message}`);
       }
+    } else {
+      console.log('ℹ️ No stage change detected (same as original)');
     }
 
     // Reset original stage
