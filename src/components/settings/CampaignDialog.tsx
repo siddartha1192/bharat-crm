@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Campaign, CampaignChannel, CampaignTargetType, CreateCampaignData } from '@/types/campaign';
+import { Campaign, CampaignChannel, CampaignTargetType, CreateCampaignData, WhatsAppMessageType, WhatsAppMediaType } from '@/types/campaign';
 import {
   Dialog,
   DialogContent,
@@ -22,11 +22,13 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
-import { Mail, MessageSquare, ChevronLeft, ChevronRight, Send, CalendarIcon, Users } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Mail, MessageSquare, ChevronLeft, ChevronRight, Send, CalendarIcon, Users, Image, FileText, Video, Music, Plus, X, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { EmailEditor } from './EmailEditor';
 import api from '@/lib/api';
 import { format } from 'date-fns';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Props {
   open: boolean;
@@ -52,6 +54,14 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
     targetType: 'all',
     targetFilters: {},
     scheduledAt: undefined,
+    // WhatsApp-specific fields
+    whatsappMessageType: 'text',
+    whatsappMediaType: undefined,
+    whatsappMediaUrl: '',
+    whatsappCaption: '',
+    whatsappTemplateName: '',
+    whatsappTemplateLanguage: 'en',
+    whatsappTemplateParams: [''],
   });
 
   const [scheduleType, setScheduleType] = useState<'immediate' | 'scheduled'>('immediate');
@@ -70,6 +80,13 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
         targetType: editingCampaign.targetType,
         targetFilters: editingCampaign.targetFilters || {},
         scheduledAt: editingCampaign.scheduledAt,
+        whatsappMessageType: editingCampaign.whatsappMessageType || 'text',
+        whatsappMediaType: editingCampaign.whatsappMediaType,
+        whatsappMediaUrl: editingCampaign.whatsappMediaUrl || '',
+        whatsappCaption: editingCampaign.whatsappCaption || '',
+        whatsappTemplateName: editingCampaign.whatsappTemplateName || '',
+        whatsappTemplateLanguage: editingCampaign.whatsappTemplateLanguage || 'en',
+        whatsappTemplateParams: editingCampaign.whatsappTemplateParams || [''],
       });
     } else {
       resetForm();
@@ -108,6 +125,13 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
       targetType: 'all',
       targetFilters: {},
       scheduledAt: undefined,
+      whatsappMessageType: 'text',
+      whatsappMediaType: undefined,
+      whatsappMediaUrl: '',
+      whatsappCaption: '',
+      whatsappTemplateName: '',
+      whatsappTemplateLanguage: 'en',
+      whatsappTemplateParams: [''],
     });
     setStep(1);
     setScheduleType('immediate');
@@ -131,21 +155,69 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
         return;
       }
     } else if (step === 2) {
-      if (formData.channel === 'email' && !formData.subject?.trim()) {
-        toast({
-          title: 'Validation Error',
-          description: 'Email subject is required',
-          variant: 'destructive',
-        });
-        return;
-      }
-      if (!formData.textContent.trim()) {
-        toast({
-          title: 'Validation Error',
-          description: 'Message content is required',
-          variant: 'destructive',
-        });
-        return;
+      if (formData.channel === 'email') {
+        if (!formData.subject?.trim()) {
+          toast({
+            title: 'Validation Error',
+            description: 'Email subject is required',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (!formData.textContent.trim()) {
+          toast({
+            title: 'Validation Error',
+            description: 'Message content is required',
+            variant: 'destructive',
+          });
+          return;
+        }
+      } else if (formData.channel === 'whatsapp') {
+        // WhatsApp validation
+        if (formData.whatsappMessageType === 'text') {
+          if (!formData.textContent.trim()) {
+            toast({
+              title: 'Validation Error',
+              description: 'Message content is required',
+              variant: 'destructive',
+            });
+            return;
+          }
+        } else if (formData.whatsappMessageType === 'media') {
+          if (!formData.whatsappMediaType) {
+            toast({
+              title: 'Validation Error',
+              description: 'Please select a media type',
+              variant: 'destructive',
+            });
+            return;
+          }
+          if (!formData.whatsappMediaUrl?.trim()) {
+            toast({
+              title: 'Validation Error',
+              description: 'Media URL is required',
+              variant: 'destructive',
+            });
+            return;
+          }
+        } else if (formData.whatsappMessageType === 'template') {
+          if (!formData.whatsappTemplateName?.trim()) {
+            toast({
+              title: 'Validation Error',
+              description: 'Template name is required',
+              variant: 'destructive',
+            });
+            return;
+          }
+          if (!formData.whatsappTemplateLanguage?.trim()) {
+            toast({
+              title: 'Validation Error',
+              description: 'Template language is required',
+              variant: 'destructive',
+            });
+            return;
+          }
+        }
       }
     }
 
@@ -289,83 +361,289 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
     </div>
   );
 
-  const renderStep2 = () => (
-    <div className="space-y-4">
-      {formData.channel === 'email' && (
-        <div>
-          <Label htmlFor="subject">Email Subject *</Label>
-          <Input
-            id="subject"
-            value={formData.subject}
-            onChange={(e) => updateFormData({ subject: e.target.value })}
-            placeholder="e.g., Welcome to {{name}}!"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Use variables like {`{{name}}`}, {`{{email}}`}, {`{{company}}`}
-          </p>
-        </div>
-      )}
+  const renderStep2 = () => {
+    if (formData.channel === 'email') {
+      // Email campaign content
+      return (
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="subject">Email Subject *</Label>
+            <Input
+              id="subject"
+              value={formData.subject}
+              onChange={(e) => updateFormData({ subject: e.target.value })}
+              placeholder="e.g., Welcome to {{name}}!"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Use variables like {`{{name}}`}, {`{{email}}`}, {`{{company}}`}
+            </p>
+          </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <Label htmlFor="textContent">Message Content *</Label>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => insertVariable('name')}
-            >
-              + Name
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => insertVariable('email')}
-            >
-              + Email
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => insertVariable('company')}
-            >
-              + Company
-            </Button>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label htmlFor="textContent">Message Content *</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => insertVariable('name')}
+                >
+                  + Name
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => insertVariable('email')}
+                >
+                  + Email
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => insertVariable('company')}
+                >
+                  + Company
+                </Button>
+              </div>
+            </div>
+            <Textarea
+              id="textContent"
+              name="textContent"
+              value={formData.textContent}
+              onChange={(e) => updateFormData({ textContent: e.target.value })}
+              placeholder="Plain text version of your email..."
+              rows={6}
+            />
+          </div>
+
+          <div>
+            <Label>HTML Content (Optional)</Label>
+            <EmailEditor
+              value={formData.htmlContent || ''}
+              onChange={(value) => updateFormData({ htmlContent: value })}
+            />
           </div>
         </div>
-        <Textarea
-          id="textContent"
-          name="textContent"
-          value={formData.textContent}
-          onChange={(e) => updateFormData({ textContent: e.target.value })}
-          placeholder={
-            formData.channel === 'email'
-              ? 'Plain text version of your email...'
-              : 'Hi {{name}}, we have exciting news for you!'
-          }
-          rows={6}
-        />
-        {formData.channel === 'whatsapp' && (
-          <p className="text-xs text-muted-foreground mt-1">
-            {formData.textContent.length} characters
-          </p>
-        )}
-      </div>
+      );
+    }
 
-      {formData.channel === 'email' && (
-        <div>
-          <Label>HTML Content (Optional)</Label>
-          <EmailEditor
-            value={formData.htmlContent || ''}
-            onChange={(value) => updateFormData({ htmlContent: value })}
-          />
-        </div>
-      )}
-    </div>
-  );
+    // WhatsApp campaign content with tabs
+    return (
+      <div className="space-y-4">
+        <Tabs
+          value={formData.whatsappMessageType || 'text'}
+          onValueChange={(value) => updateFormData({ whatsappMessageType: value as WhatsAppMessageType })}
+        >
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="text">Text</TabsTrigger>
+            <TabsTrigger value="media">Media</TabsTrigger>
+            <TabsTrigger value="template">Template</TabsTrigger>
+          </TabsList>
+
+          {/* Text Message Tab */}
+          <TabsContent value="text" className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="textContent">Message Content *</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => insertVariable('name')}
+                  >
+                    + Name
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => insertVariable('email')}
+                  >
+                    + Email
+                  </Button>
+                </div>
+              </div>
+              <Textarea
+                id="textContent"
+                name="textContent"
+                value={formData.textContent}
+                onChange={(e) => updateFormData({ textContent: e.target.value })}
+                placeholder="Hi {{name}}, we have exciting news for you!"
+                rows={8}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {formData.textContent.length} characters
+              </p>
+            </div>
+          </TabsContent>
+
+          {/* Media Message Tab */}
+          <TabsContent value="media" className="space-y-4">
+            <div>
+              <Label>Media Type *</Label>
+              <Select
+                value={formData.whatsappMediaType || ''}
+                onValueChange={(value) => updateFormData({ whatsappMediaType: value as WhatsAppMediaType })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select media type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="image">
+                    <div className="flex items-center gap-2">
+                      <Image className="w-4 h-4" />
+                      Image (PNG, JPG - Max 5MB)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="document">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Document (PDF, DOC - Max 100MB)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="video">
+                    <div className="flex items-center gap-2">
+                      <Video className="w-4 h-4" />
+                      Video (MP4 - Max 16MB)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="audio">
+                    <div className="flex items-center gap-2">
+                      <Music className="w-4 h-4" />
+                      Audio (MP3, AAC - Max 16MB)
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="mediaUrl">Media URL *</Label>
+              <Input
+                id="mediaUrl"
+                value={formData.whatsappMediaUrl}
+                onChange={(e) => updateFormData({ whatsappMediaUrl: e.target.value })}
+                placeholder="https://example.com/media.jpg"
+                type="url"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter the publicly accessible URL of your media file
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="caption">Caption (Optional)</Label>
+              <Textarea
+                id="caption"
+                value={formData.whatsappCaption}
+                onChange={(e) => updateFormData({ whatsappCaption: e.target.value })}
+                placeholder="Add a caption for your media (supports {{name}}, {{email}})"
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {(formData.whatsappCaption?.length || 0)} characters
+              </p>
+            </div>
+
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Media files must be hosted on a publicly accessible URL. Consider using cloud storage services like Cloudinary, AWS S3, or Google Cloud Storage.
+              </AlertDescription>
+            </Alert>
+          </TabsContent>
+
+          {/* Template Message Tab */}
+          <TabsContent value="template" className="space-y-4">
+            <div>
+              <Label htmlFor="templateName">Template Name *</Label>
+              <Input
+                id="templateName"
+                value={formData.whatsappTemplateName}
+                onChange={(e) => updateFormData({ whatsappTemplateName: e.target.value })}
+                placeholder="e.g., welcome_message"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter the exact name of your approved WhatsApp template
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="templateLanguage">Language Code *</Label>
+              <Input
+                id="templateLanguage"
+                value={formData.whatsappTemplateLanguage}
+                onChange={(e) => updateFormData({ whatsappTemplateLanguage: e.target.value })}
+                placeholder="e.g., en, es, fr"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Language code of your template (e.g., en for English, es for Spanish)
+              </p>
+            </div>
+
+            <div>
+              <Label>Template Parameters</Label>
+              <div className="space-y-2">
+                {(formData.whatsappTemplateParams || ['']).map((param, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      value={param}
+                      onChange={(e) => {
+                        const newParams = [...(formData.whatsappTemplateParams || [''])];
+                        newParams[index] = e.target.value;
+                        updateFormData({ whatsappTemplateParams: newParams });
+                      }}
+                      placeholder={`Parameter ${index + 1} (e.g., {{name}})`}
+                    />
+                    {index > 0 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          const newParams = (formData.whatsappTemplateParams || ['']).filter((_, i) => i !== index);
+                          updateFormData({ whatsappTemplateParams: newParams });
+                        }}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    updateFormData({
+                      whatsappTemplateParams: [...(formData.whatsappTemplateParams || ['']), ''],
+                    });
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Parameter
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Add dynamic parameters for your template. Use variables like {`{{name}}`}, {`{{email}}`}
+              </p>
+            </div>
+
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Template messages must be pre-approved by Meta. Make sure your template is approved before creating the campaign.
+              </AlertDescription>
+            </Alert>
+          </TabsContent>
+        </Tabs>
+      </div>
+    );
+  };
 
   const renderStep3 = () => (
     <div className="space-y-4">

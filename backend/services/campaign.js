@@ -838,17 +838,17 @@ class CampaignService {
    */
   async sendToRecipient(campaign, recipient) {
     try {
-      // Replace template variables
-      const content = this.replaceTemplateVariables(campaign.textContent, {
-        name: recipient.recipientName,
-        email: recipient.recipientEmail,
-        phone: recipient.recipientPhone,
-      });
-
       let messageId = null;
       let success = false;
 
       if (campaign.channel === 'email') {
+        // Replace template variables
+        const content = this.replaceTemplateVariables(campaign.textContent, {
+          name: recipient.recipientName,
+          email: recipient.recipientEmail,
+          phone: recipient.recipientPhone,
+        });
+
         const subject = this.replaceTemplateVariables(campaign.subject || 'Message from Bharat CRM', {
           name: recipient.recipientName,
         });
@@ -875,9 +875,90 @@ class CampaignService {
           throw new Error('WhatsApp service is not configured');
         }
 
-        const result = await whatsappService.sendMessage(recipient.recipientPhone, content);
-        messageId = result.messageId;
-        success = true;
+        // Get tenant WhatsApp configuration if available
+        let tenantConfig = null;
+        if (campaign.tenantId) {
+          const tenant = await prisma.tenant.findUnique({
+            where: { id: campaign.tenantId },
+            select: { settings: true }
+          });
+          tenantConfig = tenant?.settings?.whatsapp || null;
+        }
+
+        const whatsappMessageType = campaign.whatsappMessageType || 'text';
+
+        if (whatsappMessageType === 'text') {
+          // Text message
+          const content = this.replaceTemplateVariables(campaign.textContent, {
+            name: recipient.recipientName,
+            email: recipient.recipientEmail,
+            phone: recipient.recipientPhone,
+          });
+
+          const result = await whatsappService.sendMessage(recipient.recipientPhone, content, tenantConfig);
+          messageId = result.messageId;
+          success = true;
+        } else if (whatsappMessageType === 'media') {
+          // Media message
+          const mediaType = campaign.whatsappMediaType;
+          const mediaUrl = campaign.whatsappMediaUrl;
+
+          // Replace variables in caption
+          const caption = campaign.whatsappCaption
+            ? this.replaceTemplateVariables(campaign.whatsappCaption, {
+                name: recipient.recipientName,
+                email: recipient.recipientEmail,
+                phone: recipient.recipientPhone,
+              })
+            : '';
+
+          let result;
+          if (mediaType === 'image') {
+            result = await whatsappService.sendImage(recipient.recipientPhone, mediaUrl, caption, tenantConfig);
+          } else if (mediaType === 'document') {
+            result = await whatsappService.sendDocument(recipient.recipientPhone, mediaUrl, '', caption, tenantConfig);
+          } else if (mediaType === 'video') {
+            result = await whatsappService.sendVideo(recipient.recipientPhone, mediaUrl, caption, tenantConfig);
+          } else if (mediaType === 'audio') {
+            result = await whatsappService.sendAudio(recipient.recipientPhone, mediaUrl, tenantConfig);
+          } else {
+            throw new Error(`Unsupported media type: ${mediaType}`);
+          }
+
+          messageId = result.messageId;
+          success = true;
+        } else if (whatsappMessageType === 'template') {
+          // Template message
+          const templateName = campaign.whatsappTemplateName;
+          const templateLanguage = campaign.whatsappTemplateLanguage || 'en';
+
+          // Replace variables in template parameters
+          const templateParams = (campaign.whatsappTemplateParams || []).map(param =>
+            this.replaceTemplateVariables(param, {
+              name: recipient.recipientName,
+              email: recipient.recipientEmail,
+              phone: recipient.recipientPhone,
+            })
+          ).filter(p => p.trim());
+
+          // Build components object for template
+          const components = {
+            body: templateParams.map(text => ({ text }))
+          };
+
+          const result = await whatsappService.sendTemplateMessage(
+            recipient.recipientPhone,
+            templateName,
+            templateLanguage,
+            components,
+            tenantConfig
+          );
+
+          messageId = result.messageId;
+          success = true;
+        } else {
+          throw new Error(`Unsupported WhatsApp message type: ${whatsappMessageType}`);
+        }
       }
 
       // Update recipient status

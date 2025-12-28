@@ -857,6 +857,15 @@ model Campaign {
   htmlContent String? @db.Text // Custom HTML for emails
   textContent String  @db.Text // Message content (plain text for WhatsApp, fallback for email)
 
+  // WhatsApp-specific content (for media and template messages)
+  whatsappMessageType     String? // 'text' | 'media' | 'template'
+  whatsappMediaType       String? // 'image' | 'document' | 'video' | 'audio'
+  whatsappMediaUrl        String? // URL to media file
+  whatsappCaption         String? @db.Text // Caption for media messages
+  whatsappTemplateName    String? // Template name for template messages
+  whatsappTemplateLanguage String? // Template language code (e.g., 'en', 'es')
+  whatsappTemplateParams  Json? // Array of template parameters
+
   // Scheduling
   scheduledAt DateTime? // When to send (null for immediate)
   completedAt DateTime?
