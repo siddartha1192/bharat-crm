@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Zap, Database, Send, Settings as SettingsIcon } from 'lucide-react';
+import { Users, Zap, Database, Send, Settings as SettingsIcon, Bell } from 'lucide-react';
 import { UserManagement } from '@/components/settings/UserManagement';
 import AutomationSettings from '@/components/settings/AutomationSettings';
 import VectorDataUpload from '@/components/settings/VectorDataUpload';
 import CampaignSettings from '@/components/settings/CampaignSettings';
 import APISettings from '@/components/settings/APISettings';
+import ReminderSettings from '@/components/settings/ReminderSettings';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -27,7 +28,7 @@ export default function Settings() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5 lg:w-[1000px]">
+        <TabsList className="grid w-full grid-cols-6 lg:w-[1200px]">
           <ProtectedFeature permission="users:read">
             <TabsTrigger value="users">
               <Users className="w-4 h-4 mr-2" />
@@ -44,6 +45,13 @@ export default function Settings() {
             <Send className="w-4 h-4 mr-2" />
             Campaigns
           </TabsTrigger>
+
+          <ProtectedFeature permission="users:read">
+            <TabsTrigger value="reminders">
+              <Bell className="w-4 h-4 mr-2" />
+              Reminders
+            </TabsTrigger>
+          </ProtectedFeature>
 
           <ProtectedFeature permission="users:read">
             <TabsTrigger value="api-config">
@@ -76,6 +84,13 @@ export default function Settings() {
         <TabsContent value="campaigns" className="space-y-4">
           <CampaignSettings />
         </TabsContent>
+
+        {/* Reminders (Admin Only) */}
+        <ProtectedFeature permission="users:read">
+          <TabsContent value="reminders" className="space-y-4">
+            <ReminderSettings />
+          </TabsContent>
+        </ProtectedFeature>
 
         {/* API Configuration (Admin Only) */}
         <ProtectedFeature permission="users:read">
