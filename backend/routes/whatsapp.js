@@ -988,25 +988,64 @@ async function processIncomingMessage(message, value) {
         },
         include: {
           user: {
-            select: { id: true, name: true, tenantId: true }
+            select: { id: true, name: true, tenantId: true, role: true }
           }
         }
       });
 
       console.log(`Found ${contacts.length} contacts matching phone number`);
 
-      // Create conversation for each user who has this contact
-      for (const contact of contacts) {
-        console.log(`Creating conversation for user ${contact.userId} (${contact.user.name})`);
+      // If no contacts found, create conversation for first ADMIN user to enable AI response for everyone
+      let usersToCreateConversationsFor = [];
 
-        const filePath = conversationStorage.getFilePath(contact.userId, fromPhone);
+      if (contacts.length === 0) {
+        console.log(`⚠️ No contacts found for ${fromPhone}. Finding ADMIN user to create conversation...`);
+
+        // Find first ADMIN user from any tenant to handle this message
+        const adminUser = await prisma.user.findFirst({
+          where: {
+            role: 'ADMIN',
+            isActive: true
+          },
+          select: { id: true, name: true, tenantId: true, role: true }
+        });
+
+        if (adminUser) {
+          console.log(`✅ Found ADMIN user ${adminUser.name} (${adminUser.id}) to handle unknown contact`);
+          usersToCreateConversationsFor.push({
+            userId: adminUser.id,
+            userName: adminUser.name,
+            tenantId: adminUser.tenantId,
+            contactId: null,  // No contact exists yet
+            contactName: contactName
+          });
+        } else {
+          console.log(`❌ No ADMIN user found. Cannot create conversation for unknown contact ${fromPhone}`);
+          return;  // Exit if no admin user exists
+        }
+      } else {
+        // Map contacts to users for conversation creation
+        usersToCreateConversationsFor = contacts.map(contact => ({
+          userId: contact.userId,
+          userName: contact.user.name,
+          tenantId: contact.user.tenantId,
+          contactId: contact.id,
+          contactName: contactName
+        }));
+      }
+
+      // Create conversation for each user (either from contacts or admin)
+      for (const userInfo of usersToCreateConversationsFor) {
+        console.log(`Creating conversation for user ${userInfo.userId} (${userInfo.userName})`);
+
+        const filePath = conversationStorage.getFilePath(userInfo.userId, fromPhone);
         const conversation = await prisma.whatsAppConversation.create({
           data: {
-            userId: contact.userId,
-            tenantId: contact.user.tenantId,
-            contactName: contactName,
+            userId: userInfo.userId,
+            tenantId: userInfo.tenantId,
+            contactName: userInfo.contactName,
             contactPhone: fromPhone,
-            contactId: contact.id,
+            contactId: userInfo.contactId,
             lastMessage: messageText,
             lastMessageAt: new Date(parseInt(timestamp) * 1000),
             unreadCount: 1,
@@ -1018,7 +1057,7 @@ async function processIncomingMessage(message, value) {
         const savedMessage = await prisma.whatsAppMessage.create({
           data: {
             conversationId: conversation.id,
-            tenantId: contact.user.tenantId,
+            tenantId: userInfo.tenantId,
             message: messageText,
             sender: 'contact',
             senderName: contactName,
@@ -1032,17 +1071,17 @@ async function processIncomingMessage(message, value) {
         });
 
         // Save to file
-        await conversationStorage.saveMessage(contact.userId, fromPhone, savedMessage);
-        console.log(`✅ Message saved to conversation for user ${contact.userId}`);
+        await conversationStorage.saveMessage(userInfo.userId, fromPhone, savedMessage);
+        console.log(`✅ Message saved to conversation for user ${userInfo.userId}`);
 
         // 🔌 Broadcast new message via WebSocket
         if (io) {
-          io.to(`user:${contact.userId}`).emit('whatsapp:new_message', {
+          io.to(`user:${userInfo.userId}`).emit('whatsapp:new_message', {
             conversationId: conversation.id,
             message: savedMessage
           });
 
-          io.to(`user:${contact.userId}`).emit('whatsapp:conversation_updated', {
+          io.to(`user:${userInfo.userId}`).emit('whatsapp:conversation_updated', {
             conversationId: conversation.id,
             contactName: conversation.contactName,
             lastMessage: messageText,
@@ -1051,12 +1090,12 @@ async function processIncomingMessage(message, value) {
             aiEnabled: conversation.aiEnabled
           });
 
-          console.log(`🔌 WebSocket: Broadcasted new message to user ${contact.userId}`);
+          console.log(`🔌 WebSocket: Broadcasted new message to user ${userInfo.userId}`);
         }
 
         // Get tenant settings for API configurations
         const tenant = await prisma.tenant.findUnique({
-          where: { id: contact.user.tenantId },
+          where: { id: userInfo.tenantId },
           select: { settings: true }
         });
         const { whatsappConfig, openaiConfig } = getTenantAPIConfig(tenant);
