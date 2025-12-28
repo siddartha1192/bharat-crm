@@ -80,6 +80,7 @@ const tenantsRoutes = require('./routes/tenants');
 const tenantAdminRoutes = require('./routes/tenantAdmin');
 const settingsRoutes = require('./routes/settings');
 const mediaRoutes = require('./routes/media');
+const remindersRoutes = require('./routes/reminders');
 
 // Use routes
 app.use('/tenant-admin', tenantAdminRoutes);
@@ -109,6 +110,7 @@ app.use('/api/forms', formsRoutes);
 app.use('/api/landing-pages', landingPagesRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/reminders', remindersRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -181,6 +183,10 @@ process.on('SIGINT', async () => {
 const campaignScheduler = require('./services/campaignScheduler');
 campaignScheduler.initialize(io);
 campaignScheduler.start();
+
+// Initialize lead reminder scheduler
+const leadReminderScheduler = require('./services/leadReminderScheduler');
+leadReminderScheduler.start();
 
 // Start server (HTTP + WebSocket on same port)
 httpServer.listen(PORT, () => {
