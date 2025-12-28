@@ -3,13 +3,9 @@ import { Deal, PipelineStage, PipelineStageConfig } from '@/types/pipeline';
 import { Contact } from '@/lib/types';
 import { contactsAPI, pipelineStagesAPI } from '@/lib/api';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+} from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,7 +30,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Check, ChevronsUpDown, Plus } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Check, ChevronsUpDown, Plus, Briefcase, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AssignmentDropdown } from '@/components/common/AssignmentDropdown';
 
@@ -195,266 +192,330 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{deal ? 'Edit Deal' : 'Add New Deal'}</DialogTitle>
-          <DialogDescription>
-            {deal ? 'Update deal information' : 'Create a new deal in your pipeline'}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <Label htmlFor="title">Deal Title *</Label>
-              <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => updateField('title', e.target.value)}
-                placeholder="e.g., Enterprise CRM Implementation"
-                required
-              />
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="p-0 w-full sm:max-w-2xl overflow-hidden flex flex-col">
+        {/* Modern Blue Ribbon Header */}
+        <div className="relative bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 text-white px-6 py-5 shadow-lg">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjAzIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-40"></div>
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                <Briefcase className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">{deal ? 'Edit Deal' : 'Add New Deal'}</h2>
+                <p className="text-sm text-white/80">{deal ? 'Update deal information' : 'Create a new deal in your pipeline'}</p>
+              </div>
             </div>
-
-            <div>
-              <Label htmlFor="company">Company *</Label>
-              <Input
-                id="company"
-                value={formData.company}
-                onChange={(e) => updateField('company', e.target.value)}
-                placeholder="e.g., Tech Innovations Pvt Ltd"
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="contactName">Contact *</Label>
-              <Popover open={contactOpen} onOpenChange={setContactOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={contactOpen}
-                    className="w-full justify-between"
-                  >
-                    {formData.contactName || "Search or enter contact name..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[400px] p-0">
-                  <Command shouldFilter={false}>
-                    <CommandInput
-                      placeholder="Search contacts..."
-                      value={contactSearch}
-                      onValueChange={setContactSearch}
-                    />
-                    <CommandList className="max-h-[300px] overflow-y-auto">
-                      {loadingContacts ? (
-                        <CommandEmpty>Searching...</CommandEmpty>
-                      ) : contacts.length === 0 && contactSearch.length >= 2 ? (
-                        <CommandEmpty>
-                          <div className="text-center py-2">
-                            <p className="text-sm text-muted-foreground mb-2">No contacts found</p>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setFormData(prev => ({ ...prev, contactName: contactSearch, contactId: undefined }));
-                                setContactOpen(false);
-                                setContactSearch('');
-                              }}
-                            >
-                              <Plus className="w-4 h-4 mr-2" />
-                              Use "{contactSearch}" as new contact
-                            </Button>
-                          </div>
-                        </CommandEmpty>
-                      ) : (
-                        <>
-                          {contactSearch.length >= 2 && (
-                            <CommandItem
-                              onSelect={() => {
-                                setFormData(prev => ({ ...prev, contactName: contactSearch, contactId: undefined }));
-                                setContactOpen(false);
-                                setContactSearch('');
-                              }}
-                            >
-                              <Plus className="mr-2 h-4 w-4" />
-                              <span>Create new: <strong>{contactSearch}</strong></span>
-                            </CommandItem>
-                          )}
-                          <CommandGroup heading="Existing Contacts">
-                            {contacts.map((contact) => (
-                              <CommandItem
-                                key={contact.id}
-                                onSelect={() => {
-                                  handleContactSelect(contact);
-                                  setContactSearch('');
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    formData.contactId === contact.id ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                <div>
-                                  <div className="font-medium">{contact.name}</div>
-                                  {contact.company && (
-                                    <div className="text-sm text-muted-foreground">{contact.company}</div>
-                                  )}
-                                  {contact.email && (
-                                    <div className="text-xs text-muted-foreground">{contact.email}</div>
-                                  )}
-                                </div>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </>
-                      )}
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              {!formData.contactId && formData.contactName && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  New contact will be created with this name
-                </p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => updateField('email', e.target.value)}
-                placeholder="contact@example.com"
-                required
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Synced with lead email
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="value">Deal Value (₹) *</Label>
-              <Input
-                id="value"
-                type="number"
-                value={formData.value}
-                onChange={(e) => updateField('value', parseInt(e.target.value) || 0)}
-                placeholder="e.g., 500000"
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="probability">Probability (%) *</Label>
-              <Input
-                id="probability"
-                type="number"
-                min="0"
-                max="100"
-                value={formData.probability}
-                onChange={(e) => updateField('probability', parseInt(e.target.value) || 0)}
-                placeholder="e.g., 75"
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="stage">Stage *</Label>
-              <Select
-                value={formData.stage}
-                onValueChange={(value) => {
-                  console.log('🔄 Stage dropdown changed from', formData.stage, 'to', value);
-                  // Find the stage config to get the stageId
-                  const selectedStage = stages.find(s => s.slug === value);
-                  if (selectedStage) {
-                    setFormData(prev => ({
-                      ...prev,
-                      stage: value,
-                      stageId: selectedStage.id
-                    }));
-                  } else {
-                    updateField('stage', value);
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select stage" />
-                </SelectTrigger>
-                <SelectContent>
-                  {stages.map(stage => (
-                    <SelectItem key={stage.id} value={stage.slug}>
-                      {stage.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="assignedTo">Assigned To *</Label>
-              <AssignmentDropdown
-                value={formData.assignedTo || ''}
-                onChange={(value) => updateField('assignedTo', value)}
-                placeholder="Select user to assign this deal"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Synced with lead assignment
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="expectedCloseDate">Expected Close Date *</Label>
-              <Input
-                id="expectedCloseDate"
-                type="date"
-                value={formData.expectedCloseDate instanceof Date
-                  ? formData.expectedCloseDate.toISOString().split('T')[0]
-                  : new Date().toISOString().split('T')[0]
-                }
-                onChange={(e) => updateField('expectedCloseDate', new Date(e.target.value))}
-                required
-              />
-            </div>
-
-            <div className="col-span-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => updateField('notes', e.target.value)}
-                placeholder="Add any additional notes about this deal..."
-                rows={3}
-              />
-            </div>
-
-            <div className="col-span-2">
-              <Label htmlFor="tags">Tags (comma-separated)</Label>
-              <Input
-                id="tags"
-                value={formData.tags?.join(', ')}
-                onChange={(e) => updateField('tags', e.target.value.split(',').map(t => t.trim()).filter(Boolean))}
-                placeholder="e.g., enterprise, hot-deal, urgent"
-              />
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpenChange(false)}
+              className="text-white hover:bg-white/20 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </Button>
           </div>
+        </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">
-              {deal ? 'Update Deal' : 'Create Deal'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        {/* Scrollable Form Area */}
+        <ScrollArea className="flex-1 px-6 py-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Deal Information */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg text-foreground border-l-4 border-l-blue-500 pl-3">Deal Information</h3>
+              <div className="space-y-2">
+                <Label htmlFor="title" className="text-sm font-semibold">Deal Title *</Label>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => updateField('title', e.target.value)}
+                  placeholder="e.g., Enterprise CRM Implementation"
+                  required
+                  className="border-2 focus:border-blue-500 rounded-lg"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="company" className="text-sm font-semibold">Company *</Label>
+                  <Input
+                    id="company"
+                    value={formData.company}
+                    onChange={(e) => updateField('company', e.target.value)}
+                    placeholder="e.g., Tech Innovations Pvt Ltd"
+                    required
+                    className="border-2 focus:border-blue-500 rounded-lg"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Contact *</Label>
+                  <Popover open={contactOpen} onOpenChange={setContactOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={contactOpen}
+                        className="w-full justify-between border-2 rounded-lg"
+                      >
+                        {formData.contactName || "Search or enter contact name..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[400px] p-0 rounded-xl shadow-xl">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="Search contacts..."
+                          value={contactSearch}
+                          onValueChange={setContactSearch}
+                        />
+                        <CommandList className="max-h-[300px] overflow-y-auto">
+                          {loadingContacts ? (
+                            <CommandEmpty>Searching...</CommandEmpty>
+                          ) : contacts.length === 0 && contactSearch.length >= 2 ? (
+                            <CommandEmpty>
+                              <div className="text-center py-2">
+                                <p className="text-sm text-muted-foreground mb-2">No contacts found</p>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setFormData(prev => ({ ...prev, contactName: contactSearch, contactId: undefined }));
+                                    setContactOpen(false);
+                                    setContactSearch('');
+                                  }}
+                                >
+                                  <Plus className="w-4 h-4 mr-2" />
+                                  Use "{contactSearch}" as new contact
+                                </Button>
+                              </div>
+                            </CommandEmpty>
+                          ) : (
+                            <>
+                              {contactSearch.length >= 2 && (
+                                <CommandItem
+                                  onSelect={() => {
+                                    setFormData(prev => ({ ...prev, contactName: contactSearch, contactId: undefined }));
+                                    setContactOpen(false);
+                                    setContactSearch('');
+                                  }}
+                                >
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  <span>Create new: <strong>{contactSearch}</strong></span>
+                                </CommandItem>
+                              )}
+                              <CommandGroup heading="Existing Contacts">
+                                {contacts.map((contact) => (
+                                  <CommandItem
+                                    key={contact.id}
+                                    onSelect={() => {
+                                      handleContactSelect(contact);
+                                      setContactSearch('');
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        formData.contactId === contact.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    <div>
+                                      <div className="font-medium">{contact.name}</div>
+                                      {contact.company && (
+                                        <div className="text-sm text-muted-foreground">{contact.company}</div>
+                                      )}
+                                      {contact.email && (
+                                        <div className="text-xs text-muted-foreground">{contact.email}</div>
+                                      )}
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </>
+                          )}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  {!formData.contactId && formData.contactName && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      New contact will be created with this name
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-semibold">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => updateField('email', e.target.value)}
+                  placeholder="contact@example.com"
+                  required
+                  className="border-2 focus:border-blue-500 rounded-lg"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Synced with lead email
+                </p>
+              </div>
+            </div>
+
+            {/* Deal Financials */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg text-foreground border-l-4 border-l-green-500 pl-3">Deal Financials</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="value" className="text-sm font-semibold">Deal Value (₹) *</Label>
+                  <Input
+                    id="value"
+                    type="number"
+                    value={formData.value}
+                    onChange={(e) => updateField('value', parseInt(e.target.value) || 0)}
+                    placeholder="e.g., 500000"
+                    required
+                    className="border-2 focus:border-blue-500 rounded-lg"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="probability" className="text-sm font-semibold">Probability (%) *</Label>
+                  <Input
+                    id="probability"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={formData.probability}
+                    onChange={(e) => updateField('probability', parseInt(e.target.value) || 0)}
+                    placeholder="e.g., 75"
+                    required
+                    className="border-2 focus:border-blue-500 rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Pipeline & Assignment */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg text-foreground border-l-4 border-l-purple-500 pl-3">Pipeline & Assignment</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Stage *</Label>
+                  <Select
+                    value={formData.stage}
+                    onValueChange={(value) => {
+                      console.log('🔄 Stage dropdown changed from', formData.stage, 'to', value);
+                      // Find the stage config to get the stageId
+                      const selectedStage = stages.find(s => s.slug === value);
+                      if (selectedStage) {
+                        setFormData(prev => ({
+                          ...prev,
+                          stage: value,
+                          stageId: selectedStage.id
+                        }));
+                      } else {
+                        updateField('stage', value);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="border-2 rounded-lg">
+                      <SelectValue placeholder="Select stage" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stages.map(stage => (
+                        <SelectItem key={stage.id} value={stage.slug}>
+                          {stage.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Assigned To *</Label>
+                  <AssignmentDropdown
+                    value={formData.assignedTo || ''}
+                    onChange={(value) => updateField('assignedTo', value)}
+                    placeholder="Select user to assign this deal"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Synced with lead assignment
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="expectedCloseDate" className="text-sm font-semibold">Expected Close Date *</Label>
+                <Input
+                  id="expectedCloseDate"
+                  type="date"
+                  value={formData.expectedCloseDate instanceof Date
+                    ? formData.expectedCloseDate.toISOString().split('T')[0]
+                    : new Date().toISOString().split('T')[0]
+                  }
+                  onChange={(e) => updateField('expectedCloseDate', new Date(e.target.value))}
+                  required
+                  className="border-2 focus:border-blue-500 rounded-lg"
+                />
+              </div>
+            </div>
+
+            {/* Additional Information */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg text-foreground border-l-4 border-l-amber-500 pl-3">Additional Information</h3>
+              <div className="space-y-2">
+                <Label htmlFor="notes" className="text-sm font-semibold">Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => updateField('notes', e.target.value)}
+                  placeholder="Add any additional notes about this deal..."
+                  rows={3}
+                  className="border-2 focus:border-blue-500 rounded-lg resize-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tags" className="text-sm font-semibold">Tags (comma-separated)</Label>
+                <Input
+                  id="tags"
+                  value={formData.tags?.join(', ')}
+                  onChange={(e) => updateField('tags', e.target.value.split(',').map(t => t.trim()).filter(Boolean))}
+                  placeholder="e.g., enterprise, hot-deal, urgent"
+                  className="border-2 focus:border-blue-500 rounded-lg"
+                />
+              </div>
+            </div>
+          </form>
+        </ScrollArea>
+
+        {/* Modern Action Footer */}
+        <div className="border-t bg-gradient-to-r from-slate-50 to-slate-100/50 px-6 py-4 flex gap-3 shadow-lg">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="flex-1 border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg shadow-sm"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            onClick={(e) => {
+              e.preventDefault();
+              const formElement = e.currentTarget.closest('.flex.flex-col')?.querySelector('form');
+              if (formElement instanceof HTMLFormElement) {
+                formElement.requestSubmit();
+              }
+            }}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all rounded-lg"
+          >
+            {deal ? 'Update Deal' : 'Create Deal'}
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

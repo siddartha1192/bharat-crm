@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import { Invoice, InvoiceLineItem, InvoiceStatus, PaymentMethod, calculateInvoiceTotal, indianStates } from "@/types/invoice";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus, Trash2, FileText, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface InvoiceDialogProps {
@@ -183,360 +182,409 @@ export const InvoiceDialog = ({ invoice, open, onOpenChange, onSave }: InvoiceDi
   const isInterState = formData.companyState !== formData.customerState;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {invoice ? "Edit Invoice" : "Create New Invoice"}
-          </DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Customer Details */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Customer Details</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Customer Name *</Label>
-                <Input
-                  value={formData.customerName}
-                  onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                  placeholder="Enter customer name"
-                  required
-                />
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="p-0 w-full sm:max-w-3xl lg:max-w-4xl overflow-hidden flex flex-col">
+        {/* Modern Blue Ribbon Header */}
+        <div className="relative bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 text-white px-6 py-5 shadow-lg">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjAzIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-40"></div>
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                <FileText className="w-6 h-6" />
               </div>
-              <div className="space-y-2">
-                <Label>Customer Email *</Label>
-                <Input
-                  type="email"
-                  value={formData.customerEmail}
-                  onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
-                  placeholder="customer@example.com"
-                  required
-                />
-              </div>
+              <h2 className="text-xl font-bold">{invoice ? "Edit Invoice" : "Create New Invoice"}</h2>
             </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Customer Phone *</Label>
-                <Input
-                  type="tel"
-                  value={formData.customerPhone}
-                  onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
-                  placeholder="+91 98765 43210"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Customer State *</Label>
-                <Select value={formData.customerState} onValueChange={(value) => setFormData({ ...formData, customerState: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {indianStates.map(state => (
-                      <SelectItem key={state} value={state}>{state}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>GSTIN (Optional)</Label>
-                <Input
-                  value={formData.customerGSTIN}
-                  onChange={(e) => setFormData({ ...formData, customerGSTIN: e.target.value })}
-                  placeholder="27AABCU9603R1ZM"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Customer Address *</Label>
-              <Textarea
-                value={formData.customerAddress}
-                onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
-                placeholder="Enter customer address"
-                rows={2}
-                required
-              />
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpenChange(false)}
+              className="text-white hover:bg-white/20 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </Button>
           </div>
+        </div>
 
-          {/* Invoice Details */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Invoice Details</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Due Date *</Label>
-                <Input
-                  type="date"
-                  value={formData.dueDate}
-                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Status *</Label>
-                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as InvoiceStatus })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="sent">Sent</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Payment Details - Show only if paid */}
-            {formData.status === 'paid' && (
-              <div className="grid grid-cols-2 gap-4 p-4 bg-accent/10 rounded-lg">
+        {/* Scrollable Form Area */}
+        <ScrollArea className="flex-1 px-6 py-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Customer Details */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg text-foreground border-l-4 border-l-blue-500 pl-3">Customer Details</h3>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Payment Method *</Label>
-                  <Select value={formData.paymentMethod} onValueChange={(value) => setFormData({ ...formData, paymentMethod: value as PaymentMethod })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select method" />
+                  <Label className="text-sm font-semibold">Customer Name *</Label>
+                  <Input
+                    value={formData.customerName}
+                    onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                    placeholder="Enter customer name"
+                    required
+                    className="border-2 focus:border-blue-500 rounded-lg"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Customer Email *</Label>
+                  <Input
+                    type="email"
+                    value={formData.customerEmail}
+                    onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
+                    placeholder="customer@example.com"
+                    required
+                    className="border-2 focus:border-blue-500 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Customer Phone *</Label>
+                  <Input
+                    type="tel"
+                    value={formData.customerPhone}
+                    onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                    placeholder="+91 98765 43210"
+                    required
+                    className="border-2 focus:border-blue-500 rounded-lg"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Customer State *</Label>
+                  <Select value={formData.customerState} onValueChange={(value) => setFormData({ ...formData, customerState: value })}>
+                    <SelectTrigger className="border-2 rounded-lg">
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="upi">UPI</SelectItem>
-                      <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
-                      <SelectItem value="cheque">Cheque</SelectItem>
-                      <SelectItem value="card">Card</SelectItem>
-                      <SelectItem value="razorpay">Razorpay</SelectItem>
-                      <SelectItem value="paytm">Paytm</SelectItem>
+                      {indianStates.map(state => (
+                        <SelectItem key={state} value={state}>{state}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Payment Date *</Label>
+                  <Label className="text-sm font-semibold">GSTIN (Optional)</Label>
                   <Input
-                    type="date"
-                    value={formData.paymentDate}
-                    onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
-                    required
+                    value={formData.customerGSTIN}
+                    onChange={(e) => setFormData({ ...formData, customerGSTIN: e.target.value })}
+                    placeholder="27AABCU9603R1ZM"
+                    className="border-2 focus:border-blue-500 rounded-lg"
                   />
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Line Items */}
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Line Items</h3>
-              <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Item
-              </Button>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Customer Address *</Label>
+                <Textarea
+                  value={formData.customerAddress}
+                  onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
+                  placeholder="Enter customer address"
+                  rows={2}
+                  required
+                  className="border-2 focus:border-blue-500 rounded-lg resize-none"
+                />
+              </div>
             </div>
 
-            {lineItems.map((item, index) => (
-              <div key={item.id} className="p-4 border border-border rounded-lg space-y-3 bg-card/50">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Item {index + 1}</span>
-                  {lineItems.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeLineItem(item.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  )}
+            {/* Invoice Details */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg text-foreground border-l-4 border-l-purple-500 pl-3">Invoice Details</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Due Date *</Label>
+                  <Input
+                    type="date"
+                    value={formData.dueDate}
+                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                    required
+                    className="border-2 focus:border-blue-500 rounded-lg"
+                  />
                 </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Status *</Label>
+                  <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as InvoiceStatus })}>
+                    <SelectTrigger className="border-2 rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="sent">Sent</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="overdue">Overdue</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-                <div className="grid grid-cols-6 gap-3">
-                  <div className="col-span-6 space-y-2">
-                    <Label>Description *</Label>
-                    <Input
-                      value={item.description}
-                      onChange={(e) =>
-                        updateLineItem(item.id, "description", e.target.value)
-                      }
-                      placeholder="Item description"
-                      required
-                    />
-                  </div>
-                  <div className="col-span-2 space-y-2">
-                    <Label>HSN/SAC Code</Label>
-                    <Input
-                      value={item.hsnSac}
-                      onChange={(e) =>
-                        updateLineItem(item.id, "hsnSac", e.target.value)
-                      }
-                      placeholder="998314"
-                    />
-                  </div>
+              {/* Payment Details - Show only if paid */}
+              {formData.status === 'paid' && (
+                <div className="grid grid-cols-2 gap-4 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border-2 border-green-200 dark:border-green-900">
                   <div className="space-y-2">
-                    <Label>Quantity *</Label>
-                    <Input
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        updateLineItem(item.id, "quantity", parseFloat(e.target.value) || 1)
-                      }
-                      min="1"
-                      step="0.01"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Unit</Label>
-                    <Input
-                      value={item.unit}
-                      onChange={(e) =>
-                        updateLineItem(item.id, "unit", e.target.value)
-                      }
-                      placeholder="pcs"
-                    />
-                  </div>
-                  <div className="col-span-2 space-y-2">
-                    <Label>Rate (₹) *</Label>
-                    <Input
-                      type="number"
-                      value={item.rate}
-                      onChange={(e) =>
-                        updateLineItem(item.id, "rate", parseFloat(e.target.value) || 0)
-                      }
-                      min="0"
-                      step="0.01"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Discount %</Label>
-                    <Input
-                      type="number"
-                      value={item.discount}
-                      onChange={(e) =>
-                        updateLineItem(item.id, "discount", parseFloat(e.target.value) || 0)
-                      }
-                      min="0"
-                      max="100"
-                      step="0.01"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>GST % *</Label>
-                    <Select
-                      value={item.taxRate.toString()}
-                      onValueChange={(value) =>
-                        updateLineItem(item.id, "taxRate", parseFloat(value))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
+                    <Label className="text-sm font-semibold">Payment Method *</Label>
+                    <Select value={formData.paymentMethod} onValueChange={(value) => setFormData({ ...formData, paymentMethod: value as PaymentMethod })}>
+                      <SelectTrigger className="border-2 rounded-lg">
+                        <SelectValue placeholder="Select method" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="0">0%</SelectItem>
-                        <SelectItem value="5">5%</SelectItem>
-                        <SelectItem value="12">12%</SelectItem>
-                        <SelectItem value="18">18%</SelectItem>
-                        <SelectItem value="28">28%</SelectItem>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="upi">UPI</SelectItem>
+                        <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
+                        <SelectItem value="cheque">Cheque</SelectItem>
+                        <SelectItem value="card">Card</SelectItem>
+                        <SelectItem value="razorpay">Razorpay</SelectItem>
+                        <SelectItem value="paytm">Paytm</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="col-span-2 space-y-2">
-                    <Label>Amount (After Discount)</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Payment Date *</Label>
                     <Input
-                      type="number"
-                      value={item.amount.toFixed(2)}
-                      disabled
-                      className="bg-muted"
+                      type="date"
+                      value={formData.paymentDate}
+                      onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
+                      required
+                      className="border-2 focus:border-blue-500 rounded-lg"
                     />
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* GST Totals */}
-          <div className="border-t border-border pt-4 space-y-3 bg-primary/5 p-4 rounded-lg">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Tax Calculation</h3>
-              <span className={`text-xs px-2 py-1 rounded ${isInterState ? 'bg-blue-500/10 text-blue-600' : 'bg-green-500/10 text-green-600'}`}>
-                {isInterState ? 'Inter-state (IGST)' : 'Intra-state (CGST+SGST)'}
-              </span>
+              )}
             </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Subtotal:</span>
-                <span className="font-medium">₹{totals.subtotal.toFixed(2)}</span>
-              </div>
-              {totals.totalDiscount > 0 && (
-                <div className="flex justify-between text-sm text-destructive">
-                  <span>Total Discount:</span>
-                  <span>-₹{totals.totalDiscount.toFixed(2)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Taxable Amount:</span>
-                <span className="font-medium">₹{(totals.subtotal - totals.totalDiscount).toFixed(2)}</span>
+            {/* Line Items */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center border-l-4 border-l-green-500 pl-3">
+                <h3 className="font-semibold text-lg text-foreground">Line Items</h3>
+                <Button type="button" variant="outline" size="sm" onClick={addLineItem} className="rounded-lg">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Item
+                </Button>
               </div>
 
-              {isInterState ? (
+              {lineItems.map((item, index) => (
+                <div key={item.id} className="p-4 border-2 border-border rounded-lg space-y-3 bg-slate-50 dark:bg-slate-900/20">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-semibold">Item {index + 1}</span>
+                    {lineItems.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeLineItem(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-6 gap-3">
+                    <div className="col-span-6 space-y-2">
+                      <Label className="text-sm font-semibold">Description *</Label>
+                      <Input
+                        value={item.description}
+                        onChange={(e) =>
+                          updateLineItem(item.id, "description", e.target.value)
+                        }
+                        placeholder="Item description"
+                        required
+                        className="border-2 focus:border-blue-500 rounded-lg"
+                      />
+                    </div>
+                    <div className="col-span-2 space-y-2">
+                      <Label className="text-sm font-semibold">HSN/SAC Code</Label>
+                      <Input
+                        value={item.hsnSac}
+                        onChange={(e) =>
+                          updateLineItem(item.id, "hsnSac", e.target.value)
+                        }
+                        placeholder="998314"
+                        className="border-2 focus:border-blue-500 rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Quantity *</Label>
+                      <Input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) =>
+                          updateLineItem(item.id, "quantity", parseFloat(e.target.value) || 1)
+                        }
+                        min="1"
+                        step="0.01"
+                        required
+                        className="border-2 focus:border-blue-500 rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Unit</Label>
+                      <Input
+                        value={item.unit}
+                        onChange={(e) =>
+                          updateLineItem(item.id, "unit", e.target.value)
+                        }
+                        placeholder="pcs"
+                        className="border-2 focus:border-blue-500 rounded-lg"
+                      />
+                    </div>
+                    <div className="col-span-2 space-y-2">
+                      <Label className="text-sm font-semibold">Rate (₹) *</Label>
+                      <Input
+                        type="number"
+                        value={item.rate}
+                        onChange={(e) =>
+                          updateLineItem(item.id, "rate", parseFloat(e.target.value) || 0)
+                        }
+                        min="0"
+                        step="0.01"
+                        required
+                        className="border-2 focus:border-blue-500 rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Discount %</Label>
+                      <Input
+                        type="number"
+                        value={item.discount}
+                        onChange={(e) =>
+                          updateLineItem(item.id, "discount", parseFloat(e.target.value) || 0)
+                        }
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        className="border-2 focus:border-blue-500 rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">GST % *</Label>
+                      <Select
+                        value={item.taxRate.toString()}
+                        onValueChange={(value) =>
+                          updateLineItem(item.id, "taxRate", parseFloat(value))
+                        }
+                      >
+                        <SelectTrigger className="border-2 rounded-lg">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">0%</SelectItem>
+                          <SelectItem value="5">5%</SelectItem>
+                          <SelectItem value="12">12%</SelectItem>
+                          <SelectItem value="18">18%</SelectItem>
+                          <SelectItem value="28">28%</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-2 space-y-2">
+                      <Label className="text-sm font-semibold">Amount (After Discount)</Label>
+                      <Input
+                        type="number"
+                        value={item.amount.toFixed(2)}
+                        disabled
+                        className="bg-muted border-2 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* GST Totals */}
+            <div className="border-t-2 border-border pt-4 space-y-3 bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
+              <div className="flex justify-between items-center">
+                <h3 className="font-semibold text-lg text-foreground">Tax Calculation</h3>
+                <span className={`text-xs px-2 py-1 rounded-lg font-semibold ${isInterState ? 'bg-blue-500/10 text-blue-600' : 'bg-green-500/10 text-green-600'}`}>
+                  {isInterState ? 'Inter-state (IGST)' : 'Intra-state (CGST+SGST)'}
+                </span>
+              </div>
+
+              <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">IGST:</span>
-                  <span className="font-medium">₹{totals.igst.toFixed(2)}</span>
+                  <span className="text-muted-foreground">Subtotal:</span>
+                  <span className="font-medium">₹{totals.subtotal.toFixed(2)}</span>
                 </div>
-              ) : (
-                <>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">CGST:</span>
-                    <span className="font-medium">₹{totals.cgst.toFixed(2)}</span>
+                {totals.totalDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-destructive">
+                    <span>Total Discount:</span>
+                    <span>-₹{totals.totalDiscount.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">SGST:</span>
-                    <span className="font-medium">₹{totals.sgst.toFixed(2)}</span>
-                  </div>
-                </>
-              )}
-
-              {totals.roundOff !== 0 && (
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Round Off:</span>
-                  <span>{totals.roundOff > 0 ? '+' : ''}₹{totals.roundOff.toFixed(2)}</span>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Taxable Amount:</span>
+                  <span className="font-medium">₹{(totals.subtotal - totals.totalDiscount).toFixed(2)}</span>
                 </div>
-              )}
 
-              <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
-                <span>Grand Total:</span>
-                <span className="text-primary">₹{totals.total.toFixed(2)}</span>
+                {isInterState ? (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">IGST:</span>
+                    <span className="font-medium">₹{totals.igst.toFixed(2)}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">CGST:</span>
+                      <span className="font-medium">₹{totals.cgst.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">SGST:</span>
+                      <span className="font-medium">₹{totals.sgst.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+
+                {totals.roundOff !== 0 && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Round Off:</span>
+                    <span>{totals.roundOff > 0 ? '+' : ''}₹{totals.roundOff.toFixed(2)}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between text-lg font-bold pt-2 border-t-2 border-border">
+                  <span>Grand Total:</span>
+                  <span className="text-blue-600">₹{totals.total.toFixed(2)}</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Notes */}
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Any additional notes for the customer"
-                rows={2}
-              />
+            {/* Notes */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg text-foreground border-l-4 border-l-amber-500 pl-3">Additional Information</h3>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Notes</Label>
+                <Textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Any additional notes for the customer"
+                  rows={2}
+                  className="border-2 focus:border-blue-500 rounded-lg resize-none"
+                />
+              </div>
             </div>
-          </div>
+          </form>
+        </ScrollArea>
 
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">
-              {invoice ? "Update Invoice" : "Create Invoice"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+        {/* Modern Action Footer */}
+        <div className="border-t bg-gradient-to-r from-slate-50 to-slate-100/50 px-6 py-4 flex gap-3 shadow-lg">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="flex-1 border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg shadow-sm"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            onClick={(e) => {
+              e.preventDefault();
+              const formElement = e.currentTarget.closest('.flex.flex-col')?.querySelector('form');
+              if (formElement instanceof HTMLFormElement) {
+                formElement.requestSubmit();
+              }
+            }}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all rounded-lg"
+          >
+            {invoice ? "Update Invoice" : "Create Invoice"}
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 };
