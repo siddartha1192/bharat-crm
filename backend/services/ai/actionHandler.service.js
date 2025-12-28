@@ -295,8 +295,8 @@ Notes: ${data.notes || 'None'}
       const estimatedValue = data.estimatedValue || 0;
       const company = data.company || '';
 
-      // Get default lead stage
-      const defaultStage = await prisma.pipelineStage.findFirst({
+      // Get default lead stage - try multiple strategies
+      let defaultStage = await prisma.pipelineStage.findFirst({
         where: {
           tenantId: ownerUser.tenantId,
           isSystemDefault: true,
@@ -304,8 +304,31 @@ Notes: ${data.notes || 'None'}
         }
       });
 
+      // If no system default LEAD stage, try to find any active LEAD/BOTH stage
       if (!defaultStage) {
-        return { success: false, error: 'No default lead stage found for tenant' };
+        defaultStage = await prisma.pipelineStage.findFirst({
+          where: {
+            tenantId: ownerUser.tenantId,
+            isActive: true,
+            stageType: { in: ['LEAD', 'BOTH'] }
+          },
+          orderBy: { order: 'asc' }
+        });
+      }
+
+      // If still no stage found, look for the "lead" slug stage (which might be DEAL type)
+      if (!defaultStage) {
+        defaultStage = await prisma.pipelineStage.findFirst({
+          where: {
+            tenantId: ownerUser.tenantId,
+            slug: 'lead',
+            isActive: true
+          }
+        });
+      }
+
+      if (!defaultStage) {
+        return { success: false, error: 'No lead stage found for tenant. Please create a pipeline stage for leads.' };
       }
 
       // Create the Lead only (no automatic deal creation)

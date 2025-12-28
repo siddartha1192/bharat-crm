@@ -64,20 +64,7 @@ export default function Pipeline() {
       setLoading(true);
       setPipelineError(null);
 
-      // Validate pipeline configuration first
-      const validation = await pipelineConfigAPI.validate();
-
-      // For Pipeline (deals) page, only check if we can create deals, not leads
-      if (!validation.canCreateDeals || validation.stageCount === 0) {
-        const errorMsg = validation.stageCount === 0
-          ? 'No pipeline stages found. Please create pipeline stages to use the Pipeline.'
-          : 'No deal stages found. Please create a stage with stageType="DEAL" or "BOTH" to view deals.';
-        setPipelineError(errorMsg);
-        setStages([]);
-        setDeals([]);
-        return;
-      }
-
+      // Fetch stages and deals
       const [stagesData, dealsResponse] = await Promise.all([
         pipelineStagesAPI.getAll(),
         dealsAPI.getAll({ limit: 10000 }) // Get all deals for pipeline view
@@ -88,12 +75,20 @@ export default function Pipeline() {
 
       // Convert date strings to Date objects for stages and filter for DEAL/BOTH stages only
       const stagesWithDates = stagesData
-        .filter(s => s.stageType === 'DEAL' || s.stageType === 'BOTH')
+        .filter(s => s.isActive && (s.stageType === 'DEAL' || s.stageType === 'BOTH'))
         .map(s => ({
           ...s,
           createdAt: new Date(s.createdAt),
           updatedAt: new Date(s.updatedAt)
         }));
+
+      // Check if we have any deal stages
+      if (stagesWithDates.length === 0) {
+        setPipelineError('No deal stages found. Please create a stage with stageType="DEAL" or "BOTH" in Pipeline Settings.');
+        setStages([]);
+        setDeals([]);
+        return;
+      }
 
       setStages(stagesWithDates.sort((a, b) => a.order - b.order));
       setDeals(dealsData);

@@ -387,8 +387,8 @@ router.post('/public/submit/:slug', async (req, res) => {
             userId: form.userId
           };
 
-          // Get default lead stage
-          const defaultStage = await prisma.pipelineStage.findFirst({
+          // Get default lead stage - try multiple strategies
+          let defaultStage = await prisma.pipelineStage.findFirst({
             where: {
               tenantId: form.tenantId,
               isSystemDefault: true,
@@ -396,8 +396,31 @@ router.post('/public/submit/:slug', async (req, res) => {
             }
           });
 
+          // If no system default LEAD stage, try to find any active LEAD/BOTH stage
           if (!defaultStage) {
-            throw new Error('No default lead stage found for tenant');
+            defaultStage = await prisma.pipelineStage.findFirst({
+              where: {
+                tenantId: form.tenantId,
+                isActive: true,
+                stageType: { in: ['LEAD', 'BOTH'] }
+              },
+              orderBy: { order: 'asc' }
+            });
+          }
+
+          // If still no stage found, look for the "lead" slug stage
+          if (!defaultStage) {
+            defaultStage = await prisma.pipelineStage.findFirst({
+              where: {
+                tenantId: form.tenantId,
+                slug: 'lead',
+                isActive: true
+              }
+            });
+          }
+
+          if (!defaultStage) {
+            throw new Error('No lead stage found for tenant. Please create a pipeline stage for leads.');
           }
 
           // Create lead only (no automatic deal creation)

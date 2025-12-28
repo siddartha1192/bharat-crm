@@ -231,13 +231,33 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
                 {lead.name.split(' ').map(n => n[0]).join('')}
               </AvatarFallback>
             </Avatar>
-            <div>
+            <div className="flex-1">
               <div className="text-2xl font-bold">{lead.name}</div>
               <div className="text-sm font-normal text-muted-foreground flex items-center gap-2">
                 <Building2 className="w-4 h-4" />
                 {lead.company}
               </div>
             </div>
+            {!lead.dealId && (
+              <Button
+                onClick={handleCreateDeal}
+                disabled={creatingDeal}
+                size="lg"
+                className="ml-auto"
+              >
+                {creatingDeal ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <ArrowRight className="w-4 h-4 mr-2" />
+                    Create Deal
+                  </>
+                )}
+              </Button>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -538,26 +558,6 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4">
-            {!lead.dealId && (
-              <Button
-                className="flex-1"
-                onClick={handleCreateDeal}
-                disabled={creatingDeal}
-                variant="default"
-              >
-                {creatingDeal ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating Deal...
-                  </>
-                ) : (
-                  <>
-                    <ArrowRight className="w-4 h-4 mr-2" />
-                    Create Deal
-                  </>
-                )}
-              </Button>
-            )}
             <Button className="flex-1" onClick={handleSendEmail}>
               <Mail className="w-4 h-4 mr-2" />
               Send Email
