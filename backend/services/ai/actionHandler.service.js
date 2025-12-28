@@ -210,10 +210,18 @@ Notes: ${data.notes || 'None'}
         return { success: false, error: 'Owner user not found' };
       }
 
-      // Parse due date if provided
-      let dueDate = null;
+      // Parse due date if provided, otherwise default to 7 days from now
+      let dueDate;
       if (data.dueDate) {
         dueDate = new Date(data.dueDate);
+      } else if (data.date || data.time) {
+        // Try to parse from date/time fields
+        dueDate = this.parseDateTime(data.date, data.time);
+      } else {
+        // Default: 7 days from now
+        dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 7);
+        console.log('   ℹ️ No due date specified, defaulting to 7 days from now:', dueDate.toISOString());
       }
 
       // Determine assignedTo name (from AI data or default to owner)
