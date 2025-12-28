@@ -215,29 +215,30 @@ export default function Pipeline() {
       return;
     }
 
-    let targetStage: string | null = null;
+    let targetStageConfig: PipelineStageConfig | null = null;
 
     // Check if we're over a stage column directly
     const stageConfig = stages.find(s => s.id === over.id);
     if (stageConfig) {
-      targetStage = stageConfig.slug;
+      targetStageConfig = stageConfig;
     } else {
       // We're over a deal, find which stage it belongs to
       const overDeal = deals.find(d => d.id === over.id);
       if (overDeal) {
-        targetStage = overDeal.stage;
+        targetStageConfig = stages.find(s => s.id === overDeal.stageId) || null;
       }
     }
 
     // Update the deal's stage if it changed from the original
-    if (targetStage && originalDealStage !== targetStage) {
-      const stageName = stages.find(s => s.slug === targetStage)?.name;
-
+    if (targetStageConfig && originalDealStage !== targetStageConfig.slug) {
       try {
-        // Update in backend
+        // Update in backend - send BOTH stageId and stage for backward compatibility
         console.log('🎯 Updating deal via drag-and-drop:', activeDeal.id);
-        console.log('📤 Stage update:', originalDealStage, '→', targetStage);
-        const updatedDeal = await dealsAPI.update(activeDeal.id, { stage: targetStage });
+        console.log('📤 Stage update:', originalDealStage, '→', targetStageConfig.slug, '(stageId:', targetStageConfig.id, ')');
+        const updatedDeal = await dealsAPI.update(activeDeal.id, {
+          stage: targetStageConfig.slug,
+          stageId: targetStageConfig.id
+        });
 
         // Update local state with the backend response to ensure consistency
         setDeals(prevDeals =>
@@ -246,7 +247,7 @@ export default function Pipeline() {
           )
         );
 
-        toast.success(`Deal moved to ${stageName}!`);
+        toast.success(`Deal moved to ${targetStageConfig.name}!`);
         console.log('✅ Deal stage updated successfully');
       } catch (error) {
         // Revert on error - restore to original stage
