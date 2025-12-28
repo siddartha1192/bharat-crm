@@ -172,7 +172,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST create new lead (automatically creates Deal in pipeline)
+// POST create new lead (manual deal creation via separate endpoint)
 router.post('/', validateAssignment, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -203,18 +203,84 @@ router.post('/', validateAssignment, async (req, res) => {
     const defaultLeadStage = await getDefaultLeadStage(req.tenant.id);
     const leadStageId = leadData.stageId || defaultLeadStage.id;
 
-    // Use transaction to ensure both Lead and Deal are created together
+    // Create the Lead only (no automatic deal creation)
+    const lead = await prisma.lead.create({
+      data: {
+        ...leadData,
+        assignedTo,
+        createdBy,
+        userId,
+        tenantId: req.tenant.id,
+        stageId: leadStageId,
+        status: leadData.status || 'new' // Keep for backward compatibility
+      }
+    });
+
+    console.log(`Lead created: ${lead.id} - Use /api/leads/${lead.id}/create-deal to manually convert to deal`);
+
+    // Trigger automation for lead creation
+    try {
+      await automationService.triggerAutomation('lead.created', {
+        id: lead.id,
+        name: lead.name,
+        email: lead.email,
+        company: lead.company,
+        status: lead.status,
+        entityType: 'Lead'
+      }, req.user);
+    } catch (automationError) {
+      console.error('Error triggering lead creation automation:', automationError);
+      // Don't fail the request if automation fails
+    }
+
+    res.status(201).json(lead);
+  } catch (error) {
+    console.error('Error creating lead:', error);
+    res.status(500).json({ error: 'Failed to create lead', message: error.message });
+  }
+});
+
+// POST manually create a deal from a lead
+router.post('/:id/create-deal', validateAssignment, async (req, res) => {
+  try {
+    const leadId = req.params.id;
+
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
+
+    // Verify lead exists and is visible to user
+    const lead = await prisma.lead.findFirst({
+      where: {
+        id: leadId,
+        ...visibilityFilter
+      }
+    });
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    // Check if lead already has a deal
+    if (lead.dealId) {
+      return res.status(400).json({
+        error: 'Deal already exists',
+        message: 'This lead already has an associated deal',
+        dealId: lead.dealId
+      });
+    }
+
+    // Use transaction to create deal and link to lead
     const result = await prisma.$transaction(async (tx) => {
-      // Get lead stage for deal mapping
+      // Get lead stage
       const leadStage = await tx.pipelineStage.findUnique({
-        where: { id: leadStageId }
+        where: { id: lead.stageId }
       });
 
       // Find suitable deal stage
       let dealStageId;
       if (leadStage && leadStage.stageType === 'BOTH') {
         // Use same stage if it works for both
-        dealStageId = leadStageId;
+        dealStageId = lead.stageId;
       } else {
         // Find first available deal stage
         const dealStage = await tx.pipelineStage.findFirst({
@@ -225,69 +291,50 @@ router.post('/', validateAssignment, async (req, res) => {
           },
           orderBy: { order: 'asc' }
         });
-        dealStageId = dealStage?.id || leadStageId; // Fallback to lead stage
+        dealStageId = dealStage?.id || lead.stageId; // Fallback to lead stage
       }
 
-      // Create the Deal first in the pipeline
+      // Create the Deal
       const deal = await tx.deal.create({
         data: {
-          title: `${leadData.company} - ${leadData.name}`,
-          company: leadData.company,
-          contactName: leadData.name,
-          email: leadData.email,
-          phone: leadData.phone || '',
-          value: leadData.estimatedValue || 0,
-          stage: mapLeadStatusToDealStage(leadData.status || 'new'), // Backward compatibility
-          stageId: dealStageId, // NEW: Required field
-          probability: leadData.priority === 'urgent' ? 80 : leadData.priority === 'high' ? 60 : leadData.priority === 'medium' ? 40 : 20,
-          expectedCloseDate: leadData.nextFollowUpAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          assignedTo,
-          createdBy,
-          notes: leadData.notes || '',
-          tags: leadData.tags || [],
-          userId,
+          title: `${lead.company} - ${lead.name}`,
+          company: lead.company,
+          contactName: lead.name,
+          email: lead.email,
+          phone: lead.phone || '',
+          value: lead.estimatedValue || 0,
+          stage: mapLeadStatusToDealStage(lead.status || 'new'),
+          stageId: dealStageId,
+          probability: lead.priority === 'urgent' ? 80 : lead.priority === 'high' ? 60 : lead.priority === 'medium' ? 40 : 20,
+          expectedCloseDate: lead.nextFollowUpAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          assignedTo: lead.assignedTo,
+          createdBy: req.user.id,
+          notes: lead.notes || '',
+          tags: lead.tags || [],
+          userId: lead.userId,
           tenantId: req.tenant.id
         }
       });
 
-      // Create the Lead and link it to the Deal
-      const lead = await tx.lead.create({
-        data: {
-          ...leadData,
-          assignedTo,
-          createdBy,
-          userId,
-          tenantId: req.tenant.id,
-          dealId: deal.id,
-          stageId: leadStageId, // NEW: Required field
-          status: leadData.status || 'new' // Keep for backward compatibility
-        }
+      // Link deal to lead
+      const updatedLead = await tx.lead.update({
+        where: { id: leadId },
+        data: { dealId: deal.id }
       });
 
-      return { lead, deal };
+      return { deal, lead: updatedLead };
     });
 
-    console.log(`Lead created with auto-generated Deal: Lead ${result.lead.id} -> Deal ${result.deal.id}`);
+    console.log(`Deal created manually from lead: Lead ${leadId} -> Deal ${result.deal.id}`);
 
-    // Trigger automation for lead creation
-    try {
-      await automationService.triggerAutomation('lead.created', {
-        id: result.lead.id,
-        name: result.lead.name,
-        email: result.lead.email,
-        company: result.lead.company,
-        status: result.lead.status,
-        entityType: 'Lead'
-      }, req.user);
-    } catch (automationError) {
-      console.error('Error triggering lead creation automation:', automationError);
-      // Don't fail the request if automation fails
-    }
-
-    res.status(201).json(result.lead);
+    res.status(201).json({
+      message: 'Deal created successfully from lead',
+      deal: result.deal,
+      lead: result.lead
+    });
   } catch (error) {
-    console.error('Error creating lead:', error);
-    res.status(500).json({ error: 'Failed to create lead', message: error.message });
+    console.error('Error creating deal from lead:', error);
+    res.status(500).json({ error: 'Failed to create deal', message: error.message });
   }
 });
 
@@ -818,93 +865,47 @@ router.post('/import', async (req, res) => {
             }
           }
 
-          // Create lead and associated deal in transaction (properly linked)
-          await prisma.$transaction(async (tx) => {
-            // Get default stage or map from status
-            let leadStageId;
-            if (lead.status) {
-              const matchingStage = await tx.pipelineStage.findFirst({
-                where: {
-                  tenantId: req.tenant.id,
-                  slug: lead.status.toLowerCase().replace(/\s+/g, '-')
-                }
-              });
-              leadStageId = matchingStage?.id;
-            }
-
-            if (!leadStageId) {
-              const defaultStage = await tx.pipelineStage.findFirst({
-                where: {
-                  tenantId: req.tenant.id,
-                  isSystemDefault: true
-                }
-              });
-              leadStageId = defaultStage?.id;
-            }
-
-            // Find suitable deal stage
-            let dealStageId;
-            const leadStage = await tx.pipelineStage.findUnique({
-              where: { id: leadStageId }
-            });
-
-            if (leadStage && leadStage.stageType === 'BOTH') {
-              dealStageId = leadStageId;
-            } else {
-              const dealStage = await tx.pipelineStage.findFirst({
-                where: {
-                  tenantId: req.tenant.id,
-                  stageType: { in: ['DEAL', 'BOTH'] },
-                  isActive: true
-                },
-                orderBy: { order: 'asc' }
-              });
-              dealStageId = dealStage?.id || leadStageId;
-            }
-
-            // Create the Deal first
-            const deal = await tx.deal.create({
-              data: {
-                title: `${lead.company} - ${lead.name}`,
-                company: lead.company,
-                contactName: lead.name,
-                email: lead.email,
-                phone: lead.phone || '',
-                value: lead.estimatedValue,
-                stage: mapLeadStatusToDealStage(lead.status), // Keep for backward compatibility
-                stageId: dealStageId, // NEW: Required field
-                probability: lead.status === 'qualified' ? 60 : lead.status === 'proposal' ? 70 : 20,
-                expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                assignedTo: lead.assignedTo,
-                createdBy: userId,
-                notes: lead.notes,
-                tags: lead.tags,
-                userId: lead.userId,
-                tenantId: req.tenant.id
-              }
-            });
-
-            // Create the Lead and link it to the Deal
-            await tx.lead.create({
-              data: {
-                name: lead.name,
-                email: lead.email,
-                phone: lead.phone,
-                company: lead.company,
-                status: lead.status, // Keep for backward compatibility
-                stageId: leadStageId, // NEW: Required field
-                source: lead.source,
-                priority: lead.priority || 'medium',
-                notes: lead.notes,
-                estimatedValue: lead.estimatedValue,
-                assignedTo: lead.assignedTo,
-                createdBy: userId,
-                tags: lead.tags,
-                userId: lead.userId,
+          // Get default stage or map from status
+          let leadStageId;
+          if (lead.status) {
+            const matchingStage = await prisma.pipelineStage.findFirst({
+              where: {
                 tenantId: req.tenant.id,
-                dealId: deal.id  // Link to the created deal
+                slug: lead.status.toLowerCase().replace(/\s+/g, '-')
               }
             });
+            leadStageId = matchingStage?.id;
+          }
+
+          if (!leadStageId) {
+            const defaultStage = await prisma.pipelineStage.findFirst({
+              where: {
+                tenantId: req.tenant.id,
+                isSystemDefault: true
+              }
+            });
+            leadStageId = defaultStage?.id;
+          }
+
+          // Create the Lead only (no automatic deal creation during import)
+          await prisma.lead.create({
+            data: {
+              name: lead.name,
+              email: lead.email,
+              phone: lead.phone,
+              company: lead.company,
+              status: lead.status, // Keep for backward compatibility
+              stageId: leadStageId,
+              source: lead.source,
+              priority: lead.priority || 'medium',
+              notes: lead.notes,
+              estimatedValue: lead.estimatedValue,
+              assignedTo: lead.assignedTo,
+              createdBy: userId,
+              tags: lead.tags,
+              userId: lead.userId,
+              tenantId: req.tenant.id
+            }
           });
 
           results.successful++;
