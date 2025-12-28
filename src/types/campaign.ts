@@ -7,6 +7,8 @@ export type CampaignStatus = 'draft' | 'scheduled' | 'running' | 'completed' | '
 export type CampaignTargetType = 'all' | 'leads' | 'contacts' | 'tags' | 'custom';
 export type RecipientStatus = 'pending' | 'sent' | 'failed' | 'delivered' | 'opened';
 export type RecipientType = 'lead' | 'contact' | 'custom';
+export type WhatsAppMessageType = 'text' | 'media' | 'template';
+export type WhatsAppMediaType = 'image' | 'document' | 'video' | 'audio';
 
 export interface Campaign {
   id: string;
@@ -19,6 +21,15 @@ export interface Campaign {
   subject?: string;
   htmlContent?: string;
   textContent: string;
+
+  // WhatsApp-specific content (for media and template messages)
+  whatsappMessageType?: WhatsAppMessageType;
+  whatsappMediaType?: WhatsAppMediaType;
+  whatsappMediaUrl?: string;
+  whatsappCaption?: string;
+  whatsappTemplateName?: string;
+  whatsappTemplateLanguage?: string;
+  whatsappTemplateParams?: string[];
 
   // Scheduling
   scheduledAt?: string;
@@ -111,6 +122,15 @@ export interface CreateCampaignData {
   targetType: CampaignTargetType;
   targetFilters?: Record<string, any>;
   scheduledAt?: string;
+
+  // WhatsApp-specific fields
+  whatsappMessageType?: WhatsAppMessageType;
+  whatsappMediaType?: WhatsAppMediaType;
+  whatsappMediaUrl?: string;
+  whatsappCaption?: string;
+  whatsappTemplateName?: string;
+  whatsappTemplateLanguage?: string;
+  whatsappTemplateParams?: string[];
 }
 
 export interface CampaignFilters {

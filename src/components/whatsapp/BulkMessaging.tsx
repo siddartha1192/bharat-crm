@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import {
   Send,
@@ -16,6 +19,13 @@ import {
   AlertCircle,
   Search,
   Filter,
+  Image as ImageIcon,
+  FileText,
+  Video,
+  Music,
+  X,
+  Plus,
+  Paperclip,
 } from 'lucide-react';
 import {
   Select,
@@ -45,6 +55,12 @@ interface BulkMessageResult {
   messageId?: string;
 }
 
+interface MediaFile {
+  file: File;
+  type: 'image' | 'document' | 'video' | 'audio';
+  preview?: string;
+}
+
 export default function BulkMessaging() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
@@ -55,8 +71,19 @@ export default function BulkMessaging() {
   const [filterType, setFilterType] = useState<string>('all');
   const [results, setResults] = useState<BulkMessageResult[]>([]);
   const [showResults, setShowResults] = useState(false);
-  const { toast } = useToast();
+  const [messageType, setMessageType] = useState<'text' | 'media' | 'template'>('text');
 
+  // Media state
+  const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
+  const [mediaUrl, setMediaUrl] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Template state
+  const [templateName, setTemplateName] = useState('');
+  const [templateLanguage, setTemplateLanguage] = useState('en');
+  const [templateParams, setTemplateParams] = useState<string[]>(['']);
+
+  const { toast } = useToast();
   const token = localStorage.getItem('token');
 
   useEffect(() => {
@@ -75,7 +102,6 @@ export default function BulkMessaging() {
       if (!response.ok) throw new Error('Failed to fetch contacts');
 
       const responseData = await response.json();
-      // API returns {data: [...], pagination: {...}}
       const contactsList = responseData.data || responseData;
 
       // Filter contacts that have WhatsApp numbers
@@ -114,7 +140,6 @@ export default function BulkMessaging() {
   const getFilteredContacts = () => {
     let filtered = contacts;
 
-    // Apply search filter
     if (searchQuery) {
       filtered = filtered.filter(
         c =>
@@ -124,12 +149,61 @@ export default function BulkMessaging() {
       );
     }
 
-    // Apply type filter
-    if (filterType !== 'all') {
-      // You can add custom filters here (e.g., by company, tags, etc.)
+    return filtered;
+  };
+
+  // Media handling
+  const getMediaType = (file: File): 'image' | 'document' | 'video' | 'audio' | null => {
+    const type = file.type;
+    if (type.startsWith('image/')) return 'image';
+    if (type.startsWith('video/')) return 'video';
+    if (type.startsWith('audio/')) return 'audio';
+    if (type === 'application/pdf' || type.includes('document') || type.includes('sheet') || type.includes('presentation')) {
+      return 'document';
+    }
+    return null;
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const mediaType = getMediaType(file);
+    if (!mediaType) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please select an image, document, video, or audio file',
+        variant: 'destructive',
+      });
+      return;
     }
 
-    return filtered;
+    const maxSize = mediaType === 'document' ? 100 * 1024 * 1024 : mediaType === 'image' ? 5 * 1024 * 1024 : 16 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: 'File too large',
+        description: `${mediaType === 'document' ? 'Documents' : mediaType === 'image' ? 'Images' : 'Videos/Audio'} must be less than ${maxSize / (1024 * 1024)}MB`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    let preview: string | undefined;
+    if (mediaType === 'image') {
+      preview = URL.createObjectURL(file);
+    }
+
+    setSelectedMedia({ file, type: mediaType, preview });
+  };
+
+  const handleMediaRemove = () => {
+    if (selectedMedia?.preview) {
+      URL.revokeObjectURL(selectedMedia.preview);
+    }
+    setSelectedMedia(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const sendBulkMessages = async () => {
@@ -142,10 +216,29 @@ export default function BulkMessaging() {
       return;
     }
 
-    if (!message.trim()) {
+    // Validation based on message type
+    if (messageType === 'text' && !message.trim()) {
       toast({
         title: 'No Message',
         description: 'Please enter a message to send',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (messageType === 'media' && !mediaUrl.trim() && !selectedMedia) {
+      toast({
+        title: 'No Media',
+        description: 'Please provide a media URL or upload a file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (messageType === 'template' && !templateName.trim()) {
+      toast({
+        title: 'No Template',
+        description: 'Please enter a template name',
         variant: 'destructive',
       });
       return;
@@ -156,31 +249,148 @@ export default function BulkMessaging() {
       setShowResults(false);
 
       const selectedContactsData = contacts.filter(c => selectedContacts.has(c.id));
+      let bulkResults: BulkMessageResult[] = [];
 
-      const response = await fetch(`${API_URL}/whatsapp/bulk-send`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          message: message.trim(),
-          contacts: selectedContactsData.map(c => ({
-            id: c.id,
-            name: c.name,
-            phone: c.whatsapp || c.phone,
-          })),
-        }),
-      });
+      if (messageType === 'text') {
+        // Send text messages using existing bulk endpoint
+        const response = await fetch(`${API_URL}/whatsapp/bulk-send`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            message: message.trim(),
+            contacts: selectedContactsData.map(c => ({
+              id: c.id,
+              name: c.name,
+              phone: c.whatsapp || c.phone,
+            })),
+          }),
+        });
 
-      if (!response.ok) throw new Error('Failed to send bulk messages');
+        if (!response.ok) throw new Error('Failed to send bulk messages');
+        const data = await response.json();
+        bulkResults = data.results || [];
+      } else if (messageType === 'media') {
+        // Send media messages to each contact individually
+        for (const contact of selectedContactsData) {
+          try {
+            const endpoint = selectedMedia
+              ? `/whatsapp/send-${selectedMedia.type}`
+              : `/whatsapp/send-image`; // default to image if URL provided
 
-      const data = await response.json();
-      setResults(data.results || []);
+            const mediaUrlToSend = mediaUrl.trim() || (selectedMedia ? URL.createObjectURL(selectedMedia.file) : '');
+
+            const payload: any = {
+              phoneNumber: contact.whatsapp || contact.phone,
+            };
+
+            if (selectedMedia?.type === 'image' || !selectedMedia) {
+              payload.imageUrl = mediaUrlToSend;
+              payload.caption = message.trim();
+            } else if (selectedMedia?.type === 'document') {
+              payload.documentUrl = mediaUrlToSend;
+              payload.filename = selectedMedia.file.name;
+              payload.caption = message.trim();
+            } else if (selectedMedia?.type === 'video') {
+              payload.videoUrl = mediaUrlToSend;
+              payload.caption = message.trim();
+            } else if (selectedMedia?.type === 'audio') {
+              payload.audioUrl = mediaUrlToSend;
+            }
+
+            const response = await fetch(`${API_URL}${endpoint}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(payload),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              bulkResults.push({
+                phone: contact.whatsapp || contact.phone,
+                name: contact.name,
+                success: true,
+                messageId: data.messageId,
+              });
+            } else {
+              const error = await response.json();
+              bulkResults.push({
+                phone: contact.whatsapp || contact.phone,
+                name: contact.name,
+                success: false,
+                error: error.error || 'Failed to send',
+              });
+            }
+          } catch (error: any) {
+            bulkResults.push({
+              phone: contact.whatsapp || contact.phone,
+              name: contact.name,
+              success: false,
+              error: error.message,
+            });
+          }
+        }
+      } else if (messageType === 'template') {
+        // Send template messages to each contact individually
+        const components: any = {};
+        if (templateParams.length > 0 && templateParams[0].trim()) {
+          components.body = templateParams.filter(p => p.trim()).map(p => ({ text: p }));
+        }
+
+        for (const contact of selectedContactsData) {
+          try {
+            const response = await fetch(`${API_URL}/whatsapp/send-template`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                phoneNumber: contact.whatsapp || contact.phone,
+                templateName: templateName.trim(),
+                languageCode: templateLanguage,
+                components,
+              }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              bulkResults.push({
+                phone: contact.whatsapp || contact.phone,
+                name: contact.name,
+                success: true,
+                messageId: data.messageId,
+              });
+            } else {
+              const error = await response.json();
+              bulkResults.push({
+                phone: contact.whatsapp || contact.phone,
+                name: contact.name,
+                success: false,
+                error: error.error || 'Failed to send',
+              });
+            }
+          } catch (error: any) {
+            bulkResults.push({
+              phone: contact.whatsapp || contact.phone,
+              name: contact.name,
+              success: false,
+              error: error.message,
+            });
+          }
+        }
+      }
+
+      setResults(bulkResults);
       setShowResults(true);
 
-      const successCount = data.results.filter((r: BulkMessageResult) => r.success).length;
-      const failureCount = data.results.length - successCount;
+      const successCount = bulkResults.filter(r => r.success).length;
+      const failureCount = bulkResults.length - successCount;
 
       toast({
         title: 'Bulk Messages Sent',
@@ -190,6 +400,10 @@ export default function BulkMessaging() {
       // Clear selection and message after successful send
       setSelectedContacts(new Set());
       setMessage('');
+      setMediaUrl('');
+      handleMediaRemove();
+      setTemplateName('');
+      setTemplateParams(['']);
     } catch (error) {
       toast({
         title: 'Error',
@@ -303,33 +517,214 @@ export default function BulkMessaging() {
       </Card>
 
       {/* Right Panel - Message Composer */}
-      <Card className="w-[500px] flex flex-col">
+      <Card className="w-[550px] flex flex-col">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5" />
             Compose Message
           </CardTitle>
           <CardDescription>
-            Write your message to send to all selected contacts
+            Choose message type and compose your content
           </CardDescription>
         </CardHeader>
         <CardContent className="flex-1 flex flex-col gap-4">
-          <div className="flex-1 flex flex-col gap-2">
-            <label className="text-sm font-medium">Message</label>
-            <Textarea
-              placeholder="Type your message here..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="flex-1 min-h-[300px] resize-none"
-            />
-            <div className="text-xs text-muted-foreground text-right">
-              {message.length} characters
-            </div>
-          </div>
+          {/* Message Type Tabs */}
+          <Tabs value={messageType} onValueChange={(v) => setMessageType(v as any)} className="flex-1 flex flex-col">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="text">Text</TabsTrigger>
+              <TabsTrigger value="media">Media</TabsTrigger>
+              <TabsTrigger value="template">Template</TabsTrigger>
+            </TabsList>
+
+            {/* Text Message */}
+            <TabsContent value="text" className="flex-1 flex flex-col gap-4">
+              <div className="flex-1 flex flex-col gap-2">
+                <label className="text-sm font-medium">Message</label>
+                <Textarea
+                  placeholder="Type your message here..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="flex-1 min-h-[200px] resize-none"
+                />
+                <div className="text-xs text-muted-foreground text-right">
+                  {message.length} characters
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Media Message */}
+            <TabsContent value="media" className="flex-1 flex flex-col gap-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Media URL (Public URL)</Label>
+                  <Input
+                    placeholder="https://example.com/image.jpg"
+                    value={mediaUrl}
+                    onChange={(e) => setMediaUrl(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter a public URL to your hosted media file
+                  </p>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Or upload file (local testing)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full"
+                  >
+                    <Paperclip className="w-4 h-4 mr-2" />
+                    Choose File
+                  </Button>
+                </div>
+
+                {/* Media Preview */}
+                {selectedMedia && (
+                  <div className="p-3 bg-accent rounded-lg border">
+                    <div className="flex items-center gap-3">
+                      {selectedMedia.preview && (
+                        <img
+                          src={selectedMedia.preview}
+                          alt="Preview"
+                          className="w-16 h-16 object-cover rounded"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          {selectedMedia.type === 'image' && <ImageIcon className="w-4 h-4" />}
+                          {selectedMedia.type === 'document' && <FileText className="w-4 h-4" />}
+                          {selectedMedia.type === 'video' && <Video className="w-4 h-4" />}
+                          {selectedMedia.type === 'audio' && <Music className="w-4 h-4" />}
+                          <span className="font-medium">{selectedMedia.file.name}</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {(selectedMedia.file.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleMediaRemove}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Caption (Optional)</Label>
+                  <Textarea
+                    placeholder="Add a caption for your media..."
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                <Alert>
+                  <AlertCircle className="w-4 h-4" />
+                  <AlertDescription className="text-xs">
+                    For production use, upload media to a file hosting service (Cloudinary, AWS S3, etc.) and use the public URL.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            </TabsContent>
+
+            {/* Template Message */}
+            <TabsContent value="template" className="flex-1 flex flex-col gap-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="template-name">Template Name *</Label>
+                  <Input
+                    id="template-name"
+                    placeholder="e.g., order_confirmation"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="template-language">Language</Label>
+                  <Input
+                    id="template-language"
+                    placeholder="e.g., en, hi, es"
+                    value={templateLanguage}
+                    onChange={(e) => setTemplateLanguage(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Template Parameters (Optional)</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Add values for {'{'}1{'}'}, {'{'}2{'}'}, etc.
+                  </p>
+                  {templateParams.map((param, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        placeholder={`Parameter ${index + 1}`}
+                        value={param}
+                        onChange={(e) => {
+                          const newParams = [...templateParams];
+                          newParams[index] = e.target.value;
+                          setTemplateParams(newParams);
+                        }}
+                      />
+                      {index === templateParams.length - 1 && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setTemplateParams([...templateParams, ''])}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {templateParams.length > 1 && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            const newParams = templateParams.filter((_, i) => i !== index);
+                            setTemplateParams(newParams.length > 0 ? newParams : ['']);
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <Alert>
+                  <AlertDescription className="text-xs">
+                    <strong>Note:</strong> Templates must be pre-approved by Meta Business Manager.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            </TabsContent>
+          </Tabs>
 
           <Button
             onClick={sendBulkMessages}
-            disabled={sending || selectedContacts.size === 0 || !message.trim()}
+            disabled={sending || selectedContacts.size === 0}
             className="w-full"
             size="lg"
           >
@@ -385,19 +780,6 @@ export default function BulkMessaging() {
               </CardContent>
             </Card>
           )}
-
-          {/* Info Alert */}
-          <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900">
-            <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-blue-900 dark:text-blue-100">
-              <p className="font-medium mb-1">Bulk Messaging Tips:</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>Messages are sent individually to each contact</li>
-                <li>Please comply with WhatsApp's messaging policies</li>
-                <li>Avoid sending spam or unsolicited messages</li>
-              </ul>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
