@@ -1,4 +1,4 @@
--- Add WhatsApp media and template support to Campaign table
+-- CreateTable: Add WhatsApp media and template support to Campaign table
 -- This enables campaigns to send media (images, documents, videos, audio) and template messages via WhatsApp
 
 -- Add WhatsApp message type field
