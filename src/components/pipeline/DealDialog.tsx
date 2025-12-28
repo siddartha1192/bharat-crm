@@ -125,13 +125,23 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
   useEffect(() => {
     if (deal) {
       // Editing an existing deal
+      // Find stage slug from stageId or use the stage field
+      let stageSlug = deal.stage || initialStage;
+      if (deal.stageId && stages.length > 0) {
+        const foundStage = stages.find(s => s.id === deal.stageId);
+        if (foundStage) {
+          stageSlug = foundStage.slug;
+        }
+      }
+
       setFormData({
         title: deal.title || '',
         company: deal.company || '',
         contactName: deal.contactName || '',
         email: deal.email || '',
         contactId: deal.contactId,
-        stage: deal.stage || initialStage,
+        stage: stageSlug,
+        stageId: deal.stageId,
         value: deal.value || 0,
         probability: deal.probability || 50,
         expectedCloseDate: deal.expectedCloseDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -156,7 +166,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
         tags: [],
       });
     }
-  }, [deal, initialStage]);
+  }, [deal, initialStage, stages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -361,7 +371,17 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
                 value={formData.stage}
                 onValueChange={(value) => {
                   console.log('🔄 Stage dropdown changed from', formData.stage, 'to', value);
-                  updateField('stage', value);
+                  // Find the stage config to get the stageId
+                  const selectedStage = stages.find(s => s.slug === value);
+                  if (selectedStage) {
+                    setFormData(prev => ({
+                      ...prev,
+                      stage: value,
+                      stageId: selectedStage.id
+                    }));
+                  } else {
+                    updateField('stage', value);
+                  }
                 }}
               >
                 <SelectTrigger>

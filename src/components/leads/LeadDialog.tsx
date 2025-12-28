@@ -57,6 +57,15 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
 
   useEffect(() => {
     if (lead) {
+      // Find status slug from stageId or use the status field
+      let statusSlug = lead.status || 'new';
+      if (lead.stageId && pipelineStages.length > 0) {
+        const foundStage = pipelineStages.find((s: any) => s.id === lead.stageId);
+        if (foundStage) {
+          statusSlug = foundStage.slug;
+        }
+      }
+
       setFormData({
         name: lead.name || '',
         company: lead.company || '',
@@ -64,7 +73,7 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
         phone: lead.phone || '',
         whatsapp: lead.whatsapp || '',
         source: lead.source || 'web-form',
-        status: lead.status || 'new',
+        status: statusSlug,
         priority: lead.priority || 'medium',
         estimatedValue: lead.estimatedValue || 0,
         assignedTo: lead.assignedTo || '',
@@ -96,7 +105,7 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
         tags: '',
       });
     }
-  }, [lead, open]);
+  }, [lead, open, pipelineStages]);
 
   // Fetch pipeline stages and validate on mount
   useEffect(() => {
@@ -290,7 +299,15 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
                 ) : (
                   <Select
                     value={formData.status}
-                    onValueChange={(value: LeadStatus) => setFormData({ ...formData, status: value })}
+                    onValueChange={(value: LeadStatus) => {
+                      // Find the stage to get the stageId
+                      const selectedStage = pipelineStages.find((s: any) => s.slug === value);
+                      setFormData({
+                        ...formData,
+                        status: value,
+                        ...(selectedStage && { stageId: selectedStage.id })
+                      });
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
