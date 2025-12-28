@@ -8,9 +8,24 @@ const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const openaiService = require('../services/openai');
 
 // Import io instance for WebSocket broadcasts
 const { io } = require('../server');
+
+/**
+ * Helper function to get tenant-specific API configurations
+ * @param {Object} tenant - Tenant object with settings
+ * @returns {Object} - { whatsappConfig, openaiConfig }
+ */
+function getTenantAPIConfig(tenant) {
+  const settings = tenant?.settings || {};
+
+  return {
+    whatsappConfig: settings.whatsapp || null,
+    openaiConfig: settings.openai || null
+  };
+}
 
 // Apply authentication and tenant context to all routes EXCEPT webhooks
 router.use((req, res, next) => {
@@ -36,6 +51,9 @@ router.post('/send', async (req, res) => {
   try {
     const userId = req.user.id;
     const { message, phoneNumber, contactId } = req.body;
+
+    // Get tenant-specific API configurations
+    const { whatsappConfig } = getTenantAPIConfig(req.tenant);
 
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required' });
@@ -66,15 +84,15 @@ router.post('/send', async (req, res) => {
     }
 
     // Check if WhatsApp is configured
-    if (!whatsappService.isConfigured()) {
+    if (!whatsappService.isConfigured(whatsappConfig)) {
       return res.status(503).json({
         error: 'WhatsApp is not configured',
-        message: 'Please configure WHATSAPP_TOKEN and WHATSAPP_PHONE_ID in environment variables'
+        message: 'Please configure WhatsApp API credentials in Settings or environment variables'
       });
     }
 
-    // Send the message
-    const result = await whatsappService.sendMessage(recipientPhone, message);
+    // Send the message with tenant-specific config
+    const result = await whatsappService.sendMessage(recipientPhone, message, whatsappConfig);
 
     // Get or create conversation
     let conversation = await prisma.whatsAppConversation.findUnique({
@@ -175,7 +193,10 @@ router.post('/send', async (req, res) => {
 router.post('/send-template', async (req, res) => {
   try {
     const userId = req.user.id;
-    const { contactId, templateName, phoneNumber, parameters } = req.body;
+    const { contactId, templateName, phoneNumber, parameters, languageCode, components } = req.body;
+
+    // Get tenant-specific API configurations
+    const { whatsappConfig } = getTenantAPIConfig(req.tenant);
 
     if (!templateName) {
       return res.status(400).json({ error: 'Template name is required' });
@@ -204,18 +225,20 @@ router.post('/send-template', async (req, res) => {
     }
 
     // Check if WhatsApp is configured
-    if (!whatsappService.isConfigured()) {
+    if (!whatsappService.isConfigured(whatsappConfig)) {
       return res.status(503).json({
         error: 'WhatsApp is not configured',
-        message: 'Please configure WHATSAPP_TOKEN and WHATSAPP_PHONE_ID in environment variables'
+        message: 'Please configure WhatsApp API credentials in Settings or environment variables'
       });
     }
 
-    // Send template message
+    // Send template message with enhanced support
     const result = await whatsappService.sendTemplateMessage(
       recipientPhone,
       templateName,
-      parameters || []
+      languageCode || 'en',
+      components || { body: parameters || [] },
+      whatsappConfig
     );
 
     res.json({
@@ -229,6 +252,114 @@ router.post('/send-template', async (req, res) => {
       error: 'Failed to send template message',
       message: error.message
     });
+  }
+});
+
+// Send image via WhatsApp
+router.post('/send-image', async (req, res) => {
+  try {
+    const { phoneNumber, imageUrl, caption } = req.body;
+    const { whatsappConfig } = getTenantAPIConfig(req.tenant);
+
+    if (!phoneNumber || !imageUrl) {
+      return res.status(400).json({ error: 'Phone number and image URL are required' });
+    }
+
+    if (!whatsappService.isConfigured(whatsappConfig)) {
+      return res.status(503).json({ error: 'WhatsApp is not configured' });
+    }
+
+    const result = await whatsappService.sendImage(phoneNumber, imageUrl, caption || '', whatsappConfig);
+
+    res.json({
+      success: true,
+      messageId: result.messageId,
+      message: 'Image sent successfully'
+    });
+  } catch (error) {
+    console.error('Error sending image:', error);
+    res.status(500).json({ error: 'Failed to send image', message: error.message });
+  }
+});
+
+// Send document via WhatsApp
+router.post('/send-document', async (req, res) => {
+  try {
+    const { phoneNumber, documentUrl, filename, caption } = req.body;
+    const { whatsappConfig } = getTenantAPIConfig(req.tenant);
+
+    if (!phoneNumber || !documentUrl) {
+      return res.status(400).json({ error: 'Phone number and document URL are required' });
+    }
+
+    if (!whatsappService.isConfigured(whatsappConfig)) {
+      return res.status(503).json({ error: 'WhatsApp is not configured' });
+    }
+
+    const result = await whatsappService.sendDocument(phoneNumber, documentUrl, filename || '', caption || '', whatsappConfig);
+
+    res.json({
+      success: true,
+      messageId: result.messageId,
+      message: 'Document sent successfully'
+    });
+  } catch (error) {
+    console.error('Error sending document:', error);
+    res.status(500).json({ error: 'Failed to send document', message: error.message });
+  }
+});
+
+// Send video via WhatsApp
+router.post('/send-video', async (req, res) => {
+  try {
+    const { phoneNumber, videoUrl, caption } = req.body;
+    const { whatsappConfig } = getTenantAPIConfig(req.tenant);
+
+    if (!phoneNumber || !videoUrl) {
+      return res.status(400).json({ error: 'Phone number and video URL are required' });
+    }
+
+    if (!whatsappService.isConfigured(whatsappConfig)) {
+      return res.status(503).json({ error: 'WhatsApp is not configured' });
+    }
+
+    const result = await whatsappService.sendVideo(phoneNumber, videoUrl, caption || '', whatsappConfig);
+
+    res.json({
+      success: true,
+      messageId: result.messageId,
+      message: 'Video sent successfully'
+    });
+  } catch (error) {
+    console.error('Error sending video:', error);
+    res.status(500).json({ error: 'Failed to send video', message: error.message });
+  }
+});
+
+// Send audio via WhatsApp
+router.post('/send-audio', async (req, res) => {
+  try {
+    const { phoneNumber, audioUrl } = req.body;
+    const { whatsappConfig } = getTenantAPIConfig(req.tenant);
+
+    if (!phoneNumber || !audioUrl) {
+      return res.status(400).json({ error: 'Phone number and audio URL are required' });
+    }
+
+    if (!whatsappService.isConfigured(whatsappConfig)) {
+      return res.status(503).json({ error: 'WhatsApp is not configured' });
+    }
+
+    const result = await whatsappService.sendAudio(phoneNumber, audioUrl, whatsappConfig);
+
+    res.json({
+      success: true,
+      messageId: result.messageId,
+      message: 'Audio sent successfully'
+    });
+  } catch (error) {
+    console.error('Error sending audio:', error);
+    res.status(500).json({ error: 'Failed to send audio', message: error.message });
   }
 });
 
@@ -398,11 +529,25 @@ router.post('/bulk-send', async (req, res) => {
 router.get('/status', async (req, res) => {
   const userId = req.user.id;
 
+  // Get tenant-specific API configurations
+  const { whatsappConfig, openaiConfig } = getTenantAPIConfig(req.tenant);
+
+  const whatsappConfigured = whatsappService.isConfigured(whatsappConfig);
+  const openaiConfigured = openaiService.isEnabled(openaiConfig);
+
   res.json({
-    configured: whatsappService.isConfigured(),
-    message: whatsappService.isConfigured()
+    configured: whatsappConfigured,
+    message: whatsappConfigured
       ? 'WhatsApp is configured and ready to use'
-      : 'WhatsApp is not configured. Please set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID'
+      : 'WhatsApp is not configured. Please configure in Settings',
+    whatsapp: {
+      configured: whatsappConfigured,
+      source: whatsappConfig ? 'tenant_settings' : 'environment_variables'
+    },
+    openai: {
+      configured: openaiConfigured,
+      source: openaiConfig ? 'tenant_settings' : 'environment_variables'
+    }
   });
 });
 
@@ -909,6 +1054,13 @@ async function processIncomingMessage(message, value) {
           console.log(`🔌 WebSocket: Broadcasted new message to user ${contact.userId}`);
         }
 
+        // Get tenant settings for API configurations
+        const tenant = await prisma.tenant.findUnique({
+          where: { id: contact.user.tenantId },
+          select: { settings: true }
+        });
+        const { whatsappConfig, openaiConfig } = getTenantAPIConfig(tenant);
+
         // Process AI response if enabled for new conversation (Structured)
         console.log(`\n🔍 AI CHECK FOR NEW CONVERSATION:`);
         console.log(`   - whatsappAIService.isEnabled(): ${whatsappAIService.isEnabled()}`);
@@ -920,12 +1072,13 @@ async function processIncomingMessage(message, value) {
           try {
             console.log(`\n🤖 ✅ AI PROCESSING STARTING (Structured) for new conversation ${conversation.id}...`);
 
-            // Get structured AI response
+            // Get structured AI response with tenant-specific OpenAI config
             const aiResult = await whatsappAIService.processMessage(
               conversation.id,
               messageText,
               conversation.userId,
-              contactName
+              contactName,
+              openaiConfig
             );
 
             console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
@@ -959,9 +1112,9 @@ async function processIncomingMessage(message, value) {
               console.log(`\n🔔 Notifying user about failed actions`);
             }
 
-            // Send message to WhatsApp
-            if (whatsappService.isConfigured() && messageToSend) {
-              const sentMessage = await whatsappService.sendMessage(fromPhone, messageToSend);
+            // Send message to WhatsApp with tenant-specific config
+            if (whatsappService.isConfigured(whatsappConfig) && messageToSend) {
+              const sentMessage = await whatsappService.sendMessage(fromPhone, messageToSend, whatsappConfig);
               console.log(`   ✅ WhatsApp message sent! Message ID: ${sentMessage.messageId}`);
 
               // Save AI response to database

@@ -3,14 +3,13 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-// Check if AI feature is enabled globally
+// Check if AI feature is enabled globally (fallback setting)
 const AI_ENABLED = process.env.ENABLE_AI_FEATURE !== 'false';
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const DEFAULT_OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const DEFAULT_OPENAI_TEMPERATURE = parseFloat(process.env.WHATSAPP_AI_TEMPERATURE || '0.7');
 const OWNER_EMAIL = process.env.OWNER_EMAIL || 'siddartha1192@gmail.com';
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001/api';
-
-// Initialize OpenAI client
-const openai = AI_ENABLED && OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 // Bharat CRM Product Knowledge Base
 const PRODUCT_KNOWLEDGE = `
@@ -146,21 +145,68 @@ Remember: You're representing Bharat CRM. Be helpful, professional, and always f
 
 class OpenAIService {
   /**
-   * Check if AI is globally enabled
+   * Get OpenAI configuration (tenant-specific or default from env)
+   * @param {Object} tenantConfig - Optional tenant-specific OpenAI configuration
+   * @returns {Object} - { apiKey, model, temperature, enabled }
    */
-  isEnabled() {
-    return AI_ENABLED && openai !== null;
+  getConfig(tenantConfig = null) {
+    if (tenantConfig && tenantConfig.apiKey) {
+      return {
+        apiKey: tenantConfig.apiKey,
+        model: tenantConfig.model || DEFAULT_OPENAI_MODEL,
+        temperature: tenantConfig.temperature !== undefined ? tenantConfig.temperature : DEFAULT_OPENAI_TEMPERATURE,
+        enabled: tenantConfig.enabled !== undefined ? tenantConfig.enabled : AI_ENABLED
+      };
+    }
+    return {
+      apiKey: DEFAULT_OPENAI_API_KEY,
+      model: DEFAULT_OPENAI_MODEL,
+      temperature: DEFAULT_OPENAI_TEMPERATURE,
+      enabled: AI_ENABLED
+    };
+  }
+
+  /**
+   * Create OpenAI client with tenant-specific or default configuration
+   * @param {Object} tenantConfig - Optional tenant-specific OpenAI configuration
+   * @returns {OpenAI} - OpenAI client instance
+   */
+  createClient(tenantConfig = null) {
+    const config = this.getConfig(tenantConfig);
+
+    if (!config.enabled || !config.apiKey) {
+      throw new Error('OpenAI is not configured. Please configure API key in Settings or set OPENAI_API_KEY in .env');
+    }
+
+    return new OpenAI({ apiKey: config.apiKey });
+  }
+
+  /**
+   * Check if AI is enabled (with optional tenant config)
+   * @param {Object} tenantConfig - Optional tenant-specific OpenAI configuration
+   * @returns {boolean}
+   */
+  isEnabled(tenantConfig = null) {
+    const config = this.getConfig(tenantConfig);
+    return config.enabled && !!config.apiKey;
   }
 
   /**
    * Generate AI response for WhatsApp message
+   * @param {Array} conversationHistory - Previous messages
+   * @param {string} userMessage - Current user message
+   * @param {Object} tenantConfig - Optional tenant-specific OpenAI configuration
+   * @returns {Promise} - AI response with appointment data
    */
-  async generateResponse(conversationHistory, userMessage) {
-    if (!this.isEnabled()) {
-      throw new Error('AI feature is disabled');
+  async generateResponse(conversationHistory, userMessage, tenantConfig = null) {
+    if (!this.isEnabled(tenantConfig)) {
+      throw new Error('AI feature is disabled or not configured');
     }
 
     try {
+      const config = this.getConfig(tenantConfig);
+      const openai = this.createClient(tenantConfig);
+
       // Prepare conversation history for OpenAI
       const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -173,9 +219,9 @@ class OpenAIService {
 
       // Call OpenAI API
       const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        model: config.model,
         messages: messages,
-        temperature: 0.7,
+        temperature: config.temperature,
         max_tokens: 500, // Keep responses concise for WhatsApp
       });
 
@@ -376,9 +422,14 @@ Contact for: Demo/Consultation about Bharat CRM
 
   /**
    * Generate smart response based on conversation context
+   * @param {string} conversationId - WhatsApp conversation ID
+   * @param {string} userMessage - User's message
+   * @param {string} userId - User ID
+   * @param {Object} tenantConfig - Optional tenant-specific OpenAI configuration
+   * @returns {Promise} - AI response result
    */
-  async processWhatsAppMessage(conversationId, userMessage, userId) {
-    if (!this.isEnabled()) {
+  async processWhatsAppMessage(conversationId, userMessage, userId, tenantConfig = null) {
+    if (!this.isEnabled(tenantConfig)) {
       return null;
     }
 
@@ -401,8 +452,8 @@ Contact for: Demo/Consultation about Bharat CRM
 
       const conversationHistory = messages.reverse();
 
-      // Generate AI response
-      const result = await this.generateResponse(conversationHistory, userMessage);
+      // Generate AI response with tenant config
+      const result = await this.generateResponse(conversationHistory, userMessage, tenantConfig);
 
       // If appointment data detected, try to create calendar event
       if (result.appointmentData && result.appointmentData.date && result.appointmentData.time) {
