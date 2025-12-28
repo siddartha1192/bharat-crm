@@ -7,6 +7,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useSocket } from '@/contexts/SocketContext';
 import {
@@ -24,6 +26,12 @@ import {
   Bot,
   BotOff,
   Users,
+  Paperclip,
+  Image as ImageIcon,
+  FileText,
+  Video,
+  Music,
+  X,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
@@ -72,6 +80,12 @@ interface Conversation {
   aiEnabled: boolean;
 }
 
+interface MediaFile {
+  file: File;
+  type: 'image' | 'document' | 'video' | 'audio';
+  preview?: string;
+}
+
 export default function WhatsApp() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -85,6 +99,14 @@ export default function WhatsApp() {
   const [searchResults, setSearchResults] = useState<Contact[]>([]);
   const [searchingContacts, setSearchingContacts] = useState(false);
   const [aiFeatureAvailable, setAiFeatureAvailable] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateLanguage, setTemplateLanguage] = useState('en');
+  const [templateParams, setTemplateParams] = useState<string[]>(['']);
+  const [sendingTemplate, setSendingTemplate] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { socket, isConnected } = useSocket();
@@ -379,6 +401,205 @@ export default function WhatsApp() {
       });
     } finally {
       setSending(false);
+    }
+  };
+
+  // Media handling functions
+  const getMediaType = (file: File): 'image' | 'document' | 'video' | 'audio' | null => {
+    const type = file.type;
+    if (type.startsWith('image/')) return 'image';
+    if (type.startsWith('video/')) return 'video';
+    if (type.startsWith('audio/')) return 'audio';
+    if (type === 'application/pdf' || type.includes('document') || type.includes('sheet') || type.includes('presentation')) {
+      return 'document';
+    }
+    return null;
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const mediaType = getMediaType(file);
+    if (!mediaType) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please select an image, document, video, or audio file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Check file size (16MB for video/audio, 5MB for images, 100MB for documents)
+    const maxSize = mediaType === 'document' ? 100 * 1024 * 1024 : mediaType === 'image' ? 5 * 1024 * 1024 : 16 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: 'File too large',
+        description: `${mediaType === 'document' ? 'Documents' : mediaType === 'image' ? 'Images' : 'Videos/Audio'} must be less than ${maxSize / (1024 * 1024)}MB`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Create preview for images
+    let preview: string | undefined;
+    if (mediaType === 'image') {
+      preview = URL.createObjectURL(file);
+    }
+
+    setSelectedMedia({ file, type: mediaType, preview });
+  };
+
+  const handleMediaRemove = () => {
+    if (selectedMedia?.preview) {
+      URL.revokeObjectURL(selectedMedia.preview);
+    }
+    setSelectedMedia(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const sendMedia = async () => {
+    if (!selectedMedia || !selectedConversation || uploadingMedia) return;
+
+    try {
+      setUploadingMedia(true);
+
+      // Upload media to a hosting service or send directly
+      // For now, we'll send the file URL directly (you'll need to host files somewhere)
+      const formData = new FormData();
+      formData.append('file', selectedMedia.file);
+
+      // Option 1: Upload to your backend first, then get URL
+      // Option 2: Use a service like Cloudinary, AWS S3, etc.
+      // For now, we'll use a placeholder URL - you need to implement file upload
+
+      // Temporary: Show a message that file hosting is needed
+      toast({
+        title: 'Media Upload',
+        description: 'Uploading media file...',
+      });
+
+      // For demonstration, we'll create a temporary local URL
+      // In production, you should upload to a file hosting service first
+      const tempUrl = URL.createObjectURL(selectedMedia.file);
+
+      const endpoint = {
+        image: '/whatsapp/send-image',
+        document: '/whatsapp/send-document',
+        video: '/whatsapp/send-video',
+        audio: '/whatsapp/send-audio',
+      }[selectedMedia.type];
+
+      const payload: any = {
+        phoneNumber: selectedConversation.contactPhone,
+      };
+
+      if (selectedMedia.type === 'image') {
+        payload.imageUrl = tempUrl; // Replace with actual hosted URL
+        payload.caption = newMessage.trim();
+      } else if (selectedMedia.type === 'document') {
+        payload.documentUrl = tempUrl; // Replace with actual hosted URL
+        payload.filename = selectedMedia.file.name;
+        payload.caption = newMessage.trim();
+      } else if (selectedMedia.type === 'video') {
+        payload.videoUrl = tempUrl; // Replace with actual hosted URL
+        payload.caption = newMessage.trim();
+      } else if (selectedMedia.type === 'audio') {
+        payload.audioUrl = tempUrl; // Replace with actual hosted URL
+      }
+
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error('Failed to send media');
+
+      const data = await response.json();
+
+      toast({
+        title: 'Media sent',
+        description: `Your ${selectedMedia.type} has been delivered`,
+      });
+
+      // Clear states
+      handleMediaRemove();
+      setNewMessage('');
+
+      // Refresh messages
+      await loadConversation(selectedConversation);
+    } catch (error: any) {
+      console.error('Error sending media:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to send media. Please ensure media is hosted on a public URL.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
+  const sendTemplate = async () => {
+    if (!templateName.trim() || !selectedConversation || sendingTemplate) return;
+
+    try {
+      setSendingTemplate(true);
+
+      // Build components object for template
+      const components: any = {};
+
+      // Add body parameters if provided
+      if (templateParams.length > 0 && templateParams[0].trim()) {
+        components.body = templateParams.filter(p => p.trim()).map(p => ({ text: p }));
+      }
+
+      const response = await fetch(`${API_URL}/whatsapp/send-template`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          phoneNumber: selectedConversation.contactPhone,
+          templateName: templateName.trim(),
+          languageCode: templateLanguage,
+          components,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to send template');
+      }
+
+      toast({
+        title: 'Template sent',
+        description: 'Your WhatsApp template message has been delivered',
+      });
+
+      // Reset template dialog
+      setShowTemplateDialog(false);
+      setTemplateName('');
+      setTemplateParams(['']);
+
+      // Refresh messages
+      await loadConversation(selectedConversation);
+    } catch (error: any) {
+      console.error('Error sending template:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to send template message',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingTemplate(false);
     }
   };
 
@@ -699,26 +920,115 @@ export default function WhatsApp() {
 
           {/* Message Input */}
           <div className="p-4 border-t border-border bg-muted/30">
+            {/* Media Preview */}
+            {selectedMedia && (
+              <div className="mb-3 p-3 bg-card rounded-lg border border-border">
+                <div className="flex items-center gap-3">
+                  {selectedMedia.preview && (
+                    <img
+                      src={selectedMedia.preview}
+                      alt="Preview"
+                      className="w-16 h-16 object-cover rounded"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {selectedMedia.type === 'image' && <ImageIcon className="w-4 h-4" />}
+                      {selectedMedia.type === 'document' && <FileText className="w-4 h-4" />}
+                      {selectedMedia.type === 'video' && <Video className="w-4 h-4" />}
+                      {selectedMedia.type === 'audio' && <Music className="w-4 h-4" />}
+                      <span className="font-medium">{selectedMedia.file.name}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {(selectedMedia.file.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleMediaRemove}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-end gap-2">
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {/* Media attachment button */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                    <ImageIcon className="w-4 h-4 mr-2" />
+                    Image
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Document
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                    <Video className="w-4 h-4 mr-2" />
+                    Video
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                    <Music className="w-4 h-4 mr-2" />
+                    Audio
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Template message button */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                onClick={() => setShowTemplateDialog(true)}
+                title="Send WhatsApp Template"
+              >
+                <MessageCircle className="w-4 h-4" />
+              </Button>
+
               <Textarea
-                placeholder="Type a message..."
+                placeholder={selectedMedia ? "Add a caption..." : "Type a message..."}
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessage();
+                    if (selectedMedia) {
+                      sendMedia();
+                    } else {
+                      sendMessage();
+                    }
                   }
                 }}
                 rows={1}
                 className="resize-none rounded-xl shadow-sm"
               />
               <Button
-                onClick={sendMessage}
-                disabled={!newMessage.trim() || sending}
+                onClick={selectedMedia ? sendMedia : sendMessage}
+                disabled={selectedMedia ? uploadingMedia : (!newMessage.trim() || sending)}
                 className="bg-green-600 hover:bg-green-700"
               >
-                {sending ? (
+                {(sending || uploadingMedia) ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Send className="w-4 h-4" />
@@ -798,6 +1108,123 @@ export default function WhatsApp() {
                 </div>
               )}
             </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Message Dialog */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Send WhatsApp Template</DialogTitle>
+            <DialogDescription>
+              Send a pre-approved WhatsApp template message
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="template-name">Template Name *</Label>
+              <Input
+                id="template-name"
+                placeholder="e.g., order_confirmation, welcome_message"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the name of your pre-approved template from Meta Business Manager
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="template-language">Language</Label>
+              <Input
+                id="template-language"
+                placeholder="e.g., en, en_US, hi, es"
+                value={templateLanguage}
+                onChange={(e) => setTemplateLanguage(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Language code for your template (default: en)
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Template Parameters (Optional)</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Add values for template variables like {'{'}1{'}'}, {'{'}2{'}'}, etc.
+              </p>
+              {templateParams.map((param, index) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    placeholder={`Parameter ${index + 1}`}
+                    value={param}
+                    onChange={(e) => {
+                      const newParams = [...templateParams];
+                      newParams[index] = e.target.value;
+                      setTemplateParams(newParams);
+                    }}
+                  />
+                  {index === templateParams.length - 1 && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setTemplateParams([...templateParams, ''])}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {templateParams.length > 1 && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        const newParams = templateParams.filter((_, i) => i !== index);
+                        setTemplateParams(newParams.length > 0 ? newParams : ['']);
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <Alert>
+              <AlertDescription className="text-xs">
+                <strong>Note:</strong> Templates must be pre-approved by Meta Business Manager before sending.
+                Make sure your template name and parameters match your approved template exactly.
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowTemplateDialog(false);
+                  setTemplateName('');
+                  setTemplateParams(['']);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={sendTemplate}
+                disabled={!templateName.trim() || sendingTemplate}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {sendingTemplate ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Send Template
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
