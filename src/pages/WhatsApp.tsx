@@ -7,6 +7,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useSocket } from '@/contexts/SocketContext';
 import {
@@ -99,6 +101,11 @@ export default function WhatsApp() {
   const [aiFeatureAvailable, setAiFeatureAvailable] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateLanguage, setTemplateLanguage] = useState('en');
+  const [templateParams, setTemplateParams] = useState<string[]>(['']);
+  const [sendingTemplate, setSendingTemplate] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -539,6 +546,63 @@ export default function WhatsApp() {
     }
   };
 
+  const sendTemplate = async () => {
+    if (!templateName.trim() || !selectedConversation || sendingTemplate) return;
+
+    try {
+      setSendingTemplate(true);
+
+      // Build components object for template
+      const components: any = {};
+
+      // Add body parameters if provided
+      if (templateParams.length > 0 && templateParams[0].trim()) {
+        components.body = templateParams.filter(p => p.trim()).map(p => ({ text: p }));
+      }
+
+      const response = await fetch(`${API_URL}/whatsapp/send-template`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          phoneNumber: selectedConversation.contactPhone,
+          templateName: templateName.trim(),
+          languageCode: templateLanguage,
+          components,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to send template');
+      }
+
+      toast({
+        title: 'Template sent',
+        description: 'Your WhatsApp template message has been delivered',
+      });
+
+      // Reset template dialog
+      setShowTemplateDialog(false);
+      setTemplateName('');
+      setTemplateParams(['']);
+
+      // Refresh messages
+      await loadConversation(selectedConversation);
+    } catch (error: any) {
+      console.error('Error sending template:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to send template message',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingTemplate(false);
+    }
+  };
+
   const deleteConversation = async (conversationId: string) => {
     if (!confirm('Are you sure you want to delete this conversation?')) return;
 
@@ -931,6 +995,17 @@ export default function WhatsApp() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
+              {/* Template message button */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                onClick={() => setShowTemplateDialog(true)}
+                title="Send WhatsApp Template"
+              >
+                <MessageCircle className="w-4 h-4" />
+              </Button>
+
               <Textarea
                 placeholder={selectedMedia ? "Add a caption..." : "Type a message..."}
                 value={newMessage}
@@ -1033,6 +1108,123 @@ export default function WhatsApp() {
                 </div>
               )}
             </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Message Dialog */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Send WhatsApp Template</DialogTitle>
+            <DialogDescription>
+              Send a pre-approved WhatsApp template message
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="template-name">Template Name *</Label>
+              <Input
+                id="template-name"
+                placeholder="e.g., order_confirmation, welcome_message"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the name of your pre-approved template from Meta Business Manager
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="template-language">Language</Label>
+              <Input
+                id="template-language"
+                placeholder="e.g., en, en_US, hi, es"
+                value={templateLanguage}
+                onChange={(e) => setTemplateLanguage(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Language code for your template (default: en)
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Template Parameters (Optional)</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Add values for template variables like {'{'}1{'}'}, {'{'}2{'}'}, etc.
+              </p>
+              {templateParams.map((param, index) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    placeholder={`Parameter ${index + 1}`}
+                    value={param}
+                    onChange={(e) => {
+                      const newParams = [...templateParams];
+                      newParams[index] = e.target.value;
+                      setTemplateParams(newParams);
+                    }}
+                  />
+                  {index === templateParams.length - 1 && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setTemplateParams([...templateParams, ''])}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {templateParams.length > 1 && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        const newParams = templateParams.filter((_, i) => i !== index);
+                        setTemplateParams(newParams.length > 0 ? newParams : ['']);
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <Alert>
+              <AlertDescription className="text-xs">
+                <strong>Note:</strong> Templates must be pre-approved by Meta Business Manager before sending.
+                Make sure your template name and parameters match your approved template exactly.
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowTemplateDialog(false);
+                  setTemplateName('');
+                  setTemplateParams(['']);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={sendTemplate}
+                disabled={!templateName.trim() || sendingTemplate}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {sendingTemplate ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Send Template
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
