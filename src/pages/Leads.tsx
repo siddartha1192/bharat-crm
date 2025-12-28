@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { leadsAPI } from '@/lib/api';
+import { leadsAPI, pipelineStagesAPI } from '@/lib/api';
 import { LeadCard } from '@/components/leads/LeadCard';
 import { LeadListView } from '@/components/leads/LeadListView';
 import { LeadDetailDialog } from '@/components/leads/LeadDetailDialog';
@@ -47,6 +47,7 @@ export default function Leads() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
   const [viewMode, setViewMode] = useState<'card' | 'list'>('list'); // Default to list view
+  const [pipelineStages, setPipelineStages] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -93,10 +94,20 @@ export default function Leads() {
     },
   ];
 
-  // Fetch leads from API
+  // Fetch leads and pipeline stages from API
   useEffect(() => {
     fetchLeads();
+    fetchPipelineStages();
   }, [currentPage, itemsPerPage, searchQuery, advancedFilters]);
+
+  const fetchPipelineStages = async () => {
+    try {
+      const stages = await pipelineStagesAPI.getAll();
+      setPipelineStages(stages);
+    } catch (error) {
+      console.error('Error fetching pipeline stages:', error);
+    }
+  };
 
   const fetchLeads = async () => {
     try {
@@ -298,11 +309,22 @@ export default function Leads() {
     }
   };
 
+  // Get lead stages only (LEAD or BOTH)
+  const leadStages = pipelineStages.filter(
+    s => s.stageType === 'LEAD' || s.stageType === 'BOTH'
+  ).sort((a, b) => a.order - b.order);
+
+  // Calculate stats by stage
+  const stageStats = leadStages.map(stage => ({
+    stageName: stage.name,
+    stageColor: stage.color,
+    count: leads.filter(l => l.stageId === stage.id).length,
+  }));
+
   const stats = {
     total: totalItems, // Use total from pagination
-    new: leads.filter(l => l.status === 'new').length,
-    qualified: leads.filter(l => l.status === 'qualified').length,
     totalValue: leads.reduce((sum, l) => sum + (l.estimatedValue || 0), 0),
+    byStage: stageStats,
   };
 
   return (
@@ -348,6 +370,7 @@ export default function Leads() {
 
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {/* Total Leads Card */}
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -360,30 +383,27 @@ export default function Leads() {
             </div>
           </Card>
 
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">New Leads</p>
-                <p className="text-2xl font-bold text-foreground">{stats.new}</p>
+          {/* Dynamic Stage Cards */}
+          {stats.byStage.map((stageStat, index) => (
+            <Card key={index} className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">{stageStat.stageName}</p>
+                  <p className="text-2xl font-bold text-foreground">{stageStat.count}</p>
+                </div>
+                <div
+                  className="h-12 w-12 rounded-full flex items-center justify-center"
+                  style={{
+                    background: `linear-gradient(135deg, ${stageStat.stageColor || '#6366f1'}, ${stageStat.stageColor || '#6366f1'}CC)`
+                  }}
+                >
+                  <Target className="w-6 h-6 text-white" />
+                </div>
               </div>
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-secondary to-secondary/80 flex items-center justify-center">
-                <Target className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </Card>
+            </Card>
+          ))}
 
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Qualified</p>
-                <p className="text-2xl font-bold text-foreground">{stats.qualified}</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-accent to-accent/80 flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </Card>
-
+          {/* Pipeline Value Card */}
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
