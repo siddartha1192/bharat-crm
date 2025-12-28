@@ -37,6 +37,14 @@ class CampaignService {
           scheduledAt: campaignData.scheduledAt || null,
           targetType: campaignData.targetType,
           targetFilters: campaignData.targetFilters || null,
+          // WhatsApp-specific fields for media and template messages
+          whatsappMessageType: campaignData.whatsappMessageType || null,
+          whatsappMediaType: campaignData.whatsappMediaType || null,
+          whatsappMediaUrl: campaignData.whatsappMediaUrl || null,
+          whatsappCaption: campaignData.whatsappCaption || null,
+          whatsappTemplateName: campaignData.whatsappTemplateName || null,
+          whatsappTemplateLanguage: campaignData.whatsappTemplateLanguage || null,
+          whatsappTemplateParams: campaignData.whatsappTemplateParams || null,
         },
       });
 
