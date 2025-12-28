@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
-const auth = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth');
 const whatsappService = require('../services/whatsapp');
 const openaiService = require('../services/openai');
 
@@ -11,9 +11,9 @@ const prisma = new PrismaClient();
  * Get tenant API settings (WhatsApp, OpenAI)
  * GET /api/settings/api-config
  */
-router.get('/api-config', auth, async (req, res) => {
+router.get('/api-config', authenticate, async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.user.id;
 
     // Get user's tenant
     const user = await prisma.user.findUnique({
@@ -70,9 +70,9 @@ router.get('/api-config', auth, async (req, res) => {
  * Update WhatsApp API settings
  * PUT /api/settings/whatsapp
  */
-router.put('/whatsapp', auth, async (req, res) => {
+router.put('/whatsapp', authenticate, async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.user.id;
     const { token, phoneId, webhookVerifyToken } = req.body;
 
     // Validate required fields
@@ -161,9 +161,9 @@ router.put('/whatsapp', auth, async (req, res) => {
  * Update OpenAI API settings
  * PUT /api/settings/openai
  */
-router.put('/openai', auth, async (req, res) => {
+router.put('/openai', authenticate, async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.user.id;
     const { apiKey, model, temperature, enabled } = req.body;
 
     // Validate required fields
@@ -266,9 +266,9 @@ router.put('/openai', auth, async (req, res) => {
  * Test WhatsApp connection
  * POST /api/settings/test-whatsapp
  */
-router.post('/test-whatsapp', auth, async (req, res) => {
+router.post('/test-whatsapp', authenticate, async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.user.id;
     const { token, phoneId } = req.body;
 
     if (!token || !phoneId) {
@@ -299,9 +299,9 @@ router.post('/test-whatsapp', auth, async (req, res) => {
  * Test OpenAI connection
  * POST /api/settings/test-openai
  */
-router.post('/test-openai', auth, async (req, res) => {
+router.post('/test-openai', authenticate, async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.user.id;
     const { apiKey, model } = req.body;
 
     if (!apiKey) {
