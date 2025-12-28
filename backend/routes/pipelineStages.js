@@ -68,13 +68,12 @@ router.post('/', async (req, res) => {
     // Auto-generate slug from name if not provided
     const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-    // Check if slug already exists for this tenant
-    const existing = await prisma.pipelineStage.findUnique({
+    // Check if slug already exists for this tenant (only among active stages)
+    const existing = await prisma.pipelineStage.findFirst({
       where: {
-        tenantId_slug: {
-          tenantId,
-          slug: finalSlug
-        }
+        tenantId,
+        slug: finalSlug,
+        isActive: true
       }
     });
 
@@ -154,12 +153,13 @@ router.put('/:id', async (req, res) => {
     if (name !== undefined && name !== existingStage.name) {
       const newSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-      // Check if new slug conflicts with existing stages
+      // Check if new slug conflicts with existing active stages
       const conflicting = await prisma.pipelineStage.findFirst({
         where: {
           tenantId,
           slug: newSlug,
-          id: { not: id }
+          id: { not: id },
+          isActive: true
         }
       });
 
