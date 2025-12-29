@@ -927,14 +927,8 @@ async function findContactByLast10Digits(phoneNumber) {
 
   console.log(`🔍 Searching contacts by last 10 digits: ${last10Digits}`);
 
-  // Get all contacts with phone or whatsapp numbers
+  // Get all contacts
   const allContacts = await prisma.contact.findMany({
-    where: {
-      OR: [
-        { phone: { not: null } },
-        { whatsapp: { not: null } }
-      ]
-    },
     include: {
       user: {
         select: { id: true, name: true, tenantId: true, role: true }
@@ -942,7 +936,7 @@ async function findContactByLast10Digits(phoneNumber) {
     }
   });
 
-  // Filter contacts where last 10 digits match
+  // Filter contacts where last 10 digits match (check both phone and whatsapp, handle null values)
   const matchingContacts = allContacts.filter(contact => {
     const contactPhoneLast10 = getLastDigits(contact.phone, 10);
     const contactWhatsappLast10 = getLastDigits(contact.whatsapp, 10);
@@ -969,11 +963,8 @@ async function findConversationsByLast10Digits(phoneNumber) {
 
   console.log(`🔍 Searching conversations by last 10 digits: ${last10Digits}`);
 
-  // Get all conversations with contact phone numbers
+  // Get all conversations
   const allConversations = await prisma.whatsAppConversation.findMany({
-    where: {
-      contactPhone: { not: null }
-    },
     include: {
       user: {
         select: { id: true, name: true, tenantId: true }
@@ -981,8 +972,9 @@ async function findConversationsByLast10Digits(phoneNumber) {
     }
   });
 
-  // Filter conversations where last 10 digits match
+  // Filter conversations where last 10 digits match and contactPhone is not null
   const matchingConversations = allConversations.filter(conv => {
+    if (!conv.contactPhone) return false;
     const convPhoneLast10 = getLastDigits(conv.contactPhone, 10);
     return convPhoneLast10 === last10Digits;
   });

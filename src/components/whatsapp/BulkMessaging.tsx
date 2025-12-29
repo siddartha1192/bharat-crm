@@ -482,39 +482,39 @@ export default function BulkMessaging() {
   const allSelected = filteredContacts.length > 0 && filteredContacts.every(c => selectedContacts.has(c.id));
 
   return (
-    <div className="h-full flex gap-4">
+    <div className="h-full flex gap-4 overflow-hidden">
       {/* Left Panel - Contact Selection */}
-      <Card className="flex-1 flex flex-col">
-        <CardHeader>
+      <Card className="flex-1 flex flex-col bg-white dark:bg-gray-900 border-green-200 dark:border-gray-700 shadow-lg overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-b border-green-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
+              <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
+                <Users className="w-5 h-5 text-green-600" />
                 Select Recipients
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-gray-600 dark:text-gray-400">
                 {selectedContacts.size} of {contacts.length} contacts selected
               </CardDescription>
             </div>
-            <Badge variant="secondary" className="text-sm">
+            <Badge variant="secondary" className="text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
               {filteredContacts.length} contacts
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="flex-1 flex flex-col gap-4">
+        <CardContent className="flex-1 flex flex-col gap-4 p-4 min-h-0">
           {/* Search and Filter */}
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <Input
                 placeholder="Search contacts..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-10 border-gray-300 focus-visible:ring-green-500"
               />
             </div>
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-[150px] border-gray-300">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue />
               </SelectTrigger>
@@ -527,105 +527,107 @@ export default function BulkMessaging() {
           </div>
 
           {/* Select All */}
-          <div className="flex items-center gap-2 pb-2 border-b">
+          <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
             <Checkbox
               checked={allSelected}
               onCheckedChange={handleSelectAll}
               id="select-all"
+              className="border-green-600 data-[state=checked]:bg-green-600"
             />
-            <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+            <label htmlFor="select-all" className="text-sm font-medium cursor-pointer text-gray-900 dark:text-white">
               Select All ({filteredContacts.length})
             </label>
           </div>
 
           {/* Contact List */}
-          <ScrollArea className="flex-1">
+          <div className="flex-1 overflow-y-auto min-h-0">
             {loading ? (
               <div className="flex items-center justify-center h-40">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                <Loader2 className="w-8 h-8 animate-spin text-green-600" />
               </div>
             ) : filteredContacts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
-                <Users className="w-12 h-12 mb-2 opacity-50" />
+              <div className="flex flex-col items-center justify-center h-40 text-gray-500">
+                <Users className="w-12 h-12 mb-2 opacity-30 text-green-600" />
                 <p>No contacts found</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 pr-2">
                 {filteredContacts.map(contact => (
                   <div
                     key={contact.id}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent/50 transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-green-50 dark:hover:bg-gray-800 transition-colors border border-transparent hover:border-green-200"
                   >
                     <Checkbox
                       checked={selectedContacts.has(contact.id)}
                       onCheckedChange={(checked) => handleSelectContact(contact.id, checked as boolean)}
                       id={`contact-${contact.id}`}
+                      className="border-green-600 data-[state=checked]:bg-green-600"
                     />
                     <label
                       htmlFor={`contact-${contact.id}`}
                       className="flex-1 cursor-pointer"
                     >
-                      <div className="font-medium">{contact.name}</div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="font-medium text-gray-900 dark:text-white">{contact.name}</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
                         {contact.company && <span>{contact.company} • </span>}
-                        <span>{contact.whatsapp || contact.phone}</span>
+                        <span className="text-green-600 dark:text-green-400">{contact.whatsapp || contact.phone}</span>
                       </div>
                     </label>
                   </div>
                 ))}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </CardContent>
       </Card>
 
       {/* Right Panel - Message Composer */}
-      <Card className="w-[550px] flex flex-col">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5" />
+      <Card className="w-[550px] flex flex-col bg-white dark:bg-gray-900 border-green-200 dark:border-gray-700 shadow-lg overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-b border-green-100 dark:border-gray-800">
+          <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
+            <MessageSquare className="w-5 h-5 text-green-600" />
             Compose Message
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-gray-600 dark:text-gray-400">
             Choose message type and compose your content
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex-1 flex flex-col gap-4">
+        <CardContent className="flex-1 flex flex-col gap-4 p-4 min-h-0">
           {/* Message Type Tabs */}
           <Tabs value={messageType} onValueChange={(v) => setMessageType(v as any)} className="flex-1 flex flex-col">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="text">Text</TabsTrigger>
-              <TabsTrigger value="media">Media</TabsTrigger>
-              <TabsTrigger value="template">Template</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 bg-green-50 dark:bg-gray-800">
+              <TabsTrigger value="text" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">Text</TabsTrigger>
+              <TabsTrigger value="media" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">Media</TabsTrigger>
+              <TabsTrigger value="template" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">Template</TabsTrigger>
             </TabsList>
 
             {/* Text Message */}
-            <TabsContent value="text" className="flex-1 flex flex-col gap-4">
+            <TabsContent value="text" className="flex-1 flex flex-col gap-4 mt-4">
               <div className="flex-1 flex flex-col gap-2">
-                <label className="text-sm font-medium">Message</label>
+                <label className="text-sm font-medium text-gray-900 dark:text-white">Message</label>
                 <Textarea
                   placeholder="Type your message here..."
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  className="flex-1 min-h-[200px] resize-none"
+                  className="flex-1 min-h-[200px] resize-none border-gray-300 focus-visible:ring-green-500"
                 />
-                <div className="text-xs text-muted-foreground text-right">
+                <div className="text-xs text-gray-500 text-right">
                   {message.length} characters
                 </div>
               </div>
             </TabsContent>
 
             {/* Media Message */}
-            <TabsContent value="media" className="flex-1 flex flex-col gap-4">
+            <TabsContent value="media" className="flex-1 flex flex-col gap-4 mt-4 overflow-y-auto">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Media URL (Public URL)</Label>
+                  <Label className="text-gray-900 dark:text-white">Media URL (Public URL)</Label>
                   <div className="flex gap-2">
                     <Input
                       placeholder="https://example.com/image.jpg"
                       value={mediaUrl}
                       onChange={(e) => setMediaUrl(e.target.value)}
-                      className="flex-1"
+                      className="flex-1 border-gray-300 focus-visible:ring-green-500"
                     />
                     <input
                       ref={uploadInputRef}
@@ -638,6 +640,7 @@ export default function BulkMessaging() {
                       variant="outline"
                       onClick={() => uploadInputRef.current?.click()}
                       disabled={uploading}
+                      className="border-green-300 text-green-600 hover:bg-green-50"
                     >
                       {uploading ? (
                         <>
@@ -652,17 +655,17 @@ export default function BulkMessaging() {
                       )}
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-gray-500">
                     Enter a public URL or upload a file to Cloudinary
                   </p>
                 </div>
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
+                    <span className="w-full border-t border-gray-200 dark:border-gray-700" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
+                    <span className="bg-white dark:bg-gray-900 px-2 text-gray-500">
                       Or choose file (local preview)
                     </span>
                   </div>
@@ -679,36 +682,36 @@ export default function BulkMessaging() {
                   <Button
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full"
+                    className="w-full border-green-300 text-green-600 hover:bg-green-50"
                   >
                     <Paperclip className="w-4 h-4 mr-2" />
                     Choose File (Preview Only)
                   </Button>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-gray-500">
                     For local testing - file won't be sent, only used for preview
                   </p>
                 </div>
 
                 {/* Media Preview */}
                 {selectedMedia && (
-                  <div className="p-3 bg-accent rounded-lg border">
+                  <div className="p-3 bg-green-50 dark:bg-gray-800 rounded-lg border border-green-200 dark:border-gray-700">
                     <div className="flex items-center gap-3">
                       {selectedMedia.preview && (
                         <img
                           src={selectedMedia.preview}
                           alt="Preview"
-                          className="w-16 h-16 object-cover rounded"
+                          className="w-16 h-16 object-cover rounded border border-green-200"
                         />
                       )}
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          {selectedMedia.type === 'image' && <ImageIcon className="w-4 h-4" />}
-                          {selectedMedia.type === 'document' && <FileText className="w-4 h-4" />}
-                          {selectedMedia.type === 'video' && <Video className="w-4 h-4" />}
-                          {selectedMedia.type === 'audio' && <Music className="w-4 h-4" />}
+                        <div className="flex items-center gap-2 text-gray-900 dark:text-white">
+                          {selectedMedia.type === 'image' && <ImageIcon className="w-4 h-4 text-green-600" />}
+                          {selectedMedia.type === 'document' && <FileText className="w-4 h-4 text-blue-600" />}
+                          {selectedMedia.type === 'video' && <Video className="w-4 h-4 text-purple-600" />}
+                          {selectedMedia.type === 'audio' && <Music className="w-4 h-4 text-orange-600" />}
                           <span className="font-medium">{selectedMedia.file.name}</span>
                         </div>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-gray-500">
                           {(selectedMedia.file.size / 1024 / 1024).toFixed(2)} MB
                         </p>
                       </div>
@@ -716,6 +719,7 @@ export default function BulkMessaging() {
                         variant="ghost"
                         size="sm"
                         onClick={handleMediaRemove}
+                        className="text-gray-500 hover:text-red-600"
                       >
                         <X className="w-4 h-4" />
                       </Button>
@@ -724,18 +728,19 @@ export default function BulkMessaging() {
                 )}
 
                 <div className="space-y-2">
-                  <Label>Caption (Optional)</Label>
+                  <Label className="text-gray-900 dark:text-white">Caption (Optional)</Label>
                   <Textarea
                     placeholder="Add a caption for your media..."
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     rows={3}
+                    className="border-gray-300 focus-visible:ring-green-500"
                   />
                 </div>
 
-                <Alert>
-                  <AlertCircle className="w-4 h-4" />
-                  <AlertDescription className="text-xs">
+                <Alert className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+                  <AlertCircle className="w-4 h-4 text-green-600" />
+                  <AlertDescription className="text-xs text-gray-700 dark:text-gray-300">
                     For production use, upload media to a file hosting service (Cloudinary, AWS S3, etc.) and use the public URL.
                   </AlertDescription>
                 </Alert>
@@ -743,31 +748,33 @@ export default function BulkMessaging() {
             </TabsContent>
 
             {/* Template Message */}
-            <TabsContent value="template" className="flex-1 flex flex-col gap-4">
+            <TabsContent value="template" className="flex-1 flex flex-col gap-4 mt-4 overflow-y-auto">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="template-name">Template Name *</Label>
+                  <Label htmlFor="template-name" className="text-gray-900 dark:text-white">Template Name *</Label>
                   <Input
                     id="template-name"
                     placeholder="e.g., order_confirmation"
                     value={templateName}
                     onChange={(e) => setTemplateName(e.target.value)}
+                    className="border-gray-300 focus-visible:ring-green-500"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="template-language">Language</Label>
+                  <Label htmlFor="template-language" className="text-gray-900 dark:text-white">Language</Label>
                   <Input
                     id="template-language"
                     placeholder="e.g., en, hi, es"
                     value={templateLanguage}
                     onChange={(e) => setTemplateLanguage(e.target.value)}
+                    className="border-gray-300 focus-visible:ring-green-500"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Template Parameters (Optional)</Label>
-                  <p className="text-xs text-muted-foreground mb-2">
+                  <Label className="text-gray-900 dark:text-white">Template Parameters (Optional)</Label>
+                  <p className="text-xs text-gray-500 mb-2">
                     Add values for {'{'}1{'}'}, {'{'}2{'}'}, etc.
                   </p>
                   {templateParams.map((param, index) => (
@@ -780,12 +787,14 @@ export default function BulkMessaging() {
                           newParams[index] = e.target.value;
                           setTemplateParams(newParams);
                         }}
+                        className="border-gray-300"
                       />
                       {index === templateParams.length - 1 && (
                         <Button
                           variant="outline"
                           size="icon"
                           onClick={() => setTemplateParams([...templateParams, ''])}
+                          className="border-green-300 text-green-600 hover:bg-green-50"
                         >
                           <Plus className="w-4 h-4" />
                         </Button>
@@ -798,6 +807,7 @@ export default function BulkMessaging() {
                             const newParams = templateParams.filter((_, i) => i !== index);
                             setTemplateParams(newParams.length > 0 ? newParams : ['']);
                           }}
+                          className="border-red-300 text-red-600 hover:bg-red-50"
                         >
                           <X className="w-4 h-4" />
                         </Button>
@@ -806,8 +816,8 @@ export default function BulkMessaging() {
                   ))}
                 </div>
 
-                <Alert>
-                  <AlertDescription className="text-xs">
+                <Alert className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+                  <AlertDescription className="text-xs text-gray-700 dark:text-gray-300">
                     <strong>Note:</strong> Templates must be pre-approved by Meta Business Manager.
                   </AlertDescription>
                 </Alert>
@@ -818,7 +828,7 @@ export default function BulkMessaging() {
           <Button
             onClick={sendBulkMessages}
             disabled={sending || selectedContacts.size === 0}
-            className="w-full"
+            className="w-full bg-green-600 hover:bg-green-700 text-white"
             size="lg"
           >
             {sending ? (
@@ -836,17 +846,17 @@ export default function BulkMessaging() {
 
           {/* Results */}
           {showResults && results.length > 0 && (
-            <Card className="border-border">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Send Results</CardTitle>
+            <Card className="border-green-200 dark:border-gray-700">
+              <CardHeader className="pb-3 bg-green-50 dark:bg-gray-800">
+                <CardTitle className="text-sm text-gray-900 dark:text-white">Send Results</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[200px]">
+              <CardContent className="p-2">
+                <div className="max-h-[200px] overflow-y-auto">
                   <div className="space-y-2">
                     {results.map((result, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-2 rounded border"
+                        className="flex items-center justify-between p-2 rounded border border-gray-200 dark:border-gray-700"
                       >
                         <div className="flex items-center gap-2">
                           {result.success ? (
@@ -855,8 +865,8 @@ export default function BulkMessaging() {
                             <XCircle className="w-4 h-4 text-red-600" />
                           )}
                           <div>
-                            <div className="text-sm font-medium">{result.name}</div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">{result.name}</div>
+                            <div className="text-xs text-gray-500">
                               {result.phone}
                             </div>
                           </div>
@@ -869,7 +879,7 @@ export default function BulkMessaging() {
                       </div>
                     ))}
                   </div>
-                </ScrollArea>
+                </div>
               </CardContent>
             </Card>
           )}
