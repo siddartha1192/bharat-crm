@@ -719,8 +719,8 @@ export default function WhatsApp() {
 
   return (
     <div className="h-[calc(100vh-4rem)] bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-900 dark:to-gray-800 p-4">
-      <Tabs defaultValue="chat" className="h-full flex flex-col">
-        <TabsList className="mb-4 bg-white dark:bg-gray-800 shadow-sm">
+      <Tabs defaultValue="chat" className="h-full flex flex-col overflow-hidden">
+        <TabsList className="mb-4 bg-white dark:bg-gray-800 shadow-sm flex-shrink-0">
           <TabsTrigger value="chat" className="flex items-center gap-2 data-[state=active]:bg-green-500 data-[state=active]:text-white">
             <MessageCircle className="w-4 h-4" />
             Chat
@@ -731,7 +731,7 @@ export default function WhatsApp() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="chat" className="flex-1 flex gap-0 mt-0 overflow-hidden rounded-xl">
+        <TabsContent value="chat" className="flex-1 flex gap-0 mt-0 overflow-hidden rounded-xl data-[state=inactive]:hidden">
           {/* Conversations List - WhatsApp Style Sidebar */}
           <div className="w-[400px] flex flex-col bg-white dark:bg-gray-900 border-r border-green-200 dark:border-gray-700 shadow-xl rounded-l-xl">
             {/* Header with Search */}
@@ -1277,7 +1277,7 @@ export default function WhatsApp() {
           </Dialog>
         </TabsContent>
 
-        <TabsContent value="bulk" className="flex-1 mt-0 overflow-auto">
+        <TabsContent value="bulk" className="flex-1 mt-0 overflow-hidden data-[state=inactive]:hidden">
           <BulkMessaging />
         </TabsContent>
       </Tabs>
