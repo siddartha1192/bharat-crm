@@ -99,6 +99,19 @@ router.get('/templates', async (req, res) => {
 });
 
 /**
+ * Get default WhatsApp templates
+ * GET /api/automation/whatsapp-templates
+ */
+router.get('/whatsapp-templates', async (req, res) => {
+  try {
+    res.json(automationService.DEFAULT_WHATSAPP_TEMPLATES);
+  } catch (error) {
+    console.error('Error fetching WhatsApp templates:', error);
+    res.status(500).json({ error: 'Failed to fetch WhatsApp templates' });
+  }
+});
+
+/**
  * Test automation rule (send test email)
  * POST /api/automation/rules/:id/test
  */

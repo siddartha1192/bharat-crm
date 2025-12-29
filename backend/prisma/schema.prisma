@@ -640,12 +640,16 @@ model AutomationRule {
   triggerConditions Json? // Additional conditions (e.g., {fromStage: 'new', toStage: 'contacted'})
 
   // Action configuration
-  actionType   String // 'send_email' | 'create_task' | 'assign_lead' | 'webhook'
+  actionType   String // 'send_email' | 'send_whatsapp' | 'send_both' | 'create_task' | 'assign_lead' | 'webhook'
   actionConfig Json // Email template, task details, etc.
 
   // Email template for email actions
   emailSubject  String?
   emailTemplate String? @db.Text
+
+  // WhatsApp template for WhatsApp actions
+  whatsappMessage  String? @db.Text // WhatsApp message template
+  whatsappTemplate String? // WhatsApp Business template name (optional)
 
   // Stage change specific config
   fromStage  String? // Source stage for stage change triggers

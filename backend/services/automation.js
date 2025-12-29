@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const emailService = require('./email');
+const whatsappService = require('./whatsapp');
 const prisma = new PrismaClient();
 
 /**
@@ -103,6 +104,40 @@ const DEFAULT_TEMPLATES = {
 };
 
 /**
+ * Default WhatsApp templates
+ */
+const DEFAULT_WHATSAPP_TEMPLATES = {
+  lead_created: `Hi {{name}}! 👋
+
+Thank you for your interest in our services! We've received your inquiry and our team is reviewing it.
+
+*What happens next:*
+✅ Our team will review your requirements
+✅ We'll reach out within 24 hours
+✅ We'll schedule a call to discuss details
+
+Feel free to reach out if you have any questions!
+
+Best regards,
+*The Team*`,
+
+  stage_change: `Hi {{name}}! 📊
+
+We wanted to update you on your inquiry progress.
+
+*Status Update:*
+Previous: {{fromStage}}
+Current: *{{toStage}}*
+
+We're making great progress! Our team will continue working on your request and keep you informed.
+
+If you have any questions, feel free to ask!
+
+Best regards,
+*The Team*`
+};
+
+/**
  * Replace template variables
  */
 function replaceTemplateVariables(template, variables) {
@@ -160,6 +195,16 @@ async function triggerAutomation(event, data, user) {
         switch (rule.actionType) {
           case 'send_email':
             await executeEmailAction(rule, data, user);
+            break;
+          case 'send_whatsapp':
+            await executeWhatsAppAction(rule, data, user);
+            break;
+          case 'send_both':
+            // Send both email and WhatsApp
+            await Promise.all([
+              executeEmailAction(rule, data, user),
+              executeWhatsAppAction(rule, data, user)
+            ]);
             break;
           case 'create_task':
             await executeTaskAction(rule, data, user);
@@ -244,6 +289,63 @@ async function executeEmailAction(rule, data, user) {
 }
 
 /**
+ * Execute WhatsApp action
+ */
+async function executeWhatsAppAction(rule, data, user) {
+  try {
+    console.log('🔍 Executing WhatsApp action with data:', JSON.stringify(data, null, 2));
+    console.log('🔍 Rule type:', rule.type);
+
+    // Get WhatsApp message template (use custom or default)
+    const hasCustomMessage = rule.whatsappMessage && rule.whatsappMessage.trim() !== '';
+
+    let whatsappMessage = hasCustomMessage
+      ? rule.whatsappMessage.trim()
+      : (DEFAULT_WHATSAPP_TEMPLATES[rule.type] || 'Hi {{name}}, thank you for your inquiry!');
+
+    // Prepare template variables
+    const variables = {
+      name: data.name || '',
+      company: data.company || '',
+      email: data.email || '',
+      phone: data.phone || data.whatsapp || '',
+      stage: data.toStage || data.status || '',
+      fromStage: data.fromStage || '',
+      toStage: data.toStage || '',
+      message: data.message || ''
+    };
+
+    console.log('🔍 Template variables:', JSON.stringify(variables, null, 2));
+
+    // Replace variables in message
+    const finalMessage = replaceTemplateVariables(whatsappMessage, variables);
+
+    console.log('🔍 Final WhatsApp message:', finalMessage);
+
+    // Determine recipient number - prioritize whatsapp field, fallback to phone
+    const recipientNumber = data.whatsapp || data.phone;
+
+    // Send WhatsApp message
+    if (recipientNumber) {
+      const whatsappServiceInstance = new whatsappService();
+      await whatsappServiceInstance.sendMessage(
+        recipientNumber,
+        finalMessage,
+        null // tenantConfig can be added later for multi-tenant WhatsApp
+      );
+
+      console.log(`✅ Sent automation WhatsApp message to ${recipientNumber}`);
+    } else {
+      console.log('⚠️ No WhatsApp/phone number available, skipping WhatsApp action');
+    }
+  } catch (error) {
+    console.error('Error executing WhatsApp action:', error);
+    // Don't throw - log error but continue with other automation rules
+    console.log('⚠️ WhatsApp action failed, but continuing with other automations');
+  }
+}
+
+/**
  * Execute task creation action
  */
 async function executeTaskAction(rule, data, user) {
@@ -319,6 +421,8 @@ async function saveAutomationRule(userId, ruleData, tenantId) {
       actionConfig: ruleData.actionConfig || {},
       emailSubject: sanitizeField(ruleData.emailSubject),
       emailTemplate: sanitizeField(ruleData.emailTemplate),
+      whatsappMessage: sanitizeField(ruleData.whatsappMessage),
+      whatsappTemplate: sanitizeField(ruleData.whatsappTemplate),
       fromStage: sanitizeField(ruleData.fromStage),
       toStage: sanitizeField(ruleData.toStage),
       entityType: ruleData.entityType || 'lead'
@@ -404,5 +508,6 @@ module.exports = {
   getAutomationRules,
   deleteAutomationRule,
   toggleAutomationRule,
-  DEFAULT_TEMPLATES
+  DEFAULT_TEMPLATES,
+  DEFAULT_WHATSAPP_TEMPLATES
 };

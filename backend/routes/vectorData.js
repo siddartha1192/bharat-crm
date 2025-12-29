@@ -357,10 +357,14 @@ router.post('/ingest', authorize('ADMIN'), async (req, res) => {
       status: 'processing'
     });
 
-    // Run script with captured output
+    // Run script with captured output and pass tenantId via environment
     const ingestProcess = spawn('node', [scriptPath, '--clear'], {
       cwd: path.join(__dirname, '..'),
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        INGEST_TENANT_ID: req.tenant.id // Pass tenantId to script
+      }
     });
 
     // Capture stdout
