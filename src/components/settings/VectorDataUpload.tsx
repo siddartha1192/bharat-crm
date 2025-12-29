@@ -213,11 +213,65 @@ export default function VectorDataUpload() {
       setIngesting(true);
       const response = await api.post('/vector-data/ingest');
       toast.success(response.data.message || 'Ingest process started successfully');
+
+      // Poll for ingest status
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await api.get('/vector-data/ingest/status');
+          const status = statusResponse.data;
+
+          // If not running and has completion time
+          if (!status.isRunning && status.completedAt) {
+            clearInterval(pollInterval);
+            setIngesting(false);
+
+            if (status.error) {
+              // Show error with details from logs
+              const errorLogs = status.logs
+                .filter((log: string) => log.includes('ERROR') || log.includes('FAILED'))
+                .slice(-3) // Last 3 error logs
+                .join('\n');
+
+              toast.error(
+                <div className="space-y-2">
+                  <p className="font-semibold">Ingest process failed!</p>
+                  {errorLogs && (
+                    <pre className="text-xs bg-red-50 p-2 rounded overflow-auto max-h-32">
+                      {errorLogs}
+                    </pre>
+                  )}
+                  <p className="text-sm">Check backend logs for details.</p>
+                </div>,
+                { duration: 10000 }
+              );
+            } else {
+              // Success
+              toast.success(
+                <div className="space-y-1">
+                  <p className="font-semibold">Ingest process completed successfully!</p>
+                  <p className="text-sm">Vector database has been updated.</p>
+                </div>,
+                { duration: 5000 }
+              );
+            }
+          }
+        } catch (error) {
+          console.error('Error polling ingest status:', error);
+        }
+      }, 2000); // Poll every 2 seconds
+
+      // Stop polling after 5 minutes (timeout)
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (ingesting) {
+          setIngesting(false);
+          toast.warning('Ingest process is taking longer than expected. Check backend logs.');
+        }
+      }, 300000); // 5 minutes
     } catch (error: any) {
       console.error('Error running ingest:', error);
       toast.error(error.response?.data?.error || 'Failed to run ingest process');
-    } finally {
-      setTimeout(() => setIngesting(false), 3000);
+      setIngesting(false);
     }
   };
 

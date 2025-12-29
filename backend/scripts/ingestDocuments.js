@@ -347,6 +347,10 @@ async function main() {
   const args = process.argv.slice(2);
   const shouldClear = args.includes('--clear');
 
+  // Get tenantId from environment variable (set by API when running script)
+  // For standalone usage, default to 'default' tenant
+  const tenantId = process.env.INGEST_TENANT_ID || 'default';
+
   console.log('\n========================================');
   console.log('📚 DOCUMENT INGESTION');
   console.log('========================================\n');
@@ -382,9 +386,9 @@ async function main() {
 
     console.log(`\n📄 Found ${documents.length} documents`);
 
-    // Ingest into vector database
-    console.log('\n📤 Ingesting into vector database...');
-    const result = await vectorDBService.addDocuments(documents);
+    // Ingest into vector database with tenantId
+    console.log(`\n📤 Ingesting into vector database for tenant: ${tenantId}...`);
+    const result = await vectorDBService.addDocuments(documents, tenantId);
 
     console.log(`\n✅ Successfully ingested ${result.chunksAdded} document chunks`);
 
