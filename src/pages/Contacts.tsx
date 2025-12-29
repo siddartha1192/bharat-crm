@@ -122,13 +122,20 @@ export default function Contacts() {
         setTotalItems(response.length);
         setTotalPages(1);
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error fetching contacts:', error);
+
+      // Extract error message from API response
+      const errorMessage = error?.response?.data?.message ||
+                          error?.response?.data?.error ||
+                          error?.message ||
+                          'Failed to load contacts. Please check if the backend is running.';
+
       toast({
         title: "Error fetching contacts",
-        description: "Failed to load contacts. Please check if the backend is running.",
+        description: errorMessage,
         variant: "destructive",
       });
-      console.error('Error fetching contacts:', error);
     } finally {
       setLoading(false);
     }
