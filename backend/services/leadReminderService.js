@@ -181,7 +181,7 @@ class LeadReminderService {
         createdAt: {
           lte: cutoffTime  // Created before cutoff time
         },
-        pipelineStage: {
+        status: {
           slug: {
             in: config.includedStages  // Only include leads in selected stages (by slug)
           }
