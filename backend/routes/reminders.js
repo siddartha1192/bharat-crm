@@ -122,19 +122,39 @@ router.get('/users', async (req, res) => {
 
 /**
  * Get list of available lead stages for reminder configuration
+ * Fetches stages dynamically from the centralized PipelineStage table
  */
 router.get('/stages', async (req, res) => {
   try {
-    // Return the standard lead statuses
-    const stages = [
-      { value: 'new', label: 'New' },
-      { value: 'contacted', label: 'Contacted' },
-      { value: 'qualified', label: 'Qualified' },
-      { value: 'proposal', label: 'Proposal' },
-      { value: 'negotiation', label: 'Negotiation' },
-      { value: 'won', label: 'Won' },
-      { value: 'lost', label: 'Lost' }
-    ];
+    const tenantId = req.user.tenantId;
+
+    // Fetch active lead stages from the database
+    const pipelineStages = await prisma.pipelineStage.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        stageType: {
+          in: ['LEAD', 'BOTH'] // Include stages for leads and shared stages
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        color: true,
+        order: true
+      },
+      orderBy: {
+        order: 'asc'
+      }
+    });
+
+    // Map to the format expected by the frontend
+    const stages = pipelineStages.map(stage => ({
+      value: stage.slug,
+      label: stage.name,
+      color: stage.color
+    }));
 
     res.json({
       success: true,

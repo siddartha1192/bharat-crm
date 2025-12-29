@@ -93,7 +93,7 @@ export default function ReminderSettings() {
         ...configData.config,
         recipientEmails: configData.config.recipientEmails || [],
         recipientPhones: configData.config.recipientPhones || [],
-        includedStages: configData.config.includedStages || ['new']
+        includedStages: configData.config.includedStages || []
       };
 
       setConfig(loadedConfig);

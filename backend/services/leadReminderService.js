@@ -18,7 +18,7 @@ const DEFAULT_CONFIG = {
   recipientPhones: [], // Manual list of WhatsApp phone numbers to receive reminders
   sendWhatsApp: true,
   sendEmail: true,
-  includedStages: ['new'], // Only send reminders for leads in these statuses (user-selectable)
+  includedStages: [], // Stage slugs to monitor (from PipelineStage table) - user-selectable in frontend
 };
 
 class LeadReminderService {
@@ -174,14 +174,17 @@ class LeadReminderService {
     cutoffTime.setHours(cutoffTime.getHours() - config.checkIntervalHours);
 
     // Find leads that meet reminder criteria
+    // Filter by stage slug (from centralized PipelineStage table)
     const uncontactedLeads = await prisma.lead.findMany({
       where: {
         tenantId: tenant.id,
         createdAt: {
           lte: cutoffTime  // Created before cutoff time
         },
-        status: {
-          in: config.includedStages  // Only include leads in selected stages
+        pipelineStage: {
+          slug: {
+            in: config.includedStages  // Only include leads in selected stages (by slug)
+          }
         }
       },
       include: {
@@ -189,7 +192,7 @@ class LeadReminderService {
           select: { id: true, name: true, email: true }
         },
         pipelineStage: {
-          select: { name: true }
+          select: { name: true, slug: true, color: true }
         }
       },
       orderBy: {
