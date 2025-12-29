@@ -46,10 +46,18 @@ async function cleanDatabase() {
 
     console.log('\n✅ All tables truncated\n');
 
-    // Step 3: Reset migration history
+    // Step 3: Reset migration history (if table exists)
     console.log('🔄 Step 3: Resetting migration history...');
-    await prisma.$executeRaw`TRUNCATE TABLE "_prisma_migrations" CASCADE;`;
-    console.log('✅ Migration history cleared\n');
+    try {
+      await prisma.$executeRaw`TRUNCATE TABLE "_prisma_migrations" CASCADE;`;
+      console.log('✅ Migration history cleared\n');
+    } catch (error) {
+      if (error.code === 'P2010' || error.meta?.code === '42P01') {
+        console.log('ℹ️  Migration table does not exist yet (this is fine for first-time setup)\n');
+      } else {
+        throw error;
+      }
+    }
 
     await prisma.$disconnect();
 

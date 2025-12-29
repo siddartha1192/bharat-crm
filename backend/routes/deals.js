@@ -371,6 +371,7 @@ router.put('/:id', async (req, res) => {
           id: result.id,
           name: result.contactName,
           email: result.email,
+          phone: result.phone,
           company: result.company,
           fromStage: existingDeal.stage,
           toStage: result.stage,
