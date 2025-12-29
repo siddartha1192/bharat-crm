@@ -900,6 +900,97 @@ router.post('/webhook', async (req, res) => {
   }
 });
 
+/**
+ * Helper function to extract last N digits from phone number
+ * @param {string} phone - Phone number
+ * @param {number} digits - Number of digits to extract (default 10)
+ * @returns {string} Last N digits
+ */
+function getLastDigits(phone, digits = 10) {
+  if (!phone) return '';
+  const digitsOnly = phone.replace(/\D/g, ''); // Remove all non-digit characters
+  return digitsOnly.slice(-digits); // Get last N digits
+}
+
+/**
+ * Find contact by comparing last 10 digits of phone number
+ * @param {string} phoneNumber - Phone number to search
+ * @returns {Promise<Array>} Array of matching contacts
+ */
+async function findContactByLast10Digits(phoneNumber) {
+  const last10Digits = getLastDigits(phoneNumber, 10);
+
+  if (last10Digits.length < 10) {
+    console.log(`⚠️ Phone number ${phoneNumber} has less than 10 digits, using exact match`);
+    return [];
+  }
+
+  console.log(`🔍 Searching contacts by last 10 digits: ${last10Digits}`);
+
+  // Get all contacts with phone or whatsapp numbers
+  const allContacts = await prisma.contact.findMany({
+    where: {
+      OR: [
+        { phone: { not: null } },
+        { whatsapp: { not: null } }
+      ]
+    },
+    include: {
+      user: {
+        select: { id: true, name: true, tenantId: true, role: true }
+      }
+    }
+  });
+
+  // Filter contacts where last 10 digits match
+  const matchingContacts = allContacts.filter(contact => {
+    const contactPhoneLast10 = getLastDigits(contact.phone, 10);
+    const contactWhatsappLast10 = getLastDigits(contact.whatsapp, 10);
+
+    return contactPhoneLast10 === last10Digits || contactWhatsappLast10 === last10Digits;
+  });
+
+  console.log(`✅ Found ${matchingContacts.length} contacts matching last 10 digits`);
+  return matchingContacts;
+}
+
+/**
+ * Find conversations by comparing last 10 digits of phone number
+ * @param {string} phoneNumber - Phone number to search
+ * @returns {Promise<Array>} Array of matching conversations
+ */
+async function findConversationsByLast10Digits(phoneNumber) {
+  const last10Digits = getLastDigits(phoneNumber, 10);
+
+  if (last10Digits.length < 10) {
+    console.log(`⚠️ Phone number ${phoneNumber} has less than 10 digits`);
+    return [];
+  }
+
+  console.log(`🔍 Searching conversations by last 10 digits: ${last10Digits}`);
+
+  // Get all conversations with contact phone numbers
+  const allConversations = await prisma.whatsAppConversation.findMany({
+    where: {
+      contactPhone: { not: null }
+    },
+    include: {
+      user: {
+        select: { id: true, name: true, tenantId: true }
+      }
+    }
+  });
+
+  // Filter conversations where last 10 digits match
+  const matchingConversations = allConversations.filter(conv => {
+    const convPhoneLast10 = getLastDigits(conv.contactPhone, 10);
+    return convPhoneLast10 === last10Digits;
+  });
+
+  console.log(`✅ Found ${matchingConversations.length} conversations matching last 10 digits`);
+  return matchingConversations;
+}
+
 // Helper function to process incoming messages
 async function processIncomingMessage(message, value) {
   try {
@@ -962,7 +1053,7 @@ async function processIncomingMessage(message, value) {
 
     // Find all users who might have this conversation
     // (In multi-user scenario, we need to find the right user)
-    const conversations = await prisma.whatsAppConversation.findMany({
+    let conversations = await prisma.whatsAppConversation.findMany({
       where: {
         contactPhone: {
           in: phoneVariations
@@ -975,11 +1066,18 @@ async function processIncomingMessage(message, value) {
       }
     });
 
+    // If no exact match for conversation, try last 10 digits matching
+    if (conversations.length === 0) {
+      console.log(`No exact conversation match. Trying last 10 digits comparison...`);
+      conversations = await findConversationsByLast10Digits(fromPhone);
+    }
+
     // If no conversation exists, try to find the contact in the CRM
     if (conversations.length === 0) {
       console.log(`No existing conversation found for ${fromPhone}. Searching for contact...`);
 
-      const contacts = await prisma.contact.findMany({
+      // First try exact match with phone variations
+      let contacts = await prisma.contact.findMany({
         where: {
           OR: [
             { whatsapp: { in: phoneVariations } },
@@ -992,6 +1090,12 @@ async function processIncomingMessage(message, value) {
           }
         }
       });
+
+      // If no exact match, try last 10 digits matching
+      if (contacts.length === 0) {
+        console.log(`No exact match found. Trying last 10 digits comparison...`);
+        contacts = await findContactByLast10Digits(fromPhone);
+      }
 
       console.log(`Found ${contacts.length} contacts matching phone number`);
 
