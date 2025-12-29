@@ -19,7 +19,7 @@ import {
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
 import { api, pipelineStagesAPI } from '../../lib/api';
-import { Plus, Trash2, Edit, Power, Mail, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit, Power, Mail, MessageSquare, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AutomationRule {
@@ -31,6 +31,8 @@ interface AutomationRule {
   actionType: string;
   emailSubject?: string;
   emailTemplate?: string;
+  whatsappMessage?: string;
+  whatsappTemplate?: string;
   fromStage?: string;
   toStage?: string;
   entityType?: string; // 'lead' or 'deal'
@@ -65,6 +67,8 @@ export default function AutomationSettings() {
     actionType: 'send_email',
     emailSubject: '',
     emailTemplate: '',
+    whatsappMessage: '',
+    whatsappTemplate: '',
     fromStage: '',
     toStage: '',
     entityType: 'lead'
@@ -126,6 +130,8 @@ export default function AutomationSettings() {
         actionType: 'send_email',
         emailSubject: '',
         emailTemplate: '',
+        whatsappMessage: '',
+        whatsappTemplate: '',
         fromStage: '',
         toStage: '',
         entityType: 'lead'
