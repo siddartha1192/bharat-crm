@@ -231,7 +231,8 @@ Remember: Use your functions! You have direct database access - use it to provid
         role: msg.role,
         content: msg.content,
         timestamp: msg.createdAt,
-        data: msg.functionCalls ? JSON.parse(msg.functionCalls) : null,
+        // functionCalls is already a JavaScript object (JSONB type), no need to parse
+        data: msg.functionCalls || null,
       }));
 
       return {
@@ -262,7 +263,8 @@ Remember: Use your functions! You have direct database access - use it to provid
           role,
           content,
           tenantId,
-          functionCalls: functionCalls ? JSON.parse(JSON.stringify(functionCalls)) : null,
+          // Prisma handles JSONB fields automatically, no need for JSON operations
+          functionCalls: functionCalls || null,
         },
       });
 
