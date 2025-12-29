@@ -144,3 +144,21 @@ All colors MUST be HSL.
     letter-spacing: -0.025em;
   }
 }
+
+@layer utilities {
+  /* Fade-in animation for AI thinking messages */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+}
