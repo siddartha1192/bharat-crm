@@ -1122,13 +1122,15 @@ async function processIncomingMessage(message, value) {
 
             console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
 
-            // Execute any actions
+            // Execute any actions (only if contact exists in CRM)
             const actionResults = await actionHandlerService.executeActions(
               aiResult.actions,
               {
                 userId: conversation.userId,
                 contactPhone: fromPhone,
                 conversationId: conversation.id,
+                contactId: conversation.contactId,  // null for unknown contacts
+                isKnownContact: !!conversation.contactId  // true only if contact exists
               }
             );
 
@@ -1279,13 +1281,15 @@ async function processIncomingMessage(message, value) {
 
             console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
 
-            // Execute any actions
+            // Execute any actions (only if contact exists in CRM)
             const actionResults = await actionHandlerService.executeActions(
               aiResult.actions,
               {
                 userId: conversation.userId,
                 contactPhone: fromPhone,
                 conversationId: conversation.id,
+                contactId: conversation.contactId,  // null for unknown contacts
+                isKnownContact: !!conversation.contactId  // true only if contact exists
               }
             );
 

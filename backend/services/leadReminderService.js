@@ -14,6 +14,8 @@ const DEFAULT_CONFIG = {
   enabled: false,
   checkIntervalHours: 24, // Check for leads older than 24 hours
   recipientUserIds: [], // List of user IDs to receive reminders
+  recipientEmails: [], // Manual list of email addresses to receive reminders
+  recipientPhones: [], // Manual list of WhatsApp phone numbers to receive reminders
   sendWhatsApp: true,
   sendEmail: true,
   excludedStages: ['contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'], // Don't send reminders for these statuses
@@ -201,37 +203,61 @@ class LeadReminderService {
       return { leadsFound: 0, remindersSent: 0 };
     }
 
-    // Get recipient users
-    const recipients = await prisma.user.findMany({
-      where: {
-        id: { in: config.recipientUserIds },
-        tenantId: tenant.id,
-        isActive: true
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        whatsappNumber: true  // Assuming this field exists, otherwise we'll use a fallback
-      }
-    });
+    // Get recipient users from database
+    const userRecipients = config.recipientUserIds && config.recipientUserIds.length > 0
+      ? await prisma.user.findMany({
+          where: {
+            id: { in: config.recipientUserIds },
+            tenantId: tenant.id,
+            isActive: true
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        })
+      : [];
 
-    if (recipients.length === 0) {
-      console.log(`   No active recipients found for tenant ${tenant.name}`);
+    // Build complete recipient list (users + manual entries)
+    const allRecipients = [
+      ...userRecipients.map(u => ({
+        type: 'user',
+        name: u.name,
+        email: u.email,
+        phone: null
+      })),
+      ...(config.recipientEmails || []).map(email => ({
+        type: 'manual_email',
+        name: email.split('@')[0], // Use email prefix as name
+        email: email,
+        phone: null
+      })),
+      ...(config.recipientPhones || []).map(phone => ({
+        type: 'manual_phone',
+        name: 'Admin', // Default name for phone recipients
+        email: null,
+        phone: phone
+      }))
+    ];
+
+    if (allRecipients.length === 0) {
+      console.log(`   No recipients configured for tenant ${tenant.name}`);
       return { leadsFound: uncontactedLeads.length, remindersSent: 0 };
     }
 
-    console.log(`   Sending reminders to ${recipients.length} recipient(s)`);
+    console.log(`   Sending reminders to ${allRecipients.length} recipient(s) (${userRecipients.length} users, ${config.recipientEmails?.length || 0} emails, ${config.recipientPhones?.length || 0} phones)`);
 
     let remindersSent = 0;
 
     // Send reminders to each recipient
-    for (const recipient of recipients) {
+    for (const recipient of allRecipients) {
       try {
         const sent = await this.sendReminder(tenant, recipient, uncontactedLeads, config);
         if (sent) remindersSent++;
       } catch (error) {
-        console.error(`   Error sending reminder to ${recipient.email}:`, error.message);
+        const identifier = recipient.email || recipient.phone || 'unknown';
+        console.error(`   Error sending reminder to ${identifier}:`, error.message);
       }
     }
 
@@ -307,27 +333,23 @@ Please follow up with these leads as soon as possible.
       }
     }
 
-    // Send WhatsApp reminder (if configured and recipient has WhatsApp number)
-    // Note: WhatsApp reminders require user.whatsappNumber field which can be added to User model
-    // For now, this feature is disabled - only email reminders are sent
-    if (config.sendWhatsApp && config.whatsappEnabled && recipient.whatsappNumber) {
+    // Send WhatsApp reminder (if configured and recipient has phone number)
+    if (config.sendWhatsApp && recipient.phone) {
       try {
         // Get tenant's WhatsApp configuration
         const tenantSettings = tenant.settings || {};
         const whatsappConfig = tenantSettings.whatsapp || null;
 
         if (whatsappService.isConfigured(whatsappConfig)) {
-          await whatsappService.sendMessage(recipient.whatsappNumber, message, whatsappConfig);
-          console.log(`   ✅ WhatsApp reminder sent to ${recipient.whatsappNumber}`);
+          await whatsappService.sendMessage(recipient.phone, message, whatsappConfig);
+          console.log(`   ✅ WhatsApp reminder sent to ${recipient.phone}`);
           whatsappSent = true;
         } else {
           console.log(`   ⚠️ WhatsApp not configured for tenant ${tenant.name}`);
         }
       } catch (error) {
-        console.error(`   ❌ Failed to send WhatsApp to ${recipient.whatsappNumber}:`, error.message);
+        console.error(`   ❌ Failed to send WhatsApp to ${recipient.phone}:`, error.message);
       }
-    } else if (config.sendWhatsApp) {
-      console.log(`   ℹ️  WhatsApp reminders skipped (requires user.whatsappNumber field)`);
     }
 
     return emailSent || whatsappSent;
