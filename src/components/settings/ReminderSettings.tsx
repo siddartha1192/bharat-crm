@@ -3,9 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Bell, BellOff, Mail, MessageSquare, Play, Users, Loader2, CheckCircle2 } from 'lucide-react';
+import { Bell, BellOff, Mail, MessageSquare, Play, Users, Loader2, CheckCircle2, X, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -14,6 +15,8 @@ interface ReminderConfig {
   enabled: boolean;
   checkIntervalHours: number;
   recipientUserIds: string[];
+  recipientEmails: string[];
+  recipientPhones: string[];
   sendEmail: boolean;
   sendWhatsApp: boolean;
   excludedStages: string[];
@@ -45,6 +48,8 @@ export default function ReminderSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPhone, setNewPhone] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -73,7 +78,14 @@ export default function ReminderSettings() {
       const usersData = await usersRes.json();
       const statusData = await statusRes.json();
 
-      setConfig(configData.config);
+      // Ensure arrays exist
+      const loadedConfig = {
+        ...configData.config,
+        recipientEmails: configData.config.recipientEmails || [],
+        recipientPhones: configData.config.recipientPhones || []
+      };
+
+      setConfig(loadedConfig);
       setUsers(usersData.users || []);
       setStatus(statusData);
     } catch (error) {
@@ -179,6 +191,86 @@ export default function ReminderSettings() {
     setConfig({ ...config, recipientUserIds });
   };
 
+  const addEmail = () => {
+    if (!config || !newEmail.trim()) return;
+
+    const email = newEmail.trim().toLowerCase();
+
+    // Basic email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({
+        title: 'Invalid Email',
+        description: 'Please enter a valid email address',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (config.recipientEmails.includes(email)) {
+      toast({
+        title: 'Duplicate Email',
+        description: 'This email is already in the list',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setConfig({
+      ...config,
+      recipientEmails: [...config.recipientEmails, email]
+    });
+    setNewEmail('');
+  };
+
+  const removeEmail = (email: string) => {
+    if (!config) return;
+    setConfig({
+      ...config,
+      recipientEmails: config.recipientEmails.filter(e => e !== email)
+    });
+  };
+
+  const addPhone = () => {
+    if (!config || !newPhone.trim()) return;
+
+    const phone = newPhone.trim();
+
+    // Basic phone validation (allow + and digits)
+    if (!/^\+?[0-9]{10,15}$/.test(phone.replace(/\s/g, ''))) {
+      toast({
+        title: 'Invalid Phone Number',
+        description: 'Please enter a valid phone number (10-15 digits, optionally starting with +)',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const cleanPhone = phone.startsWith('+') ? phone : '+' + phone;
+
+    if (config.recipientPhones.includes(cleanPhone)) {
+      toast({
+        title: 'Duplicate Phone',
+        description: 'This phone number is already in the list',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setConfig({
+      ...config,
+      recipientPhones: [...config.recipientPhones, cleanPhone]
+    });
+    setNewPhone('');
+  };
+
+  const removePhone = (phone: string) => {
+    if (!config) return;
+    setConfig({
+      ...config,
+      recipientPhones: config.recipientPhones.filter(p => p !== phone)
+    });
+  };
+
   if (loading) {
     return (
       <Card>
@@ -198,6 +290,8 @@ export default function ReminderSettings() {
       </Card>
     );
   }
+
+  const totalRecipients = config.recipientUserIds.length + config.recipientEmails.length + config.recipientPhones.length;
 
   return (
     <div className="space-y-6">
@@ -294,69 +388,138 @@ export default function ReminderSettings() {
                   onCheckedChange={(checked) => setConfig({ ...config, sendEmail: checked })}
                 />
               </div>
-              <div className="flex items-center justify-between p-3 border-2 rounded-lg bg-muted/30">
+              <div className="flex items-center justify-between p-3 border-2 rounded-lg">
                 <div className="flex items-center gap-3">
                   <MessageSquare className="w-5 h-5 text-green-600" />
                   <div>
                     <Label htmlFor="sendWhatsApp" className="font-medium">WhatsApp Reminders</Label>
-                    <p className="text-xs text-muted-foreground">Requires user.whatsappNumber field (coming soon)</p>
+                    <p className="text-xs text-muted-foreground">Send via WhatsApp (requires phone numbers)</p>
                   </div>
                 </div>
                 <Switch
                   id="sendWhatsApp"
                   checked={config.sendWhatsApp}
                   onCheckedChange={(checked) => setConfig({ ...config, sendWhatsApp: checked })}
-                  disabled
                 />
               </div>
             </div>
           </div>
 
-          {/* Recipient Users */}
-          <div className="space-y-3">
-            <Label className="font-semibold flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Reminder Recipients
-            </Label>
-            <p className="text-sm text-muted-foreground">
-              Select users who should receive reminder notifications
-            </p>
-            <div className="border-2 rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
-              {users.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No users found</p>
-              ) : (
-                users.map((user) => (
-                  <div
-                    key={user.id}
-                    className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-all ${
-                      config.recipientUserIds.includes(user.id)
-                        ? 'bg-blue-50 border-blue-300 dark:bg-blue-950/20 dark:border-blue-700'
-                        : 'hover:bg-muted'
-                    }`}
-                    onClick={() => toggleRecipient(user.id)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={config.recipientUserIds.includes(user.id)}
-                        onChange={() => toggleRecipient(user.id)}
-                        className="w-4 h-4"
-                      />
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
+          {/* Recipients Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label className="font-semibold flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Reminder Recipients
+              </Label>
+              <Badge variant="outline">{totalRecipients} total</Badge>
+            </div>
+
+            {/* CRM Users */}
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">CRM Users</Label>
+              <div className="border-2 rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                {users.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No users found</p>
+                ) : (
+                  users.map((user) => (
+                    <div
+                      key={user.id}
+                      className={`flex items-center justify-between p-2 border rounded-lg cursor-pointer transition-all ${
+                        config.recipientUserIds.includes(user.id)
+                          ? 'bg-blue-50 border-blue-300 dark:bg-blue-950/20 dark:border-blue-700'
+                          : 'hover:bg-muted'
+                      }`}
+                      onClick={() => toggleRecipient(user.id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={config.recipientUserIds.includes(user.id)}
+                          onChange={() => toggleRecipient(user.id)}
+                          className="w-4 h-4"
+                        />
+                        <div>
+                          <p className="font-medium text-sm">{user.name}</p>
+                          <p className="text-xs text-muted-foreground">{user.email}</p>
+                        </div>
                       </div>
+                      <Badge variant="outline" className="text-xs">{user.role}</Badge>
                     </div>
-                    <Badge variant="outline">{user.role}</Badge>
-                  </div>
-                ))
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Manual Email Addresses */}
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Additional Email Addresses</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="Enter email address"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addEmail()}
+                  className="flex-1 border-2"
+                />
+                <Button onClick={addEmail} variant="outline" className="border-2">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add
+                </Button>
+              </div>
+              {config.recipientEmails.length > 0 && (
+                <div className="flex flex-wrap gap-2 p-3 border-2 rounded-lg">
+                  {config.recipientEmails.map((email) => (
+                    <Badge key={email} variant="secondary" className="gap-1">
+                      <Mail className="w-3 h-3" />
+                      {email}
+                      <button
+                        onClick={() => removeEmail(email)}
+                        className="ml-1 hover:text-destructive"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
               )}
             </div>
-            {config.recipientUserIds.length > 0 && (
-              <p className="text-sm text-muted-foreground">
-                {config.recipientUserIds.length} recipient(s) selected
-              </p>
-            )}
+
+            {/* Manual Phone Numbers */}
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Additional WhatsApp Numbers</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="tel"
+                  placeholder="Enter phone number (e.g., +1234567890)"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addPhone()}
+                  className="flex-1 border-2"
+                />
+                <Button onClick={addPhone} variant="outline" className="border-2">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add
+                </Button>
+              </div>
+              {config.recipientPhones.length > 0 && (
+                <div className="flex flex-wrap gap-2 p-3 border-2 rounded-lg">
+                  {config.recipientPhones.map((phone) => (
+                    <Badge key={phone} variant="secondary" className="gap-1">
+                      <MessageSquare className="w-3 h-3" />
+                      {phone}
+                      <button
+                        onClick={() => removePhone(phone)}
+                        className="ml-1 hover:text-destructive"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Action Buttons */}
@@ -415,8 +578,20 @@ export default function ReminderSettings() {
               <span className="text-sm font-medium">{status.scheduler.checkInterval}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Recipients Configured</span>
-              <span className="text-sm font-medium">{status.config.recipientsConfigured}</span>
+              <span className="text-sm text-muted-foreground">Total Recipients</span>
+              <span className="text-sm font-medium">{totalRecipients}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">CRM Users</span>
+              <span className="text-sm font-medium">{config.recipientUserIds.length}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Manual Emails</span>
+              <span className="text-sm font-medium">{config.recipientEmails.length}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Manual Phones</span>
+              <span className="text-sm font-medium">{config.recipientPhones.length}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Lead Age Threshold</span>
