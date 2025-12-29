@@ -37,6 +37,7 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
     whatsapp: '',
     source: 'web-form' as LeadSource,
     status: 'new' as LeadStatus,
+    stageId: undefined as string | undefined,
     priority: 'medium' as LeadPriority,
     estimatedValue: 0,
     assignedTo: '',
@@ -57,6 +58,8 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
     if (lead) {
       // Find status slug from stageId or use the status field
       let statusSlug = lead.status || 'new';
+      let stageId = lead.stageId;
+
       if (lead.stageId && pipelineStages.length > 0) {
         const foundStage = pipelineStages.find((s: any) => s.id === lead.stageId);
         if (foundStage) {
@@ -72,6 +75,7 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
         whatsapp: lead.whatsapp || '',
         source: lead.source || 'web-form',
         status: statusSlug,
+        stageId: stageId,
         priority: lead.priority || 'medium',
         estimatedValue: lead.estimatedValue || 0,
         assignedTo: lead.assignedTo || '',
@@ -83,7 +87,8 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
         tags: lead.tags.join(', ') || '',
       });
     } else {
-      // Reset form for new lead
+      // Reset form for new lead - set default stageId from first pipeline stage
+      const defaultStageId = pipelineStages.length > 0 ? pipelineStages[0].id : undefined;
       setFormData({
         name: '',
         company: '',
@@ -92,6 +97,7 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
         whatsapp: '',
         source: 'web-form',
         status: 'new',
+        stageId: defaultStageId,
         priority: 'medium',
         estimatedValue: 0,
         assignedTo: '',
@@ -124,11 +130,12 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
         setCanCreateLeads(validation.canCreateLeads);
         setValidationErrors(validation.errors);
 
-        // Set default stage if no lead is being edited
+        // Set default stage AND stageId if no lead is being edited
         if (!lead && leadStages.length > 0) {
           setFormData(prev => ({
             ...prev,
-            status: leadStages[0].slug
+            status: leadStages[0].slug,
+            stageId: leadStages[0].id // ✅ Set stageId for new leads
           }));
         }
       } catch (error) {
@@ -157,6 +164,8 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
       whatsapp: formData.whatsapp || undefined,
       source: formData.source,
       status: formData.status,
+      stageId: formData.stageId, // ✅ Now sending stageId!
+      dealId: lead?.dealId, // Preserve dealId if editing
       priority: formData.priority,
       estimatedValue: Number(formData.estimatedValue),
       assignedTo: formData.assignedTo,
