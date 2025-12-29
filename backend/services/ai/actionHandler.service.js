@@ -65,15 +65,16 @@ class ActionHandlerService {
         continue;  // Skip to next action
       }
 
-      // ROLE-BASED RESTRICTION: Only ADMIN users can execute actions
-      if (user.role !== 'ADMIN') {
+      // ROLE-BASED RESTRICTION: VIEWER role cannot execute actions
+      if (user.role === 'VIEWER') {
         console.log(`🚫 PERMISSION DENIED: User role '${user.role}' is not authorized to execute actions via WhatsApp`);
-        console.log(`   Only users with 'ADMIN' role (owner designation) can create appointments, tasks, and leads from WhatsApp`);
+        console.log(`   VIEWER role users can only view information, not create appointments, tasks, or leads from WhatsApp`);
+        console.log(`   Allowed roles: ADMIN, MANAGER, AGENT`);
 
         results.push({
           action: action.type,
           success: false,
-          error: `Permission denied. Only admin users can execute actions via WhatsApp. Current role: ${user.role}`,
+          error: `Permission denied. Viewer role cannot execute actions via WhatsApp. Please contact an admin, manager, or agent.`,
         });
         continue;  // Skip to next action
       }
