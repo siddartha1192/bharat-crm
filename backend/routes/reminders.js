@@ -55,7 +55,7 @@ router.put('/config', async (req, res) => {
       });
     }
 
-    const { enabled, checkIntervalHours, recipientUserIds, recipientEmails, recipientPhones, sendWhatsApp, sendEmail } = req.body;
+    const { enabled, checkIntervalHours, recipientUserIds, recipientEmails, recipientPhones, sendWhatsApp, sendEmail, includedStages } = req.body;
 
     // Build config object from provided fields
     const configUpdate = {};
@@ -66,6 +66,7 @@ router.put('/config', async (req, res) => {
     if (recipientPhones) configUpdate.recipientPhones = recipientPhones;
     if (typeof sendWhatsApp !== 'undefined') configUpdate.sendWhatsApp = sendWhatsApp;
     if (typeof sendEmail !== 'undefined') configUpdate.sendEmail = sendEmail;
+    if (includedStages) configUpdate.includedStages = includedStages;
 
     const updatedConfig = await leadReminderService.updateConfig(tenantId, configUpdate);
 
@@ -114,6 +115,55 @@ router.get('/users', async (req, res) => {
     console.error('Error getting users:', error);
     res.status(500).json({
       error: 'Failed to get users',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Get list of available lead stages for reminder configuration
+ * Fetches stages dynamically from the centralized PipelineStage table
+ */
+router.get('/stages', async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+
+    // Fetch active lead stages from the database
+    const pipelineStages = await prisma.pipelineStage.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        stageType: {
+          in: ['LEAD', 'BOTH'] // Include stages for leads and shared stages
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        color: true,
+        order: true
+      },
+      orderBy: {
+        order: 'asc'
+      }
+    });
+
+    // Map to the format expected by the frontend
+    const stages = pipelineStages.map(stage => ({
+      value: stage.slug,
+      label: stage.name,
+      color: stage.color
+    }));
+
+    res.json({
+      success: true,
+      stages
+    });
+  } catch (error) {
+    console.error('Error getting stages:', error);
+    res.status(500).json({
+      error: 'Failed to get stages',
       message: error.message
     });
   }
