@@ -37,6 +37,7 @@ export default function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [aiStatus, setAiStatus] = useState<AIStatus | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -48,8 +49,16 @@ export default function AIAssistant() {
 
   const loadConversationHistory = async () => {
     try {
+      console.log('🔄 Loading conversation history...');
+      setLoadingHistory(true);
+
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) {
+        console.log('⚠️ No token found, skipping history load');
+        setLoadingHistory(false);
+        showWelcomeMessage();
+        return;
+      }
 
       const response = await fetch(`${API_URL}/ai/conversation`, {
         headers: {
@@ -58,21 +67,26 @@ export default function AIAssistant() {
       });
 
       if (!response.ok) {
+        console.error('❌ Failed to load conversation:', response.status, response.statusText);
         throw new Error('Failed to load conversation history');
       }
 
       const data = await response.json();
+      console.log('📦 Received conversation data:', data);
 
       // If there are existing messages, load them
       if (data.conversation && data.conversation.messages && data.conversation.messages.length > 0) {
-        setMessages(data.conversation.messages.map((msg: any) => ({
+        const loadedMessages = data.conversation.messages.map((msg: any) => ({
           role: msg.role,
           content: msg.content,
           timestamp: new Date(msg.timestamp),
           data: msg.data,
-        })));
-        console.log(`📖 Loaded ${data.conversation.messages.length} messages from conversation history`);
+        }));
+
+        setMessages(loadedMessages);
+        console.log(`✅ Loaded ${loadedMessages.length} messages from conversation history`);
       } else {
+        console.log('ℹ️ No conversation history found, showing welcome message');
         // No conversation history, show welcome message
         setMessages([
           {
@@ -105,12 +119,25 @@ Try the quick action buttons below or ask me anything!`,
         ]);
       }
     } catch (error) {
-      console.error('Error loading conversation history:', error);
-      // Show welcome message on error
-      setMessages([
-        {
-          role: 'assistant',
-          content: `👋 Hello! I'm your enterprise AI assistant with **full database access**.
+      console.error('❌ Error loading conversation history:', error);
+      showWelcomeMessage();
+
+      // Show error toast
+      toast({
+        title: 'Could not load conversation history',
+        description: 'Starting a fresh conversation. Your previous messages are still saved.',
+        variant: 'default',
+      });
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const showWelcomeMessage = () => {
+    setMessages([
+      {
+        role: 'assistant',
+        content: `👋 Hello! I'm your enterprise AI assistant with **full database access**.
 
 I can query your CRM data in real-time and provide insights:
 
@@ -133,10 +160,9 @@ I can query your CRM data in real-time and provide insights:
 - "Show upcoming events this week"
 
 Try the quick action buttons below or ask me anything!`,
-          timestamp: new Date(),
-        },
-      ]);
-    }
+        timestamp: new Date(),
+      },
+    ]);
   };
 
   useEffect(() => {
@@ -289,6 +315,15 @@ Try the quick action buttons below or ask me anything!`,
       <Card className="flex-1 flex flex-col rounded-2xl shadow-xl border-border overflow-hidden">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gradient-to-b from-background to-muted/10">
+          {loadingHistory && messages.length === 0 && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center space-y-3">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" />
+                <p className="text-sm text-muted-foreground">Loading conversation history...</p>
+              </div>
+            </div>
+          )}
+
           {messages.map((message, index) => (
             <div
               key={index}
