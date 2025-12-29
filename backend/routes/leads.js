@@ -287,19 +287,50 @@ router.post('/:id/create-deal', validateAssignment, async (req, res) => {
 
     // Use transaction to create deal and link to lead
     const result = await prisma.$transaction(async (tx) => {
-      // Get lead stage
+      // Get lead's current pipeline stage
       const leadStage = await tx.pipelineStage.findUnique({
         where: { id: lead.stageId }
       });
 
-      // Find suitable deal stage
+      // Find suitable deal stage that matches the lead's current stage
       let dealStageId;
+      let dealStageSlug;
+
       if (leadStage && leadStage.stageType === 'BOTH') {
-        // Use same stage if it works for both
+        // Use same stage if it works for both leads and deals
         dealStageId = lead.stageId;
+        dealStageSlug = leadStage.slug;
+      } else if (leadStage) {
+        // Try to find a deal stage with matching slug (same stage name)
+        const matchingDealStage = await tx.pipelineStage.findFirst({
+          where: {
+            tenantId: req.tenant.id,
+            slug: leadStage.slug, // Try to find deal stage with same slug
+            stageType: { in: ['DEAL', 'BOTH'] },
+            isActive: true
+          }
+        });
+
+        if (matchingDealStage) {
+          // Found matching deal stage with same slug
+          dealStageId = matchingDealStage.id;
+          dealStageSlug = matchingDealStage.slug;
+        } else {
+          // No matching slug, find first available deal stage
+          const firstDealStage = await tx.pipelineStage.findFirst({
+            where: {
+              tenantId: req.tenant.id,
+              stageType: { in: ['DEAL', 'BOTH'] },
+              isActive: true
+            },
+            orderBy: { order: 'asc' }
+          });
+          dealStageId = firstDealStage?.id || lead.stageId; // Fallback to lead stage
+          dealStageSlug = firstDealStage?.slug || leadStage.slug;
+        }
       } else {
-        // Find first available deal stage
-        const dealStage = await tx.pipelineStage.findFirst({
+        // Fallback if lead stage not found
+        const firstDealStage = await tx.pipelineStage.findFirst({
           where: {
             tenantId: req.tenant.id,
             stageType: { in: ['DEAL', 'BOTH'] },
@@ -307,7 +338,8 @@ router.post('/:id/create-deal', validateAssignment, async (req, res) => {
           },
           orderBy: { order: 'asc' }
         });
-        dealStageId = dealStage?.id || lead.stageId; // Fallback to lead stage
+        dealStageId = firstDealStage?.id || lead.stageId;
+        dealStageSlug = firstDealStage?.slug || 'lead';
       }
 
       // Create the Deal
@@ -319,7 +351,7 @@ router.post('/:id/create-deal', validateAssignment, async (req, res) => {
           email: lead.email,
           phone: lead.phone || '',
           value: lead.estimatedValue || 0,
-          stage: mapLeadStatusToDealStage(lead.status || 'new'),
+          stage: dealStageSlug, // Use pipeline stage slug instead of old status mapping
           stageId: dealStageId,
           probability: lead.priority === 'urgent' ? 80 : lead.priority === 'high' ? 60 : lead.priority === 'medium' ? 40 : 20,
           expectedCloseDate: lead.nextFollowUpAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
