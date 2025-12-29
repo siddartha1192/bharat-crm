@@ -18,7 +18,7 @@ const DEFAULT_CONFIG = {
   recipientPhones: [], // Manual list of WhatsApp phone numbers to receive reminders
   sendWhatsApp: true,
   sendEmail: true,
-  excludedStages: ['contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'], // Don't send reminders for these statuses
+  includedStages: ['new'], // Only send reminders for leads in these statuses (user-selectable)
 };
 
 class LeadReminderService {
@@ -181,7 +181,7 @@ class LeadReminderService {
           lte: cutoffTime  // Created before cutoff time
         },
         status: {
-          notIn: config.excludedStages  // Not in excluded stages (means not contacted yet)
+          in: config.includedStages  // Only include leads in selected stages
         }
       },
       include: {
@@ -223,18 +223,21 @@ class LeadReminderService {
     const allRecipients = [
       ...userRecipients.map(u => ({
         type: 'user',
+        userId: u.id, // Include user ID for email sending
         name: u.name,
         email: u.email,
         phone: null
       })),
       ...(config.recipientEmails || []).map(email => ({
         type: 'manual_email',
+        userId: null, // Will be resolved later
         name: email.split('@')[0], // Use email prefix as name
         email: email,
         phone: null
       })),
       ...(config.recipientPhones || []).map(phone => ({
         type: 'manual_phone',
+        userId: null, // Will be resolved later
         name: 'Admin', // Default name for phone recipients
         email: null,
         phone: phone
@@ -320,11 +323,44 @@ Please follow up with these leads as soon as possible.
     // Send email reminder
     if (config.sendEmail && recipient.email) {
       try {
+        // Get a system user ID for sending the email
+        // If recipient is a user, use their ID; otherwise find first active admin
+        let senderId = recipient.userId;
+        if (!senderId) {
+          const systemUser = await prisma.user.findFirst({
+            where: {
+              tenantId: tenant.id,
+              isActive: true,
+              role: 'ADMIN'
+            },
+            select: { id: true }
+          });
+          senderId = systemUser?.id;
+        }
+
+        if (!senderId) {
+          // Fallback: find any active user in the tenant
+          const anyUser = await prisma.user.findFirst({
+            where: {
+              tenantId: tenant.id,
+              isActive: true
+            },
+            select: { id: true }
+          });
+          senderId = anyUser?.id;
+        }
+
+        if (!senderId) {
+          throw new Error('No active user found in tenant to send email');
+        }
+
         await emailService.sendEmail({
           to: recipient.email,
           subject: `🔔 ${leadsCount} Uncontacted Lead${leadsCount > 1 ? 's' : ''} - Follow-up Required`,
           text: message,
-          html: htmlMessage
+          html: htmlMessage,
+          userId: senderId,
+          entityType: 'LeadReminder'
         });
         console.log(`   ✅ Email reminder sent to ${recipient.email}`);
         emailSent = true;

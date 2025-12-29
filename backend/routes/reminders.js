@@ -55,7 +55,7 @@ router.put('/config', async (req, res) => {
       });
     }
 
-    const { enabled, checkIntervalHours, recipientUserIds, recipientEmails, recipientPhones, sendWhatsApp, sendEmail } = req.body;
+    const { enabled, checkIntervalHours, recipientUserIds, recipientEmails, recipientPhones, sendWhatsApp, sendEmail, includedStages } = req.body;
 
     // Build config object from provided fields
     const configUpdate = {};
@@ -66,6 +66,7 @@ router.put('/config', async (req, res) => {
     if (recipientPhones) configUpdate.recipientPhones = recipientPhones;
     if (typeof sendWhatsApp !== 'undefined') configUpdate.sendWhatsApp = sendWhatsApp;
     if (typeof sendEmail !== 'undefined') configUpdate.sendEmail = sendEmail;
+    if (includedStages) configUpdate.includedStages = includedStages;
 
     const updatedConfig = await leadReminderService.updateConfig(tenantId, configUpdate);
 
@@ -114,6 +115,35 @@ router.get('/users', async (req, res) => {
     console.error('Error getting users:', error);
     res.status(500).json({
       error: 'Failed to get users',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Get list of available lead stages for reminder configuration
+ */
+router.get('/stages', async (req, res) => {
+  try {
+    // Return the standard lead statuses
+    const stages = [
+      { value: 'new', label: 'New' },
+      { value: 'contacted', label: 'Contacted' },
+      { value: 'qualified', label: 'Qualified' },
+      { value: 'proposal', label: 'Proposal' },
+      { value: 'negotiation', label: 'Negotiation' },
+      { value: 'won', label: 'Won' },
+      { value: 'lost', label: 'Lost' }
+    ];
+
+    res.json({
+      success: true,
+      stages
+    });
+  } catch (error) {
+    console.error('Error getting stages:', error);
+    res.status(500).json({
+      error: 'Failed to get stages',
       message: error.message
     });
   }

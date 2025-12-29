@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Bell, BellOff, Mail, MessageSquare, Play, Users, Loader2, CheckCircle2, X, Plus } from 'lucide-react';
+import { Bell, BellOff, Mail, MessageSquare, Play, Users, Loader2, CheckCircle2, X, Plus, Filter } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -19,7 +19,7 @@ interface ReminderConfig {
   recipientPhones: string[];
   sendEmail: boolean;
   sendWhatsApp: boolean;
-  excludedStages: string[];
+  includedStages: string[];
 }
 
 interface User {
@@ -27,6 +27,11 @@ interface User {
   name: string;
   email: string;
   role: string;
+}
+
+interface Stage {
+  value: string;
+  label: string;
 }
 
 interface ReminderStatus {
@@ -44,6 +49,7 @@ interface ReminderStatus {
 export default function ReminderSettings() {
   const [config, setConfig] = useState<ReminderConfig | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [status, setStatus] = useState<ReminderStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -62,11 +68,14 @@ export default function ReminderSettings() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const [configRes, usersRes, statusRes] = await Promise.all([
+      const [configRes, usersRes, stagesRes, statusRes] = await Promise.all([
         fetch(`${API_URL}/reminders/config`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch(`${API_URL}/reminders/users`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${API_URL}/reminders/stages`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch(`${API_URL}/reminders/status`, {
@@ -76,17 +85,20 @@ export default function ReminderSettings() {
 
       const configData = await configRes.json();
       const usersData = await usersRes.json();
+      const stagesData = await stagesRes.json();
       const statusData = await statusRes.json();
 
       // Ensure arrays exist
       const loadedConfig = {
         ...configData.config,
         recipientEmails: configData.config.recipientEmails || [],
-        recipientPhones: configData.config.recipientPhones || []
+        recipientPhones: configData.config.recipientPhones || [],
+        includedStages: configData.config.includedStages || ['new']
       };
 
       setConfig(loadedConfig);
       setUsers(usersData.users || []);
+      setStages(stagesData.stages || []);
       setStatus(statusData);
     } catch (error) {
       console.error('Error fetching reminder data:', error);
@@ -189,6 +201,16 @@ export default function ReminderSettings() {
       : [...config.recipientUserIds, userId];
 
     setConfig({ ...config, recipientUserIds });
+  };
+
+  const toggleStage = (stageValue: string) => {
+    if (!config) return;
+
+    const includedStages = config.includedStages.includes(stageValue)
+      ? config.includedStages.filter(s => s !== stageValue)
+      : [...config.includedStages, stageValue];
+
+    setConfig({ ...config, includedStages });
   };
 
   const addEmail = () => {
@@ -368,6 +390,53 @@ export default function ReminderSettings() {
                 <SelectItem value="168">1 week</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Lead Stages Filter */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-blue-600" />
+              <Label className="font-semibold">Lead Stages to Monitor</Label>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Select which lead stages should trigger reminders. Only leads in these stages will be included in reminder checks.
+            </p>
+            <div className="border-2 rounded-lg p-4 space-y-2">
+              {stages.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-2">Loading stages...</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {stages.map((stage) => (
+                    <div
+                      key={stage.value}
+                      className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                        config.includedStages.includes(stage.value)
+                          ? 'bg-blue-50 border-blue-300 dark:bg-blue-950/20 dark:border-blue-700'
+                          : 'hover:bg-muted border-gray-200'
+                      }`}
+                      onClick={() => toggleStage(stage.value)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={config.includedStages.includes(stage.value)}
+                        onChange={() => toggleStage(stage.value)}
+                        className="w-4 h-4"
+                      />
+                      <Label className="cursor-pointer font-medium text-sm flex-1">
+                        {stage.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {config.includedStages.length === 0 && stages.length > 0 && (
+                <div className="mt-3 p-3 bg-amber-50 border-2 border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800 font-medium">
+                    ⚠️ No stages selected. Please select at least one stage to enable reminders.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Notification Methods */}
