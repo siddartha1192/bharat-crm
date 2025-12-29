@@ -46,8 +46,24 @@ class ActionHandlerService {
 
       console.log(`\n⚡ Executing action: ${action.type}`);
       console.log(`   User: ${user.name} (${user.role})`);
+      console.log(`   Contact ID: ${context.contactId || 'Unknown contact'}`);
+      console.log(`   Is Known Contact: ${context.isKnownContact}`);
       console.log(`   Confidence: ${action.confidence || 'N/A'}`);
       console.log(`   Data:`, JSON.stringify(action.data, null, 2));
+
+      // CONTACT RESTRICTION: Only known contacts can create actions
+      if (!context.isKnownContact) {
+        console.log(`🚫 ACTION DENIED: Contact not found in CRM`);
+        console.log(`   Only contacts saved in the CRM can create appointments, tasks, and leads`);
+        console.log(`   Unknown contacts can only receive information from vector database`);
+
+        results.push({
+          action: action.type,
+          success: false,
+          error: `Sorry, I can only create appointments, tasks, and leads for registered contacts. Please contact the admin to add you to the CRM system first.`,
+        });
+        continue;  // Skip to next action
+      }
 
       // ROLE-BASED RESTRICTION: Only ADMIN users can execute actions
       if (user.role !== 'ADMIN') {

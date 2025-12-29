@@ -55,13 +55,15 @@ router.put('/config', async (req, res) => {
       });
     }
 
-    const { enabled, checkIntervalHours, recipientUserIds, sendWhatsApp, sendEmail } = req.body;
+    const { enabled, checkIntervalHours, recipientUserIds, recipientEmails, recipientPhones, sendWhatsApp, sendEmail } = req.body;
 
     // Build config object from provided fields
     const configUpdate = {};
     if (typeof enabled !== 'undefined') configUpdate.enabled = enabled;
     if (checkIntervalHours) configUpdate.checkIntervalHours = checkIntervalHours;
     if (recipientUserIds) configUpdate.recipientUserIds = recipientUserIds;
+    if (recipientEmails) configUpdate.recipientEmails = recipientEmails;
+    if (recipientPhones) configUpdate.recipientPhones = recipientPhones;
     if (typeof sendWhatsApp !== 'undefined') configUpdate.sendWhatsApp = sendWhatsApp;
     if (typeof sendEmail !== 'undefined') configUpdate.sendEmail = sendEmail;
 
