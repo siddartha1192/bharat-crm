@@ -63,7 +63,7 @@ router.get('/', async (req, res) => {
         { email: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search } },
         { whatsapp: { contains: search } },
-        { jobTitle: { contains: search, mode: 'insensitive' } },
+        { designation: { contains: search, mode: 'insensitive' } },
       ];
     }
 
