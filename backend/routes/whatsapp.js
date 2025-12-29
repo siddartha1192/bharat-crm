@@ -1314,6 +1314,72 @@ async function processIncomingMessage(message, value) {
       for (const conversation of conversations) {
         console.log(`Updating conversation ${conversation.id} for user ${conversation.userId}`);
 
+        // If conversation doesn't have a contactId, try to find and link the contact
+        if (!conversation.contactId) {
+          console.log(`⚠️ Conversation ${conversation.id} has no contactId. Searching for matching contact...`);
+          console.log(`   Incoming phone: ${fromPhone}`);
+          console.log(`   Phone variations: ${phoneVariations.join(', ')}`);
+          console.log(`   Last 10 digits: ${getLastDigits(fromPhone, 10)}`);
+
+          // First try exact match with phone variations
+          let matchingContacts = await prisma.contact.findMany({
+            where: {
+              userId: conversation.userId,
+              OR: [
+                { whatsapp: { in: phoneVariations } },
+                { phone: { in: phoneVariations } }
+              ]
+            }
+          });
+
+          console.log(`   Exact match results: ${matchingContacts.length} contacts found`);
+
+          // If no exact match, try last 10 digits matching
+          if (matchingContacts.length === 0) {
+            console.log(`   No exact match found. Trying last 10 digits comparison...`);
+            const allUserContacts = await findContactByLast10Digits(fromPhone);
+            // Filter to only this user's contacts
+            matchingContacts = allUserContacts.filter(c => c.userId === conversation.userId);
+            console.log(`   Last 10 digits match results: ${matchingContacts.length} contacts found`);
+
+            // Debug: Show all user's contacts with phone numbers for debugging
+            if (matchingContacts.length === 0) {
+              const allContactsForUser = await prisma.contact.findMany({
+                where: { userId: conversation.userId },
+                select: { id: true, name: true, phone: true, whatsapp: true }
+              });
+              console.log(`   DEBUG: User has ${allContactsForUser.length} total contacts:`);
+              allContactsForUser.forEach(c => {
+                const phoneLast10 = getLastDigits(c.phone, 10);
+                const whatsappLast10 = getLastDigits(c.whatsapp, 10);
+                console.log(`     - ${c.name}: phone=${c.phone} (last10: ${phoneLast10}), whatsapp=${c.whatsapp} (last10: ${whatsappLast10})`);
+              });
+            }
+          }
+
+          // If we found a matching contact, update the conversation
+          if (matchingContacts.length > 0) {
+            const matchedContact = matchingContacts[0];
+            console.log(`✅ Found matching contact: ${matchedContact.name} (${matchedContact.id}). Linking to conversation...`);
+
+            await prisma.whatsAppConversation.update({
+              where: { id: conversation.id },
+              data: {
+                contactId: matchedContact.id,
+                contactName: matchedContact.name
+              }
+            });
+
+            // Update the conversation object for use in AI processing
+            conversation.contactId = matchedContact.id;
+            conversation.contactName = matchedContact.name;
+
+            console.log(`✅ Conversation ${conversation.id} now linked to contact ${matchedContact.id}`);
+          } else {
+            console.log(`⚠️ No matching contact found for ${fromPhone}. Conversation remains without contactId.`);
+          }
+        }
+
         // Update conversation
         await prisma.whatsAppConversation.update({
           where: { id: conversation.id },

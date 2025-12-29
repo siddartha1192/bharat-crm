@@ -718,519 +718,566 @@ export default function WhatsApp() {
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] bg-background p-4">
+    <div className="h-[calc(100vh-4rem)] bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-900 dark:to-gray-800 p-4">
       <Tabs defaultValue="chat" className="h-full flex flex-col">
-        <TabsList className="mb-4">
-          <TabsTrigger value="chat" className="flex items-center gap-2">
+        <TabsList className="mb-4 bg-white dark:bg-gray-800 shadow-sm">
+          <TabsTrigger value="chat" className="flex items-center gap-2 data-[state=active]:bg-green-500 data-[state=active]:text-white">
             <MessageCircle className="w-4 h-4" />
             Chat
           </TabsTrigger>
-          <TabsTrigger value="bulk" className="flex items-center gap-2">
+          <TabsTrigger value="bulk" className="flex items-center gap-2 data-[state=active]:bg-green-500 data-[state=active]:text-white">
             <Users className="w-4 h-4" />
             Bulk Messaging
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="chat" className="flex-1 flex gap-4 mt-0">
-          {/* Conversations List */}
-          <div className="w-96 flex flex-col bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
-            {/* Header */}
-            <div className="p-4 border-b border-border bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <MessageCircle className="w-6 h-6 text-green-600" />
+        <TabsContent value="chat" className="flex-1 flex gap-0 mt-0 overflow-hidden">
+          {/* Conversations List - WhatsApp Style Sidebar */}
+          <div className="w-[400px] flex flex-col bg-white dark:bg-gray-900 border-r border-green-200 dark:border-gray-700 shadow-xl">
+            {/* Header with Search */}
+            <div className="flex-shrink-0 p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <MessageCircle className="w-7 h-7" />
                   WhatsApp
                 </h2>
                 <Button
                   size="sm"
                   onClick={() => setShowNewChatDialog(true)}
-                  className="bg-green-600 hover:bg-green-700"
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/30"
                 >
                   <Plus className="w-4 h-4 mr-1" />
-                  New Chat
+                  New
                 </Button>
               </div>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <Input
                   placeholder="Search conversations..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && fetchConversations()}
-                  className="pl-10"
+                  className="pl-10 bg-white/95 dark:bg-gray-800 border-none focus-visible:ring-white/50 text-gray-900 dark:text-white placeholder:text-gray-500"
                 />
               </div>
             </div>
 
-        {/* Conversations */}
-        <ScrollArea className="flex-1">
-          {loading ? (
-            <div className="flex items-center justify-center h-40">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : conversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
-              <MessageCircle className="w-12 h-12 mb-2 opacity-50" />
-              <p>No conversations yet</p>
-              <p className="text-sm">Start a new chat to begin</p>
-            </div>
-          ) : (
-            conversations.map(conv => (
-              <div
-                key={conv.id}
-                className={`p-4 mx-2 my-1 cursor-pointer hover:bg-accent/50 transition-all duration-200 rounded-xl ${
-                  selectedConversation?.id === conv.id ? 'bg-accent shadow-md' : ''
-                }`}
-                onClick={() => loadConversation(conv)}
-              >
-                <div className="flex items-start gap-3">
-                  <Avatar>
-                    <AvatarFallback className="bg-green-500/10 text-green-600">
-                      {getInitials(conv.contactName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-semibold truncate">{conv.contactName}</h3>
-                      {conv.lastMessageAt && (
-                        <span className="text-xs text-muted-foreground">
-                          {formatTime(conv.lastMessageAt)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground truncate">
-                        {conv.lastMessage || 'No messages yet'}
-                      </p>
-                      {conv.unreadCount > 0 && (
-                        <Badge className="ml-2 bg-green-600 text-white">
-                          {conv.unreadCount}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
+            {/* Conversations List with Fixed Height and Internal Scrolling */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {loading ? (
+                <div className="flex items-center justify-center h-40">
+                  <Loader2 className="w-8 h-8 animate-spin text-green-600" />
                 </div>
-              </div>
-            ))
-          )}
-        </ScrollArea>
-      </div>
-
-      {/* Chat Area */}
-      {selectedConversation ? (
-        <div className="flex-1 flex flex-col bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
-          {/* Chat Header */}
-          <div className="p-4 border-b border-border flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback className="bg-green-500/10 text-green-600">
-                  {getInitials(selectedConversation.contactName)}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{selectedConversation.contactName}</h3>
-                <p className="text-sm text-muted-foreground">{selectedConversation.contactPhone}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {aiFeatureAvailable && (
-                <Button
-                  size="sm"
-                  variant={selectedConversation.aiEnabled ? 'default' : 'outline'}
-                  onClick={toggleAI}
-                  title={selectedConversation.aiEnabled ? 'AI Assistant Enabled - Click to Disable' : 'AI Assistant Disabled - Click to Enable'}
-                  className={selectedConversation.aiEnabled ? 'bg-blue-600 hover:bg-blue-700' : ''}
-                >
-                  {selectedConversation.aiEnabled ? (
-                    <>
-                      <Bot className="w-4 h-4 mr-2" />
-                      AI On
-                    </>
-                  ) : (
-                    <>
-                      <BotOff className="w-4 h-4 mr-2" />
-                      AI Off
-                    </>
-                  )}
-                </Button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="ghost">
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => deleteConversation(selectedConversation.id)}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete Conversation
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-
-          {/* Messages */}
-          <ScrollArea className="flex-1 p-4">
-            <div className="space-y-4">
-              {messages.map(msg => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.sender === 'user' || msg.sender === 'ai' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[70%] rounded-2xl p-3 shadow-md ${
-                      msg.sender === 'user'
-                        ? 'bg-green-600 text-white rounded-br-md'
-                        : msg.isAiGenerated || msg.sender === 'ai'
-                        ? 'bg-blue-600 text-white rounded-bl-md'
-                        : 'bg-accent text-foreground rounded-bl-md shadow-sm'
-                    }`}
-                  >
-                    {(msg.sender === 'contact' || msg.isAiGenerated || msg.sender === 'ai') && (
-                      <p className="text-xs font-semibold mb-1 flex items-center gap-1">
-                        {(msg.isAiGenerated || msg.sender === 'ai') && <Bot className="w-3 h-3" />}
-                        {msg.senderName}
-                      </p>
-                    )}
-                    <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
-                    <div className="flex items-center justify-end gap-1 mt-1">
-                      <span className="text-xs opacity-70">
-                        {format(new Date(msg.createdAt), 'HH:mm')}
-                      </span>
-                      {(msg.sender === 'user' || msg.sender === 'ai') && (
-                        <span className="text-xs">
-                          {msg.status === 'read' ? (
-                            <CheckCheck className="w-3 h-3" />
-                          ) : (
-                            <Check className="w-3 h-3" />
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
-
-          {/* Message Input */}
-          <div className="p-4 border-t border-border bg-muted/30">
-            {/* Media Preview */}
-            {selectedMedia && (
-              <div className="mb-3 p-3 bg-card rounded-lg border border-border">
-                <div className="flex items-center gap-3">
-                  {selectedMedia.preview && (
-                    <img
-                      src={selectedMedia.preview}
-                      alt="Preview"
-                      className="w-16 h-16 object-cover rounded"
-                    />
-                  )}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      {selectedMedia.type === 'image' && <ImageIcon className="w-4 h-4" />}
-                      {selectedMedia.type === 'document' && <FileText className="w-4 h-4" />}
-                      {selectedMedia.type === 'video' && <Video className="w-4 h-4" />}
-                      {selectedMedia.type === 'audio' && <Music className="w-4 h-4" />}
-                      <span className="font-medium">{selectedMedia.file.name}</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {(selectedMedia.file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleMediaRemove}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-end gap-2">
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-
-              {/* Media attachment button */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="shrink-0"
-                  >
-                    <Paperclip className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                    <ImageIcon className="w-4 h-4 mr-2" />
-                    Image
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                    <FileText className="w-4 h-4 mr-2" />
-                    Document
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                    <Video className="w-4 h-4 mr-2" />
-                    Video
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                    <Music className="w-4 h-4 mr-2" />
-                    Audio
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Template message button */}
-              <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-                onClick={() => setShowTemplateDialog(true)}
-                title="Send WhatsApp Template"
-              >
-                <MessageCircle className="w-4 h-4" />
-              </Button>
-
-              <Textarea
-                placeholder={selectedMedia ? "Add a caption..." : "Type a message..."}
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (selectedMedia) {
-                      sendMedia();
-                    } else {
-                      sendMessage();
-                    }
-                  }
-                }}
-                rows={1}
-                className="resize-none rounded-xl shadow-sm"
-              />
-              <Button
-                onClick={selectedMedia ? sendMedia : sendMessage}
-                disabled={selectedMedia ? uploadingMedia : (!newMessage.trim() || sending)}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {(sending || uploadingMedia) ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-center text-center text-muted-foreground">
-          <div>
-            <MessageCircle className="w-24 h-24 mx-auto mb-4 opacity-20" />
-            <h3 className="text-xl font-semibold mb-2">WhatsApp Web</h3>
-            <p>Select a conversation to start messaging</p>
-            <Button
-              onClick={() => setShowNewChatDialog(true)}
-              className="mt-4 bg-green-600 hover:bg-green-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Start New Chat
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* New Chat Dialog */}
-      <Dialog open={showNewChatDialog} onOpenChange={setShowNewChatDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Start New Conversation</DialogTitle>
-            <DialogDescription>Search for a contact to start chatting</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search contacts..."
-                value={contactSearch}
-                onChange={(e) => setContactSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            <ScrollArea className="h-[300px]">
-              {searchingContacts ? (
-                <div className="flex items-center justify-center h-20">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : searchResults.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-20 text-muted-foreground text-sm">
-                  {contactSearch.trim() ? 'No contacts found' : 'Type to search contacts'}
+              ) : conversations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-40 text-muted-foreground p-4">
+                  <MessageCircle className="w-12 h-12 mb-2 opacity-30 text-green-600" />
+                  <p className="font-medium">No conversations yet</p>
+                  <p className="text-sm text-center">Click "New" to start chatting</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {searchResults.map(contact => (
-                    <Card
-                      key={contact.id}
-                      className="p-3 cursor-pointer hover:bg-accent transition-all duration-200 hover:shadow-md rounded-xl"
-                      onClick={() => startNewConversation(contact)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarFallback>
-                            <User className="w-4 h-4" />
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <p className="font-medium">{contact.name}</p>
-                          <p className="text-sm text-muted-foreground">{contact.company}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {contact.whatsapp || contact.phone}
+                conversations.map(conv => (
+                  <div
+                    key={conv.id}
+                    className={`p-4 cursor-pointer hover:bg-green-50 dark:hover:bg-gray-800 transition-all border-b border-gray-100 dark:border-gray-800 ${
+                      selectedConversation?.id === conv.id ? 'bg-green-50 dark:bg-gray-800 border-l-4 border-l-green-600' : ''
+                    }`}
+                    onClick={() => loadConversation(conv)}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Avatar className="w-12 h-12">
+                        <AvatarFallback className="bg-gradient-to-br from-green-400 to-emerald-500 text-white font-semibold text-base">
+                          {getInitials(conv.contactName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="font-semibold truncate text-gray-900 dark:text-white">{conv.contactName}</h3>
+                          {conv.lastMessageAt && (
+                            <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                              {formatTime(conv.lastMessageAt)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 truncate flex-1">
+                            {conv.lastMessage || 'No messages yet'}
                           </p>
+                          {conv.unreadCount > 0 && (
+                            <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-0.5 rounded-full">
+                              {conv.unreadCount}
+                            </Badge>
+                          )}
                         </div>
                       </div>
-                    </Card>
-                  ))}
-                </div>
+                    </div>
+                  </div>
+                ))
               )}
-            </ScrollArea>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* Template Message Dialog */}
-      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Send WhatsApp Template</DialogTitle>
-            <DialogDescription>
-              Send a pre-approved WhatsApp template message
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="template-name">Template Name *</Label>
-              <Input
-                id="template-name"
-                placeholder="e.g., order_confirmation, welcome_message"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter the name of your pre-approved template from Meta Business Manager
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="template-language">Language</Label>
-              <Input
-                id="template-language"
-                placeholder="e.g., en, en_US, hi, es"
-                value={templateLanguage}
-                onChange={(e) => setTemplateLanguage(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Language code for your template (default: en)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Template Parameters (Optional)</Label>
-              <p className="text-xs text-muted-foreground mb-2">
-                Add values for template variables like {'{'}1{'}'}, {'{'}2{'}'}, etc.
-              </p>
-              {templateParams.map((param, index) => (
-                <div key={index} className="flex gap-2">
-                  <Input
-                    placeholder={`Parameter ${index + 1}`}
-                    value={param}
-                    onChange={(e) => {
-                      const newParams = [...templateParams];
-                      newParams[index] = e.target.value;
-                      setTemplateParams(newParams);
-                    }}
-                  />
-                  {index === templateParams.length - 1 && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setTemplateParams([...templateParams, ''])}
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  )}
-                  {templateParams.length > 1 && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => {
-                        const newParams = templateParams.filter((_, i) => i !== index);
-                        setTemplateParams(newParams.length > 0 ? newParams : ['']);
-                      }}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
+          {/* Chat Area - WhatsApp Style Main Panel */}
+          {selectedConversation ? (
+            <div className="flex-1 flex flex-col bg-[#e5ddd5] dark:bg-gray-800 overflow-hidden">
+              {/* Chat Header */}
+              <div className="flex-shrink-0 p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-11 w-11 border-2 border-white/50">
+                    <AvatarFallback className="bg-gradient-to-br from-green-400 to-emerald-500 text-white font-semibold">
+                      {getInitials(selectedConversation.contactName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h3 className="font-semibold text-lg">{selectedConversation.contactName}</h3>
+                    <p className="text-sm text-white/80">{selectedConversation.contactPhone}</p>
+                  </div>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center gap-2">
+                  {aiFeatureAvailable && (
+                    <Button
+                      size="sm"
+                      variant={selectedConversation.aiEnabled ? 'secondary' : 'outline'}
+                      onClick={toggleAI}
+                      title={selectedConversation.aiEnabled ? 'AI Assistant Enabled' : 'AI Assistant Disabled'}
+                      className={selectedConversation.aiEnabled ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-white/20 hover:bg-white/30 text-white border-white/30'}
+                    >
+                      {selectedConversation.aiEnabled ? (
+                        <>
+                          <Bot className="w-4 h-4 mr-1" />
+                          AI
+                        </>
+                      ) : (
+                        <>
+                          <BotOff className="w-4 h-4 mr-1" />
+                          AI
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="ghost" className="text-white hover:bg-white/20">
+                        <MoreVertical className="w-5 h-5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-white dark:bg-gray-800">
+                      <DropdownMenuItem
+                        onClick={() => deleteConversation(selectedConversation.id)}
+                        className="text-red-600 dark:text-red-400 focus:text-red-600 focus:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Conversation
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
 
-            <Alert>
-              <AlertDescription className="text-xs">
-                <strong>Note:</strong> Templates must be pre-approved by Meta Business Manager before sending.
-                Make sure your template name and parameters match your approved template exactly.
-              </AlertDescription>
-            </Alert>
-
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowTemplateDialog(false);
-                  setTemplateName('');
-                  setTemplateParams(['']);
+              {/* Messages Area with WhatsApp Background Pattern and Fixed Height */}
+              <div
+                className="flex-1 overflow-y-auto p-4 min-h-0"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d9d9d9' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
                 }}
               >
-                Cancel
-              </Button>
-              <Button
-                onClick={sendTemplate}
-                disabled={!templateName.trim() || sendingTemplate}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {sendingTemplate ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4 mr-2" />
-                    Send Template
-                  </>
+                <div className="max-w-4xl mx-auto space-y-3">
+                  {messages.map(msg => (
+                    <div
+                      key={msg.id}
+                      className={`flex ${msg.sender === 'user' || msg.sender === 'ai' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[75%] rounded-lg p-3 shadow-md relative ${
+                          msg.sender === 'user'
+                            ? 'bg-[#dcf8c6] dark:bg-green-700 text-gray-900 dark:text-white rounded-br-none'
+                            : msg.isAiGenerated || msg.sender === 'ai'
+                            ? 'bg-blue-500 dark:bg-blue-600 text-white rounded-bl-none'
+                            : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
+                        }`}
+                      >
+                        {/* Sender name for incoming messages */}
+                        {(msg.sender === 'contact' || msg.isAiGenerated || msg.sender === 'ai') && (
+                          <p className={`text-xs font-semibold mb-1 flex items-center gap-1 ${
+                            msg.isAiGenerated || msg.sender === 'ai' ? 'text-white/90' : 'text-green-700 dark:text-green-400'
+                          }`}>
+                            {(msg.isAiGenerated || msg.sender === 'ai') && <Bot className="w-3 h-3" />}
+                            {msg.senderName}
+                          </p>
+                        )}
+
+                        {/* Message text */}
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.message}</p>
+
+                        {/* Time and status */}
+                        <div className="flex items-center justify-end gap-1 mt-1">
+                          <span className={`text-[10px] ${
+                            msg.sender === 'user' ? 'text-gray-600 dark:text-gray-300' :
+                            msg.isAiGenerated || msg.sender === 'ai' ? 'text-white/70' :
+                            'text-gray-500 dark:text-gray-400'
+                          }`}>
+                            {format(new Date(msg.createdAt), 'HH:mm')}
+                          </span>
+                          {(msg.sender === 'user' || msg.sender === 'ai') && (
+                            <span className="text-xs text-gray-600 dark:text-gray-300">
+                              {msg.status === 'read' ? (
+                                <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
+                              ) : (
+                                <Check className="w-3.5 h-3.5" />
+                              )}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* WhatsApp-style message tail */}
+                        <div
+                          className={`absolute bottom-0 w-0 h-0 ${
+                            msg.sender === 'user' || msg.sender === 'ai'
+                              ? 'right-0 translate-x-[2px]'
+                              : 'left-0 -translate-x-[2px]'
+                          }`}
+                          style={{
+                            borderStyle: 'solid',
+                            borderWidth: msg.sender === 'user' || msg.sender === 'ai' ? '0 0 10px 10px' : '0 10px 10px 0',
+                            borderColor: msg.sender === 'user'
+                              ? 'transparent transparent #dcf8c6 transparent'
+                              : msg.isAiGenerated || msg.sender === 'ai'
+                              ? 'transparent transparent rgb(59, 130, 246) transparent'
+                              : 'transparent transparent white transparent',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              </div>
+
+              {/* Message Input - Fixed at Bottom */}
+              <div className="flex-shrink-0 p-3 bg-gradient-to-r from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 border-t border-gray-200 dark:border-gray-700">
+                {/* Media Preview */}
+                {selectedMedia && (
+                  <div className="mb-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      {selectedMedia.preview && (
+                        <img
+                          src={selectedMedia.preview}
+                          alt="Preview"
+                          className="w-16 h-16 object-cover rounded border border-gray-200"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
+                          {selectedMedia.type === 'image' && <ImageIcon className="w-4 h-4 text-green-600" />}
+                          {selectedMedia.type === 'document' && <FileText className="w-4 h-4 text-blue-600" />}
+                          {selectedMedia.type === 'video' && <Video className="w-4 h-4 text-purple-600" />}
+                          {selectedMedia.type === 'audio' && <Music className="w-4 h-4 text-orange-600" />}
+                          <span className="truncate">{selectedMedia.file.name}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {(selectedMedia.file.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleMediaRemove}
+                        className="text-gray-500 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
                 )}
-              </Button>
+
+                <div className="flex items-end gap-2">
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+
+                  {/* Media attachment button */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-gray-600 hover:text-green-600 hover:bg-green-50"
+                      >
+                        <Paperclip className="w-5 h-5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent side="top" className="bg-white dark:bg-gray-800">
+                      <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="cursor-pointer">
+                        <ImageIcon className="w-4 h-4 mr-2 text-green-600" />
+                        Image
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="cursor-pointer">
+                        <FileText className="w-4 h-4 mr-2 text-blue-600" />
+                        Document
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="cursor-pointer">
+                        <Video className="w-4 h-4 mr-2 text-purple-600" />
+                        Video
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="cursor-pointer">
+                        <Music className="w-4 h-4 mr-2 text-orange-600" />
+                        Audio
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Template message button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 text-gray-600 hover:text-green-600 hover:bg-green-50"
+                    onClick={() => setShowTemplateDialog(true)}
+                    title="Send WhatsApp Template"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                  </Button>
+
+                  {/* Message input */}
+                  <div className="flex-1 bg-white dark:bg-gray-800 rounded-full border border-gray-300 dark:border-gray-600 shadow-sm overflow-hidden">
+                    <Textarea
+                      placeholder={selectedMedia ? "Add a caption..." : "Type a message..."}
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (selectedMedia) {
+                            sendMedia();
+                          } else {
+                            sendMessage();
+                          }
+                        }
+                      }}
+                      rows={1}
+                      className="resize-none border-none focus-visible:ring-0 px-4 py-2.5 bg-transparent text-gray-900 dark:text-white placeholder:text-gray-500"
+                    />
+                  </div>
+
+                  {/* Send button */}
+                  <Button
+                    onClick={selectedMedia ? sendMedia : sendMessage}
+                    disabled={selectedMedia ? uploadingMedia : (!newMessage.trim() || sending)}
+                    size="icon"
+                    className="bg-green-600 hover:bg-green-700 text-white rounded-full h-11 w-11 shadow-lg"
+                  >
+                    {(sending || uploadingMedia) ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
+                  </Button>
+                </div>
+              </div>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-center bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-900">
+              <div className="p-8">
+                <MessageCircle className="w-32 h-32 mx-auto mb-6 text-green-200 dark:text-green-800" />
+                <h3 className="text-3xl font-bold mb-3 text-gray-900 dark:text-white">WhatsApp Web</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">Select a conversation to start messaging</p>
+                <Button
+                  onClick={() => setShowNewChatDialog(true)}
+                  className="bg-green-600 hover:bg-green-700 text-white shadow-lg px-6 py-3 rounded-full"
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  Start New Chat
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* New Chat Dialog */}
+          <Dialog open={showNewChatDialog} onOpenChange={setShowNewChatDialog}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white">Start New Conversation</DialogTitle>
+                <DialogDescription>Search for a contact to start chatting on WhatsApp</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <Input
+                    placeholder="Search contacts..."
+                    value={contactSearch}
+                    onChange={(e) => setContactSearch(e.target.value)}
+                    className="pl-10 border-gray-300 focus-visible:ring-green-500"
+                  />
+                </div>
+
+                <ScrollArea className="h-[350px] rounded-md border border-gray-200 dark:border-gray-700">
+                  {searchingContacts ? (
+                    <div className="flex items-center justify-center h-20">
+                      <Loader2 className="w-6 h-6 animate-spin text-green-600" />
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-20 text-gray-500 text-sm">
+                      {contactSearch.trim() ? 'No contacts found' : 'Type to search contacts'}
+                    </div>
+                  ) : (
+                    <div className="p-2 space-y-2">
+                      {searchResults.map(contact => (
+                        <Card
+                          key={contact.id}
+                          className="p-3 cursor-pointer hover:bg-green-50 dark:hover:bg-gray-800 transition-all border border-gray-200 dark:border-gray-700 hover:border-green-300 hover:shadow-md"
+                          onClick={() => startNewConversation(contact)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Avatar className="w-10 h-10">
+                              <AvatarFallback className="bg-gradient-to-br from-green-400 to-emerald-500 text-white font-semibold">
+                                {getInitials(contact.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900 dark:text-white">{contact.name}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">{contact.company}</p>
+                              <p className="text-xs text-green-600 dark:text-green-400">
+                                {contact.whatsapp || contact.phone}
+                              </p>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Template Message Dialog */}
+          <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-bold">Send WhatsApp Template</DialogTitle>
+                <DialogDescription>
+                  Send a pre-approved WhatsApp template message
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="template-name">Template Name *</Label>
+                  <Input
+                    id="template-name"
+                    placeholder="e.g., order_confirmation, welcome_message"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    className="border-gray-300 focus-visible:ring-green-500"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Enter the name of your pre-approved template from Meta Business Manager
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="template-language">Language</Label>
+                  <Input
+                    id="template-language"
+                    placeholder="e.g., en, en_US, hi, es"
+                    value={templateLanguage}
+                    onChange={(e) => setTemplateLanguage(e.target.value)}
+                    className="border-gray-300 focus-visible:ring-green-500"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Language code for your template (default: en)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Template Parameters (Optional)</Label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Add values for template variables like {'{'}1{'}'}, {'{'}2{'}'}, etc.
+                  </p>
+                  {templateParams.map((param, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        placeholder={`Parameter ${index + 1}`}
+                        value={param}
+                        onChange={(e) => {
+                          const newParams = [...templateParams];
+                          newParams[index] = e.target.value;
+                          setTemplateParams(newParams);
+                        }}
+                        className="border-gray-300"
+                      />
+                      {index === templateParams.length - 1 && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setTemplateParams([...templateParams, ''])}
+                          className="border-green-300 text-green-600 hover:bg-green-50"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {templateParams.length > 1 && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            const newParams = templateParams.filter((_, i) => i !== index);
+                            setTemplateParams(newParams.length > 0 ? newParams : ['']);
+                          }}
+                          className="border-red-300 text-red-600 hover:bg-red-50"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <Alert className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+                  <AlertDescription className="text-xs text-gray-700 dark:text-gray-300">
+                    <strong>Note:</strong> Templates must be pre-approved by Meta Business Manager before sending.
+                    Make sure your template name and parameters match your approved template exactly.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowTemplateDialog(false);
+                      setTemplateName('');
+                      setTemplateParams(['']);
+                    }}
+                    className="border-gray-300"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={sendTemplate}
+                    disabled={!templateName.trim() || sendingTemplate}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    {sendingTemplate ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Send Template
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
-        <TabsContent value="bulk" className="flex-1 mt-0">
+        <TabsContent value="bulk" className="flex-1 mt-0 overflow-auto">
           <BulkMessaging />
         </TabsContent>
       </Tabs>
