@@ -286,6 +286,8 @@ export default function WhatsApp() {
   const searchContacts = async () => {
     try {
       setSearchingContacts(true);
+      console.log('🔍 Searching contacts with query:', contactSearch);
+
       const response = await fetch(
         `${API_URL}/whatsapp/search-contacts?query=${encodeURIComponent(contactSearch)}`,
         {
@@ -295,12 +297,23 @@ export default function WhatsApp() {
         }
       );
 
-      if (!response.ok) throw new Error('Failed to search contacts');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Contact search failed:', response.status, errorData);
+        throw new Error(errorData.message || errorData.error || 'Failed to search contacts');
+      }
 
       const data = await response.json();
-      setSearchResults(data.contacts);
-    } catch (error) {
+      console.log('✅ Found contacts:', data.contacts?.length || 0);
+      setSearchResults(data.contacts || []);
+    } catch (error: any) {
       console.error('Error searching contacts:', error);
+      toast({
+        title: 'Search Failed',
+        description: error.message || 'Could not search contacts. Please try again.',
+        variant: 'destructive',
+      });
+      setSearchResults([]);
     } finally {
       setSearchingContacts(false);
     }
