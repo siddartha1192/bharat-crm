@@ -1,0 +1,939 @@
+================================================================================
+                    BHARAT CRM - COMPLETE PRODUCT GUIDE
+================================================================================
+
+VERSION: 1.0
+LAST UPDATED: December 2025
+PRODUCT TYPE: Enterprise Customer Relationship Management (CRM) System
+
+================================================================================
+                          PRODUCT OVERVIEW
+================================================================================
+
+Bharat CRM is a comprehensive, enterprise-grade Customer Relationship Management
+system designed specifically for Indian businesses. It combines traditional CRM
+capabilities with cutting-edge AI features, WhatsApp Business integration, and
+intelligent automation to help businesses manage their entire customer lifecycle.
+
+KEY DIFFERENTIATORS:
+- Native WhatsApp Business API integration with AI-powered responses
+- Advanced AI assistant for both portal chat and WhatsApp conversations
+- Intelligent lead automation with customizable email workflows
+- Vector database-powered knowledge management
+- Real-time sales forecasting and analytics
+- Multi-tenant architecture for enterprise scalability
+- Role-based access control (RBAC) for team management
+- Google Calendar and Gmail OAuth2 integration
+- Document management with organized storage
+- Indian business-friendly features (GST, Indian phone format, rupee currency)
+
+================================================================================
+                          CORE MODULES
+================================================================================
+
+1. LEAD MANAGEMENT
+------------------
+Comprehensive lead tracking from first contact to conversion.
+
+Features:
+- Create, edit, and delete leads with detailed information
+- Track lead status: New, Contacted, Qualified, Proposal, Won, Lost
+- Set priority levels: Low, Medium, High, Urgent
+- Assign leads to team members
+- Track estimated deal value
+- Record lead source and campaign information
+- Add custom notes and tags
+- View complete lead history and timeline
+- Duplicate lead detection and prevention
+- Bulk import/export capabilities
+- Advanced filtering and search
+- Document attachment to leads
+- Email tracking for lead communication
+- Automated email workflows based on lead actions
+
+Lead Fields:
+- Name, Email, Phone
+- Company, Position
+- Address (Street, City, State, Pincode, Country)
+- Status, Priority, Source
+- Estimated Value (in Rupees)
+- Assigned to (Team member)
+- Tags, Notes
+- Created date, Last updated date
+
+2. CONTACT MANAGEMENT
+---------------------
+Centralized database of all customer and prospect contacts.
+
+Features:
+- Complete contact profiles with all details
+- Contact types: Customer, Prospect, Partner, Vendor
+- WhatsApp number field for direct integration
+- Track lifetime value of customers
+- Link contacts to leads, deals, and tasks
+- Email communication tracking
+- Phone number validation (supports Indian formats)
+- Company and designation tracking
+- Custom tags and categorization
+- Advanced search and filtering
+- Contact groups and segmentation
+- Export contact lists
+- Integration with WhatsApp for instant messaging
+- Click-to-call and click-to-WhatsApp functionality
+
+Contact Fields:
+- Name, Email, Phone, WhatsApp number
+- Company, Designation
+- Type (Customer, Prospect, Partner, Vendor)
+- Address (complete Indian address format)
+- Lifetime Value (in Rupees)
+- Tags, Notes
+- Assigned to team member
+- Social media links
+
+3. DEAL PIPELINE MANAGEMENT
+---------------------------
+Visual pipeline to track deals through sales stages.
+
+Features:
+- Customizable pipeline stages: Lead, Proposal, Negotiation, Won, Lost
+- Drag-and-drop deal movement between stages
+- Deal value tracking in Indian Rupees
+- Win probability estimation (0-100%)
+- Expected close date tracking
+- Deal aging analysis
+- Stage-wise deal analytics
+- Contact and company association
+- Activity timeline for each deal
+- Email and document attachment
+- Custom tags and notes
+- Deal filters by stage, value, date
+- Sales velocity metrics
+- Deal forecasting
+
+Deal Fields:
+- Title, Description
+- Company, Contact Name
+- Stage (Lead, Proposal, Negotiation, Won, Lost)
+- Value (in Rupees)
+- Probability (0-100%)
+- Expected Close Date
+- Tags, Notes
+- Assigned to team member
+
+4. TASK & ACTIVITY MANAGEMENT
+-----------------------------
+Organize and track all sales activities and follow-ups.
+
+Features:
+- Create tasks with title, description, due date
+- Priority levels: Low, Medium, High, Urgent
+- Status tracking: Pending, In Progress, Completed, Cancelled
+- Assign tasks to team members
+- Link tasks to leads, contacts, or deals
+- Set reminders and notifications
+- Task filtering by status, priority, assignee
+- Calendar view of tasks
+- Overdue task alerts
+- Recurring task support
+- Task templates for common activities
+- Bulk task creation
+- Task analytics and completion rates
+
+Task Fields:
+- Title, Description
+- Status (Pending, In Progress, Completed, Cancelled)
+- Priority (Low, Medium, High, Urgent)
+- Due Date
+- Assigned to team member
+- Related to (Lead, Contact, Deal)
+- Tags
+- Created by, Created date
+
+5. CALENDAR & APPOINTMENTS
+--------------------------
+Schedule and manage appointments with Google Calendar integration.
+
+Features:
+- Create appointments with date, time, duration
+- Google Calendar two-way sync
+- Appointment types: Demo, Meeting, Call, Visit, Follow-up
+- Attendee management
+- Location tracking
+- Reminder notifications
+- Calendar views: Day, Week, Month
+- Appointment status tracking
+- Conflict detection
+- Recurring appointments
+- Appointment confirmation emails
+- Integration with WhatsApp for appointment booking
+- AI-powered appointment scheduling via WhatsApp
+
+Appointment Fields:
+- Title, Description
+- Start Time, End Time
+- Location
+- Attendees (email addresses)
+- Type (Demo, Meeting, Call, Visit, Follow-up)
+- Status (Scheduled, Confirmed, Completed, Cancelled)
+- Reminders
+- Google Calendar Event ID
+- All-day event option
+- Color coding
+
+6. EMAIL INTEGRATION
+--------------------
+Send, receive, and track emails directly from the CRM.
+
+Features:
+- Gmail OAuth2 integration
+- Send emails to leads, contacts, and deals
+- Email templates with variables
+- HTML email composition
+- Email tracking (sent, delivered, opened)
+- CC and BCC support
+- File attachments
+- Email threading and conversation view
+- Automated email campaigns
+- Email logs and history
+- Filter emails by status, entity type
+- Email reply detection
+- Email analytics (open rates, click rates)
+
+Email Capabilities:
+- Send to individual contacts
+- Send to multiple recipients (bulk messaging)
+- Custom templates with placeholders
+- Automated emails via automation rules
+- Email scheduling
+- Email follow-up reminders
+- Link emails to CRM entities (Lead, Contact, Deal)
+
+7. INVOICING SYSTEM
+-------------------
+Create and manage professional invoices with GST support.
+
+Features:
+- Create invoices with line items
+- GST calculation (CGST, SGST, IGST)
+- Customer and company GSTIN tracking
+- Invoice numbering (auto or manual)
+- Invoice status: Draft, Sent, Paid, Overdue
+- Due date tracking
+- Payment date recording
+- Multi-currency support (default: Indian Rupees)
+- Invoice templates
+- PDF generation
+- Email invoice to customers
+- Payment reminders
+- Invoice analytics and reports
+
+Invoice Fields:
+- Invoice Number
+- Customer Name, Email, Phone, Address, GSTIN
+- Company Name, Address, GSTIN, PAN
+- Line Items (Description, Quantity, Rate, Amount)
+- Subtotal, Discount
+- CGST, SGST, IGST (tax percentages)
+- Total Tax, Round-off, Total Amount
+- Due Date, Payment Date
+- Status (Draft, Sent, Paid, Overdue)
+- Notes
+
+================================================================================
+                      ADVANCED FEATURES
+================================================================================
+
+8. WHATSAPP BUSINESS INTEGRATION
+--------------------------------
+Native WhatsApp Business API integration for customer communication.
+
+Features:
+- Send WhatsApp messages directly from CRM
+- Receive incoming WhatsApp messages via webhook
+- Two-way conversation interface (WhatsApp Web style)
+- Real-time message synchronization
+- Message delivery and read status tracking
+- Support for text, images, documents, audio, video
+- Click-to-chat functionality
+- Bulk WhatsApp messaging
+- WhatsApp message templates
+- 24-hour messaging window tracking
+- Contact auto-linking based on phone number
+- Message history storage (database + file system)
+- Auto-polling for new messages (3-second refresh)
+
+AI-Powered WhatsApp Features:
+- Intelligent auto-responses powered by OpenAI
+- Context-aware conversations using vector database
+- Automatic task/appointment/lead creation from WhatsApp messages
+- Product information retrieval from knowledge base
+- Sentiment analysis
+- Action extraction (create task, schedule meeting, etc.)
+- Per-conversation AI toggle (enable/disable AI for specific chats)
+- Confidence scoring for AI suggestions
+
+WhatsApp AI Capabilities:
+- Answer product questions using uploaded knowledge base
+- Extract customer intent (inquiry, complaint, request)
+- Suggest actions (create lead, schedule demo, create task)
+- Provide product recommendations
+- Handle FAQs automatically
+- Escalate to human when confidence is low
+- Learn from conversation history
+
+How WhatsApp Works Inside CRM:
+1. Connect WhatsApp Business API via Meta Business Suite
+2. Configure WHATSAPP_TOKEN and WHATSAPP_PHONE_ID
+3. Set up webhook for incoming messages
+4. Upload product knowledge base documents
+5. Enable AI for conversations
+6. Start receiving and responding to customer messages
+7. AI automatically creates tasks/leads/appointments based on conversation
+8. View all conversations in unified WhatsApp interface
+9. Send bulk messages to multiple contacts
+10. Track message delivery and engagement
+
+9. ARTIFICIAL INTELLIGENCE (AI) FEATURES
+----------------------------------------
+Cutting-edge AI integration across the CRM platform.
+
+Portal AI Assistant:
+- Natural language query interface
+- Ask questions about your CRM data ("Show me top 5 leads")
+- Get insights and analytics via chat
+- AI-powered data retrieval
+- Contextual responses based on user role
+- Conversation history tracking
+
+WhatsApp AI Assistant:
+- Automatic response to customer WhatsApp messages
+- Product knowledge base integration
+- Intent recognition (task, appointment, lead inquiry)
+- Action extraction and execution
+- Sentiment analysis
+- Confidence scoring for responses
+- Human handoff when needed
+
+Vector Database & Knowledge Management:
+- Upload documents (TXT, PDF, DOC, MD) to knowledge base
+- Automatic document chunking and embedding
+- Semantic search across all documents
+- AI retrieves relevant information for customer queries
+- Supports multi-tenant knowledge isolation
+- Qdrant Cloud vector database
+- OpenAI embeddings (text-embedding-3-small)
+- Search with relevance scoring
+
+AI Models Used:
+- OpenAI GPT-4o for conversations
+- OpenAI text-embedding-3-small for embeddings
+- LangChain for AI orchestration
+- Qdrant for vector storage
+
+10. LEAD AUTOMATION SYSTEM
+--------------------------
+Automated email workflows triggered by lead actions.
+
+Features:
+- Create custom automation rules
+- Trigger types:
+  * Lead Created
+  * Lead Stage Changed
+  * Deal Won/Lost
+  * Task Completed
+- Email template with HTML support
+- Dynamic variables ({{name}}, {{company}}, {{stage}}, etc.)
+- Enable/disable toggle for rules
+- From/To stage selection for stage change triggers
+- Default professional templates provided
+- Automatic email sending via Gmail integration
+- Email logging and tracking
+- Rule management interface
+
+Example Automation Rules:
+1. Welcome Email: Auto-send when new lead is created
+2. Stage Change Notification: Email when lead moves from "New" to "Qualified"
+3. Deal Won Celebration: Email when deal is marked as "Won"
+4. Follow-up Reminder: Email after X days of inactivity
+
+Template Variables:
+- {{name}} - Lead/Contact name
+- {{company}} - Company name
+- {{email}} - Email address
+- {{stage}} - Current stage
+- {{fromStage}} - Previous stage
+- {{toStage}} - New stage
+- {{assignee}} - Assigned team member
+
+11. DOCUMENT MANAGEMENT
+-----------------------
+Centralized document storage linked to CRM entities.
+
+Features:
+- Upload documents to leads, contacts, deals, tasks
+- File size limit: 100MB per file
+- All file formats supported (PDF, DOC, XLS, images, etc.)
+- Organized folder structure: documents/{EntityType}/{EntityId}/
+- Document metadata tracking
+- Download documents
+- Delete documents with confirmation
+- View upload history (name, size, date, uploaded by)
+- No backend restart required for file operations
+- Secure file storage
+- Search documents by name
+- Filter by entity type
+
+12. SALES FORECASTING & ANALYTICS
+---------------------------------
+Comprehensive business intelligence and forecasting tools.
+
+Features:
+- Revenue trend analysis (line charts)
+- Pipeline stage breakdown (bar charts)
+- Team performance metrics (bar charts)
+- Deal aging analysis (pie charts)
+- Monthly revenue projections
+- Historical data comparison
+- Win rate analysis
+- Average deal size calculation
+- Sales velocity tracking
+- Conversion rate by stage
+- Top performers identification
+- Pipeline health indicators
+
+Analytics Categories:
+- 0-30 days old deals
+- 31-60 days old deals
+- 61-90 days old deals
+- 90+ days old deals (stale opportunities)
+
+Chart Types:
+- Line charts for trends
+- Bar charts for comparisons
+- Pie charts for distribution
+- Real-time data updates
+
+13. TEAM & DEPARTMENT MANAGEMENT
+--------------------------------
+Organize users into teams and departments with role-based access.
+
+Features:
+- Create departments (Sales, Marketing, Support, etc.)
+- Assign department managers
+- Create teams within departments
+- Assign team managers
+- Add/remove team members
+- User roles: ADMIN, MANAGER, AGENT, VIEWER
+- Role-based permissions
+- Department-level visibility
+- Team-level assignments
+- Active/Inactive status for teams and departments
+- Team performance tracking
+- Manager dashboards
+
+User Roles & Permissions:
+- ADMIN: Full system access, manage all settings
+- MANAGER: Manage team, automation, view all data
+- AGENT: Manage assigned leads/contacts/deals
+- VIEWER: Read-only access to data
+
+14. GLOBAL SEARCH
+-----------------
+Search across all CRM entities from one interface.
+
+Features:
+- Search contacts, leads, deals, tasks, invoices
+- Unified search results
+- Result type indicators
+- Click to open entity
+- Search by name, email, phone, company
+- Minimum 2 characters required
+- Fast, indexed search
+- Recent searches
+- Search suggestions
+
+================================================================================
+                      INTEGRATION CAPABILITIES
+================================================================================
+
+15. GOOGLE SERVICES INTEGRATION
+-------------------------------
+
+Gmail Integration:
+- OAuth2 authentication
+- Send emails from your Gmail account
+- Email logging in CRM
+- Attachment support
+- HTML email composition
+- CC/BCC support
+- Email threading
+
+Google Calendar Integration:
+- Two-way sync with Google Calendar
+- Create appointments in CRM, appear in Google Calendar
+- Edit appointments in either system
+- Delete appointments from either system
+- Calendar conflict detection
+- Multiple calendar support
+- Reminder sync
+
+16. API ACCESS
+--------------
+RESTful API for third-party integrations and custom development.
+
+Features:
+- Complete REST API for all entities
+- JSON request/response format
+- JWT authentication
+- X-User-Id header support
+- Comprehensive API documentation
+- Rate limiting
+- Error handling
+- Pagination support
+- Filtering and sorting
+- Webhook support for WhatsApp
+
+API Endpoints Include:
+- /api/auth/* - Authentication and user management
+- /api/leads/* - Lead CRUD operations
+- /api/contacts/* - Contact management
+- /api/deals/* - Deal pipeline operations
+- /api/tasks/* - Task management
+- /api/emails/* - Email operations
+- /api/calendar/* - Calendar and appointments
+- /api/invoices/* - Invoice generation
+- /api/whatsapp/* - WhatsApp messaging
+- /api/ai/* - AI chat and vector search
+- /api/teams/* - Team and department management
+- /api/search - Global search
+
+Authentication:
+- JWT tokens (access token + refresh token)
+- OAuth2 for Google services
+- Session management
+- Activity logging
+
+17. WHATSAPP WEBHOOK SYSTEM
+---------------------------
+Receive and process incoming WhatsApp messages automatically.
+
+Features:
+- Webhook verification for Meta compliance
+- Receive text, image, document, audio, video, location messages
+- Automatic message storage (database + file system)
+- Contact auto-linking based on phone number (last 10 digits)
+- Real-time message processing
+- Message status updates (sent, delivered, read)
+- Background processing
+- Error handling and logging
+- Secure webhook validation
+
+Webhook Flow:
+1. Customer sends WhatsApp message to your business number
+2. Meta sends webhook POST to your backend
+3. Backend validates webhook signature
+4. Message is processed and saved
+5. AI generates response (if enabled)
+6. Response is sent back to customer
+7. Frontend auto-refreshes and displays new messages
+
+================================================================================
+                      TECHNICAL SPECIFICATIONS
+================================================================================
+
+18. TECHNOLOGY STACK
+--------------------
+
+Frontend:
+- React 18.3 with TypeScript
+- Vite for fast builds
+- Tailwind CSS for styling
+- Shadcn UI component library
+- Recharts for data visualization
+- React Router for navigation
+- Responsive design (mobile, tablet, desktop)
+
+Backend:
+- Node.js 18+
+- Express.js framework
+- Prisma ORM with PostgreSQL
+- Multer for file uploads
+- Nodemailer for emails
+- JWT for authentication
+- Bcrypt for password hashing
+- Google APIs for OAuth2
+
+Database:
+- PostgreSQL (relational database)
+- Prisma schema for type safety
+- Multi-tenant architecture
+- Indexed queries for performance
+- Automatic migrations
+
+AI Infrastructure:
+- OpenAI GPT-4o API
+- OpenAI Embeddings (text-embedding-3-small)
+- Qdrant Cloud vector database
+- LangChain for AI orchestration
+- RecursiveCharacterTextSplitter for document chunking
+
+External Integrations:
+- WhatsApp Business API (Meta)
+- Gmail API (Google)
+- Google Calendar API
+- Google OAuth2
+
+19. SECURITY FEATURES
+---------------------
+
+Authentication:
+- JWT token-based authentication
+- Secure password hashing (bcrypt)
+- OAuth2 for Google services
+- Session management
+- Automatic token refresh
+- Session revocation
+
+Authorization:
+- Role-based access control (RBAC)
+- User permissions by role
+- Entity-level access control
+- Team-level visibility
+- Department-level isolation
+
+Data Security:
+- HTTPS encryption
+- Environment variable security
+- SQL injection prevention (Prisma)
+- XSS protection
+- CSRF protection
+- Input validation and sanitization
+
+Multi-Tenant Security:
+- Tenant isolation at database level
+- User-tenant binding
+- Cross-tenant access prevention
+- Tenant-specific vector database filtering
+
+Activity Logging:
+- User activity tracking
+- Login/logout logging
+- Entity modification logging
+- Email sending logs
+- API access logs
+
+20. DEPLOYMENT & SCALING
+------------------------
+
+Deployment Options:
+- VPS deployment (Hetzner, DigitalOcean)
+- Docker containerization
+- Load balancer support
+- Nginx reverse proxy
+- PM2 process management
+- Environment-based configuration
+
+Performance:
+- Optimized database queries
+- Lazy loading for UI
+- Background job processing
+- Caching for frequently accessed data
+- Connection pooling
+- CDN for static assets
+
+Scaling Capabilities:
+- Horizontal scaling (multiple instances)
+- Database replication
+- Load balancing
+- Queue systems for background jobs
+- Microservices ready architecture
+
+Monitoring:
+- Application logs
+- Error tracking
+- Performance monitoring
+- API usage tracking
+- Uptime monitoring
+
+================================================================================
+                      BUSINESS BENEFITS
+================================================================================
+
+21. WHY CHOOSE BHARAT CRM?
+--------------------------
+
+For Small Businesses:
+- Affordable and easy to set up
+- No technical expertise required
+- WhatsApp integration for customer communication
+- Email automation saves time
+- Mobile-friendly interface
+- Cloud-based (access from anywhere)
+- Scales with business growth
+
+For Medium Businesses:
+- Team collaboration features
+- Role-based access control
+- Advanced automation
+- Sales forecasting and analytics
+- Multi-channel communication (Email, WhatsApp)
+- Document management
+- API for custom integrations
+
+For Enterprises:
+- Multi-tenant architecture
+- Unlimited users and data
+- Advanced security and compliance
+- Customizable workflows
+- AI-powered insights
+- Team and department management
+- Advanced reporting and analytics
+- White-label ready
+
+For Indian Businesses:
+- GST-compliant invoicing
+- Indian phone number support (+91 format)
+- WhatsApp integration (most popular in India)
+- Rupee currency support
+- Indian address formats
+- Local business practices
+
+22. KEY BENEFITS
+----------------
+
+Increase Sales:
+- Never miss a follow-up with automated reminders
+- Prioritize high-value leads
+- Track deal pipeline visually
+- Identify bottlenecks in sales process
+- Forecast revenue accurately
+
+Save Time:
+- Automate repetitive email tasks
+- AI-powered WhatsApp responses
+- Quick search across all data
+- Templates for common tasks
+- Bulk operations for efficiency
+
+Improve Customer Experience:
+- Respond faster with WhatsApp integration
+- Personalized communication
+- Complete customer history at fingertips
+- Timely follow-ups
+- Professional invoicing
+
+Better Team Collaboration:
+- Assign leads and tasks to team members
+- Track team performance
+- Shared calendar and appointments
+- Activity logs for transparency
+- Manager dashboards
+
+Data-Driven Decisions:
+- Sales forecasting and trends
+- Pipeline analytics
+- Team performance metrics
+- Email campaign analytics
+- AI-powered insights
+
+23. USE CASES
+-------------
+
+Sales Team:
+- Track leads from inquiry to closure
+- Manage sales pipeline visually
+- Schedule follow-ups and demos
+- Send proposals and quotes
+- Close deals faster with automation
+
+Customer Support:
+- Manage customer inquiries via WhatsApp
+- Track support tickets as tasks
+- Respond to FAQs with AI
+- Maintain customer communication history
+- Escalate issues to team members
+
+Marketing Team:
+- Capture leads from campaigns
+- Send bulk email campaigns
+- Track campaign performance
+- Segment contacts for targeted messaging
+- Analyze lead sources and conversion rates
+
+Business Owners:
+- Monitor sales performance
+- Forecast revenue and growth
+- Track team productivity
+- Get AI-powered business insights
+- Make data-driven decisions
+
+Real Estate Agents:
+- Track property inquiries
+- Schedule site visits via WhatsApp
+- Send property details and documents
+- Follow up with prospects
+- Close deals with automated workflows
+
+Consultants & Service Providers:
+- Manage client relationships
+- Schedule consultations
+- Send proposals and invoices
+- Track project-related tasks
+- Communicate via WhatsApp and email
+
+E-commerce Businesses:
+- Manage customer orders
+- Send order confirmations via WhatsApp
+- Handle customer support queries
+- Track repeat customers
+- Analyze customer lifetime value
+
+Education Institutes:
+- Manage student inquiries
+- Schedule counseling sessions
+- Send course information
+- Follow up with prospects
+- Track admission pipeline
+
+================================================================================
+                      PRICING & SUPPORT
+================================================================================
+
+24. COST STRUCTURE
+------------------
+
+Software Costs:
+- One-time setup or subscription model
+- No per-user fees (unlimited users)
+- No data limits
+- Free updates and bug fixes
+- Scalable pricing based on features
+
+External Service Costs:
+- WhatsApp Business API: ~₹0.33 per conversation (India)
+  * User-initiated conversations within 24h: Free
+  * Business-initiated conversations: Charged
+- OpenAI API: Usage-based pricing for AI features
+  * GPT-4o: ~$2.50 per 1M tokens
+  * Embeddings: ~$0.10 per 1M tokens
+- Qdrant Cloud: Free tier or paid plans for vector database
+- Gmail/Google Calendar: Free (using your Gmail account)
+- Server hosting: Variable based on provider (VPS ~₹500-₹2000/month)
+
+25. SUPPORT & DOCUMENTATION
+---------------------------
+
+Documentation:
+- Complete setup guides
+- API reference documentation
+- Feature-specific tutorials
+- Video walkthroughs
+- Architecture documentation
+- Troubleshooting guides
+
+Technical Support:
+- Email support
+- Documentation portal
+- GitHub issues
+- Community forum
+- Developer resources
+
+Training:
+- User training materials
+- Admin training guides
+- Best practices documentation
+- Use case examples
+
+================================================================================
+                      FREQUENTLY ASKED QUESTIONS
+================================================================================
+
+26. COMMON QUESTIONS
+--------------------
+
+Q: How does the WhatsApp integration work?
+A: Bharat CRM integrates with WhatsApp Business API (provided by Meta). You need to set up a WhatsApp Business account, get API credentials from Meta Business Suite, configure them in the CRM, and then you can send/receive WhatsApp messages directly from the CRM interface. The AI can automatically respond to customer queries using your knowledge base.
+
+Q: What AI features are included?
+A: The CRM includes two AI assistants: (1) Portal AI for querying your CRM data via chat, and (2) WhatsApp AI for auto-responding to customer messages. The AI uses your uploaded knowledge base (product docs, FAQs) to provide accurate answers. It can also automatically create tasks, appointments, and leads based on WhatsApp conversations.
+
+Q: How do I upload my product information for the AI?
+A: Go to Settings → Vector Database, upload your product documentation (TXT, PDF, DOC files up to 50MB), and click "Run Ingest Process". The AI will process these documents and use them to answer customer questions on WhatsApp.
+
+Q: Can I customize the automation rules?
+A: Yes! You can create custom automation rules for different triggers (Lead Created, Stage Changed, etc.). You can write your own HTML email templates with variables like {{name}}, {{company}}, {{stage}}, or use the provided professional templates.
+
+Q: Is my data secure?
+A: Yes, the CRM uses industry-standard security practices including JWT authentication, encrypted passwords (bcrypt), HTTPS encryption, role-based access control, and SQL injection prevention. Your data is isolated in a multi-tenant architecture.
+
+Q: Can I integrate with my existing tools?
+A: Yes, the CRM provides a complete REST API that you can use to integrate with other tools. It also has native integrations with Gmail, Google Calendar, and WhatsApp Business API.
+
+Q: How many users can I have?
+A: Unlimited users. You can add as many team members as needed and organize them into departments and teams with role-based permissions.
+
+Q: Does it work on mobile devices?
+A: Yes, the CRM is fully responsive and works on mobile phones, tablets, and desktops. You can manage your business on the go.
+
+Q: Can I export my data?
+A: Yes, you can export contacts, leads, and other data. The CRM also provides API access to your data for custom integrations.
+
+Q: What happens if I delete a conversation?
+A: Conversations and messages are stored in both the database and file system. When you delete a conversation from the UI, it's removed from the database but backup exists in files. You can start fresh conversations anytime.
+
+Q: How does the AI know which task to create?
+A: The AI analyzes the WhatsApp message using natural language processing, identifies the user's intent (e.g., "create a task", "schedule a demo", "I'm interested in your product"), extracts relevant information (title, date, name, email), and creates the appropriate entity in the CRM automatically.
+
+Q: Can I disable AI for specific conversations?
+A: Yes, each WhatsApp conversation has an AI toggle. You can enable or disable the AI assistant on a per-conversation basis, allowing you to manually handle certain chats while automating others.
+
+Q: How accurate is the AI?
+A: The AI provides a confidence score with each response (0-1). Responses with confidence above 0.7 are generally accurate. The AI is trained on your uploaded knowledge base, so accuracy improves as you add more comprehensive product documentation.
+
+Q: What file formats can I upload to the knowledge base?
+A: You can upload TXT, PDF, DOC, DOCX, and MD (Markdown) files up to 50MB each. The system automatically processes these files, splits them into chunks, and creates embeddings for semantic search.
+
+Q: How long does it take to process uploaded documents?
+A: The ingest process runs in the background and typically takes 1-5 minutes depending on the file size and number of documents. You'll see a success notification when it's complete.
+
+Q: Can I use my own WhatsApp number?
+A: No, you need to use WhatsApp Business API which provides a dedicated business phone number through Meta. Personal WhatsApp numbers cannot be used with the Business API.
+
+Q: Is there a mobile app?
+A: Currently, the CRM is a web application that works on mobile browsers. A dedicated mobile app may be developed in the future.
+
+Q: Can I white-label the CRM?
+A: Yes, the CRM can be white-labeled with your company branding, logo, and color scheme. Contact your developer for customization.
+
+Q: How do I get started?
+A: (1) Set up the backend and database, (2) Configure environment variables (Gmail, WhatsApp, OpenAI), (3) Create your admin account, (4) Upload product knowledge base, (5) Add your team members, (6) Start adding contacts and leads, (7) Enable WhatsApp integration to start communicating with customers!
+
+================================================================================
+                      CONCLUSION
+================================================================================
+
+Bharat CRM is a modern, AI-powered customer relationship management system
+designed for Indian businesses of all sizes. With native WhatsApp integration,
+intelligent automation, comprehensive analytics, and enterprise-grade security,
+it provides everything needed to manage customer relationships effectively.
+
+Key Highlights:
+✅ Complete CRM (Leads, Contacts, Deals, Tasks, Calendar, Invoices)
+✅ WhatsApp Business Integration with AI auto-responses
+✅ Email automation and Gmail integration
+✅ Sales forecasting and analytics
+✅ Document management
+✅ Team and department management
+✅ Vector database for AI knowledge management
+✅ Role-based access control
+✅ RESTful API for integrations
+✅ Mobile-friendly responsive design
+✅ Indian business features (GST, Rupees, Indian phone formats)
+
+For more information, refer to the comprehensive API documentation or contact
+your system administrator.
+
+================================================================================
+                          END OF DOCUMENT
+================================================================================
