@@ -11,6 +11,8 @@ export interface Lead {
   whatsapp?: string;
   source: LeadSource;
   status: LeadStatus;
+  stageId?: string; // Reference to PipelineStage.id for dynamic stages
+  dealId?: string; // Reference to Deal.id if lead has been converted
   priority: LeadPriority;
   estimatedValue: number;
   assignedTo: string;

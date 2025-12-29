@@ -201,7 +201,21 @@ router.post('/', validateAssignment, async (req, res) => {
 
     // Get default stage for lead (or use provided stageId)
     const defaultLeadStage = await getDefaultLeadStage(req.tenant.id);
-    const leadStageId = leadData.stageId || defaultLeadStage.id;
+    let leadStageId = leadData.stageId || defaultLeadStage.id;
+    let leadStatus = leadData.status;
+
+    // If stageId is provided, sync status to match the stage slug
+    if (leadData.stageId) {
+      const selectedStage = await prisma.pipelineStage.findUnique({
+        where: { id: leadData.stageId }
+      });
+      if (selectedStage) {
+        leadStatus = selectedStage.slug;
+      }
+    } else if (!leadStatus) {
+      // No stageId or status provided, use default
+      leadStatus = defaultLeadStage.slug || 'new';
+    }
 
     // Create the Lead only (no automatic deal creation)
     const lead = await prisma.lead.create({
@@ -212,7 +226,7 @@ router.post('/', validateAssignment, async (req, res) => {
         userId,
         tenantId: req.tenant.id,
         stageId: leadStageId,
-        status: leadData.status || 'new' // Keep for backward compatibility
+        status: leadStatus // Keep in sync with stageId
       }
     });
 
@@ -385,7 +399,7 @@ router.put('/:id', async (req, res) => {
       if (lead.dealId) {
         const dealUpdateData = {};
 
-        // Sync stageId if changed (NEW: Dynamic pipeline stages)
+        // Prioritize stageId if provided (NEW: Dynamic pipeline stages)
         if (updateData.stageId) {
           const pipelineStage = await tx.pipelineStage.findUnique({
             where: { id: updateData.stageId }
@@ -393,14 +407,12 @@ router.put('/:id', async (req, res) => {
 
           if (pipelineStage) {
             dealUpdateData.stageId = pipelineStage.id;
-            // Keep old stage field in sync for backward compatibility
             dealUpdateData.stage = pipelineStage.slug;
+            // Update status to match stageId for backward compatibility
+            updateData.status = pipelineStage.slug;
           }
-        }
-
-        // Also sync status field for backward compatibility
-        if (updateData.status) {
-          // Find matching stage by slug
+        } else if (updateData.status) {
+          // Fallback: derive stageId from status (backward compatibility)
           const matchingStage = await tx.pipelineStage.findFirst({
             where: {
               tenantId: req.tenant.id,
@@ -413,7 +425,8 @@ router.put('/:id', async (req, res) => {
             dealUpdateData.stageId = matchingStage.id;
             dealUpdateData.stage = matchingStage.slug;
           } else {
-            // Fallback to old mapping
+            // Last resort: use old hardcoded mapping for stage field only
+            console.warn(`No pipeline stage found for status: ${updateData.status}, using fallback mapping`);
             dealUpdateData.stage = mapLeadStatusToDealStage(updateData.status);
           }
         }
@@ -447,6 +460,9 @@ router.put('/:id', async (req, res) => {
     });
 
     // Trigger automation for stage change (using stageId for dynamic stages)
+    const originalStageId = req.body.stageId; // Store original to check if user explicitly changed it
+    let stageChangedTriggered = false;
+
     if (updateData.stageId && updateData.stageId !== existingLead.stageId) {
       try {
         // Fetch stage details for better context
@@ -468,12 +484,13 @@ router.put('/:id', async (req, res) => {
           toStageId: updateData.stageId,
           entityType: 'Lead'
         }, req.user);
+        stageChangedTriggered = true;
       } catch (automationError) {
         console.error('Error triggering lead stage change automation:', automationError);
         // Don't fail the request if automation fails
       }
-    } else if (updateData.status && updateData.status !== existingLead.status) {
-      // Fallback for backward compatibility when only status is provided
+    } else if (!stageChangedTriggered && updateData.status && updateData.status !== existingLead.status && !originalStageId) {
+      // Fallback for backward compatibility: only trigger if stageId wasn't provided and status changed
       try {
         await automationService.triggerAutomation('lead.stage_changed', {
           id: result.id,
