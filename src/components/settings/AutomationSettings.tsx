@@ -216,7 +216,7 @@ export default function AutomationSettings() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">Automation Rules</h2>
-          <p className="text-muted-foreground">Configure automated workflows for leads and emails</p>
+          <p className="text-muted-foreground">Configure automated workflows for Email and WhatsApp campaigns</p>
         </div>
         <Button onClick={() => handleOpenDialog()}>
           <Plus className="h-4 w-4 mr-2" />
@@ -229,9 +229,12 @@ export default function AutomationSettings() {
       ) : rules.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <Mail className="h-12 w-12 text-muted-foreground mb-4" />
+            <div className="flex gap-2 mb-4">
+              <Mail className="h-12 w-12 text-blue-500" />
+              <MessageSquare className="h-12 w-12 text-green-500" />
+            </div>
             <h3 className="text-lg font-semibold mb-2">No Automation Rules</h3>
-            <p className="text-muted-foreground mb-4">Get started by creating your first automation rule</p>
+            <p className="text-muted-foreground mb-4">Automate Email and WhatsApp campaigns for leads and deals</p>
             <Button onClick={() => handleOpenDialog()}>
               <Plus className="h-4 w-4 mr-2" />
               Create First Rule
@@ -283,12 +286,40 @@ export default function AutomationSettings() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="font-semibold">Action:</span> {rule.actionType === 'send_email' ? 'Send Email' : rule.actionType}
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Action:</span>
+                    {rule.actionType === 'send_email' && (
+                      <div className="flex items-center gap-1 text-blue-600">
+                        <Mail className="h-4 w-4" />
+                        <span>Email</span>
+                      </div>
+                    )}
+                    {rule.actionType === 'send_whatsapp' && (
+                      <div className="flex items-center gap-1 text-green-600">
+                        <MessageSquare className="h-4 w-4" />
+                        <span>WhatsApp</span>
+                      </div>
+                    )}
+                    {rule.actionType === 'send_both' && (
+                      <div className="flex items-center gap-1">
+                        <Mail className="h-4 w-4 text-blue-600" />
+                        <MessageSquare className="h-4 w-4 text-green-600" />
+                        <span>Email & WhatsApp</span>
+                      </div>
+                    )}
+                    {!['send_email', 'send_whatsapp', 'send_both'].includes(rule.actionType) && (
+                      <span>{rule.actionType}</span>
+                    )}
                   </div>
                   {rule.emailSubject && (
                     <div>
-                      <span className="font-semibold">Subject:</span> {rule.emailSubject}
+                      <span className="font-semibold">Email Subject:</span> {rule.emailSubject}
+                    </div>
+                  )}
+                  {rule.whatsappMessage && (
+                    <div>
+                      <span className="font-semibold">WhatsApp:</span>
+                      <span className="text-xs text-muted-foreground ml-2">Custom message configured</span>
                     </div>
                   )}
                 </div>
@@ -397,29 +428,112 @@ export default function AutomationSettings() {
               </>
             )}
 
+            {/* Action Type Selector */}
             <div className="space-y-2">
-              <Label htmlFor="emailSubject">Email Subject</Label>
-              <Input
-                id="emailSubject"
-                value={formData.emailSubject}
-                onChange={(e) => setFormData({ ...formData, emailSubject: e.target.value })}
-                placeholder="Use {{name}}, {{company}}, {{stage}} for variables"
-              />
+              <Label htmlFor="actionType">Action Type</Label>
+              <Select value={formData.actionType} onValueChange={(value) => setFormData({ ...formData, actionType: value })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="send_email">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      <span>Send Email Only</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="send_whatsapp">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      <span>Send WhatsApp Only</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="send_both">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      <MessageSquare className="h-4 w-4" />
+                      <span>Send Both Email & WhatsApp</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="emailTemplate">Email Template (HTML)</Label>
-              <Textarea
-                id="emailTemplate"
-                value={formData.emailTemplate}
-                onChange={(e) => setFormData({ ...formData, emailTemplate: e.target.value })}
-                placeholder="Leave empty to use default template. Use {{name}}, {{company}}, {{fromStage}}, {{toStage}} for variables"
-                rows={10}
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Available variables: {'{'}{'{'} name {'}'}{'}'},  {'{'}{'{'} company {'}'}{'}'},  {'{'}{'{'} email {'}'}{'}'},  {'{'}{'{'} stage {'}'}{'}'},  {'{'}{'{'} fromStage {'}'}{'}'},  {'{'}{'{'} toStage {'}'}{'}'}</p>
-            </div>
+            {/* Email Fields - Show when actionType is send_email or send_both */}
+            {(formData.actionType === 'send_email' || formData.actionType === 'send_both') && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="emailSubject">Email Subject</Label>
+                  <Input
+                    id="emailSubject"
+                    value={formData.emailSubject}
+                    onChange={(e) => setFormData({ ...formData, emailSubject: e.target.value })}
+                    placeholder="Use {{name}}, {{company}}, {{stage}} for variables"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="emailTemplate">Email Template (HTML)</Label>
+                  <Textarea
+                    id="emailTemplate"
+                    value={formData.emailTemplate}
+                    onChange={(e) => setFormData({ ...formData, emailTemplate: e.target.value })}
+                    placeholder="Leave empty to use default template. Use {{name}}, {{company}}, {{fromStage}}, {{toStage}} for variables"
+                    rows={10}
+                    className="font-mono text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Available variables: {'{'}{'{'} name {'}'}{'}'},  {'{'}{'{'} company {'}'}{'}'},  {'{'}{'{'} email {'}'}{'}'},  {'{'}{'{'} stage {'}'}{'}'},  {'{'}{'{'} fromStage {'}'}{'}'},  {'{'}{'{'} toStage {'}'}{'}'}</p>
+                </div>
+              </>
+            )}
+
+            {/* WhatsApp Fields - Show when actionType is send_whatsapp or send_both */}
+            {(formData.actionType === 'send_whatsapp' || formData.actionType === 'send_both') && (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="whatsappMessage">WhatsApp Message</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const response = await api.get('/automation/whatsapp-templates');
+                          const templates = response.data;
+                          const defaultTemplate = templates[formData.type] || templates.lead_created || '';
+                          setFormData({ ...formData, whatsappMessage: defaultTemplate });
+                          toast.success('Default WhatsApp template loaded');
+                        } catch (error) {
+                          console.error('Error loading template:', error);
+                          toast.error('Failed to load template');
+                        }
+                      }}
+                    >
+                      Load Default Template
+                    </Button>
+                  </div>
+                  <Textarea
+                    id="whatsappMessage"
+                    value={formData.whatsappMessage}
+                    onChange={(e) => setFormData({ ...formData, whatsappMessage: e.target.value })}
+                    placeholder="Leave empty to use default template. Use {{name}}, {{company}}, {{fromStage}}, {{toStage}} for variables"
+                    rows={12}
+                    className="font-mono text-sm"
+                  />
+                  <Alert className="bg-green-50 border-green-200">
+                    <MessageSquare className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-800 text-xs">
+                      <strong>WhatsApp Formatting:</strong> Use *bold*, _italic_, ~strikethrough~, ```code```
+                      <br />
+                      <strong>Variables:</strong> {'{'}{'{'} name {'}'}{'}'},  {'{'}{'{'} company {'}'}{'}'},  {'{'}{'{'} fromStage {'}'}{'}'},  {'{'}{'{'} toStage {'}'}{'}'}, {'{'}{'{'} phone {'}'}{'}'}, {'{'}{'{'} email {'}'}{'}'}<br/>
+                      <strong>Note:</strong> Recipient must have WhatsApp number in their contact profile
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              </>
+            )}
 
             <div className="flex items-center space-x-2">
               <Switch
