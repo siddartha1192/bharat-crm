@@ -33,10 +33,31 @@ interface AIStatus {
   } | null;
 }
 
+// Interesting facts and quotes to show while AI is thinking
+const AI_THINKING_MESSAGES = [
+  "💡 Did you know? CRM systems can increase sales by up to 29% and productivity by 34%",
+  "🤖 AI can analyze thousands of customer interactions to predict buying patterns",
+  "📊 Companies using CRM see an average ROI of $8.71 for every dollar spent",
+  "🎯 80% of sales require 5 follow-ups, but 44% of salespeople give up after one",
+  "⚡ AI-powered CRMs can automate up to 30% of sales activities",
+  "🔮 Predictive analytics in CRM can forecast sales outcomes with 85% accuracy",
+  "💼 65% of sales reps using mobile CRM hit their sales quotas",
+  "🚀 Personalized emails deliver 6x higher transaction rates",
+  "🧠 AI can process customer sentiment from emails, chats, and calls in real-time",
+  "📈 CRM automation can reduce data entry time by up to 74%",
+  "🎨 AI assistants like me can answer customer queries 24/7 without getting tired!",
+  "⏱️ The average sales rep spends only 34% of their time actually selling",
+  "🤝 CRM helps maintain relationships with thousands of customers simultaneously",
+  "💬 AI chatbots can handle 80% of routine customer service questions",
+  "🔍 Vector databases help me remember everything about your products instantly",
+];
+
 export default function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [currentThinkingMessage, setCurrentThinkingMessage] = useState(0);
   const [aiStatus, setAiStatus] = useState<AIStatus | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -48,8 +69,16 @@ export default function AIAssistant() {
 
   const loadConversationHistory = async () => {
     try {
+      console.log('🔄 Loading conversation history...');
+      setLoadingHistory(true);
+
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) {
+        console.log('⚠️ No token found, skipping history load');
+        setLoadingHistory(false);
+        showWelcomeMessage();
+        return;
+      }
 
       const response = await fetch(`${API_URL}/ai/conversation`, {
         headers: {
@@ -58,21 +87,26 @@ export default function AIAssistant() {
       });
 
       if (!response.ok) {
+        console.error('❌ Failed to load conversation:', response.status, response.statusText);
         throw new Error('Failed to load conversation history');
       }
 
       const data = await response.json();
+      console.log('📦 Received conversation data:', data);
 
       // If there are existing messages, load them
       if (data.conversation && data.conversation.messages && data.conversation.messages.length > 0) {
-        setMessages(data.conversation.messages.map((msg: any) => ({
+        const loadedMessages = data.conversation.messages.map((msg: any) => ({
           role: msg.role,
           content: msg.content,
           timestamp: new Date(msg.timestamp),
           data: msg.data,
-        })));
-        console.log(`📖 Loaded ${data.conversation.messages.length} messages from conversation history`);
+        }));
+
+        setMessages(loadedMessages);
+        console.log(`✅ Loaded ${loadedMessages.length} messages from conversation history`);
       } else {
+        console.log('ℹ️ No conversation history found, showing welcome message');
         // No conversation history, show welcome message
         setMessages([
           {
@@ -105,12 +139,25 @@ Try the quick action buttons below or ask me anything!`,
         ]);
       }
     } catch (error) {
-      console.error('Error loading conversation history:', error);
-      // Show welcome message on error
-      setMessages([
-        {
-          role: 'assistant',
-          content: `👋 Hello! I'm your enterprise AI assistant with **full database access**.
+      console.error('❌ Error loading conversation history:', error);
+      showWelcomeMessage();
+
+      // Show error toast
+      toast({
+        title: 'Could not load conversation history',
+        description: 'Starting a fresh conversation. Your previous messages are still saved.',
+        variant: 'default',
+      });
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const showWelcomeMessage = () => {
+    setMessages([
+      {
+        role: 'assistant',
+        content: `👋 Hello! I'm your enterprise AI assistant with **full database access**.
 
 I can query your CRM data in real-time and provide insights:
 
@@ -133,15 +180,28 @@ I can query your CRM data in real-time and provide insights:
 - "Show upcoming events this week"
 
 Try the quick action buttons below or ask me anything!`,
-          timestamp: new Date(),
-        },
-      ]);
-    }
+        timestamp: new Date(),
+      },
+    ]);
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Rotate thinking messages while AI is processing
+  useEffect(() => {
+    if (!loading) return;
+
+    // Pick a random starting message
+    setCurrentThinkingMessage(Math.floor(Math.random() * AI_THINKING_MESSAGES.length));
+
+    const interval = setInterval(() => {
+      setCurrentThinkingMessage((prev) => (prev + 1) % AI_THINKING_MESSAGES.length);
+    }, 3000); // Change message every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -289,6 +349,15 @@ Try the quick action buttons below or ask me anything!`,
       <Card className="flex-1 flex flex-col rounded-2xl shadow-xl border-border overflow-hidden">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gradient-to-b from-background to-muted/10">
+          {loadingHistory && messages.length === 0 && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center space-y-3">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" />
+                <p className="text-sm text-muted-foreground">Loading conversation history...</p>
+              </div>
+            </div>
+          )}
+
           {messages.map((message, index) => (
             <div
               key={index}
@@ -368,8 +437,18 @@ Try the quick action buttons below or ask me anything!`,
                 <Bot className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1">
-                <div className="inline-block rounded-2xl rounded-bl-md px-4 py-3 bg-muted shadow-md">
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                <div className="inline-block rounded-2xl rounded-bl-md px-5 py-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800 shadow-md max-w-[85%]">
+                  <div className="flex items-start gap-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                        Thinking...
+                      </p>
+                      <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed animate-fade-in">
+                        {AI_THINKING_MESSAGES[currentThinkingMessage]}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

@@ -327,8 +327,7 @@ async function executeWhatsAppAction(rule, data, user) {
 
     // Send WhatsApp message
     if (recipientNumber) {
-      const whatsappServiceInstance = new whatsappService();
-      await whatsappServiceInstance.sendMessage(
+      await whatsappService.sendMessage(
         recipientNumber,
         finalMessage,
         null // tenantConfig can be added later for multi-tenant WhatsApp
