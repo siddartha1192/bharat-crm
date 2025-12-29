@@ -731,11 +731,11 @@ export default function WhatsApp() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="chat" className="flex-1 flex gap-0 mt-0 overflow-hidden">
+        <TabsContent value="chat" className="flex-1 flex gap-0 mt-0 overflow-hidden rounded-xl">
           {/* Conversations List - WhatsApp Style Sidebar */}
-          <div className="w-[400px] flex flex-col bg-white dark:bg-gray-900 border-r border-green-200 dark:border-gray-700 shadow-xl">
+          <div className="w-[400px] flex flex-col bg-white dark:bg-gray-900 border-r border-green-200 dark:border-gray-700 shadow-xl rounded-l-xl">
             {/* Header with Search */}
-            <div className="flex-shrink-0 p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white">
+            <div className="flex-shrink-0 p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-tl-xl">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <MessageCircle className="w-7 h-7" />
@@ -818,9 +818,9 @@ export default function WhatsApp() {
 
           {/* Chat Area - WhatsApp Style Main Panel */}
           {selectedConversation ? (
-            <div className="flex-1 flex flex-col bg-[#e5ddd5] dark:bg-gray-800 overflow-hidden">
+            <div className="flex-1 flex flex-col bg-[#e5ddd5] dark:bg-gray-800 overflow-hidden rounded-r-xl">
               {/* Chat Header */}
-              <div className="flex-shrink-0 p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md flex items-center justify-between">
+              <div className="flex-shrink-0 p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md flex items-center justify-between rounded-tr-xl">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-11 w-11 border-2 border-white/50">
                     <AvatarFallback className="bg-gradient-to-br from-green-400 to-emerald-500 text-white font-semibold">
@@ -1079,7 +1079,7 @@ export default function WhatsApp() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-center bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-900">
+            <div className="flex-1 flex items-center justify-center text-center bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-900 rounded-r-xl">
               <div className="p-8">
                 <MessageCircle className="w-32 h-32 mx-auto mb-6 text-green-200 dark:text-green-800" />
                 <h3 className="text-3xl font-bold mb-3 text-gray-900 dark:text-white">WhatsApp Web</h3>
