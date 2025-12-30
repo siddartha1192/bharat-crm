@@ -263,27 +263,16 @@ class EmailService {
    */
 
   async sendEmail({
-
     to,
-
     cc = [],
-
     bcc = [],
-
     subject,
-
     text,
-
     html,
-
     userId,
-
     entityType = null,
-
     entityId = null,
-
     attachments = [],
-
   }) {
     console.log('📨 sendEmail called with params:', { to, userId, entityType, subject: subject?.substring(0, 50) });
 
@@ -292,16 +281,27 @@ class EmailService {
       throw new Error('userId is required to send email');
     }
 
-    // Fetch user's Google OAuth tokens from database
+    // Fetch user with Gmail integration tokens and tenant with mail settings
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
+        id: true,
         email: true,
         googleEmail: true,
-        googleAccessToken: true,
-        googleRefreshToken: true,
-        tenantId: true
-      }
+        gmailAccessToken: true,
+        gmailRefreshToken: true,
+        gmailTokenExpiry: true,
+        gmailConnectedAt: true,
+        gmailScopes: true,
+        tenantId: true,
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            settings: true,
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -309,60 +309,34 @@ class EmailService {
     }
 
     const toArray = Array.isArray(to) ? to : [to];
-
     const ccArray = Array.isArray(cc) ? cc : (cc ? [cc] : []);
-
     const bccArray = Array.isArray(bcc) ? bcc : (bcc ? [bcc] : []);
 
     // Determine sender email (use Google email if available, otherwise fallback)
     const senderEmail = user.googleEmail || user.email || GMAIL_USER;
 
     // Create email log entry
-
     const emailLog = await prisma.emailLog.create({
-
       data: {
-
         to: toArray,
-
         cc: ccArray,
-
         bcc: bccArray,
-
         from: senderEmail,
-
         subject,
-
         body: text,
-
         htmlBody: html || null,
-
         status: 'pending',
-
         userId,
-
         entityType,
-
         entityId,
-
         attachments: attachments.length > 0 ? attachments : null,
-
         tenantId: user.tenantId,
-
       },
-
     });
 
-
-
     try {
-
-      // Use user's Google tokens if available, otherwise fallback to .env
-      const transporter = await this.getTransporter(
-        user.googleEmail,
-        user.googleAccessToken,
-        user.googleRefreshToken
-      );
+      // Use tenant-specific Gmail integration with automatic fallback
+      const transporter = await this.getTransporter(user, user.tenant);
 
  
 
