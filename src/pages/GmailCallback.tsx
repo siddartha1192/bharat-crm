@@ -95,6 +95,11 @@ export default function GmailCallback() {
 
         console.log('✅ Success! Redirecting to settings in 2 seconds...');
 
+        // Notify parent window if opened in popup
+        if (window.opener) {
+          window.opener.postMessage('gmail-connected', window.location.origin);
+        }
+
         // Redirect to settings/integrations after 2 seconds
         setTimeout(() => {
           console.log('🔄 Redirecting to /settings?tab=integrations');

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const { authenticate, authorize } = require('../middleware/auth');
 const emailService = require('../services/email');
 const authService = require('../services/auth');
@@ -7,6 +8,14 @@ const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middl
 const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
+
+// Configure multer for file uploads (in-memory storage)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max file size
+  },
+});
 
 // Apply tenant context middleware to all routes
 router.use(authenticate);
@@ -181,13 +190,32 @@ router.post('/deal/:dealId', async (req, res) => {
  * Send manual/custom email
  * POST /api/emails/send
  */
-router.post('/send', async (req, res) => {
+router.post('/send', upload.array('attachments', 10), async (req, res) => {
   try {
-    const { to, subject, text, html, cc, bcc, attachments } = req.body;
+    // Parse JSON fields if sent as FormData
+    let to, cc, bcc;
+    try {
+      to = typeof req.body.to === 'string' ? JSON.parse(req.body.to) : req.body.to;
+      cc = req.body.cc ? (typeof req.body.cc === 'string' ? JSON.parse(req.body.cc) : req.body.cc) : undefined;
+      bcc = req.body.bcc ? (typeof req.body.bcc === 'string' ? JSON.parse(req.body.bcc) : req.body.bcc) : undefined;
+    } catch (e) {
+      to = req.body.to;
+      cc = req.body.cc;
+      bcc = req.body.bcc;
+    }
+
+    const { subject, text, html } = req.body;
 
     if (!to || !subject || !text) {
       return res.status(400).json({ error: 'To, subject, and text are required' });
     }
+
+    // Process uploaded files into attachment format
+    const attachments = req.files ? req.files.map(file => ({
+      filename: file.originalname,
+      content: file.buffer,
+      contentType: file.mimetype,
+    })) : [];
 
     // Send email
     const result = await emailService.sendManualEmail({
