@@ -122,6 +122,18 @@ class EmailService {
           });
         } catch (userGmailError) {
           console.error(`❌ [Tenant: ${tenant?.id}] Error using user Gmail integration: ${userGmailError.message}`);
+          console.error(`❌ [Tenant: ${tenant?.id}] User Gmail error details:`, userGmailError);
+
+          // Check if it's an authentication error
+          if (userGmailError.message &&
+              (userGmailError.message.includes('invalid_grant') ||
+               userGmailError.message.includes('BadCredentials') ||
+               userGmailError.message.includes('Username and Password not accepted'))) {
+            console.error(`🔑 [Tenant: ${tenant?.id}] Gmail authentication failed for user ${user.id}`);
+            console.error(`📝 User needs to reconnect Gmail in Settings > Integrations`);
+            throw new Error('Gmail authentication failed. Please reconnect your Gmail account in Settings > Integrations.');
+          }
+
           console.log(`⚠️  [Tenant: ${tenant?.id}] Falling back to global .env credentials`);
           return await this.getFallbackTransporter();
         }
@@ -158,22 +170,46 @@ class EmailService {
     console.log('🔄 [FALLBACK] Using global Gmail credentials from .env file');
 
     if (!GMAIL_USER || !GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN) {
-      throw new Error('Gmail OAuth credentials not configured. Please either:\n1. Configure tenant mail settings (recommended), or\n2. Set GMAIL_USER, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GMAIL_REFRESH_TOKEN in .env');
+      console.error('❌ [FALLBACK] Global Gmail credentials not configured in .env');
+      throw new Error(
+        'Email sending not configured. Please either:\n' +
+        '1. Connect your Gmail in Settings > Integrations (recommended), or\n' +
+        '2. Ask your administrator to configure tenant mail settings in Settings > API Config > Mail Integration'
+      );
     }
 
-    const accessToken = await oauth2Client.getAccessToken();
+    try {
+      const accessToken = await oauth2Client.getAccessToken();
 
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        type: 'OAuth2',
-        user: GMAIL_USER,
-        clientId: GMAIL_CLIENT_ID,
-        clientSecret: GMAIL_CLIENT_SECRET,
-        refreshToken: GMAIL_REFRESH_TOKEN,
-        accessToken: accessToken.token,
-      },
-    });
+      return nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          type: 'OAuth2',
+          user: GMAIL_USER,
+          clientId: GMAIL_CLIENT_ID,
+          clientSecret: GMAIL_CLIENT_SECRET,
+          refreshToken: GMAIL_REFRESH_TOKEN,
+          accessToken: accessToken.token,
+        },
+      });
+    } catch (error) {
+      console.error('❌ [FALLBACK] Error with global Gmail credentials:', error.message);
+
+      // Check for authentication errors
+      if (error.message &&
+          (error.message.includes('invalid_grant') ||
+           error.message.includes('BadCredentials') ||
+           error.message.includes('Username and Password not accepted'))) {
+        console.error('🔑 [FALLBACK] Global Gmail OAuth credentials are invalid or expired');
+        throw new Error(
+          'Email service not available. Please either:\n' +
+          '1. Connect your Gmail in Settings > Integrations (recommended), or\n' +
+          '2. Ask your administrator to configure tenant mail settings in Settings > API Config > Mail Integration'
+        );
+      }
+
+      throw error;
+    }
   }
 
  
@@ -306,6 +342,35 @@ class EmailService {
 
     if (!user) {
       throw new Error('User not found');
+    }
+
+    // Check if user has Gmail connected OR if global fallback is available
+    const hasUserGmail = gmailIntegrationService.isGmailConnected(user);
+    const hasTenantConfig = user.tenant?.settings?.mail?.oauth?.clientId;
+    const hasGlobalFallback = GMAIL_USER && GMAIL_CLIENT_ID && GMAIL_CLIENT_SECRET && GMAIL_REFRESH_TOKEN;
+
+    console.log('📊 Email configuration status:', {
+      hasUserGmail,
+      hasTenantConfig,
+      hasGlobalFallback,
+      userId: user.id,
+      tenantId: user.tenant?.id
+    });
+
+    // If no configuration is available, provide helpful error
+    if (!hasUserGmail && !hasGlobalFallback) {
+      console.error('❌ No email configuration available for user');
+      throw new Error(
+        'Cannot send email: Gmail not connected. Please go to Settings > Integrations and connect your Gmail account.'
+      );
+    }
+
+    // If user has Gmail but tenant config is missing, warn them
+    if (hasUserGmail && !hasTenantConfig && !hasGlobalFallback) {
+      console.warn('⚠️  User has Gmail connected but tenant OAuth not configured and no global fallback');
+      throw new Error(
+        'Email configuration incomplete. Please ask your administrator to configure mail settings in Settings > API Config > Mail Integration.'
+      );
     }
 
     const toArray = Array.isArray(to) ? to : [to];
