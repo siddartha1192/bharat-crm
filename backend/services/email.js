@@ -144,87 +144,25 @@ class EmailService {
 
 
   /**
-
    * Get Gmail API client
-
+   * Note: This method is deprecated as it relied on global OAuth credentials
+   * Use tenant-specific Gmail integration instead
    */
-
   getGmailClient() {
-
-    return google.gmail({ version: 'v1', auth: oauth2Client });
-
+    throw new Error('getGmailClient() is deprecated. Use tenant-specific Gmail integration.');
   }
 
- 
-
   /**
-
    * Get thread ID from Gmail message ID
-
+   * Note: Temporarily disabled - requires tenant-specific implementation
    */
-
   async getThreadIdFromMessageId(messageId) {
-
-    try {
-
-      const gmail = this.getGmailClient();
-
- 
-
-      // Search for the message by Message-ID header
-
-      const searchQuery = `rfc822msgid:${messageId.replace(/[<>]/g, '')}`;
-
-      const response = await gmail.users.messages.list({
-
-        userId: 'me',
-
-        q: searchQuery,
-
-        maxResults: 1,
-
-      });
-
- 
-
-      if (response.data.messages && response.data.messages.length > 0) {
-
-        const message = await gmail.users.messages.get({
-
-          userId: 'me',
-
-          id: response.data.messages[0].id,
-
-        });
-
-        return {
-
-          gmailMessageId: message.data.id,
-
-          gmailThreadId: message.data.threadId,
-
-        };
-
-      }
-
-      return null;
-
-    } catch (error) {
-
-      console.error('Error getting thread ID:', error);
-
-      return null;
-
-    }
-
+    console.warn('getThreadIdFromMessageId() temporarily disabled - requires tenant-specific OAuth implementation');
+    return null;
   }
 
- 
-
   /**
-
    * Send email and log to database
-
    */
 
   async sendEmail({
@@ -813,15 +751,19 @@ class EmailService {
  
 
   /**
-
    * Check for replies to sent emails
-
+   * Note: Temporarily disabled - requires tenant-specific implementation
    */
-
   async checkForReplies(userId) {
+    console.warn('checkForReplies() temporarily disabled - requires tenant-specific OAuth implementation');
+    return { success: true, repliesFound: 0, message: 'Reply checking temporarily disabled' };
+  }
 
+  /**
+   * OLD checkForReplies implementation - disabled
+   */
+  async _oldCheckForReplies(userId) {
     try {
-
       const gmail = this.getGmailClient();
 
  
