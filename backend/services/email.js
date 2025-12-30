@@ -74,7 +74,8 @@ class EmailService {
           // Get tenant OAuth client credentials
           const clientId = tenant.settings.mail.oauth.clientId;
           const clientSecret = decrypt(tenant.settings.mail.oauth.clientSecret);
-          const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/integrations/gmail/callback`;
+          // IMPORTANT: Use same redirect URI as gmailIntegration service
+          const redirectUri = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/integrations/gmail/callback`;
 
           // Create tenant-specific OAuth2 client
           const tenantOAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);

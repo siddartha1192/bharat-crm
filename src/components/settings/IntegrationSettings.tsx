@@ -128,9 +128,23 @@ export default function IntegrationSettings() {
       if (response.ok) {
         const data = await response.json();
         setCalendarStatus(data.status);
+      } else {
+        // Handle error response
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Error response from Calendar status:', errorData);
+        toast({
+          title: 'Calendar Status Error',
+          description: errorData.error || 'Failed to check Calendar connection status',
+          variant: 'destructive',
+        });
       }
     } catch (error: any) {
       console.error('Error fetching Calendar status:', error);
+      toast({
+        title: 'Network Error',
+        description: 'Failed to connect to server. Please check your connection.',
+        variant: 'destructive',
+      });
     } finally {
       setLoadingCalendar(false);
     }

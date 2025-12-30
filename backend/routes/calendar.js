@@ -109,6 +109,8 @@ router.get('/auth/status', async (req, res) => {
   try {
     const userId = req.user.id;
 
+    console.log(`[Calendar Status] Checking for user: ${userId}`);
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -127,21 +129,29 @@ router.get('/auth/status', async (req, res) => {
     });
 
     if (!user) {
+      console.error(`[Calendar Status] User not found: ${userId}`);
       return res.status(404).json({
         success: false,
         error: 'User not found',
       });
     }
 
+    console.log(`[Calendar Status] User found, getting connection status...`);
     const status = googleCalendarService.getConnectionStatus(user);
+
+    console.log(`[Calendar Status] Status:`, status);
 
     res.json({
       success: true,
       status,
     });
   } catch (error) {
-    console.error('Error checking connection status:', error);
-    res.status(500).json({ error: 'Failed to check connection status' });
+    console.error('[Calendar Status] Error:', error);
+    console.error('[Calendar Status] Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check connection status: ' + error.message,
+    });
   }
 });
 
