@@ -25,7 +25,7 @@ class GmailIntegrationService {
 
     const clientId = tenant.settings.mail.oauth.clientId;
     const clientSecret = decrypt(tenant.settings.mail.oauth.clientSecret);
-    const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/integrations/gmail/callback`;
+    const redirectUri = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/integrations/gmail/callback`;
 
     return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
   }

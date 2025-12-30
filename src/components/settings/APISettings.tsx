@@ -19,6 +19,7 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  Mail,
 } from 'lucide-react';
 import {
   Select,
@@ -52,6 +53,21 @@ interface CloudinarySettings {
   hasApiSecret: boolean;
 }
 
+interface MailSettings {
+  configured: boolean;
+  provider: string;
+  enabled: boolean;
+  domain: string | null;
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  clientId: string | null;
+  smtp: {
+    fromName: string;
+    fromEmail: string;
+    replyTo: string;
+  } | null;
+}
+
 export default function APISettings() {
   const [whatsappSettings, setWhatsappSettings] = useState<WhatsAppSettings>({
     configured: false,
@@ -75,6 +91,17 @@ export default function APISettings() {
     hasApiSecret: false,
   });
 
+  const [mailSettings, setMailSettings] = useState<MailSettings>({
+    configured: false,
+    provider: 'google_workspace',
+    enabled: true,
+    domain: null,
+    hasClientId: false,
+    hasClientSecret: false,
+    clientId: null,
+    smtp: null,
+  });
+
   // Form states
   const [whatsappToken, setWhatsappToken] = useState('');
   const [whatsappPhoneId, setWhatsappPhoneId] = useState('');
@@ -86,12 +113,19 @@ export default function APISettings() {
   const [cloudinaryCloudName, setCloudinaryCloudName] = useState('');
   const [cloudinaryApiKey, setCloudinaryApiKey] = useState('');
   const [cloudinaryApiSecret, setCloudinaryApiSecret] = useState('');
+  const [mailClientId, setMailClientId] = useState('');
+  const [mailClientSecret, setMailClientSecret] = useState('');
+  const [mailDomain, setMailDomain] = useState('');
+  const [mailFromName, setMailFromName] = useState('');
+  const [mailFromEmail, setMailFromEmail] = useState('');
+  const [mailReplyTo, setMailReplyTo] = useState('');
 
   // UI states
   const [loading, setLoading] = useState(true);
   const [savingWhatsApp, setSavingWhatsApp] = useState(false);
   const [savingOpenAI, setSavingOpenAI] = useState(false);
   const [savingCloudinary, setSavingCloudinary] = useState(false);
+  const [savingMail, setSavingMail] = useState(false);
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [testingOpenAI, setTestingOpenAI] = useState(false);
   const [testingCloudinary, setTestingCloudinary] = useState(false);
@@ -99,6 +133,7 @@ export default function APISettings() {
   const [showOpenAIKey, setShowOpenAIKey] = useState(false);
   const [showCloudinaryApiKey, setShowCloudinaryApiKey] = useState(false);
   const [showCloudinaryApiSecret, setShowCloudinaryApiSecret] = useState(false);
+  const [showMailClientSecret, setShowMailClientSecret] = useState(false);
 
   const { toast } = useToast();
   const token = localStorage.getItem('token');
@@ -130,6 +165,27 @@ export default function APISettings() {
       setOpenaiTemperature(data.settings.openai.temperature);
       setOpenaiEnabled(data.settings.openai.enabled);
       setCloudinaryCloudName(data.settings.cloudinary.cloudName || '');
+
+      // Fetch mail settings separately
+      try {
+        const mailResponse = await fetch(`${API_URL}/settings/mail`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (mailResponse.ok) {
+          const mailData = await mailResponse.json();
+          setMailSettings(mailData.settings);
+          setMailClientId(mailData.settings.clientId || '');
+          setMailDomain(mailData.settings.domain || '');
+          setMailFromName(mailData.settings.smtp?.fromName || '');
+          setMailFromEmail(mailData.settings.smtp?.fromEmail || '');
+          setMailReplyTo(mailData.settings.smtp?.replyTo || '');
+        }
+      } catch (mailError) {
+        console.log('Mail settings not configured yet');
+      }
     } catch (error: any) {
       console.error('Error fetching settings:', error);
       toast({
@@ -451,6 +507,76 @@ export default function APISettings() {
     }
   };
 
+  const saveMailSettings = async () => {
+    if (!mailClientId || !mailClientSecret) {
+      toast({
+        title: 'Validation Error',
+        description: 'Google Workspace OAuth Client ID and Client Secret are required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!mailFromEmail || !mailFromName) {
+      toast({
+        title: 'Validation Error',
+        description: 'SMTP From Email and From Name are required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setSavingMail(true);
+      const response = await fetch(`${API_URL}/settings/mail`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          provider: 'google_workspace',
+          enabled: true,
+          domain: mailDomain || null,
+          oauth: {
+            clientId: mailClientId,
+            clientSecret: mailClientSecret,
+          },
+          smtp: {
+            fromName: mailFromName,
+            fromEmail: mailFromEmail,
+            replyTo: mailReplyTo || mailFromEmail,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save mail settings');
+      }
+
+      toast({
+        title: 'Settings Saved',
+        description: 'Mail integration settings updated successfully',
+      });
+
+      // Refresh settings
+      await fetchSettings();
+
+      // Clear sensitive fields
+      setMailClientSecret('');
+    } catch (error: any) {
+      console.error('Error saving mail settings:', error);
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingMail(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -481,6 +607,10 @@ export default function APISettings() {
           <TabsTrigger value="cloudinary" className="flex items-center gap-2">
             <Cloud className="w-4 h-4" />
             Cloudinary
+          </TabsTrigger>
+          <TabsTrigger value="mail" className="flex items-center gap-2">
+            <Mail className="w-4 h-4" />
+            Mail Integration
           </TabsTrigger>
         </TabsList>
         {/* WhatsApp Settings */}
@@ -868,6 +998,164 @@ export default function APISettings() {
                   disabled={savingCloudinary || !cloudinaryCloudName || !cloudinaryApiKey || !cloudinaryApiSecret}
                 >
                   {savingCloudinary ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Settings className="w-4 h-4 mr-2" />
+                  )}
+                  Save Settings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Mail Integration Settings */}
+        <TabsContent value="mail">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5" />
+                    Mail Integration (Google Workspace OAuth)
+                  </CardTitle>
+                  <CardDescription>
+                    Configure Google Workspace OAuth for tenant-specific Gmail and Calendar integrations
+                  </CardDescription>
+                </div>
+                <Badge variant={mailSettings.configured ? 'default' : 'secondary'}>
+                  {mailSettings.configured ? (
+                    <>
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Configured
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Not Configured
+                    </>
+                  )}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {mailSettings.configured && (
+                <Alert>
+                  <CheckCircle className="w-4 h-4" />
+                  <AlertDescription>
+                    Mail integration is currently configured. Users can connect their Gmail and Calendar accounts.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <Alert>
+                <AlertDescription>
+                  Configure Google Workspace OAuth credentials to enable tenant-specific Gmail and Calendar integrations.
+                  Create OAuth credentials in <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="underline">Google Cloud Console</a>.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-2">
+                <Label htmlFor="mail-client-id">OAuth Client ID *</Label>
+                <Input
+                  id="mail-client-id"
+                  placeholder={mailSettings.clientId || 'Enter Google OAuth Client ID'}
+                  value={mailClientId}
+                  onChange={(e) => setMailClientId(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your Google Cloud OAuth 2.0 Client ID
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="mail-client-secret">OAuth Client Secret *</Label>
+                <div className="relative">
+                  <Input
+                    id="mail-client-secret"
+                    type={showMailClientSecret ? 'text' : 'password'}
+                    placeholder={mailSettings.hasClientSecret ? '••••••••••••••••' : 'Enter OAuth Client Secret'}
+                    value={mailClientSecret}
+                    onChange={(e) => setMailClientSecret(e.target.value)}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0"
+                    onClick={() => setShowMailClientSecret(!showMailClientSecret)}
+                  >
+                    {showMailClientSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Your Google Cloud OAuth 2.0 Client Secret (stored encrypted)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="mail-domain">Workspace Domain (Optional)</Label>
+                <Input
+                  id="mail-domain"
+                  placeholder={mailSettings.domain || 'example.com'}
+                  value={mailDomain}
+                  onChange={(e) => setMailDomain(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your Google Workspace domain (optional, for domain-restricted access)
+                </p>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h4 className="text-sm font-semibold mb-3">SMTP Configuration</h4>
+
+                <div className="space-y-2">
+                  <Label htmlFor="mail-from-name">From Name *</Label>
+                  <Input
+                    id="mail-from-name"
+                    placeholder="Your Company Name"
+                    value={mailFromName}
+                    onChange={(e) => setMailFromName(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Name displayed as sender in outgoing emails
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="mail-from-email">From Email *</Label>
+                  <Input
+                    id="mail-from-email"
+                    type="email"
+                    placeholder="noreply@yourcompany.com"
+                    value={mailFromEmail}
+                    onChange={(e) => setMailFromEmail(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Email address used as sender (must be authorized in Google Workspace)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="mail-reply-to">Reply-To Email (Optional)</Label>
+                  <Input
+                    id="mail-reply-to"
+                    type="email"
+                    placeholder="support@yourcompany.com"
+                    value={mailReplyTo}
+                    onChange={(e) => setMailReplyTo(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Email address for replies (defaults to From Email if not specified)
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={saveMailSettings}
+                  disabled={savingMail || !mailClientId || !mailClientSecret || !mailFromEmail || !mailFromName}
+                >
+                  {savingMail ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <Settings className="w-4 h-4 mr-2" />

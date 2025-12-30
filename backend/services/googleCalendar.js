@@ -29,7 +29,7 @@ class GoogleCalendarService {
       try {
         const clientId = tenant.settings.mail.oauth.clientId;
         const clientSecret = decrypt(tenant.settings.mail.oauth.clientSecret);
-        const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/calendar/callback`;
+        const redirectUri = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/calendar/callback`;
 
         console.log(`📅 [Tenant: ${tenant.id}] Using tenant-specific Calendar OAuth`);
 
