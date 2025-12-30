@@ -119,7 +119,7 @@ export default function IntegrationSettings() {
   const fetchCalendarStatus = async () => {
     try {
       setLoadingCalendar(true);
-      const response = await fetch(`${API_URL}/calendar/status`, {
+      const response = await fetch(`${API_URL}/calendar/auth/status`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -288,7 +288,7 @@ export default function IntegrationSettings() {
   const disconnectCalendar = async () => {
     try {
       setDisconnectingCalendar(true);
-      const response = await fetch(`${API_URL}/calendar/disconnect`, {
+      const response = await fetch(`${API_URL}/calendar/auth/disconnect`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
