@@ -24,7 +24,21 @@ class GmailIntegrationService {
     }
 
     const clientId = tenant.settings.mail.oauth.clientId;
-    const clientSecret = decrypt(tenant.settings.mail.oauth.clientSecret);
+    let clientSecret;
+
+    try {
+      clientSecret = decrypt(tenant.settings.mail.oauth.clientSecret);
+    } catch (decryptError) {
+      console.error('❌ Failed to decrypt tenant OAuth client secret:', decryptError.message);
+      console.error('💡 This usually happens when ENCRYPTION_KEY is not set in .env or has changed');
+      console.error('📝 Solution: Set ENCRYPTION_KEY in .env and reconfigure mail settings');
+      throw new Error(
+        'Cannot decrypt mail configuration. Please ask your administrator to:\n' +
+        '1. Set ENCRYPTION_KEY in .env file\n' +
+        '2. Reconfigure mail settings in Settings > API Config > Mail Integration'
+      );
+    }
+
     const redirectUri = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/integrations/gmail/callback`;
 
     return new google.auth.OAuth2(clientId, clientSecret, redirectUri);

@@ -35,6 +35,20 @@ class GoogleCalendarService {
 
         return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
       } catch (error) {
+        // Check if it's a decryption error
+        if (error.message && error.message.includes('decrypt')) {
+          console.error(`❌ [Tenant: ${tenant?.id}] Failed to decrypt OAuth client secret: ${error.message}`);
+          console.error('💡 This usually happens when ENCRYPTION_KEY is not set in .env or has changed');
+          console.error('📝 Solution: Set ENCRYPTION_KEY in .env and reconfigure mail settings');
+
+          // Don't fallback on decryption errors - user needs to fix configuration
+          throw new Error(
+            'Cannot decrypt mail configuration. Please ask your administrator to:\n' +
+            '1. Set ENCRYPTION_KEY in .env file\n' +
+            '2. Reconfigure mail settings in Settings > API Config > Mail Integration'
+          );
+        }
+
         console.error(`❌ [Tenant: ${tenant?.id}] Error creating tenant Calendar OAuth client: ${error.message}`);
         console.log('🔄 [FALLBACK] Using global Calendar OAuth credentials');
       }
