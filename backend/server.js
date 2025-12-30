@@ -81,6 +81,7 @@ const tenantAdminRoutes = require('./routes/tenantAdmin');
 const settingsRoutes = require('./routes/settings');
 const mediaRoutes = require('./routes/media');
 const remindersRoutes = require('./routes/reminders');
+const gmailIntegrationRoutes = require('./routes/integrations/gmail');
 
 // Use routes
 app.use('/tenant-admin', tenantAdminRoutes);
@@ -111,6 +112,7 @@ app.use('/api/landing-pages', landingPagesRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/reminders', remindersRoutes);
+app.use('/api/integrations/gmail', gmailIntegrationRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

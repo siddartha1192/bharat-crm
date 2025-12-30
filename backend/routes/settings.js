@@ -4,6 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const whatsappService = require('../services/whatsapp');
 const openaiService = require('../services/openai');
+const { encrypt, decrypt, isEncrypted } = require('../utils/encryption');
 
 const prisma = new PrismaClient();
 
@@ -60,6 +61,16 @@ router.get('/api-config', authenticate, async (req, res) => {
           cloudName: settings.cloudinary?.cloudName || null,
           hasApiKey: !!settings.cloudinary?.apiKey,
           hasApiSecret: !!settings.cloudinary?.apiSecret
+        },
+        mail: {
+          configured: !!(settings.mail?.oauth?.clientId && settings.mail?.oauth?.clientSecret),
+          provider: settings.mail?.provider || 'google_workspace',
+          enabled: settings.mail?.enabled !== false,
+          domain: settings.mail?.domain || null,
+          hasClientId: !!settings.mail?.oauth?.clientId,
+          hasClientSecret: !!settings.mail?.oauth?.clientSecret,
+          clientId: settings.mail?.oauth?.clientId || null,
+          smtp: settings.mail?.smtp || null
         }
       }
     });
@@ -499,6 +510,249 @@ router.post('/test-cloudinary', authenticate, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to test Cloudinary connection: ' + error.message
+    });
+  }
+});
+
+/**
+ * Update Mail API settings (Google Workspace OAuth)
+ * PUT /api/settings/mail
+ */
+router.put('/mail', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { provider, enabled, domain, oauth, smtp } = req.body;
+
+    // Validate required fields
+    if (!oauth?.clientId || !oauth?.clientSecret) {
+      return res.status(400).json({
+        success: false,
+        error: 'Mail OAuth client ID and client secret are required'
+      });
+    }
+
+    // Get user's tenant
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            settings: true
+          }
+        }
+      }
+    });
+
+    if (!user || !user.tenant) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tenant not found'
+      });
+    }
+
+    // Only ADMIN users can update API settings
+    if (user.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only administrators can update API settings'
+      });
+    }
+
+    // Validate OAuth client ID format (basic validation)
+    if (!oauth.clientId.includes('.apps.googleusercontent.com') && provider === 'google_workspace') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid Google OAuth client ID format'
+      });
+    }
+
+    // Encrypt the client secret before storing
+    const encryptedClientSecret = encrypt(oauth.clientSecret);
+
+    // Update tenant settings
+    const currentSettings = user.tenant.settings || {};
+    const updatedSettings = {
+      ...currentSettings,
+      mail: {
+        provider: provider || 'google_workspace',
+        enabled: enabled !== false,
+        domain: domain || null,
+        oauth: {
+          clientId: oauth.clientId,
+          clientSecret: encryptedClientSecret,
+          allowedDomains: oauth.allowedDomains || []
+        },
+        smtp: smtp || {
+          fromName: user.tenant.name,
+          fromEmail: smtp?.fromEmail || `noreply@${domain || 'example.com'}`,
+          replyTo: smtp?.replyTo || user.tenant.contactEmail
+        },
+        features: {
+          sendEmail: true,
+          readReplies: true,
+          threadTracking: true
+        }
+      }
+    };
+
+    await prisma.tenant.update({
+      where: { id: user.tenant.id },
+      data: { settings: updatedSettings }
+    });
+
+    // Log mail configuration update
+    console.log(`[Tenant: ${user.tenant.id}] Mail integration configured by user ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Mail settings updated successfully',
+      settings: {
+        configured: true,
+        provider: provider || 'google_workspace',
+        enabled: enabled !== false,
+        domain: domain || null,
+        clientId: oauth.clientId
+      }
+    });
+  } catch (error) {
+    console.error('Error updating mail settings:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update mail settings: ' + error.message
+    });
+  }
+});
+
+/**
+ * Get Mail settings (detailed view for admins)
+ * GET /api/settings/mail
+ */
+router.get('/mail', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get user's tenant
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            settings: true
+          }
+        }
+      }
+    });
+
+    if (!user || !user.tenant) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tenant not found'
+      });
+    }
+
+    // Only ADMIN users can view detailed mail settings
+    if (user.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only administrators can view mail settings'
+      });
+    }
+
+    const settings = user.tenant.settings || {};
+    const mailSettings = settings.mail || {};
+
+    // Return settings without decrypting the client secret
+    res.json({
+      success: true,
+      settings: {
+        configured: !!(mailSettings.oauth?.clientId && mailSettings.oauth?.clientSecret),
+        provider: mailSettings.provider || 'google_workspace',
+        enabled: mailSettings.enabled !== false,
+        domain: mailSettings.domain || null,
+        oauth: {
+          clientId: mailSettings.oauth?.clientId || null,
+          hasClientSecret: !!mailSettings.oauth?.clientSecret,
+          allowedDomains: mailSettings.oauth?.allowedDomains || []
+        },
+        smtp: mailSettings.smtp || null,
+        features: mailSettings.features || {
+          sendEmail: true,
+          readReplies: true,
+          threadTracking: true
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching mail settings:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch mail settings'
+    });
+  }
+});
+
+/**
+ * Delete Mail settings
+ * DELETE /api/settings/mail
+ */
+router.delete('/mail', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get user's tenant
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            settings: true
+          }
+        }
+      }
+    });
+
+    if (!user || !user.tenant) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tenant not found'
+      });
+    }
+
+    // Only ADMIN users can delete API settings
+    if (user.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only administrators can delete API settings'
+      });
+    }
+
+    // Remove mail settings
+    const currentSettings = user.tenant.settings || {};
+    const updatedSettings = {
+      ...currentSettings,
+      mail: undefined
+    };
+
+    await prisma.tenant.update({
+      where: { id: user.tenant.id },
+      data: { settings: updatedSettings }
+    });
+
+    console.log(`[Tenant: ${user.tenant.id}] Mail integration removed by user ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Mail settings removed successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting mail settings:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete mail settings'
     });
   }
 });

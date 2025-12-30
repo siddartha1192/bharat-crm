@@ -5,14 +5,14 @@ import { Card } from '@/components/ui/card';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
-export default function CalendarCallback() {
+export default function GmailCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
-  const [message, setMessage] = useState('Connecting to Google Calendar...');
+  const [message, setMessage] = useState('Connecting to Gmail...');
 
   useEffect(() => {
-    console.log('🔍 CalendarCallback mounted');
+    console.log('🔍 GmailCallback mounted');
     console.log('📍 Current URL:', window.location.href);
     console.log('🔑 Code from URL:', searchParams.get('code'));
     console.log('👤 User ID from storage:', localStorage.getItem('userId'));
@@ -20,10 +20,11 @@ export default function CalendarCallback() {
     const handleCallback = async () => {
       try {
         const code = searchParams.get('code');
+        const state = searchParams.get('state');
         const error = searchParams.get('error');
         const userId = localStorage.getItem('userId');
 
-        console.log('🚀 Starting OAuth callback handling...');
+        console.log('🚀 Starting Gmail OAuth callback handling...');
 
         // Check for errors from Google
         if (error) {
@@ -53,7 +54,7 @@ export default function CalendarCallback() {
         }
 
         console.log('✅ All checks passed, sending to backend...');
-        console.log('📡 API URL:', `${API_URL}/calendar/auth/callback`);
+        console.log('📡 API URL:', `${API_URL}/integrations/gmail/callback`);
 
         // Get auth token
         const token = localStorage.getItem('token');
@@ -66,7 +67,7 @@ export default function CalendarCallback() {
         }
 
         // Send code to backend
-        const response = await fetch(`${API_URL}/calendar/auth/callback`, {
+        const response = await fetch(`${API_URL}/integrations/gmail/callback`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -74,7 +75,7 @@ export default function CalendarCallback() {
           },
           body: JSON.stringify({
             code,
-            userId,
+            state,
           }),
         });
 
@@ -83,16 +84,16 @@ export default function CalendarCallback() {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           console.error('❌ Backend error:', errorData);
-          throw new Error(errorData.error || 'Failed to connect Google Calendar');
+          throw new Error(errorData.error || 'Failed to connect Gmail');
         }
 
         const data = await response.json();
         console.log('✅ Backend response:', data);
 
         setStatus('success');
-        setMessage('Google Calendar connected successfully!');
+        setMessage('Gmail connected successfully!');
 
-        console.log('✅ Success! Redirecting to integrations in 2 seconds...');
+        console.log('✅ Success! Redirecting to settings in 2 seconds...');
 
         // Redirect to settings/integrations after 2 seconds
         setTimeout(() => {
@@ -103,7 +104,7 @@ export default function CalendarCallback() {
         console.error('❌ Error in callback handler:', error);
         console.error('❌ Error stack:', error.stack);
         setStatus('error');
-        setMessage(error.message || 'Failed to connect Google Calendar');
+        setMessage(error.message || 'Failed to connect Gmail');
         setTimeout(() => navigate('/settings?tab=integrations'), 3000);
       }
     };

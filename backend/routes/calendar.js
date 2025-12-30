@@ -13,47 +13,74 @@ router.use(tenantContext);
 // Get Google Calendar authorization URL
 router.get('/auth/url', (req, res) => {
   try {
-    if (!googleCalendarService.isConfigured()) {
-      return res.status(503).json({
-        error: 'Google Calendar not configured',
-        message: 'Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in environment variables'
-      });
-    }
+    const user = req.user;
+    const tenant = req.tenant;
 
-    const authUrl = googleCalendarService.getAuthUrl();
-    res.json({ authUrl });
+    // Generate CSRF state token
+    const state = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+    // Get authorization URL (with tenant-specific OAuth if configured)
+    const authUrl = googleCalendarService.getAuthUrl(tenant, user.id, state);
+
+    res.json({
+      success: true,
+      authUrl,
+      message: 'Please visit the URL to authorize Calendar access',
+    });
   } catch (error) {
     console.error('Error generating auth URL:', error);
-    res.status(500).json({ error: 'Failed to generate authorization URL' });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate authorization URL: ' + error.message,
+    });
   }
 });
 
 // Handle OAuth callback and store tokens
 router.post('/auth/callback', async (req, res) => {
   try {
-    const { code, userId } = req.body;
+    const { code, state } = req.body;
+    const user = req.user;
+    const tenant = req.tenant;
 
-    if (!code || !userId) {
-      return res.status(400).json({ error: 'Code and userId are required' });
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        error: 'Authorization code is required',
+      });
+    }
+
+    // Verify state parameter (basic check - extract userId)
+    if (state && !state.startsWith(user.id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid state parameter - possible CSRF attack',
+      });
     }
 
     // Exchange code for tokens
-    const tokens = await googleCalendarService.getTokensFromCode(code);
+    const tokens = await googleCalendarService.getTokensFromCode(code, tenant);
 
-    // Store tokens in database
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        googleAccessToken: tokens.access_token,
-        googleRefreshToken: tokens.refresh_token,
-        googleTokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : null
-      }
+    // Save tokens to user record
+    const updatedUser = await googleCalendarService.saveUserTokens(user.id, tokens);
+
+    res.json({
+      success: true,
+      message: 'Google Calendar connected successfully',
+      user: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        calendarConnected: true,
+        calendarConnectedAt: updatedUser.calendarConnectedAt,
+      },
     });
-
-    res.json({ success: true, message: 'Google Calendar connected successfully' });
   } catch (error) {
     console.error('Error handling OAuth callback:', error);
-    res.status(500).json({ error: 'Failed to connect Google Calendar' });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to connect Google Calendar: ' + error.message,
+    });
   }
 });
 
@@ -62,19 +89,18 @@ router.post('/auth/disconnect', async (req, res) => {
   try {
     const userId = req.user.id;
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        googleAccessToken: null,
-        googleRefreshToken: null,
-        googleTokenExpiry: null
-      }
-    });
+    const result = await googleCalendarService.disconnectCalendar(userId);
 
-    res.json({ success: true, message: 'Google Calendar disconnected' });
+    res.json({
+      success: true,
+      message: result.message,
+    });
   } catch (error) {
     console.error('Error disconnecting Google Calendar:', error);
-    res.status(500).json({ error: 'Failed to disconnect Google Calendar' });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to disconnect Google Calendar: ' + error.message,
+    });
   }
 });
 
@@ -86,17 +112,32 @@ router.get('/auth/status', async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
+        id: true,
+        email: true,
+        calendarAccessToken: true,
+        calendarRefreshToken: true,
+        calendarTokenExpiry: true,
+        calendarConnectedAt: true,
+        calendarScopes: true,
+        // Backward compatibility
         googleAccessToken: true,
         googleRefreshToken: true,
-        googleTokenExpiry: true
-      }
+        googleTokenExpiry: true,
+      },
     });
 
-    const isConnected = !!(user?.googleAccessToken && user?.googleRefreshToken);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    const status = googleCalendarService.getConnectionStatus(user);
 
     res.json({
-      connected: isConnected,
-      configured: googleCalendarService.isConfigured()
+      success: true,
+      status,
     });
   } catch (error) {
     console.error('Error checking connection status:', error);
@@ -108,13 +149,20 @@ router.get('/auth/status', async (req, res) => {
 router.get('/events', async (req, res) => {
   try {
     const userId = req.user.id;
+    const tenant = req.tenant;
     const { start, end, syncWithGoogle } = req.query;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
+        id: true,
+        calendarAccessToken: true,
+        calendarRefreshToken: true,
+        calendarTokenExpiry: true,
+        // Backward compatibility
         googleAccessToken: true,
-        googleRefreshToken: true
+        googleRefreshToken: true,
+        googleTokenExpiry: true,
       }
     });
 
@@ -133,13 +181,9 @@ router.get('/events', async (req, res) => {
     events = dbEvents;
 
     // Sync with Google Calendar if connected and requested
-    if (syncWithGoogle === 'true' && user?.googleAccessToken && user?.googleRefreshToken) {
+    if (syncWithGoogle === 'true' && googleCalendarService.isCalendarConnected(user)) {
       try {
-        const auth = await googleCalendarService.getAuthenticatedClient(
-          user.googleAccessToken,
-          user.googleRefreshToken
-        );
-
+        const auth = await googleCalendarService.getAuthenticatedClient(user, tenant);
         const googleEvents = await googleCalendarService.listEvents(auth, start, end);
 
         // Sync Google events to database
@@ -197,17 +241,18 @@ router.post('/events', async (req, res) => {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: {
+          id: true,
+          calendarAccessToken: true,
+          calendarRefreshToken: true,
+          calendarTokenExpiry: true,
           googleAccessToken: true,
-          googleRefreshToken: true
+          googleRefreshToken: true,
         }
       });
 
-      if (user?.googleAccessToken && user?.googleRefreshToken) {
+      if (googleCalendarService.isCalendarConnected(user)) {
         try {
-          const auth = await googleCalendarService.getAuthenticatedClient(
-            user.googleAccessToken,
-            user.googleRefreshToken
-          );
+          const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
 
           const googleEvent = await googleCalendarService.createEvent(auth, {
             title,
@@ -276,17 +321,18 @@ router.put('/events/:eventId', async (req, res) => {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: {
+          id: true,
+          calendarAccessToken: true,
+          calendarRefreshToken: true,
+          calendarTokenExpiry: true,
           googleAccessToken: true,
-          googleRefreshToken: true
+          googleRefreshToken: true,
         }
       });
 
-      if (user?.googleAccessToken && user?.googleRefreshToken) {
+      if (googleCalendarService.isCalendarConnected(user)) {
         try {
-          const auth = await googleCalendarService.getAuthenticatedClient(
-            user.googleAccessToken,
-            user.googleRefreshToken
-          );
+          const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
 
           await googleCalendarService.updateEvent(auth, existingEvent.googleEventId, {
             title,
@@ -350,17 +396,18 @@ router.delete('/events/:eventId', async (req, res) => {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: {
+          id: true,
+          calendarAccessToken: true,
+          calendarRefreshToken: true,
+          calendarTokenExpiry: true,
           googleAccessToken: true,
-          googleRefreshToken: true
+          googleRefreshToken: true,
         }
       });
 
-      if (user?.googleAccessToken && user?.googleRefreshToken) {
+      if (googleCalendarService.isCalendarConnected(user)) {
         try {
-          const auth = await googleCalendarService.getAuthenticatedClient(
-            user.googleAccessToken,
-            user.googleRefreshToken
-          );
+          const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
 
           await googleCalendarService.deleteEvent(auth, event.googleEventId);
         } catch (error) {

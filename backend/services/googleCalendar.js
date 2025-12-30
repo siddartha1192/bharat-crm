@@ -1,62 +1,277 @@
 const { google } = require('googleapis');
+const { decrypt } = require('../utils/encryption');
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
+
+// Calendar OAuth scopes (service-specific, NOT for login)
+const CALENDAR_SCOPES = [
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/calendar.events'
+];
 
 class GoogleCalendarService {
   constructor() {
-    this.clientId = process.env.GOOGLE_CLIENT_ID;
-    this.clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    this.redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173/calendar/callback';
+    // Global fallback credentials
+    this.globalClientId = process.env.GOOGLE_CLIENT_ID;
+    this.globalClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    this.globalRedirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173/calendar/callback';
   }
 
-  // Create OAuth2 client
-  getOAuth2Client() {
+  /**
+   * Get tenant-specific OAuth2 client or fallback to global
+   * @param {Object} tenant - Tenant object with settings
+   * @returns {OAuth2Client} - Configured OAuth2 client
+   */
+  getOAuth2Client(tenant = null) {
+    // Try tenant-specific configuration first
+    if (tenant?.settings?.mail?.oauth?.clientId && tenant?.settings?.mail?.oauth?.clientSecret) {
+      try {
+        const clientId = tenant.settings.mail.oauth.clientId;
+        const clientSecret = decrypt(tenant.settings.mail.oauth.clientSecret);
+        const redirectUri = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/calendar/callback`;
+
+        console.log(`📅 [Tenant: ${tenant.id}] Using tenant-specific Calendar OAuth`);
+
+        return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+      } catch (error) {
+        console.error(`❌ [Tenant: ${tenant?.id}] Error creating tenant Calendar OAuth client: ${error.message}`);
+        console.log('🔄 [FALLBACK] Using global Calendar OAuth credentials');
+      }
+    }
+
+    // Fallback to global credentials
+    if (!this.globalClientId || !this.globalClientSecret) {
+      throw new Error('Calendar OAuth not configured. Please either configure tenant mail settings or set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env');
+    }
+
     return new google.auth.OAuth2(
-      this.clientId,
-      this.clientSecret,
-      this.redirectUri
+      this.globalClientId,
+      this.globalClientSecret,
+      this.globalRedirectUri
     );
   }
 
-  // Generate auth URL for user to authorize
-  getAuthUrl() {
-    const oauth2Client = this.getOAuth2Client();
-
-    const scopes = [
-      'https://www.googleapis.com/auth/calendar',
-      'https://www.googleapis.com/auth/calendar.events'
-    ];
+  /**
+   * Generate authorization URL for Calendar integration
+   * @param {Object} tenant - Tenant object
+   * @param {string} userId - User ID requesting authorization
+   * @param {string} state - CSRF protection state parameter
+   * @returns {string} - Authorization URL
+   */
+  getAuthUrl(tenant = null, userId = null, state = null) {
+    const oauth2Client = this.getOAuth2Client(tenant);
 
     return oauth2Client.generateAuthUrl({
       access_type: 'offline',
-      scope: scopes,
-      prompt: 'consent'
+      scope: CALENDAR_SCOPES,
+      prompt: 'consent',
+      state: state || `${userId}-${Date.now()}`,
     });
   }
 
-  // Exchange authorization code for tokens
-  async getTokensFromCode(code) {
-    const oauth2Client = this.getOAuth2Client();
+  /**
+   * Exchange authorization code for tokens
+   * @param {string} code - Authorization code
+   * @param {Object} tenant - Tenant object
+   * @returns {Promise<Object>} - Tokens object
+   */
+  async getTokensFromCode(code, tenant = null) {
+    const oauth2Client = this.getOAuth2Client(tenant);
     const { tokens } = await oauth2Client.getToken(code);
     return tokens;
   }
 
-  // Set credentials from stored tokens
-  async getAuthenticatedClient(accessToken, refreshToken) {
-    const oauth2Client = this.getOAuth2Client();
+  /**
+   * Save user calendar tokens to database
+   * @param {string} userId - User ID
+   * @param {Object} tokens - Tokens from Google OAuth
+   * @returns {Promise<Object>} - Updated user object
+   */
+  async saveUserTokens(userId, tokens) {
+    const expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date) : new Date(Date.now() + 3600 * 1000);
+
+    try {
+      const user = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          calendarAccessToken: tokens.access_token,
+          calendarRefreshToken: tokens.refresh_token || undefined,
+          calendarTokenExpiry: expiryDate,
+          calendarConnectedAt: new Date(),
+          calendarScopes: tokens.scope ? tokens.scope.split(' ') : CALENDAR_SCOPES,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          calendarConnectedAt: true,
+        },
+      });
+
+      console.log(`[Calendar Integration] User ${userId} connected Calendar successfully`);
+      return user;
+    } catch (error) {
+      console.error('Error saving Calendar tokens:', error.message);
+      throw new Error('Failed to save Calendar tokens: ' + error.message);
+    }
+  }
+
+  /**
+   * Get authenticated Calendar client for user with tenant-specific config
+   * @param {Object} user - User object with calendar tokens
+   * @param {Object} tenant - Tenant object
+   * @returns {Promise<OAuth2Client>} - Authenticated OAuth2 client
+   */
+  async getAuthenticatedClient(user, tenant = null) {
+    // Support both old field names and new field names for backward compatibility
+    const accessToken = user.calendarAccessToken || user.googleAccessToken;
+    const refreshToken = user.calendarRefreshToken || user.googleRefreshToken;
+    const tokenExpiry = user.calendarTokenExpiry || user.googleTokenExpiry;
+
+    if (!accessToken || !refreshToken) {
+      throw new Error('Calendar not connected for this user');
+    }
+
+    const oauth2Client = this.getOAuth2Client(tenant);
+
     oauth2Client.setCredentials({
       access_token: accessToken,
-      refresh_token: refreshToken
+      refresh_token: refreshToken,
+      expiry_date: tokenExpiry ? new Date(tokenExpiry).getTime() : undefined,
     });
+
+    // Check if token is expired and refresh if needed
+    if (tokenExpiry && new Date(tokenExpiry) <= new Date()) {
+      console.log(`[Calendar Integration] Token expired for user ${user.id}, refreshing...`);
+      await this.refreshUserTokens(user.id, tenant);
+
+      // Reload user with new tokens
+      const updatedUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: {
+          calendarAccessToken: true,
+          calendarRefreshToken: true,
+          calendarTokenExpiry: true,
+        },
+      });
+
+      oauth2Client.setCredentials({
+        access_token: updatedUser.calendarAccessToken,
+        refresh_token: updatedUser.calendarRefreshToken,
+        expiry_date: updatedUser.calendarTokenExpiry ? new Date(updatedUser.calendarTokenExpiry).getTime() : undefined,
+      });
+    }
 
     // Refresh token if expired
     oauth2Client.on('tokens', (tokens) => {
       if (tokens.refresh_token) {
-        // Update refresh token in database
-        console.log('New refresh token:', tokens.refresh_token);
+        console.log('New Calendar refresh token received');
       }
-      console.log('New access token:', tokens.access_token);
+      console.log('New Calendar access token received');
     });
 
     return oauth2Client;
+  }
+
+  /**
+   * Refresh expired Calendar tokens
+   * @param {string} userId - User ID
+   * @param {Object} tenant - Tenant object
+   * @returns {Promise<Object>} - New tokens
+   */
+  async refreshUserTokens(userId, tenant = null) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        calendarRefreshToken: true,
+        googleRefreshToken: true, // Fallback for backward compatibility
+      },
+    });
+
+    const refreshToken = user.calendarRefreshToken || user.googleRefreshToken;
+
+    if (!user || !refreshToken) {
+      throw new Error('No refresh token available for this user');
+    }
+
+    const oauth2Client = this.getOAuth2Client(tenant);
+    oauth2Client.setCredentials({
+      refresh_token: refreshToken,
+    });
+
+    try {
+      const { credentials } = await oauth2Client.refreshAccessToken();
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          calendarAccessToken: credentials.access_token,
+          calendarTokenExpiry: new Date(credentials.expiry_date),
+        },
+      });
+
+      console.log(`[Calendar Integration] Refreshed tokens for user ${userId}`);
+      return credentials;
+    } catch (error) {
+      console.error('Error refreshing Calendar tokens:', error.message);
+      throw new Error('Failed to refresh Calendar tokens: ' + error.message);
+    }
+  }
+
+  /**
+   * Disconnect Calendar integration for user
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} - Success message
+   */
+  async disconnectCalendar(userId) {
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          calendarAccessToken: null,
+          calendarRefreshToken: null,
+          calendarTokenExpiry: null,
+          calendarConnectedAt: null,
+          calendarScopes: null,
+        },
+      });
+
+      console.log(`[Calendar Integration] User ${userId} disconnected Calendar`);
+      return { message: 'Calendar disconnected successfully' };
+    } catch (error) {
+      console.error('Error disconnecting Calendar:', error.message);
+      throw new Error('Failed to disconnect Calendar: ' + error.message);
+    }
+  }
+
+  /**
+   * Check if user has Calendar connected
+   * @param {Object} user - User object
+   * @returns {boolean} - True if Calendar is connected
+   */
+  isCalendarConnected(user) {
+    return !!(user.calendarAccessToken || user.googleAccessToken) &&
+           !!(user.calendarRefreshToken || user.googleRefreshToken);
+  }
+
+  /**
+   * Get Calendar connection status for user
+   * @param {Object} user - User object
+   * @returns {Object} - Connection status details
+   */
+  getConnectionStatus(user) {
+    const connected = this.isCalendarConnected(user);
+
+    return {
+      connected,
+      scopes: connected ? (user.calendarScopes || null) : null,
+      connectedAt: connected ? (user.calendarConnectedAt || null) : null,
+      tokenExpiry: connected ? (user.calendarTokenExpiry || user.googleTokenExpiry) : null,
+      tokenExpired: connected && (user.calendarTokenExpiry || user.googleTokenExpiry)
+        ? new Date(user.calendarTokenExpiry || user.googleTokenExpiry) <= new Date()
+        : null,
+    };
   }
 
   // List events from Google Calendar

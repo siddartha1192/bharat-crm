@@ -1,18 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Zap, Database, Send, Settings as SettingsIcon, Bell } from 'lucide-react';
+import { Users, Zap, Database, Send, Settings as SettingsIcon, Bell, Plug } from 'lucide-react';
 import { UserManagement } from '@/components/settings/UserManagement';
 import AutomationSettings from '@/components/settings/AutomationSettings';
 import VectorDataUpload from '@/components/settings/VectorDataUpload';
 import CampaignSettings from '@/components/settings/CampaignSettings';
 import APISettings from '@/components/settings/APISettings';
 import ReminderSettings from '@/components/settings/ReminderSettings';
+import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import { usePermissions } from '@/hooks/usePermissions';
 
 export default function Settings() {
   const { isAdmin } = usePermissions();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('users');
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -28,7 +38,7 @@ export default function Settings() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 lg:w-[1200px]">
+        <TabsList className="grid w-full grid-cols-7 lg:w-[1400px]">
           <ProtectedFeature permission="users:read">
             <TabsTrigger value="users">
               <Users className="w-4 h-4 mr-2" />
@@ -44,6 +54,11 @@ export default function Settings() {
           <TabsTrigger value="campaigns">
             <Send className="w-4 h-4 mr-2" />
             Campaigns
+          </TabsTrigger>
+
+          <TabsTrigger value="integrations">
+            <Plug className="w-4 h-4 mr-2" />
+            Integrations
           </TabsTrigger>
 
           <ProtectedFeature permission="users:read">
@@ -83,6 +98,11 @@ export default function Settings() {
         {/* Campaigns */}
         <TabsContent value="campaigns" className="space-y-4">
           <CampaignSettings />
+        </TabsContent>
+
+        {/* Integrations (All Users) */}
+        <TabsContent value="integrations" className="space-y-4">
+          <IntegrationSettings />
         </TabsContent>
 
         {/* Reminders (Admin Only) */}

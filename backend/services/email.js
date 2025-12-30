@@ -1,10 +1,8 @@
 const nodemailer = require('nodemailer');
-
 const { PrismaClient } = require('@prisma/client');
-
 const { google } = require('googleapis');
-
- 
+const gmailIntegrationService = require('./gmailIntegration');
+const { decrypt } = require('../utils/encryption');
 
 const prisma = new PrismaClient();
 
@@ -53,52 +51,85 @@ if (GMAIL_REFRESH_TOKEN) {
 class EmailService {
 
   /**
-
-   * Get nodemailer transporter with Gmail OAuth2
-   * Can use either user-specific tokens or fallback to global .env token
-
+   * Get nodemailer transporter with tenant-specific Gmail OAuth2
+   * Priority: User Gmail integration > Fallback to global .env
+   *
+   * @param {Object} user - User object with Gmail tokens
+   * @param {Object} tenant - Tenant object with mail settings
+   * @returns {Promise<Transporter>} - Nodemailer transporter
    */
-
-  async getTransporter(userEmail = null, userAccessToken = null, userRefreshToken = null) {
-
+  async getTransporter(user = null, tenant = null) {
     try {
-      // TEMPORARY FIX: Skip user tokens and use .env directly until user re-authenticates
-      // This ensures emails work immediately with the working .env token
-      if (userEmail && userAccessToken && userRefreshToken) {
-        console.log('📧 User has tokens but skipping for now - using .env credentials instead');
-        console.log('⚠️  To use your Gmail account, re-authenticate at: http://localhost:3001/reauth-gmail.html');
-        // Skip user tokens and fall through to .env
+      // Option 1: Try tenant-specific user Gmail integration first
+      if (user && tenant && gmailIntegrationService.isGmailConnected(user)) {
+        try {
+          console.log(`📧 [Tenant: ${tenant.id}] Using user-specific Gmail integration for ${user.email}`);
+
+          // Check if tenant has mail OAuth configured
+          if (!tenant.settings?.mail?.oauth?.clientId) {
+            console.warn(`⚠️  [Tenant: ${tenant.id}] Mail OAuth not configured, falling back to global config`);
+            return await this.getFallbackTransporter();
+          }
+
+          // Get tenant OAuth client credentials
+          const clientId = tenant.settings.mail.oauth.clientId;
+          const clientSecret = decrypt(tenant.settings.mail.oauth.clientSecret);
+          const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/integrations/gmail/callback`;
+
+          // Create tenant-specific OAuth2 client
+          const tenantOAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+
+          // Check if token is expired
+          const tokenExpired = user.gmailTokenExpiry && new Date(user.gmailTokenExpiry) <= new Date();
+
+          if (tokenExpired) {
+            console.log(`🔄 [Tenant: ${tenant.id}] Gmail token expired for user ${user.id}, refreshing...`);
+            await gmailIntegrationService.refreshUserTokens(user.id, tenant);
+
+            // Reload user with fresh tokens
+            const updatedUser = await prisma.user.findUnique({
+              where: { id: user.id },
+              select: {
+                gmailAccessToken: true,
+                gmailRefreshToken: true,
+                gmailTokenExpiry: true,
+                googleEmail: true,
+              },
+            });
+
+            user = updatedUser;
+          }
+
+          // Set credentials
+          tenantOAuth2Client.setCredentials({
+            access_token: user.gmailAccessToken,
+            refresh_token: user.gmailRefreshToken,
+            expiry_date: user.gmailTokenExpiry ? new Date(user.gmailTokenExpiry).getTime() : undefined,
+          });
+
+          const accessToken = await tenantOAuth2Client.getAccessToken();
+
+          return nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+              type: 'OAuth2',
+              user: user.googleEmail || user.email,
+              clientId: clientId,
+              clientSecret: clientSecret,
+              refreshToken: user.gmailRefreshToken,
+              accessToken: accessToken.token,
+            },
+          });
+        } catch (userGmailError) {
+          console.error(`❌ [Tenant: ${tenant?.id}] Error using user Gmail integration: ${userGmailError.message}`);
+          console.log(`⚠️  [Tenant: ${tenant?.id}] Falling back to global .env credentials`);
+          return await this.getFallbackTransporter();
+        }
       }
 
-      // Use global .env credentials (these work for reading/sending)
-      console.log('📧 Using global Gmail credentials from .env');
-      if (!GMAIL_USER || !GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN) {
-        throw new Error('Gmail OAuth credentials not configured in .env and no user tokens provided.');
-      }
-
-      const accessToken = await oauth2Client.getAccessToken();
-
-      return nodemailer.createTransport({
-
-        service: 'gmail',
-
-        auth: {
-
-          type: 'OAuth2',
-
-          user: GMAIL_USER,
-
-          clientId: GMAIL_CLIENT_ID,
-
-          clientSecret: GMAIL_CLIENT_SECRET,
-
-          refreshToken: GMAIL_REFRESH_TOKEN,
-
-          accessToken: accessToken.token,
-
-        },
-
-      });
+      // Option 2: Fall back to global .env credentials (backward compatibility)
+      console.log('📧 No user Gmail integration, using fallback global credentials from .env');
+      return await this.getFallbackTransporter();
 
     } catch (error) {
 
@@ -115,6 +146,34 @@ class EmailService {
 
     }
 
+  }
+
+  /**
+   * Get fallback email transporter using global .env credentials
+   * This is used when tenant/user doesn't have Gmail integration configured
+   *
+   * @returns {Promise<Transporter>} - Nodemailer transporter
+   */
+  async getFallbackTransporter() {
+    console.log('🔄 [FALLBACK] Using global Gmail credentials from .env file');
+
+    if (!GMAIL_USER || !GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN) {
+      throw new Error('Gmail OAuth credentials not configured. Please either:\n1. Configure tenant mail settings (recommended), or\n2. Set GMAIL_USER, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GMAIL_REFRESH_TOKEN in .env');
+    }
+
+    const accessToken = await oauth2Client.getAccessToken();
+
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        type: 'OAuth2',
+        user: GMAIL_USER,
+        clientId: GMAIL_CLIENT_ID,
+        clientSecret: GMAIL_CLIENT_SECRET,
+        refreshToken: GMAIL_REFRESH_TOKEN,
+        accessToken: accessToken.token,
+      },
+    });
   }
 
  
@@ -204,27 +263,16 @@ class EmailService {
    */
 
   async sendEmail({
-
     to,
-
     cc = [],
-
     bcc = [],
-
     subject,
-
     text,
-
     html,
-
     userId,
-
     entityType = null,
-
     entityId = null,
-
     attachments = [],
-
   }) {
     console.log('📨 sendEmail called with params:', { to, userId, entityType, subject: subject?.substring(0, 50) });
 
@@ -233,16 +281,27 @@ class EmailService {
       throw new Error('userId is required to send email');
     }
 
-    // Fetch user's Google OAuth tokens from database
+    // Fetch user with Gmail integration tokens and tenant with mail settings
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
+        id: true,
         email: true,
         googleEmail: true,
-        googleAccessToken: true,
-        googleRefreshToken: true,
-        tenantId: true
-      }
+        gmailAccessToken: true,
+        gmailRefreshToken: true,
+        gmailTokenExpiry: true,
+        gmailConnectedAt: true,
+        gmailScopes: true,
+        tenantId: true,
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            settings: true,
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -250,60 +309,34 @@ class EmailService {
     }
 
     const toArray = Array.isArray(to) ? to : [to];
-
     const ccArray = Array.isArray(cc) ? cc : (cc ? [cc] : []);
-
     const bccArray = Array.isArray(bcc) ? bcc : (bcc ? [bcc] : []);
 
     // Determine sender email (use Google email if available, otherwise fallback)
     const senderEmail = user.googleEmail || user.email || GMAIL_USER;
 
     // Create email log entry
-
     const emailLog = await prisma.emailLog.create({
-
       data: {
-
         to: toArray,
-
         cc: ccArray,
-
         bcc: bccArray,
-
         from: senderEmail,
-
         subject,
-
         body: text,
-
         htmlBody: html || null,
-
         status: 'pending',
-
         userId,
-
         entityType,
-
         entityId,
-
         attachments: attachments.length > 0 ? attachments : null,
-
         tenantId: user.tenantId,
-
       },
-
     });
 
-
-
     try {
-
-      // Use user's Google tokens if available, otherwise fallback to .env
-      const transporter = await this.getTransporter(
-        user.googleEmail,
-        user.googleAccessToken,
-        user.googleRefreshToken
-      );
+      // Use tenant-specific Gmail integration with automatic fallback
+      const transporter = await this.getTransporter(user, user.tenant);
 
  
 
