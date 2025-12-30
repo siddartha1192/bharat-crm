@@ -66,6 +66,34 @@ export default function IntegrationSettings() {
   useEffect(() => {
     fetchGmailStatus();
     fetchCalendarStatus();
+
+    // Listen for messages from OAuth popup/callback
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data === 'gmail-connected' || event.data === 'calendar-connected') {
+        // Refresh status after successful OAuth
+        setTimeout(() => {
+          fetchGmailStatus();
+          fetchCalendarStatus();
+        }, 1000);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    // Also refresh when component becomes visible (user returns from callback)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchGmailStatus();
+        fetchCalendarStatus();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const fetchGmailStatus = async () => {

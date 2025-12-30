@@ -23,6 +23,8 @@ import {
   Trash2,
   RefreshCw,
   MessageSquare,
+  Paperclip,
+  X,
 } from 'lucide-react';
 import {
   Dialog,
@@ -91,6 +93,7 @@ export default function Emails() {
     text: '',
     html: '',
   });
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -160,20 +163,49 @@ export default function Emails() {
     setSending(true);
 
     try {
-      const response = await fetch(`${API_URL}/emails/send`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
+      // Use FormData if attachments exist, otherwise use JSON
+      let body: FormData | string;
+      let headers: Record<string, string>;
+
+      if (attachments.length > 0) {
+        // Use FormData for attachments
+        const formData = new FormData();
+        formData.append('to', JSON.stringify(composeData.to.split(',').map((e) => e.trim())));
+        formData.append('cc', JSON.stringify(composeData.cc ? composeData.cc.split(',').map((e) => e.trim()) : []));
+        formData.append('bcc', JSON.stringify(composeData.bcc ? composeData.bcc.split(',').map((e) => e.trim()) : []));
+        formData.append('subject', composeData.subject);
+        formData.append('text', composeData.text);
+        if (composeData.html) {
+          formData.append('html', composeData.html);
+        }
+
+        // Append each attachment
+        attachments.forEach((file) => {
+          formData.append('attachments', file);
+        });
+
+        body = formData;
+        headers = getAuthHeaders(); // Don't set Content-Type, browser will set it with boundary
+      } else {
+        // Use JSON for no attachments
+        body = JSON.stringify({
           to: composeData.to.split(',').map((e) => e.trim()),
           cc: composeData.cc ? composeData.cc.split(',').map((e) => e.trim()) : [],
           bcc: composeData.bcc ? composeData.bcc.split(',').map((e) => e.trim()) : [],
           subject: composeData.subject,
           text: composeData.text,
           html: composeData.html || undefined,
-        }),
+        });
+        headers = {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        };
+      }
+
+      const response = await fetch(`${API_URL}/emails/send`, {
+        method: 'POST',
+        headers,
+        body,
       });
 
       if (!response.ok) {
@@ -188,6 +220,7 @@ export default function Emails() {
 
       setComposeOpen(false);
       setComposeData({ to: '', cc: '', bcc: '', subject: '', text: '', html: '' });
+      setAttachments([]);
       fetchEmails();
       fetchStats();
     } catch (error: any) {
@@ -572,6 +605,63 @@ export default function Emails() {
                 value={composeData.text}
                 onChange={(e) => setComposeData({ ...composeData, text: e.target.value })}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Attachments (optional)</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => document.getElementById('file-input')?.click()}
+                >
+                  <Paperclip className="w-4 h-4 mr-2" />
+                  Add Files
+                </Button>
+                <input
+                  id="file-input"
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    setAttachments((prev) => [...prev, ...files]);
+                    e.target.value = ''; // Reset input
+                  }}
+                />
+                {attachments.length > 0 && (
+                  <span className="text-sm text-muted-foreground">
+                    {attachments.length} file{attachments.length !== 1 ? 's' : ''} attached
+                  </span>
+                )}
+              </div>
+
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {attachments.map((file, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-2 bg-accent px-3 py-1.5 rounded-md text-sm"
+                    >
+                      <Paperclip className="w-3 h-3" />
+                      <span className="max-w-[200px] truncate">{file.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({(file.size / 1024).toFixed(1)} KB)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAttachments((prev) => prev.filter((_, i) => i !== index));
+                        }}
+                        className="ml-1 hover:text-destructive"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
