@@ -41,6 +41,13 @@ class EmailService {
       // IMPORTANT: Use same redirect URI as gmailIntegration service
       const redirectUri = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/integrations/gmail/callback`;
 
+      console.log(`🔧 [Debug] OAuth Configuration:`, {
+        clientIdPrefix: clientId?.substring(0, 20) + '...',
+        hasClientSecret: !!clientSecret,
+        redirectUri,
+        frontendUrl: process.env.FRONTEND_URL,
+      });
+
       // Create tenant-specific OAuth2 client
       const tenantOAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
@@ -72,7 +79,33 @@ class EmailService {
         expiry_date: user.gmailTokenExpiry ? new Date(user.gmailTokenExpiry).getTime() : undefined,
       });
 
-      const accessToken = await tenantOAuth2Client.getAccessToken();
+      console.log(`🔧 [Debug] User Token Info:`, {
+        userId: user.id,
+        userEmail: user.googleEmail || user.email,
+        hasAccessToken: !!user.gmailAccessToken,
+        hasRefreshToken: !!user.gmailRefreshToken,
+        tokenExpiry: user.gmailTokenExpiry,
+        tokenExpired: tokenExpired,
+      });
+
+      let accessToken;
+      try {
+        accessToken = await tenantOAuth2Client.getAccessToken();
+        console.log(`✅ [Debug] Successfully got access token`);
+      } catch (tokenError) {
+        console.error(`❌ [Debug] Failed to get access token:`, tokenError.message);
+        console.error(`❌ [Debug] Token error details:`, {
+          error: tokenError.message,
+          code: tokenError.code,
+          response: tokenError.response?.data
+        });
+        throw new Error(`Failed to get Gmail access token: ${tokenError.message}. This usually means the OAuth configuration doesn't match. Please reconnect Gmail in Settings > Integrations.`);
+      }
+
+      console.log(`🔧 [Debug] Creating transporter with:`, {
+        user: user.googleEmail || user.email,
+        hasAccessToken: !!accessToken.token,
+      });
 
       return nodemailer.createTransport({
         service: 'gmail',
@@ -111,87 +144,25 @@ class EmailService {
 
 
   /**
-
    * Get Gmail API client
-
+   * Note: This method is deprecated as it relied on global OAuth credentials
+   * Use tenant-specific Gmail integration instead
    */
-
   getGmailClient() {
-
-    return google.gmail({ version: 'v1', auth: oauth2Client });
-
+    throw new Error('getGmailClient() is deprecated. Use tenant-specific Gmail integration.');
   }
 
- 
-
   /**
-
    * Get thread ID from Gmail message ID
-
+   * Note: Temporarily disabled - requires tenant-specific implementation
    */
-
   async getThreadIdFromMessageId(messageId) {
-
-    try {
-
-      const gmail = this.getGmailClient();
-
- 
-
-      // Search for the message by Message-ID header
-
-      const searchQuery = `rfc822msgid:${messageId.replace(/[<>]/g, '')}`;
-
-      const response = await gmail.users.messages.list({
-
-        userId: 'me',
-
-        q: searchQuery,
-
-        maxResults: 1,
-
-      });
-
- 
-
-      if (response.data.messages && response.data.messages.length > 0) {
-
-        const message = await gmail.users.messages.get({
-
-          userId: 'me',
-
-          id: response.data.messages[0].id,
-
-        });
-
-        return {
-
-          gmailMessageId: message.data.id,
-
-          gmailThreadId: message.data.threadId,
-
-        };
-
-      }
-
-      return null;
-
-    } catch (error) {
-
-      console.error('Error getting thread ID:', error);
-
-      return null;
-
-    }
-
+    console.warn('getThreadIdFromMessageId() temporarily disabled - requires tenant-specific OAuth implementation');
+    return null;
   }
 
- 
-
   /**
-
    * Send email and log to database
-
    */
 
   async sendEmail({
@@ -780,15 +751,19 @@ class EmailService {
  
 
   /**
-
    * Check for replies to sent emails
-
+   * Note: Temporarily disabled - requires tenant-specific implementation
    */
-
   async checkForReplies(userId) {
+    console.warn('checkForReplies() temporarily disabled - requires tenant-specific OAuth implementation');
+    return { success: true, repliesFound: 0, message: 'Reply checking temporarily disabled' };
+  }
 
+  /**
+   * OLD checkForReplies implementation - disabled
+   */
+  async _oldCheckForReplies(userId) {
     try {
-
       const gmail = this.getGmailClient();
 
  
