@@ -10,155 +10,140 @@ const prisma = new PrismaClient();
 class EmailService {
 
   /**
-   * Get nodemailer transporter with tenant-specific Gmail OAuth2
-   * ONLY works with user Gmail integration - no .env fallback
+   * Get Gmail API client using Gmail integration service
+   * This is the CORRECT way that matches how test emails work
    *
    * @param {Object} user - User object with Gmail tokens
    * @param {Object} tenant - Tenant object with mail settings
-   * @returns {Promise<Transporter>} - Nodemailer transporter
+   * @returns {Promise<gmail_v1.Gmail>} - Authenticated Gmail API client
    */
-  async getTransporter(user = null, tenant = null) {
+  async getGmailClient(user, tenant) {
+    if (!user || !tenant || !gmailIntegrationService.isGmailConnected(user)) {
+      throw new Error(
+        'Gmail not connected. Please connect your Gmail account in Settings > Integrations to send emails.'
+      );
+    }
+
+    console.log(`📧 [Email Service] Getting Gmail client for user ${user.email}`);
+
+    // Use the exact same method as test emails - this works!
+    const gmail = await gmailIntegrationService.getAuthenticatedClient(user, tenant);
+
+    console.log(`✅ [Email Service] Successfully got Gmail API client`);
+    return gmail;
+  }
+
+  /**
+   * Create RFC 2822 formatted email message
+   *
+   * @param {Object} options - Email options
+   * @returns {string} - RFC 2822 formatted email
+   */
+  createEmailMessage({ from, to, cc, bcc, subject, text, html, attachments }) {
+    const boundary = '===============' + Date.now() + '==';
+    const lines = [];
+
+    // Headers
+    lines.push(`From: ${from}`);
+    lines.push(`To: ${Array.isArray(to) ? to.join(', ') : to}`);
+    if (cc && cc.length > 0) {
+      lines.push(`Cc: ${Array.isArray(cc) ? cc.join(', ') : cc}`);
+    }
+    if (bcc && bcc.length > 0) {
+      lines.push(`Bcc: ${Array.isArray(bcc) ? bcc.join(', ') : bcc}`);
+    }
+    lines.push(`Subject: ${subject}`);
+    lines.push(`MIME-Version: 1.0`);
+
+    if (attachments && attachments.length > 0) {
+      // Multipart message with attachments
+      lines.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+      lines.push('');
+      lines.push(`--${boundary}`);
+    }
+
+    if (html) {
+      // HTML email
+      lines.push(`Content-Type: text/html; charset=UTF-8`);
+      lines.push('Content-Transfer-Encoding: 7bit');
+      lines.push('');
+      lines.push(html);
+    } else {
+      // Plain text email
+      lines.push(`Content-Type: text/plain; charset=UTF-8`);
+      lines.push('Content-Transfer-Encoding: 7bit');
+      lines.push('');
+      lines.push(text);
+    }
+
+    // Add attachments
+    if (attachments && attachments.length > 0) {
+      for (const attachment of attachments) {
+        lines.push('');
+        lines.push(`--${boundary}`);
+        lines.push(`Content-Type: ${attachment.contentType || 'application/octet-stream'}; name="${attachment.filename}"`);
+        lines.push(`Content-Disposition: attachment; filename="${attachment.filename}"`);
+        lines.push('Content-Transfer-Encoding: base64');
+        lines.push('');
+
+        // Convert buffer to base64
+        const base64Content = attachment.content.toString('base64');
+        // Split into 76 character lines (RFC 2045)
+        const base64Lines = base64Content.match(/.{1,76}/g) || [];
+        lines.push(...base64Lines);
+      }
+      lines.push('');
+      lines.push(`--${boundary}--`);
+    }
+
+    return lines.join('\r\n');
+  }
+
+  /**
+   * Send email using Gmail API (same method as test emails)
+   * This replaces the old nodemailer approach which was failing
+   */
+  async sendEmailViaGmailAPI({ gmail, from, to, cc, bcc, subject, text, html, attachments }) {
     try {
-      // Check if user has Gmail connected
-      if (!user || !tenant || !gmailIntegrationService.isGmailConnected(user)) {
-        throw new Error(
-          'Gmail not connected. Please connect your Gmail account in Settings > Integrations to send emails.'
-        );
-      }
+      console.log(`📧 [Gmail API] Sending email from ${from} to ${to}`);
 
-      console.log(`📧 [Tenant: ${tenant.id}] Using user-specific Gmail integration for ${user.email}`);
-
-      // Check if tenant has mail OAuth configured
-      if (!tenant.settings?.mail?.oauth?.clientId) {
-        throw new Error(
-          'Tenant mail OAuth not configured. Please ask your administrator to configure mail settings in Settings > API Config > Mail Integration.'
-        );
-      }
-
-      // Get tenant OAuth client credentials
-      const clientId = tenant.settings.mail.oauth.clientId;
-      const clientSecret = decrypt(tenant.settings.mail.oauth.clientSecret);
-      // IMPORTANT: Use same redirect URI as gmailIntegration service
-      const redirectUri = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/integrations/gmail/callback`;
-
-      console.log(`🔧 [Debug] OAuth Configuration:`, {
-        clientIdPrefix: clientId?.substring(0, 20) + '...',
-        hasClientSecret: !!clientSecret,
-        redirectUri,
-        frontendUrl: process.env.FRONTEND_URL,
+      // Create RFC 2822 formatted message
+      const emailContent = this.createEmailMessage({
+        from,
+        to,
+        cc,
+        bcc,
+        subject,
+        text,
+        html,
+        attachments,
       });
 
-      // Create tenant-specific OAuth2 client
-      const tenantOAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+      // Base64 encode (URL-safe)
+      const encodedEmail = Buffer.from(emailContent)
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
 
-      // Check if token is expired
-      const tokenExpired = user.gmailTokenExpiry && new Date(user.gmailTokenExpiry) <= new Date();
-
-      if (tokenExpired) {
-        console.log(`🔄 [Tenant: ${tenant.id}] Gmail token expired for user ${user.id}, refreshing...`);
-        await gmailIntegrationService.refreshUserTokens(user.id, tenant);
-
-        // Reload user with fresh tokens
-        const updatedUser = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: {
-            gmailAccessToken: true,
-            gmailRefreshToken: true,
-            gmailTokenExpiry: true,
-            googleEmail: true,
-          },
-        });
-
-        user = updatedUser;
-      }
-
-      // Set credentials
-      tenantOAuth2Client.setCredentials({
-        access_token: user.gmailAccessToken,
-        refresh_token: user.gmailRefreshToken,
-        expiry_date: user.gmailTokenExpiry ? new Date(user.gmailTokenExpiry).getTime() : undefined,
-      });
-
-      console.log(`🔧 [Debug] User Token Info:`, {
-        userId: user.id,
-        userEmail: user.googleEmail || user.email,
-        hasAccessToken: !!user.gmailAccessToken,
-        hasRefreshToken: !!user.gmailRefreshToken,
-        tokenExpiry: user.gmailTokenExpiry,
-        tokenExpired: tokenExpired,
-      });
-
-      let accessToken;
-      try {
-        accessToken = await tenantOAuth2Client.getAccessToken();
-        console.log(`✅ [Debug] Successfully got access token`);
-      } catch (tokenError) {
-        console.error(`❌ [Debug] Failed to get access token:`, tokenError.message);
-        console.error(`❌ [Debug] Token error details:`, {
-          error: tokenError.message,
-          code: tokenError.code,
-          response: tokenError.response?.data
-        });
-        throw new Error(`Failed to get Gmail access token: ${tokenError.message}. This usually means the OAuth configuration doesn't match. Please reconnect Gmail in Settings > Integrations.`);
-      }
-
-      console.log(`🔧 [Debug] Creating transporter with:`, {
-        user: user.googleEmail || user.email,
-        hasAccessToken: !!accessToken.token,
-      });
-
-      return nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          type: 'OAuth2',
-          user: user.googleEmail || user.email,
-          clientId: clientId,
-          clientSecret: clientSecret,
-          refreshToken: user.gmailRefreshToken,
-          accessToken: accessToken.token,
+      // Send via Gmail API
+      const result = await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: {
+          raw: encodedEmail,
         },
       });
+
+      console.log(`✅ [Gmail API] Email sent successfully, message ID: ${result.data.id}`);
+
+      return {
+        messageId: result.data.id,
+        threadId: result.data.threadId,
+      };
     } catch (error) {
-      console.error(`❌ [Tenant: ${tenant?.id}] Error creating email transporter:`, error.message);
-
-      // Check if it's a decryption error
-      if (error.message && error.message.includes('decrypt')) {
-        throw new Error(
-          'Cannot decrypt mail configuration. Please ask your administrator to:\n' +
-          '1. Set ENCRYPTION_KEY in .env file (run: node scripts/generate-encryption-key.js)\n' +
-          '2. Reconfigure mail settings in Settings > API Config > Mail Integration'
-        );
-      }
-
-      // Check if it's an authentication error
-      if (error.message &&
-          (error.message.includes('invalid_grant') ||
-           error.message.includes('BadCredentials') ||
-           error.message.includes('Username and Password not accepted'))) {
-        throw new Error('Gmail authentication failed. Please reconnect your Gmail account in Settings > Integrations.');
-      }
-
+      console.error(`❌ [Gmail API] Error sending email:`, error.message);
       throw error;
     }
-  }
-
-
-  /**
-   * Get Gmail API client
-   * Note: This method is deprecated as it relied on global OAuth credentials
-   * Use tenant-specific Gmail integration instead
-   */
-  getGmailClient() {
-    throw new Error('getGmailClient() is deprecated. Use tenant-specific Gmail integration.');
-  }
-
-  /**
-   * Get thread ID from Gmail message ID
-   * Note: Temporarily disabled - requires tenant-specific implementation
-   */
-  async getThreadIdFromMessageId(messageId) {
-    console.warn('getThreadIdFromMessageId() temporarily disabled - requires tenant-specific OAuth implementation');
-    return null;
   }
 
   /**
@@ -241,8 +226,8 @@ class EmailService {
     const ccArray = Array.isArray(cc) ? cc : (cc ? [cc] : []);
     const bccArray = Array.isArray(bcc) ? bcc : (bcc ? [bcc] : []);
 
-    // Determine sender email (use Google email if available, otherwise fallback)
-    const senderEmail = user.googleEmail || user.email || GMAIL_USER;
+    // Determine sender email (use Google email if available)
+    const senderEmail = user.googleEmail || user.email;
 
     // Create email log entry
     const emailLog = await prisma.emailLog.create({
@@ -264,125 +249,59 @@ class EmailService {
     });
 
     try {
-      // Use tenant-specific Gmail integration with automatic fallback
-      const transporter = await this.getTransporter(user, user.tenant);
+      console.log(`📧 [Email Service] Starting email send process...`);
 
- 
+      // Get Gmail API client (same method as test emails - this works!)
+      const gmail = await this.getGmailClient(user, user.tenant);
 
-      const mailOptions = {
-
-        from: `Bharat CRM <${senderEmail}>`,
-
-        to: toArray.join(', '),
-
-        cc: ccArray.length > 0 ? ccArray.join(', ') : undefined,
-
-        bcc: bccArray.length > 0 ? bccArray.join(', ') : undefined,
-
+      // Send using Gmail API instead of nodemailer
+      const result = await this.sendEmailViaGmailAPI({
+        gmail,
+        from: `${user.googleEmail || user.email}`,
+        to: toArray,
+        cc: ccArray.length > 0 ? ccArray : undefined,
+        bcc: bccArray.length > 0 ? bccArray : undefined,
         subject,
-
         text,
-
         html,
-
         attachments: attachments.length > 0 ? attachments : undefined,
-
-      };
-
- 
-
-      const info = await transporter.sendMail(mailOptions);
-
- 
-
-      // Get Gmail thread ID (async, don't block the response)
-
-      setTimeout(async () => {
-
-        try {
-
-          const gmailData = await this.getThreadIdFromMessageId(info.messageId);
-
-          if (gmailData) {
-
-            await prisma.emailLog.update({
-
-              where: { id: emailLog.id },
-
-              data: {
-
-                gmailMessageId: gmailData.gmailMessageId,
-
-                gmailThreadId: gmailData.gmailThreadId,
-
-              },
-
-            });
-
-          }
-
-        } catch (error) {
-
-          console.error('Error updating Gmail thread ID:', error);
-
-        }
-
-      }, 3000); // Wait 3 seconds for Gmail to index the message
-
- 
+      });
 
       // Update email log with success
-
       await prisma.emailLog.update({
-
         where: { id: emailLog.id },
-
         data: {
-
           status: 'sent',
-
-          messageId: info.messageId,
-
+          messageId: result.messageId,
+          gmailMessageId: result.messageId,
+          gmailThreadId: result.threadId,
           sentAt: new Date(),
-
         },
-
       });
 
- 
+      console.log(`✅ [Email Service] Email sent successfully, message ID: ${result.messageId}`);
 
-      console.log('✅ Email sent successfully:', info.messageId);
-
-      return { success: true, emailLogId: emailLog.id, messageId: info.messageId };
+      return {
+        success: true,
+        emailLogId: emailLog.id,
+        messageId: result.messageId,
+        threadId: result.threadId,
+      };
 
     } catch (error) {
-
-      console.error('❌ Error sending email:', error);
-
- 
+      console.error(`❌ [Email Service] Error sending email:`, error.message);
 
       // Update email log with failure
-
       await prisma.emailLog.update({
-
         where: { id: emailLog.id },
-
         data: {
-
           status: 'failed',
-
           errorMessage: error.message,
-
         },
-
       });
 
- 
-
       throw new Error(`Failed to send email: ${error.message}`);
-
     }
-
   }
 
  
