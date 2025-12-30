@@ -114,6 +114,22 @@ export default function Calendar() {
     fetchEvents(false);
   }, []);
 
+  // Refresh status when component becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('[Calendar] Tab became visible, refreshing connection status...');
+        checkConnectionStatus();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   const checkConnectionStatus = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -131,9 +147,11 @@ export default function Calendar() {
       if (!response.ok) throw new Error('Failed to check connection status');
 
       const data = await response.json();
-      setIsConnected(data.connected);
+      console.log('[Calendar] Connection status response:', data);
+      setIsConnected(data.status?.connected || false);
     } catch (error) {
       console.error('Error checking connection status:', error);
+      setIsConnected(false);
     }
   };
 
@@ -172,6 +190,12 @@ export default function Calendar() {
       }));
 
       setEvents(formattedEvents);
+
+      // Refresh connection status after syncing
+      if (syncWithGoogle) {
+        console.log('[Calendar] Sync completed, refreshing connection status...');
+        await checkConnectionStatus();
+      }
     } catch (error) {
       console.error('Error fetching events:', error);
       toast({
