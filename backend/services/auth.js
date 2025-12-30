@@ -251,7 +251,9 @@ class AuthService {
   }
 
   /**
-   * Google OAuth - Get authorization URL
+   * Google OAuth - Get authorization URL (LOGIN ONLY - minimal scopes)
+   * Only requests profile and email for authentication purposes
+   * Service-specific integrations (Gmail, Calendar) have separate OAuth flows
    */
   getGoogleAuthUrl() {
     return googleClient.generateAuthUrl({
@@ -259,8 +261,6 @@ class AuthService {
       scope: [
         'https://www.googleapis.com/auth/userinfo.profile',
         'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/gmail.send', // Send emails via Gmail
-        'https://mail.google.com/', // Full Gmail access (for reading replies, etc.)
       ],
       prompt: 'consent',
     });

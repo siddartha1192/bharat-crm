@@ -111,15 +111,24 @@ model User {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  // Google OAuth for Authentication
+  // Google OAuth for Authentication (Profile Only)
   googleId         String? @unique
   googleEmail      String?
   googleProfilePic String?
 
-  // Google Calendar Integration
-  googleAccessToken  String?
-  googleRefreshToken String?
-  googleTokenExpiry  DateTime?
+  // Gmail Integration (Service-Specific Tokens)
+  gmailAccessToken  String?
+  gmailRefreshToken String?
+  gmailTokenExpiry  DateTime?
+  gmailConnectedAt  DateTime?
+  gmailScopes       Json? // Array of granted scopes
+
+  // Google Calendar Integration (Service-Specific Tokens)
+  calendarAccessToken  String?
+  calendarRefreshToken String?
+  calendarTokenExpiry  DateTime?
+  calendarConnectedAt  DateTime?
+  calendarScopes       Json? // Array of granted scopes
 
   // Password Reset
   passwordResetToken   String?
