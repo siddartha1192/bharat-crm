@@ -6,53 +6,12 @@ const { decrypt } = require('../utils/encryption');
 
 const prisma = new PrismaClient();
 
- 
-
-// Gmail OAuth2 configuration
-
-const GMAIL_USER = process.env.GMAIL_USER;
-
-const GMAIL_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-
-const GMAIL_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-
-const GMAIL_REFRESH_TOKEN = process.env.GMAIL_REFRESH_TOKEN;
-
-const GMAIL_REDIRECT_URI = process.env.GMAIL_REDIRECT_URI || 'https://developers.google.com/oauthplayground';
-
- 
-
-const oauth2Client = new google.auth.OAuth2(
-
-  GMAIL_CLIENT_ID,
-
-  GMAIL_CLIENT_SECRET,
-
-  GMAIL_REDIRECT_URI
-
-);
-
- 
-
-// Set refresh token
-
-if (GMAIL_REFRESH_TOKEN) {
-
-  oauth2Client.setCredentials({
-
-    refresh_token: GMAIL_REFRESH_TOKEN,
-
-  });
-
-}
-
- 
 
 class EmailService {
 
   /**
    * Get nodemailer transporter with tenant-specific Gmail OAuth2
-   * Priority: User Gmail integration > Fallback to global .env
+   * ONLY works with user Gmail integration - no .env fallback
    *
    * @param {Object} user - User object with Gmail tokens
    * @param {Object} tenant - Tenant object with mail settings
@@ -60,160 +19,96 @@ class EmailService {
    */
   async getTransporter(user = null, tenant = null) {
     try {
-      // Option 1: Try tenant-specific user Gmail integration first
-      if (user && tenant && gmailIntegrationService.isGmailConnected(user)) {
-        try {
-          console.log(`📧 [Tenant: ${tenant.id}] Using user-specific Gmail integration for ${user.email}`);
-
-          // Check if tenant has mail OAuth configured
-          if (!tenant.settings?.mail?.oauth?.clientId) {
-            console.warn(`⚠️  [Tenant: ${tenant.id}] Mail OAuth not configured, falling back to global config`);
-            return await this.getFallbackTransporter();
-          }
-
-          // Get tenant OAuth client credentials
-          const clientId = tenant.settings.mail.oauth.clientId;
-          const clientSecret = decrypt(tenant.settings.mail.oauth.clientSecret);
-          // IMPORTANT: Use same redirect URI as gmailIntegration service
-          const redirectUri = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/integrations/gmail/callback`;
-
-          // Create tenant-specific OAuth2 client
-          const tenantOAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-
-          // Check if token is expired
-          const tokenExpired = user.gmailTokenExpiry && new Date(user.gmailTokenExpiry) <= new Date();
-
-          if (tokenExpired) {
-            console.log(`🔄 [Tenant: ${tenant.id}] Gmail token expired for user ${user.id}, refreshing...`);
-            await gmailIntegrationService.refreshUserTokens(user.id, tenant);
-
-            // Reload user with fresh tokens
-            const updatedUser = await prisma.user.findUnique({
-              where: { id: user.id },
-              select: {
-                gmailAccessToken: true,
-                gmailRefreshToken: true,
-                gmailTokenExpiry: true,
-                googleEmail: true,
-              },
-            });
-
-            user = updatedUser;
-          }
-
-          // Set credentials
-          tenantOAuth2Client.setCredentials({
-            access_token: user.gmailAccessToken,
-            refresh_token: user.gmailRefreshToken,
-            expiry_date: user.gmailTokenExpiry ? new Date(user.gmailTokenExpiry).getTime() : undefined,
-          });
-
-          const accessToken = await tenantOAuth2Client.getAccessToken();
-
-          return nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-              type: 'OAuth2',
-              user: user.googleEmail || user.email,
-              clientId: clientId,
-              clientSecret: clientSecret,
-              refreshToken: user.gmailRefreshToken,
-              accessToken: accessToken.token,
-            },
-          });
-        } catch (userGmailError) {
-          console.error(`❌ [Tenant: ${tenant?.id}] Error using user Gmail integration: ${userGmailError.message}`);
-          console.error(`❌ [Tenant: ${tenant?.id}] User Gmail error details:`, userGmailError);
-
-          // Check if it's an authentication error
-          if (userGmailError.message &&
-              (userGmailError.message.includes('invalid_grant') ||
-               userGmailError.message.includes('BadCredentials') ||
-               userGmailError.message.includes('Username and Password not accepted'))) {
-            console.error(`🔑 [Tenant: ${tenant?.id}] Gmail authentication failed for user ${user.id}`);
-            console.error(`📝 User needs to reconnect Gmail in Settings > Integrations`);
-            throw new Error('Gmail authentication failed. Please reconnect your Gmail account in Settings > Integrations.');
-          }
-
-          console.log(`⚠️  [Tenant: ${tenant?.id}] Falling back to global .env credentials`);
-          return await this.getFallbackTransporter();
-        }
+      // Check if user has Gmail connected
+      if (!user || !tenant || !gmailIntegrationService.isGmailConnected(user)) {
+        throw new Error(
+          'Gmail not connected. Please connect your Gmail account in Settings > Integrations to send emails.'
+        );
       }
 
-      // Option 2: Fall back to global .env credentials (backward compatibility)
-      console.log('📧 No user Gmail integration, using fallback global credentials from .env');
-      return await this.getFallbackTransporter();
+      console.log(`📧 [Tenant: ${tenant.id}] Using user-specific Gmail integration for ${user.email}`);
 
-    } catch (error) {
-
-      console.error('❌ Error creating email transporter:', error.message);
-
-      // Check for specific OAuth errors
-      if (error.message && error.message.includes('invalid_grant')) {
-        console.error('🔑 Gmail OAuth token has expired or been revoked.');
-        console.error('📝 To fix this: User needs to re-authenticate with Google to grant Gmail permissions.');
-        throw new Error('Gmail OAuth token expired. Please re-authenticate with Google.');
+      // Check if tenant has mail OAuth configured
+      if (!tenant.settings?.mail?.oauth?.clientId) {
+        throw new Error(
+          'Tenant mail OAuth not configured. Please ask your administrator to configure mail settings in Settings > API Config > Mail Integration.'
+        );
       }
 
-      throw new Error('Failed to create email transporter: ' + error.message);
+      // Get tenant OAuth client credentials
+      const clientId = tenant.settings.mail.oauth.clientId;
+      const clientSecret = decrypt(tenant.settings.mail.oauth.clientSecret);
+      // IMPORTANT: Use same redirect URI as gmailIntegration service
+      const redirectUri = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/integrations/gmail/callback`;
 
-    }
+      // Create tenant-specific OAuth2 client
+      const tenantOAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
-  }
+      // Check if token is expired
+      const tokenExpired = user.gmailTokenExpiry && new Date(user.gmailTokenExpiry) <= new Date();
 
-  /**
-   * Get fallback email transporter using global .env credentials
-   * This is used when tenant/user doesn't have Gmail integration configured
-   *
-   * @returns {Promise<Transporter>} - Nodemailer transporter
-   */
-  async getFallbackTransporter() {
-    console.log('🔄 [FALLBACK] Using global Gmail credentials from .env file');
+      if (tokenExpired) {
+        console.log(`🔄 [Tenant: ${tenant.id}] Gmail token expired for user ${user.id}, refreshing...`);
+        await gmailIntegrationService.refreshUserTokens(user.id, tenant);
 
-    if (!GMAIL_USER || !GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN) {
-      console.error('❌ [FALLBACK] Global Gmail credentials not configured in .env');
-      throw new Error(
-        'Email sending not configured. Please either:\n' +
-        '1. Connect your Gmail in Settings > Integrations (recommended), or\n' +
-        '2. Ask your administrator to configure tenant mail settings in Settings > API Config > Mail Integration'
-      );
-    }
+        // Reload user with fresh tokens
+        const updatedUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: {
+            gmailAccessToken: true,
+            gmailRefreshToken: true,
+            gmailTokenExpiry: true,
+            googleEmail: true,
+          },
+        });
 
-    try {
-      const accessToken = await oauth2Client.getAccessToken();
+        user = updatedUser;
+      }
+
+      // Set credentials
+      tenantOAuth2Client.setCredentials({
+        access_token: user.gmailAccessToken,
+        refresh_token: user.gmailRefreshToken,
+        expiry_date: user.gmailTokenExpiry ? new Date(user.gmailTokenExpiry).getTime() : undefined,
+      });
+
+      const accessToken = await tenantOAuth2Client.getAccessToken();
 
       return nodemailer.createTransport({
         service: 'gmail',
         auth: {
           type: 'OAuth2',
-          user: GMAIL_USER,
-          clientId: GMAIL_CLIENT_ID,
-          clientSecret: GMAIL_CLIENT_SECRET,
-          refreshToken: GMAIL_REFRESH_TOKEN,
+          user: user.googleEmail || user.email,
+          clientId: clientId,
+          clientSecret: clientSecret,
+          refreshToken: user.gmailRefreshToken,
           accessToken: accessToken.token,
         },
       });
     } catch (error) {
-      console.error('❌ [FALLBACK] Error with global Gmail credentials:', error.message);
+      console.error(`❌ [Tenant: ${tenant?.id}] Error creating email transporter:`, error.message);
 
-      // Check for authentication errors
+      // Check if it's a decryption error
+      if (error.message && error.message.includes('decrypt')) {
+        throw new Error(
+          'Cannot decrypt mail configuration. Please ask your administrator to:\n' +
+          '1. Set ENCRYPTION_KEY in .env file (run: node scripts/generate-encryption-key.js)\n' +
+          '2. Reconfigure mail settings in Settings > API Config > Mail Integration'
+        );
+      }
+
+      // Check if it's an authentication error
       if (error.message &&
           (error.message.includes('invalid_grant') ||
            error.message.includes('BadCredentials') ||
            error.message.includes('Username and Password not accepted'))) {
-        console.error('🔑 [FALLBACK] Global Gmail OAuth credentials are invalid or expired');
-        throw new Error(
-          'Email service not available. Please either:\n' +
-          '1. Connect your Gmail in Settings > Integrations (recommended), or\n' +
-          '2. Ask your administrator to configure tenant mail settings in Settings > API Config > Mail Integration'
-        );
+        throw new Error('Gmail authentication failed. Please reconnect your Gmail account in Settings > Integrations.');
       }
 
       throw error;
     }
   }
 
- 
 
   /**
 
@@ -345,32 +240,29 @@ class EmailService {
       throw new Error('User not found');
     }
 
-    // Check if user has Gmail connected OR if global fallback is available
+    // Check if user has Gmail connected
     const hasUserGmail = gmailIntegrationService.isGmailConnected(user);
     const hasTenantConfig = user.tenant?.settings?.mail?.oauth?.clientId;
-    const hasGlobalFallback = GMAIL_USER && GMAIL_CLIENT_ID && GMAIL_CLIENT_SECRET && GMAIL_REFRESH_TOKEN;
 
     console.log('📊 Email configuration status:', {
       hasUserGmail,
       hasTenantConfig,
-      hasGlobalFallback,
       userId: user.id,
       tenantId: user.tenant?.id
     });
 
-    // If no configuration is available, provide helpful error
-    if (!hasUserGmail && !hasGlobalFallback) {
-      console.error('❌ No email configuration available for user');
+    // Validate configuration before attempting to send
+    if (!hasUserGmail) {
+      console.error('❌ Gmail not connected for user');
       throw new Error(
-        'Cannot send email: Gmail not connected. Please go to Settings > Integrations and connect your Gmail account.'
+        'Gmail not connected. Please go to Settings > Integrations and connect your Gmail account before sending emails.'
       );
     }
 
-    // If user has Gmail but tenant config is missing, warn them
-    if (hasUserGmail && !hasTenantConfig && !hasGlobalFallback) {
-      console.warn('⚠️  User has Gmail connected but tenant OAuth not configured and no global fallback');
+    if (!hasTenantConfig) {
+      console.error('⚠️ Tenant mail OAuth not configured');
       throw new Error(
-        'Email configuration incomplete. Please ask your administrator to configure mail settings in Settings > API Config > Mail Integration.'
+        'Email system not configured. Please ask your administrator to configure mail settings in Settings > API Config > Mail Integration.'
       );
     }
 

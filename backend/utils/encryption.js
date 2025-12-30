@@ -1,9 +1,32 @@
 const crypto = require('crypto');
 
+const ALGORITHM = 'aes-256-gcm';
+
+// Check if ENCRYPTION_KEY is set
+if (!process.env.ENCRYPTION_KEY) {
+  console.error('');
+  console.error('❌ ═══════════════════════════════════════════════════════════════════');
+  console.error('❌  CRITICAL: ENCRYPTION_KEY is NOT set in .env file!');
+  console.error('❌ ═══════════════════════════════════════════════════════════════════');
+  console.error('');
+  console.error('   📧 Gmail and Calendar integrations will NOT work without this key!');
+  console.error('');
+  console.error('   To fix this issue:');
+  console.error('   1. Run: cd backend && node scripts/generate-encryption-key.js');
+  console.error('   2. Copy the generated ENCRYPTION_KEY to your backend/.env file');
+  console.error('   3. Restart the backend server');
+  console.error('   4. Reconfigure mail settings in Settings > API Config > Mail Integration');
+  console.error('');
+  console.error('   ⚠️  Server will use a temporary random key that will change on restart!');
+  console.error('   ⚠️  This will break any saved OAuth configurations!');
+  console.error('');
+  console.error('❌ ═══════════════════════════════════════════════════════════════════');
+  console.error('');
+}
+
 // Use encryption key from environment or generate one for development
 // IMPORTANT: In production, always set ENCRYPTION_KEY environment variable
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
-const ALGORITHM = 'aes-256-gcm';
 
 // Validate encryption key length
 if (Buffer.from(ENCRYPTION_KEY, 'hex').length !== 32) {

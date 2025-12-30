@@ -138,25 +138,20 @@ class GoogleCalendarService {
    * @returns {Promise<OAuth2Client>} - Authenticated OAuth2 client
    */
   async getAuthenticatedClient(user, tenant = null) {
-    // Support both old field names and new field names for backward compatibility
-    const accessToken = user.calendarAccessToken || user.googleAccessToken;
-    const refreshToken = user.calendarRefreshToken || user.googleRefreshToken;
-    const tokenExpiry = user.calendarTokenExpiry || user.googleTokenExpiry;
-
-    if (!accessToken || !refreshToken) {
+    if (!user.calendarAccessToken || !user.calendarRefreshToken) {
       throw new Error('Calendar not connected for this user');
     }
 
     const oauth2Client = this.getOAuth2Client(tenant);
 
     oauth2Client.setCredentials({
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      expiry_date: tokenExpiry ? new Date(tokenExpiry).getTime() : undefined,
+      access_token: user.calendarAccessToken,
+      refresh_token: user.calendarRefreshToken,
+      expiry_date: user.calendarTokenExpiry ? new Date(user.calendarTokenExpiry).getTime() : undefined,
     });
 
     // Check if token is expired and refresh if needed
-    if (tokenExpiry && new Date(tokenExpiry) <= new Date()) {
+    if (user.calendarTokenExpiry && new Date(user.calendarTokenExpiry) <= new Date()) {
       console.log(`[Calendar Integration] Token expired for user ${user.id}, refreshing...`);
       await this.refreshUserTokens(user.id, tenant);
 
@@ -199,19 +194,16 @@ class GoogleCalendarService {
       where: { id: userId },
       select: {
         calendarRefreshToken: true,
-        googleRefreshToken: true, // Fallback for backward compatibility
       },
     });
 
-    const refreshToken = user.calendarRefreshToken || user.googleRefreshToken;
-
-    if (!user || !refreshToken) {
+    if (!user || !user.calendarRefreshToken) {
       throw new Error('No refresh token available for this user');
     }
 
     const oauth2Client = this.getOAuth2Client(tenant);
     oauth2Client.setCredentials({
-      refresh_token: refreshToken,
+      refresh_token: user.calendarRefreshToken,
     });
 
     try {
@@ -265,8 +257,7 @@ class GoogleCalendarService {
    * @returns {boolean} - True if Calendar is connected
    */
   isCalendarConnected(user) {
-    return !!(user.calendarAccessToken || user.googleAccessToken) &&
-           !!(user.calendarRefreshToken || user.googleRefreshToken);
+    return !!user.calendarAccessToken && !!user.calendarRefreshToken;
   }
 
   /**
@@ -281,9 +272,9 @@ class GoogleCalendarService {
       connected,
       scopes: connected ? (user.calendarScopes || null) : null,
       connectedAt: connected ? (user.calendarConnectedAt || null) : null,
-      tokenExpiry: connected ? (user.calendarTokenExpiry || user.googleTokenExpiry) : null,
-      tokenExpired: connected && (user.calendarTokenExpiry || user.googleTokenExpiry)
-        ? new Date(user.calendarTokenExpiry || user.googleTokenExpiry) <= new Date()
+      tokenExpiry: connected ? user.calendarTokenExpiry : null,
+      tokenExpired: connected && user.calendarTokenExpiry
+        ? new Date(user.calendarTokenExpiry) <= new Date()
         : null,
     };
   }
