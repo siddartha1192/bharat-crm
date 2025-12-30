@@ -121,10 +121,6 @@ router.get('/auth/status', async (req, res) => {
         calendarTokenExpiry: true,
         calendarConnectedAt: true,
         calendarScopes: true,
-        // Backward compatibility
-        googleAccessToken: true,
-        googleRefreshToken: true,
-        googleTokenExpiry: true,
       },
     });
 
@@ -169,10 +165,6 @@ router.get('/events', async (req, res) => {
         calendarAccessToken: true,
         calendarRefreshToken: true,
         calendarTokenExpiry: true,
-        // Backward compatibility
-        googleAccessToken: true,
-        googleRefreshToken: true,
-        googleTokenExpiry: true,
       }
     });
 
@@ -255,8 +247,6 @@ router.post('/events', async (req, res) => {
           calendarAccessToken: true,
           calendarRefreshToken: true,
           calendarTokenExpiry: true,
-          googleAccessToken: true,
-          googleRefreshToken: true,
         }
       });
 
@@ -335,8 +325,6 @@ router.put('/events/:eventId', async (req, res) => {
           calendarAccessToken: true,
           calendarRefreshToken: true,
           calendarTokenExpiry: true,
-          googleAccessToken: true,
-          googleRefreshToken: true,
         }
       });
 
@@ -410,8 +398,6 @@ router.delete('/events/:eventId', async (req, res) => {
           calendarAccessToken: true,
           calendarRefreshToken: true,
           calendarTokenExpiry: true,
-          googleAccessToken: true,
-          googleRefreshToken: true,
         }
       });
 
