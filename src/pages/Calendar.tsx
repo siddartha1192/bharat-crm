@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Calendar as BigCalendar, dateFnsLocalizer, Views, SlotInfo } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay, addHours } from 'date-fns';
 import { enUS } from 'date-fns/locale';
@@ -7,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import {
@@ -76,6 +78,7 @@ interface CalendarEvent {
 }
 
 export default function Calendar() {
+  const navigate = useNavigate();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -179,86 +182,6 @@ export default function Calendar() {
     } finally {
       setLoading(false);
       setSyncing(false);
-    }
-  };
-
-  const connectGoogleCalendar = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.error('No token found in localStorage');
-        toast({
-          title: 'Authentication Error',
-          description: 'Please log in first to connect Google Calendar',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const response = await fetch(`${API_URL}/calendar/auth/url`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Error response:', errorData);
-        throw new Error(errorData.message || errorData.error || 'Failed to get auth URL');
-      }
-
-      const data = await response.json();
-
-      // Check if Google Calendar is configured on the backend
-      if (data.error) {
-        toast({
-          title: 'Configuration Error',
-          description: data.message || 'Google Calendar is not configured on the server',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      window.location.href = data.authUrl;
-    } catch (error: any) {
-      console.error('Error connecting Google Calendar:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to connect Google Calendar',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const disconnectGoogleCalendar = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.error('No token found in localStorage');
-        return;
-      }
-
-      const response = await fetch(`${API_URL}/calendar/auth/disconnect`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Failed to disconnect');
-
-      setIsConnected(false);
-      toast({
-        title: 'Disconnected',
-        description: 'Google Calendar disconnected successfully',
-      });
-    } catch (error) {
-      console.error('Error disconnecting Google Calendar:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to disconnect Google Calendar',
-        variant: 'destructive',
-      });
     }
   };
 
@@ -469,15 +392,13 @@ export default function Calendar() {
             Sync with Google
           </Button>
 
-          {isConnected ? (
-            <Button variant="outline" onClick={disconnectGoogleCalendar}>
-              <Unlink className="w-4 h-4 mr-2" />
-              Disconnect Google
-            </Button>
-          ) : (
-            <Button variant="outline" onClick={connectGoogleCalendar}>
+          {!isConnected && (
+            <Button
+              variant="outline"
+              onClick={() => navigate('/settings?tab=integrations')}
+            >
               <LinkIcon className="w-4 h-4 mr-2" />
-              Connect Google Calendar
+              Connect Calendar
             </Button>
           )}
 
@@ -506,6 +427,22 @@ export default function Calendar() {
           </ProtectedFeature>
         </div>
       </div>
+
+      {!isConnected && !loading && (
+        <Alert className="mb-4">
+          <LinkIcon className="h-4 w-4" />
+          <AlertDescription>
+            Connect your Google Calendar to sync events. Go to{' '}
+            <button
+              onClick={() => navigate('/settings?tab=integrations')}
+              className="font-semibold underline hover:text-primary"
+            >
+              Settings &gt; Integrations
+            </button>{' '}
+            to connect.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-96">
