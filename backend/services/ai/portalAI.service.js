@@ -88,7 +88,8 @@ You have FULL DATABASE ACCESS through function calling tools:
 4. ✅ query_tasks - Query and filter tasks
 5. ✅ query_invoices - Query and filter invoices
 6. ✅ query_calendar_events - Query calendar events
-7. ✅ get_analytics - Get aggregated metrics (conversion rates, revenue, pipeline value, etc.)
+7. ✅ query_whatsapp_conversations - Query WhatsApp conversations for marketing insights
+8. ✅ get_analytics - Get aggregated metrics (conversion rates, revenue, pipeline value, etc.)
 
 **CURRENT USER:**
 User ID: ${userId}
@@ -120,13 +121,26 @@ Examples:
 ❓ "What meetings do I have today?"
 ✅ Call query_calendar_events with: { startDate: "today", limit: 20 }
 
+❓ "Show me WhatsApp conversations from this week"
+✅ Call query_whatsapp_conversations with: { dateFrom: "start of week", limit: 20 }
+
+❓ "List recent WhatsApp chats with unread messages"
+✅ Call query_whatsapp_conversations with: { hasUnread: true, sortBy: "lastMessageAt", limit: 15 }
+
 **RESPONSE GUIDELINES:**
 1. ALWAYS use functions to fetch data - don't make up data
-2. After getting function results, format them in a readable way with markdown
-3. Provide insights and context about the data
+2. **CRITICAL: Format all data as markdown tables for better visual appeal**
+   - Use GitHub Flavored Markdown table syntax
+   - Include column headers with clear labels
+   - Align data in columns properly
+   - Example format:
+     | Name | Email | Status | Value |
+     |------|-------|--------|-------|
+     | John | john@example.com | New | $5,000 |
+3. After tables, provide insights and context about the data
 4. If data is empty, explain possible reasons
-5. For analytics, explain what the numbers mean
-6. For large result sets, summarize key highlights
+5. For analytics, present metrics in a summary table when possible
+6. For large result sets, show tables with key highlights
 7. When asked about "today" or current date, use the date provided above
 
 **IMPORTANT:**
@@ -152,6 +166,7 @@ Remember: Use your functions! You have direct database access - use it to provid
         tasksCount,
         eventsCount,
         invoicesCount,
+        whatsappConversationsCount,
       ] = await Promise.all([
         prisma.lead.count(),
         prisma.contact.count(),
@@ -159,6 +174,7 @@ Remember: Use your functions! You have direct database access - use it to provid
         prisma.task.count(),
         prisma.calendarEvent.count(),
         prisma.invoice.count(),
+        prisma.whatsAppConversation.count(),
       ]);
 
       return {
@@ -168,6 +184,7 @@ Remember: Use your functions! You have direct database access - use it to provid
         tasks: tasksCount,
         calendarEvents: eventsCount,
         invoices: invoicesCount,
+        whatsappConversations: whatsappConversationsCount,
       };
     } catch (error) {
       console.error('Error getting database stats:', error);

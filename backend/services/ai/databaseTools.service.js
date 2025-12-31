@@ -388,6 +388,56 @@ class DatabaseToolsService {
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'query_whatsapp_conversations',
+          description: 'Query WhatsApp conversations and messages for marketing insights and customer interaction analysis',
+          parameters: {
+            type: 'object',
+            properties: {
+              searchTerm: {
+                type: 'string',
+                description: 'Search in contact name, phone, or last message',
+              },
+              dateFrom: {
+                type: 'string',
+                description: 'Filter conversations with messages after this date',
+              },
+              dateTo: {
+                type: 'string',
+                description: 'Filter conversations with messages before this date',
+              },
+              hasUnread: {
+                type: 'boolean',
+                description: 'Filter by unread status (true for unread only)',
+              },
+              aiEnabled: {
+                type: 'boolean',
+                description: 'Filter by AI assistant status (true for AI enabled)',
+              },
+              minMessages: {
+                type: 'number',
+                description: 'Minimum number of messages in conversation',
+              },
+              sortBy: {
+                type: 'string',
+                enum: ['lastMessageAt', 'messageCount', 'contactName'],
+                description: 'Field to sort by (default: lastMessageAt)',
+              },
+              sortOrder: {
+                type: 'string',
+                enum: ['asc', 'desc'],
+                description: 'Sort order (default: desc)',
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of results (default: 10, max: 100)',
+              },
+            },
+          },
+        },
+      },
     ];
   }
 
@@ -414,6 +464,8 @@ class DatabaseToolsService {
           return await this.getAnalytics(args, userId);
         case 'query_calendar_events':
           return await this.queryCalendarEvents(args, userId);
+        case 'query_whatsapp_conversations':
+          return await this.queryWhatsAppConversations(args, userId);
         default:
           return { error: `Unknown tool: ${toolName}` };
       }
@@ -941,6 +993,90 @@ class DatabaseToolsService {
       default:
         return { error: `Unknown metric: ${metric}` };
     }
+  }
+
+  /**
+   * Query WhatsApp conversations with filters
+   */
+  async queryWhatsAppConversations(args, userId) {
+    const where = {
+      userId, // Filter by logged-in user
+    };
+
+    // Filter by unread status
+    if (args.hasUnread !== undefined) {
+      where.unreadCount = args.hasUnread ? { gt: 0 } : 0;
+    }
+
+    // Filter by AI enabled status
+    if (args.aiEnabled !== undefined) {
+      where.aiEnabled = args.aiEnabled;
+    }
+
+    // Filter by minimum message count
+    if (args.minMessages) {
+      where.messageCount = { gte: args.minMessages };
+    }
+
+    // Filter by date range
+    if (args.dateFrom || args.dateTo) {
+      where.lastMessageAt = {};
+      if (args.dateFrom) {
+        const parsedDate = this.parseDate(args.dateFrom);
+        if (parsedDate) where.lastMessageAt.gte = parsedDate;
+      }
+      if (args.dateTo) {
+        const parsedDate = this.parseDate(args.dateTo);
+        if (parsedDate) where.lastMessageAt.lte = parsedDate;
+      }
+    }
+
+    // Search in contact name, phone, or last message
+    if (args.searchTerm) {
+      where.OR = [
+        { contactName: { contains: args.searchTerm, mode: 'insensitive' } },
+        { contactPhone: { contains: args.searchTerm, mode: 'insensitive' } },
+        { lastMessage: { contains: args.searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    // Support dynamic sorting
+    const validSortFields = ['lastMessageAt', 'messageCount', 'contactName'];
+    const sortField = args.sortBy && validSortFields.includes(args.sortBy) ? args.sortBy : 'lastMessageAt';
+    const sortOrder = args.sortOrder === 'asc' ? 'asc' : 'desc';
+
+    const conversations = await prisma.whatsAppConversation.findMany({
+      where,
+      take: Math.min(args.limit || 10, 100),
+      orderBy: { [sortField]: sortOrder },
+      select: {
+        id: true,
+        contactName: true,
+        contactPhone: true,
+        contactId: true,
+        lastMessage: true,
+        lastMessageAt: true,
+        unreadCount: true,
+        messageCount: true,
+        aiEnabled: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // Calculate statistics
+    const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
+    const totalMessages = conversations.reduce((sum, conv) => sum + conv.messageCount, 0);
+    const aiEnabledCount = conversations.filter(conv => conv.aiEnabled).length;
+
+    return {
+      count: conversations.length,
+      totalUnread,
+      totalMessages,
+      aiEnabledCount,
+      conversations,
+      filters: args,
+    };
   }
 }
 
