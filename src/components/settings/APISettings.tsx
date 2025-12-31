@@ -176,8 +176,22 @@ export default function APISettings() {
 
         if (mailResponse.ok) {
           const mailData = await mailResponse.json();
-          setMailSettings(mailData.settings);
-          setMailClientId(mailData.settings.clientId || '');
+          console.log('[Mail Settings] Fetched:', mailData);
+
+          // Map backend response to state
+          setMailSettings({
+            configured: mailData.settings.configured,
+            provider: mailData.settings.provider,
+            enabled: mailData.settings.enabled,
+            domain: mailData.settings.domain,
+            hasClientId: !!mailData.settings.oauth?.clientId,
+            hasClientSecret: mailData.settings.oauth?.hasClientSecret || false,
+            clientId: mailData.settings.oauth?.clientId || null,
+            smtp: mailData.settings.smtp,
+          });
+
+          // Set form fields with actual values
+          setMailClientId(mailData.settings.oauth?.clientId || '');
           setMailDomain(mailData.settings.domain || '');
           setMailFromName(mailData.settings.smtp?.fromName || '');
           setMailFromEmail(mailData.settings.smtp?.fromEmail || '');

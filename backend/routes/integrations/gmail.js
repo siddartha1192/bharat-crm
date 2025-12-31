@@ -104,9 +104,11 @@ router.post('/callback', authenticate, tenantContext, async (req, res) => {
  * Get Gmail connection status
  * GET /api/integrations/gmail/status
  */
-router.get('/status', authenticate, async (req, res) => {
+router.get('/status', authenticate, tenantContext, async (req, res) => {
   try {
     const userId = req.user.id;
+
+    console.log(`[Gmail Status] Checking status for user ${userId}`);
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -123,20 +125,31 @@ router.get('/status', authenticate, async (req, res) => {
     });
 
     if (!user) {
+      console.error(`[Gmail Status] User not found: ${userId}`);
       return res.status(404).json({
         success: false,
         error: 'User not found',
       });
     }
 
+    console.log(`[Gmail Status] User found, checking tokens...`, {
+      hasAccessToken: !!user.gmailAccessToken,
+      hasRefreshToken: !!user.gmailRefreshToken,
+      tokenExpiry: user.gmailTokenExpiry,
+      connectedAt: user.gmailConnectedAt,
+    });
+
     const status = gmailIntegrationService.getConnectionStatus(user);
+
+    console.log(`[Gmail Status] Connection status:`, status);
 
     res.json({
       success: true,
       status,
     });
   } catch (error) {
-    console.error('Error fetching Gmail status:', error);
+    console.error('[Gmail Status] Error:', error);
+    console.error('[Gmail Status] Error stack:', error.stack);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch Gmail status: ' + error.message,
