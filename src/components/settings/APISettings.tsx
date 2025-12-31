@@ -190,8 +190,9 @@ export default function APISettings() {
             smtp: mailData.settings.smtp,
           });
 
-          // Set form fields with actual values
+          // Set form fields with actual values (including decrypted client secret)
           setMailClientId(mailData.settings.oauth?.clientId || '');
+          setMailClientSecret(mailData.settings.oauth?.clientSecret || ''); // Decrypted secret from backend
           setMailDomain(mailData.settings.domain || '');
           setMailFromName(mailData.settings.smtp?.fromName || '');
           setMailFromEmail(mailData.settings.smtp?.fromEmail || '');
@@ -574,11 +575,10 @@ export default function APISettings() {
         description: 'Mail integration settings updated successfully',
       });
 
-      // Refresh settings
+      // Refresh settings (this will reload the decrypted secret)
       await fetchSettings();
 
-      // Clear sensitive fields
-      setMailClientSecret('');
+      // Don't clear the secret - let it stay populated from fetchSettings()
     } catch (error: any) {
       console.error('Error saving mail settings:', error);
       toast({
