@@ -664,7 +664,20 @@ router.get('/mail', authenticate, async (req, res) => {
     const settings = user.tenant.settings || {};
     const mailSettings = settings.mail || {};
 
-    // Return settings without decrypting the client secret
+    // Decrypt the client secret if it exists (only for ADMIN viewing their own settings)
+    let decryptedClientSecret = null;
+    if (mailSettings.oauth?.clientSecret) {
+      try {
+        decryptedClientSecret = decrypt(mailSettings.oauth.clientSecret);
+        console.log('[Mail Settings] Successfully decrypted client secret for display');
+      } catch (decryptError) {
+        console.error('[Mail Settings] Failed to decrypt client secret:', decryptError.message);
+        console.error('[Mail Settings] This usually means ENCRYPTION_KEY has changed or is invalid');
+        // Don't throw error, just log it - return null
+      }
+    }
+
+    // Return settings with decrypted client secret for display
     res.json({
       success: true,
       settings: {
@@ -674,6 +687,7 @@ router.get('/mail', authenticate, async (req, res) => {
         domain: mailSettings.domain || null,
         oauth: {
           clientId: mailSettings.oauth?.clientId || null,
+          clientSecret: decryptedClientSecret, // Send decrypted secret for display
           hasClientSecret: !!mailSettings.oauth?.clientSecret,
           allowedDomains: mailSettings.oauth?.allowedDomains || []
         },
