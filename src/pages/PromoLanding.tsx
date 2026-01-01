@@ -3,14 +3,62 @@ import {
   Sparkles, Users, MessageSquare, Calendar, TrendingUp,
   Zap, Shield, Smartphone, Brain, BarChart3,
   FileText, Globe, CheckCircle, ArrowRight, Star,
-  Target, DollarSign, Clock, Workflow
+  Target, DollarSign, Clock, Workflow, Send, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { useState } from 'react';
+import axios from 'axios';
 
 export default function PromoLanding() {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
+
+  // Lead form state
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    message: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSubmitError('');
+
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const response = await axios.post(`${API_URL}/api/promo/lead`, formData);
+
+      if (response.data.success) {
+        setSubmitSuccess(true);
+        setFormData({ name: '', email: '', phone: '', company: '', message: '' });
+
+        // Reset success message after 5 seconds
+        setTimeout(() => setSubmitSuccess(false), 5000);
+      }
+    } catch (error: any) {
+      setSubmitError(
+        error.response?.data?.error ||
+        'Failed to submit your request. Please try again.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const features = [
     {
@@ -435,6 +483,154 @@ export default function PromoLanding() {
                   <span className="text-gray-700">Bulk messaging and templates</span>
                 </li>
               </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Lead Capture Form Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="bg-gradient-to-br from-purple-600 via-blue-600 to-cyan-600 rounded-3xl p-1 shadow-2xl">
+          <div className="bg-white rounded-3xl p-8 md:p-12">
+            <div className="max-w-3xl mx-auto">
+              <div className="text-center mb-10">
+                <div className="inline-flex items-center space-x-2 bg-purple-100 px-4 py-2 rounded-full mb-4">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                  <span className="text-sm font-semibold text-purple-600">Get Started Today</span>
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-900">
+                  Ready to Transform Your Sales?
+                </h2>
+                <p className="text-xl text-gray-600">
+                  Request a personalized demo and see Bharat CRM in action
+                </p>
+              </div>
+
+              {submitSuccess ? (
+                <div className="bg-green-50 border-2 border-green-500 rounded-2xl p-8 text-center">
+                  <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-10 h-10 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-green-900 mb-2">Thank You!</h3>
+                  <p className="text-green-700 text-lg">
+                    We've received your request and will be in touch shortly to schedule your personalized demo.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleFormSubmit} className="space-y-6">
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <Input
+                        id="name"
+                        name="name"
+                        type="text"
+                        required
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        placeholder="John Doe"
+                        className="h-12 text-base border-2 border-gray-300 focus:border-purple-500"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                        Email Address <span className="text-red-500">*</span>
+                      </label>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        required
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        placeholder="john@company.com"
+                        className="h-12 text-base border-2 border-gray-300 focus:border-purple-500"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
+                        Phone Number
+                      </label>
+                      <Input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        placeholder="+91 98765 43210"
+                        className="h-12 text-base border-2 border-gray-300 focus:border-purple-500"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="company" className="block text-sm font-semibold text-gray-700 mb-2">
+                        Company Name
+                      </label>
+                      <Input
+                        id="company"
+                        name="company"
+                        type="text"
+                        value={formData.company}
+                        onChange={handleInputChange}
+                        placeholder="Your Company"
+                        className="h-12 text-base border-2 border-gray-300 focus:border-purple-500"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="message" className="block text-sm font-semibold text-gray-700 mb-2">
+                      What are you looking for?
+                    </label>
+                    <Textarea
+                      id="message"
+                      name="message"
+                      value={formData.message}
+                      onChange={handleInputChange}
+                      placeholder="Tell us about your sales team, your challenges, or any specific features you're interested in..."
+                      rows={4}
+                      className="text-base border-2 border-gray-300 focus:border-purple-500"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+
+                  {submitError && (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                      <p className="text-red-700 font-medium">{submitError}</p>
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    size="lg"
+                    disabled={isSubmitting}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6 rounded-xl shadow-lg hover:shadow-xl transition-all"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        Request Demo <Send className="ml-2 w-5 h-5" />
+                      </>
+                    )}
+                  </Button>
+
+                  <p className="text-center text-sm text-gray-500">
+                    By submitting this form, you agree to our privacy policy. We'll never share your information.
+                  </p>
+                </form>
+              )}
             </div>
           </div>
         </div>
