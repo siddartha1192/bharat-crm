@@ -115,7 +115,7 @@ export default function Dashboard() {
               title="Total Contacts"
               value={contactStats.total}
               icon={NotebookTabs }
-              colorClass="bg-gradient-to-br from-secondary to-secondary/80"
+              colorClass="bg-gradient-to-br from-primary to-primary/80"
             />
             <StatsCard
               title="Total Invoices"
