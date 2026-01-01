@@ -33,6 +33,7 @@ import UserManagement from "./pages/UserManagement";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 import Forms from "./pages/Forms";
+import PromoLanding from "./pages/PromoLanding";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,7 @@ const App = () => (
             <WhatsAppNotificationProvider>
               <Routes>
               {/* Public routes */}
+              <Route path="/promo" element={<PromoLanding />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
