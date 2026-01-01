@@ -40,7 +40,7 @@ export default function Login() {
       });
 
       // Navigate to dashboard
-      navigate('/');
+      navigate('/dashboard');
     } catch (error: any) {
       console.error('Auth error:', error);
       toast({

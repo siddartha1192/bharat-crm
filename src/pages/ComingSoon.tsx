@@ -21,7 +21,7 @@ export default function ComingSoon({ title, description }: ComingSoonProps) {
         <h1 className="text-3xl font-bold text-foreground mb-3">{title}</h1>
         <p className="text-muted-foreground mb-8">{description}</p>
         
-        <Button onClick={() => navigate('/')} className="gap-2">
+        <Button onClick={() => navigate('/dashboard')} className="gap-2">
           <ArrowLeft className="w-4 h-4" />
           Back to Dashboard
         </Button>

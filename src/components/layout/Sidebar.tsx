@@ -20,7 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Leads', href: '/leads', icon: UserPlus },
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Pipeline', href: '/pipeline', icon: Target },
