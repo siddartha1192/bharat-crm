@@ -372,7 +372,7 @@ export default function Contacts() {
                 <p className="text-sm text-muted-foreground mb-1">Prospects</p>
                 <p className="text-2xl font-bold text-foreground">{stats.prospects}</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-secondary to-secondary/80 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-accent to-accent/80 flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-white" />
               </div>
             </div>
