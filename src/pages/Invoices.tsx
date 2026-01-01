@@ -480,7 +480,7 @@ const Invoices = () => {
             value={`₹${(stats.pendingAmount / 1000).toFixed(1)}K`}
             icon={DollarSign}
             trend={{ value: 3, isPositive: false }}
-            colorClass="bg-gradient-to-br from-secondary to-secondary/80"
+            colorClass="bg-gradient-to-br from-accent to-accent/80"
           />
           <StatsCard
             title="Overdue Amount"
