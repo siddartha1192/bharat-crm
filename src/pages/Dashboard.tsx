@@ -11,7 +11,7 @@ import {
   AlertCircle,
   ArrowRight,
   Users,
-  Building2,
+  notebook-tabs,
   FileText,
   IndianRupee,
   Loader2
@@ -114,7 +114,7 @@ export default function Dashboard() {
             <StatsCard
               title="Total Contacts"
               value={contactStats.total}
-              icon={Building2}
+              icon={notebook-tabs}
               colorClass="bg-gradient-to-br from-secondary to-secondary/80"
             />
             <StatsCard
