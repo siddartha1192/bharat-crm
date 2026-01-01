@@ -46,8 +46,8 @@ export default function PromoLanding() {
     setSubmitError('');
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-      const response = await axios.post(`${API_URL}/api/promo/lead`, formData);
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await axios.post(`${API_URL}/promo/lead`, formData);
 
       if (response.data.success) {
         setSubmitSuccess(true);
