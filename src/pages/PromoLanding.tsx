@@ -185,7 +185,7 @@ export default function PromoLanding() {
             <div className="flex items-center space-x-2">
               <Sparkles className="w-8 h-8 text-purple-600" />
               <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                Bharat CRM
+                CLiM CRM
               </span>
             </div>
             <div className="flex items-center space-x-4">
@@ -314,7 +314,7 @@ export default function PromoLanding() {
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
               Why Businesses
-              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent"> Love Bharat CRM</span>
+              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent"> Love CLiM CRM</span>
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Real results that impact your bottom line from day one.
@@ -502,7 +502,7 @@ export default function PromoLanding() {
                   Ready to Transform Your Sales?
                 </h2>
                 <p className="text-xl text-gray-600">
-                  Request a personalized demo and see Bharat CRM in action
+                  Request a personalized demo and see CLiM CRM in action
                 </p>
               </div>
 
@@ -646,7 +646,7 @@ export default function PromoLanding() {
             Start your free trial today. No credit card required.
           </p>
           <p className="text-xl mb-10 text-gray-400">
-            Join hundreds of Indian businesses already using Bharat CRM
+            Join hundreds of Indian businesses already using CLiM CRM
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-12">
@@ -737,7 +737,7 @@ export default function PromoLanding() {
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <Sparkles className="w-8 h-8 text-purple-400" />
-                <span className="text-xl font-bold">Bharat CRM</span>
+                <span className="text-xl font-bold">CLiM CRM</span>
               </div>
               <p className="text-gray-400 text-sm">
                 AI-powered CRM built for Indian businesses. Unlimited users, zero per-seat fees.
@@ -769,7 +769,7 @@ export default function PromoLanding() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-sm text-gray-400">
-            <p>&copy; 2026 Bharat CRM. All rights reserved. Built with ❤️ for Indian businesses.</p>
+            <p>&copy; 2026 CLiM CRM. All rights reserved. Built with ❤️ for Indian businesses.</p>
           </div>
         </div>
       </footer>
