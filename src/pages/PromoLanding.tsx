@@ -184,6 +184,13 @@ export default function PromoLanding() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
               <Sparkles className="w-8 h-8 text-purple-600" />
+                        <div className="w-14 h-14 flex items-center justify-center">
+            <img
+              src="/logo_with_white_background.png"
+              alt="CLiM Logo"
+              className="w-full h-full object-contain"
+            />
+          </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                 CLiM CRM
               </span>
