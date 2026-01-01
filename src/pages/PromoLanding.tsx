@@ -9,11 +9,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import axios from 'axios';
 
 export default function PromoLanding() {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
+  const leadFormRef = useRef<HTMLDivElement>(null);
+
+  // Function to scroll to lead form
+  const scrollToLeadForm = () => {
+    leadFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   // Lead form state
   const [formData, setFormData] = useState({
@@ -242,11 +248,14 @@ export default function PromoLanding() {
                 Start Free Trial <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </Link>
-            <Link to="/login">
-              <Button size="lg" variant="outline" className="text-lg px-8 py-6 rounded-full border-2 border-purple-600 text-purple-600 hover:bg-purple-50">
-                Watch Demo <Sparkles className="ml-2 w-5 h-5" />
-              </Button>
-            </Link>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={scrollToLeadForm}
+              className="text-lg px-8 py-6 rounded-full border-2 border-purple-600 text-purple-600 hover:bg-purple-50"
+            >
+              Watch Demo <Sparkles className="ml-2 w-5 h-5" />
+            </Button>
           </div>
 
           <p className="mt-6 text-sm text-gray-500">
@@ -496,7 +505,7 @@ export default function PromoLanding() {
       </section>
 
       {/* Lead Capture Form Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+      <section ref={leadFormRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="bg-gradient-to-br from-purple-600 via-blue-600 to-cyan-600 rounded-3xl p-1 shadow-2xl">
           <div className="bg-white rounded-3xl p-8 md:p-12">
             <div className="max-w-3xl mx-auto">
@@ -658,15 +667,18 @@ export default function PromoLanding() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-12">
             <Link to="/signup">
-              <Button size="lg" className="bg-white text-purple-600 hover:bg-gray-100 text-xl px-10 py-7 rounded-full shadow-2xl hover:shadow-3xl transition-all">
+              <Button size="lg" className="bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-500 hover:to-emerald-600 text-white text-xl px-10 py-7 rounded-full shadow-2xl hover:shadow-3xl transition-all">
                 Start Free Trial <ArrowRight className="ml-2 w-6 h-6" />
               </Button>
             </Link>
-            <Link to="/login">
-              <Button size="lg" variant="outline" className="border-2 border-white text-white hover:bg-white/10 text-xl px-10 py-7 rounded-full">
-                Request Demo <Sparkles className="ml-2 w-6 h-6" />
-              </Button>
-            </Link>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={scrollToLeadForm}
+              className="border-2 border-white text-white hover:bg-white/10 text-xl px-10 py-7 rounded-full"
+            >
+              Request Demo <Sparkles className="ml-2 w-6 h-6" />
+            </Button>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
