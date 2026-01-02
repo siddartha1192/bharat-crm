@@ -107,7 +107,8 @@ export default function Forms() {
           fields: [
             { name: 'name', label: 'Name', type: 'text', required: true },
             { name: 'email', label: 'Email', type: 'email', required: formData.requireEmail },
-            { name: 'phone', label: 'Phone', type: 'tel', required: formData.requirePhone },
+            { name: 'phoneCountryCode', label: 'Phone Country Code', type: 'select', required: false, defaultValue: '+91', hidden: true },
+            { name: 'phone', label: 'Phone', type: 'phone', required: formData.requirePhone },
             { name: 'company', label: 'Company', type: 'text', required: false },
             { name: 'message', label: 'Message', type: 'textarea', required: false },
           ],
@@ -243,6 +244,17 @@ export default function Forms() {
     });
   };
 
+  const copyPublicUrl = (slug: string) => {
+    const baseUrl = window.location.origin;
+    const publicUrl = `${baseUrl}/f/${slug}`;
+
+    navigator.clipboard.writeText(publicUrl);
+    toast({
+      title: 'Copied!',
+      description: 'Public form URL copied to clipboard',
+    });
+  };
+
   const resetFormData = () => {
     setFormData({
       name: '',
@@ -341,30 +353,47 @@ export default function Forms() {
                   onCheckedChange={() => handleToggleActive(form)}
                 />
               </div>
-              <div className="flex gap-2 w-full">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => copyEmbedCode(form.slug)}
-                  className="flex-1"
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  Embed
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEditDialog(form)}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDeleteForm(form.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+              <div className="flex flex-col gap-2 w-full">
+                <div className="flex gap-2 w-full">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyPublicUrl(form.slug)}
+                    className="flex-1"
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Link
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyEmbedCode(form.slug)}
+                    className="flex-1"
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Embed
+                  </Button>
+                </div>
+                <div className="flex gap-2 w-full">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEditDialog(form)}
+                    className="flex-1"
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteForm(form.id)}
+                    className="flex-1"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
               </div>
             </CardFooter>
           </Card>

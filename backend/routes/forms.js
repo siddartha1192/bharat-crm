@@ -3,6 +3,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
+const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 const prisma = new PrismaClient();
 
 // Apply authentication and tenant context to authenticated routes
@@ -312,6 +313,7 @@ router.post('/public/submit/:slug', async (req, res) => {
     const name = data.name || data.firstName || data.fullName || null;
     const email = data.email || null;
     const phone = data.phone || data.mobile || data.phoneNumber || null;
+    const phoneCountryCode = data.phoneCountryCode || '+91';
     const company = data.company || data.companyName || null;
 
     // Validate required fields
@@ -320,6 +322,13 @@ router.post('/public/submit/:slug', async (req, res) => {
     }
     if (form.requirePhone && !phone) {
       return res.status(400).json({ error: 'Phone is required' });
+    }
+
+    // Normalize phone number if provided
+    let phoneNormalized = null;
+    if (phone) {
+      const phoneResult = normalizePhoneNumber(phone, phoneCountryCode);
+      phoneNormalized = phoneResult.normalized;
     }
 
     // Get request metadata
@@ -375,6 +384,8 @@ router.post('/public/submit/:slug', async (req, res) => {
             name,
             email,
             phone: phone || '',
+            phoneCountryCode,
+            phoneNormalized,
             company: company || '',
             source: 'web-form',
             status: 'new',
