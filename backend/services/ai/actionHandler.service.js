@@ -158,8 +158,8 @@ Notes: ${data.notes || 'None'}
         select: {
           id: true,
           tenantId: true,
-          googleAccessToken: true,
-          googleRefreshToken: true,
+          calendarAccessToken: true,
+          calendarRefreshToken: true,
         },
       });
 
@@ -170,12 +170,12 @@ Notes: ${data.notes || 'None'}
       let googleEventId = null;
 
       // Sync to Google Calendar if user has it connected
-      if (ownerUser.googleAccessToken && ownerUser.googleRefreshToken) {
+      if (ownerUser.calendarAccessToken && ownerUser.calendarRefreshToken) {
         try {
           console.log('   🔄 Syncing to Google Calendar...');
           const auth = await googleCalendarService.getAuthenticatedClient(
-            ownerUser.googleAccessToken,
-            ownerUser.googleRefreshToken
+            ownerUser.calendarAccessToken,
+            ownerUser.calendarRefreshToken
           );
 
           const googleEvent = await googleCalendarService.createEvent(auth, {
