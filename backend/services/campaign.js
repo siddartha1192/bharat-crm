@@ -436,7 +436,11 @@ class CampaignService {
             name: true,
             email: true,
             phone: true,
+            phoneNormalized: true,
+            phoneCountryCode: true,
             whatsapp: true,
+            whatsappNormalized: true,
+            whatsappCountryCode: true,
             company: true,
           },
           take: CAMPAIGN_CONFIG.MAX_RECIPIENTS,
@@ -447,7 +451,10 @@ class CampaignService {
           recipientId: lead.id,
           recipientName: lead.name,
           recipientEmail: channel === 'email' ? lead.email : null,
-          recipientPhone: channel === 'whatsapp' ? (lead.whatsapp || lead.phone) : null,
+          // Use normalized WhatsApp number, fallback to normalized phone, then raw values
+          recipientPhone: channel === 'whatsapp'
+            ? (lead.whatsappNormalized || lead.phoneNormalized || lead.whatsapp || lead.phone)
+            : null,
         }));
       } else if (targetType === 'contacts') {
         // Apply filters for contacts
@@ -470,7 +477,11 @@ class CampaignService {
             name: true,
             email: true,
             phone: true,
+            phoneNormalized: true,
+            phoneCountryCode: true,
             whatsapp: true,
+            whatsappNormalized: true,
+            whatsappCountryCode: true,
             company: true,
           },
           take: CAMPAIGN_CONFIG.MAX_RECIPIENTS,
@@ -481,19 +492,38 @@ class CampaignService {
           recipientId: contact.id,
           recipientName: contact.name,
           recipientEmail: channel === 'email' ? contact.email : null,
-          recipientPhone: channel === 'whatsapp' ? (contact.whatsapp || contact.phone) : null,
+          // Use normalized WhatsApp number, fallback to normalized phone, then raw values
+          recipientPhone: channel === 'whatsapp'
+            ? (contact.whatsappNormalized || contact.phoneNormalized || contact.whatsapp || contact.phone)
+            : null,
         }));
       } else if (targetType === 'all') {
         // Get both leads and contacts
         const [leads, contacts] = await Promise.all([
           prisma.lead.findMany({
             where: { userId: campaign.userId },
-            select: { id: true, name: true, email: true, phone: true, whatsapp: true },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              phoneNormalized: true,
+              whatsapp: true,
+              whatsappNormalized: true,
+            },
             take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
           }),
           prisma.contact.findMany({
             where: { userId: campaign.userId },
-            select: { id: true, name: true, email: true, phone: true, whatsapp: true },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              phoneNormalized: true,
+              whatsapp: true,
+              whatsappNormalized: true,
+            },
             take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
           }),
         ]);
@@ -503,7 +533,9 @@ class CampaignService {
           recipientId: lead.id,
           recipientName: lead.name,
           recipientEmail: channel === 'email' ? lead.email : null,
-          recipientPhone: channel === 'whatsapp' ? (lead.whatsapp || lead.phone) : null,
+          recipientPhone: channel === 'whatsapp'
+            ? (lead.whatsappNormalized || lead.phoneNormalized || lead.whatsapp || lead.phone)
+            : null,
         }));
 
         const contactRecipients = contacts.map(contact => ({
@@ -511,7 +543,9 @@ class CampaignService {
           recipientId: contact.id,
           recipientName: contact.name,
           recipientEmail: channel === 'email' ? contact.email : null,
-          recipientPhone: channel === 'whatsapp' ? (contact.whatsapp || contact.phone) : null,
+          recipientPhone: channel === 'whatsapp'
+            ? (contact.whatsappNormalized || contact.phoneNormalized || contact.whatsapp || contact.phone)
+            : null,
         }));
 
         recipients = [...leadRecipients, ...contactRecipients];
@@ -524,7 +558,16 @@ class CampaignService {
                 userId: campaign.userId,
                 tags: { hasSome: targetFilters.tags },
               },
-              select: { id: true, name: true, email: true, phone: true, whatsapp: true, company: true },
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                phoneNormalized: true,
+                whatsapp: true,
+                whatsappNormalized: true,
+                company: true,
+              },
               take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
             }),
             prisma.contact.findMany({
@@ -532,7 +575,16 @@ class CampaignService {
                 userId: campaign.userId,
                 tags: { hasSome: targetFilters.tags },
               },
-              select: { id: true, name: true, email: true, phone: true, whatsapp: true, company: true },
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                phoneNormalized: true,
+                whatsapp: true,
+                whatsappNormalized: true,
+                company: true,
+              },
               take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
             }),
           ]);
@@ -542,7 +594,9 @@ class CampaignService {
             recipientId: lead.id,
             recipientName: lead.name,
             recipientEmail: channel === 'email' ? lead.email : null,
-            recipientPhone: channel === 'whatsapp' ? (lead.whatsapp || lead.phone) : null,
+            recipientPhone: channel === 'whatsapp'
+              ? (lead.whatsappNormalized || lead.phoneNormalized || lead.whatsapp || lead.phone)
+              : null,
           }));
 
           const contactRecipients = contacts.map(contact => ({
@@ -550,7 +604,9 @@ class CampaignService {
             recipientId: contact.id,
             recipientName: contact.name,
             recipientEmail: channel === 'email' ? contact.email : null,
-            recipientPhone: channel === 'whatsapp' ? (contact.whatsapp || contact.phone) : null,
+            recipientPhone: channel === 'whatsapp'
+              ? (contact.whatsappNormalized || contact.phoneNormalized || contact.whatsapp || contact.phone)
+              : null,
           }));
 
           recipients = [...leadRecipients, ...contactRecipients];
