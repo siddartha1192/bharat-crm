@@ -192,10 +192,21 @@ export default function Leads() {
       }
       // Refresh the leads list
       fetchLeads();
-    } catch (error) {
+    } catch (error: any) {
+      // Extract the actual error message from the backend
+      let errorMessage = "Failed to save lead. Please try again.";
+
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       toast({
         title: "Error saving lead",
-        description: "Failed to save lead. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
       console.error('Error saving lead:', error);
