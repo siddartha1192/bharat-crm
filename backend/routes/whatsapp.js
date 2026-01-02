@@ -1358,13 +1358,14 @@ async function processIncomingMessage(message, value) {
     }
 
     console.log(`\n🔍 AI CHECK:`);
+    console.log(`   - whatsappService.isConfigured(whatsappConfig): ${whatsappService.isConfigured(whatsappConfig)}`);
     console.log(`   - whatsappAIService.isEnabled(openaiConfig): ${whatsappAIService.isEnabled(openaiConfig)}`);
     console.log(`   - Any conversation has AI enabled: ${!!aiEnabledConversation}`);
     console.log(`   - messageType: ${messageType}`);
     console.log(`   - isFirstOccurrence: ${isFirstOccurrence}`);
-    console.log(`   - ALL CONDITIONS MET: ${whatsappAIService.isEnabled(openaiConfig) && !!aiEnabledConversation && messageType === 'text' && isFirstOccurrence}`);
+    console.log(`   - ALL CONDITIONS MET: ${whatsappService.isConfigured(whatsappConfig) && whatsappAIService.isEnabled(openaiConfig) && !!aiEnabledConversation && messageType === 'text' && isFirstOccurrence}`);
 
-    if (whatsappAIService.isEnabled(openaiConfig) && aiEnabledConversation && messageType === 'text' && isFirstOccurrence) {
+    if (whatsappService.isConfigured(whatsappConfig) && whatsappAIService.isEnabled(openaiConfig) && aiEnabledConversation && messageType === 'text' && isFirstOccurrence) {
       try {
         console.log(`\n🤖 ✅ AI PROCESSING STARTING for ${conversations.length} conversation(s)...`);
 
