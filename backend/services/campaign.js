@@ -879,10 +879,6 @@ class CampaignService {
         messageId = result.messageId;
         success = result.success;
       } else if (campaign.channel === 'whatsapp') {
-        if (!whatsappService.isConfigured()) {
-          throw new Error('WhatsApp service is not configured');
-        }
-
         // Get tenant WhatsApp configuration if available
         let tenantConfig = null;
         if (campaign.tenantId) {
@@ -891,6 +887,10 @@ class CampaignService {
             select: { settings: true }
           });
           tenantConfig = tenant?.settings?.whatsapp || null;
+        }
+
+        if (!whatsappService.isConfigured(tenantConfig)) {
+          throw new Error('WhatsApp service is not configured for this tenant. Please configure WhatsApp API settings in Settings.');
         }
 
         const whatsappMessageType = campaign.whatsappMessageType || 'text';
@@ -1141,11 +1141,21 @@ class CampaignService {
           userId,
         });
       } else if (campaign.channel === 'whatsapp') {
-        if (!whatsappService.isConfigured()) {
-          throw new Error('WhatsApp service is not configured');
+        // Get tenant WhatsApp configuration if available
+        let tenantConfig = null;
+        if (campaign.tenantId) {
+          const tenant = await prisma.tenant.findUnique({
+            where: { id: campaign.tenantId },
+            select: { settings: true }
+          });
+          tenantConfig = tenant?.settings?.whatsapp || null;
         }
 
-        await whatsappService.sendMessage(tempRecipient.recipientPhone, `[TEST] ${content}`);
+        if (!whatsappService.isConfigured(tenantConfig)) {
+          throw new Error('WhatsApp service is not configured for this tenant. Please configure WhatsApp API settings in Settings.');
+        }
+
+        await whatsappService.sendMessage(tempRecipient.recipientPhone, `[TEST] ${content}`, tenantConfig);
       }
 
       return { success: true, message: 'Test message sent successfully' };
