@@ -131,7 +131,16 @@ export default function WhatsApp() {
 
       // Update messages if this is the current conversation
       if (selectedConversation?.id === data.conversationId) {
-        setMessages((prev) => [...prev, data.message]);
+        setMessages((prev) => {
+          // ✅ Deduplication: Check if message already exists
+          const messageExists = prev.some((msg) => msg.id === data.message.id);
+          if (messageExists) {
+            console.log('⏭️ Message already exists in UI, skipping:', data.message.id);
+            return prev; // Don't add duplicate
+          }
+          console.log('✅ Adding new message to UI:', data.message.id);
+          return [...prev, data.message];
+        });
       }
     });
 
@@ -379,17 +388,8 @@ export default function WhatsApp() {
 
       const data = await response.json();
 
-      // Add message to local state
-      const tempMessage: Message = {
-        id: data.messageId || Date.now().toString(),
-        message: newMessage.trim(),
-        sender: 'user',
-        senderName: 'You',
-        status: 'sent',
-        createdAt: new Date().toISOString(),
-      };
-
-      setMessages([...messages, tempMessage]);
+      // ✅ Don't add message manually - WebSocket will broadcast it
+      // This prevents duplicate messages (one manual, one from WebSocket)
       setNewMessage('');
 
       // Update conversation in list
