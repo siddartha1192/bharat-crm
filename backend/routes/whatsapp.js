@@ -1494,8 +1494,6 @@ async function processIncomingMessage(message, value, tenant) {
           openaiConfig
         );
 
-        console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
-
         // Execute any actions (only if contact exists in CRM)
         const actionResults = await actionHandlerService.executeActions(
           aiResult.actions,

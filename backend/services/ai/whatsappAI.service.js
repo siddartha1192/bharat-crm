@@ -356,8 +356,6 @@ For appointments, ALWAYS require complete dates:
       const response = await llm.invoke(messages);
       let responseContent = response.content;
 
-      console.log('🤖 Raw AI Response:', responseContent);
-
       // Parse JSON response
       let structuredResponse;
       try {
