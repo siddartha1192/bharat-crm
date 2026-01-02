@@ -1315,6 +1315,9 @@ async function processIncomingMessage(message, value, tenant) {
 
     console.log(`📝 First occurrence of message ${messageId}: ${isFirstOccurrence}`);
 
+    // ✅ Track which users we've already broadcast to (prevent duplicate broadcasts)
+    const broadcastedUsers = new Set();
+
     // Step 1: Save incoming message to ALL conversations
     for (const conversation of conversations) {
       console.log(`Saving message to conversation ${conversation.id} for user ${conversation.userId}`);
@@ -1430,8 +1433,10 @@ async function processIncomingMessage(message, value, tenant) {
       await conversationStorage.saveMessage(conversation.userId, fromPhone, savedMessage);
       console.log(`✅ Message saved to conversation ${conversation.id} for user ${conversation.userId}`);
 
-      // 🔌 Broadcast new message via WebSocket
-      if (io) {
+      // 🔌 Broadcast new message via WebSocket (ONLY ONCE per user)
+      if (io && !broadcastedUsers.has(conversation.userId)) {
+        broadcastedUsers.add(conversation.userId);
+
         io.to(`user:${conversation.userId}`).emit('whatsapp:new_message', {
           conversationId: conversation.id,
           message: savedMessage
@@ -1447,6 +1452,8 @@ async function processIncomingMessage(message, value, tenant) {
         });
 
         console.log(`🔌 WebSocket: Broadcasted incoming message to user ${conversation.userId}`);
+      } else if (broadcastedUsers.has(conversation.userId)) {
+        console.log(`⏭️  Skipping broadcast for user ${conversation.userId} (already broadcasted)`);
       }
     }
 
@@ -1532,6 +1539,9 @@ async function processIncomingMessage(message, value, tenant) {
         // Step 3: Save AI response to ALL conversations with this contact
         console.log(`\n📨 Saving AI response to ALL ${conversations.length} conversation(s)...`);
 
+        // ✅ Track which users we've already broadcast to (prevent duplicate broadcasts)
+        const broadcastedUsers = new Set();
+
         for (const conversation of conversations) {
           const aiMessage = await prisma.whatsAppMessage.create({
             data: {
@@ -1566,8 +1576,10 @@ async function processIncomingMessage(message, value, tenant) {
           await conversationStorage.saveMessage(conversation.userId, fromPhone, aiMessage);
           console.log(`   ✅ AI response saved to conversation ${conversation.id} for user ${conversation.userId}`);
 
-          // 🔌 Broadcast AI message via WebSocket to each user
-          if (io) {
+          // 🔌 Broadcast AI message via WebSocket to each user (ONLY ONCE per user)
+          if (io && !broadcastedUsers.has(conversation.userId)) {
+            broadcastedUsers.add(conversation.userId);
+
             io.to(`user:${conversation.userId}`).emit('whatsapp:new_message', {
               conversationId: conversation.id,
               message: aiMessage
@@ -1583,6 +1595,8 @@ async function processIncomingMessage(message, value, tenant) {
             });
 
             console.log(`   🔌 WebSocket: Broadcasted AI message to user ${conversation.userId}`);
+          } else if (broadcastedUsers.has(conversation.userId)) {
+            console.log(`   ⏭️  Skipping broadcast for user ${conversation.userId} (already broadcasted)`);
           }
         }
 
