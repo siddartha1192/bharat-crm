@@ -152,6 +152,11 @@ You MUST respond in valid JSON format with this exact structure:
   * 1.0 = User explicitly provided all data
   * 0.7-0.9 = Inferred some information
   * <0.7 = Guessing, need confirmation
+- **PHONE NUMBERS**: Extract phone numbers EXACTLY as provided by the user
+  * DO NOT add country codes (like +91) unless the user explicitly provides them
+  * If user says "9876543210", store it as "9876543210" (NOT "+919876543210")
+  * If user says "+1234567890", store it as "+1234567890" (exactly as provided)
+  * The user might be from any country, so don't assume country codes
 
 **TASK CREATION FLOW:**
 User: "Can you create a task for me?"

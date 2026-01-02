@@ -385,13 +385,18 @@ Notes: ${data.notes || 'None'}
         return { success: false, error: 'No lead stage found for tenant. Please create a pipeline stage for leads.' };
       }
 
+      // ✅ Prioritize user-provided data over context data
+      // If user mentions a phone/whatsapp number in their message, use that instead of the sender's number
+      const leadPhone = data.phone || context.contactPhone || '';
+      const leadWhatsapp = data.whatsapp || data.phone || context.contactPhone || '';
+
       // Create the Lead only (no automatic deal creation)
       const lead = await prisma.lead.create({
         data: {
           name: data.name,
           email: data.email,
-          phone: data.phone || context.contactPhone || '',
-          whatsapp: context.contactPhone || data.phone || '',
+          phone: leadPhone,
+          whatsapp: leadWhatsapp,
           company: company,
           source: 'whatsapp', // WhatsApp AI-created leads
           status: status,

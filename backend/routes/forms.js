@@ -460,7 +460,21 @@ router.post('/public/submit/:slug', async (req, res) => {
         }
       } catch (error) {
         console.error('Error creating lead from submission:', error);
-        // Don't fail the submission if lead creation fails
+
+        // ✅ Check if it's a duplicate error and return it to user
+        const errorMessage = error.message || '';
+        if (errorMessage.includes('Unique constraint') ||
+            errorMessage.includes('duplicate') ||
+            errorMessage.includes('already exists')) {
+          return res.status(400).json({
+            error: 'A lead with this email already exists in our system. Please use a different email or contact support.'
+          });
+        }
+
+        // For other errors, also return them instead of silently continuing
+        return res.status(500).json({
+          error: `Failed to create lead: ${errorMessage}`
+        });
       }
     }
 
