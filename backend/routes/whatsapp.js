@@ -95,12 +95,17 @@ router.post('/send', async (req, res) => {
     // Send the message with tenant-specific config
     const result = await whatsappService.sendMessage(recipientPhone, message, whatsappConfig);
 
+    // Normalize phone number for deduplication
+    const normalizedResult = normalizePhoneNumber(recipientPhone);
+    const normalizedPhone = normalizedResult.normalized || recipientPhone;
+    const countryCode = normalizedResult.country ? `+${normalizedResult.country}` : '+91';
+
     // Get or create conversation
     let conversation = await prisma.whatsAppConversation.findUnique({
       where: {
-        userId_contactPhone: {
+        userId_contactPhoneNormalized: {
           userId,
-          contactPhone: recipientPhone
+          contactPhoneNormalized: normalizedPhone
         }
       }
     });
@@ -120,6 +125,8 @@ router.post('/send', async (req, res) => {
           tenantId: req.tenant.id,
           contactName,
           contactPhone: recipientPhone,
+          contactPhoneCountryCode: countryCode,
+          contactPhoneNormalized: normalizedPhone,
           contactId: contactId || null,
           lastMessage: message,
           lastMessageAt: new Date(),
@@ -370,6 +377,9 @@ router.post('/bulk-send', async (req, res) => {
     const userId = req.user.id;
     const { message, contacts } = req.body;
 
+    // Get tenant-specific API configurations
+    const { whatsappConfig } = getTenantAPIConfig(req.tenant);
+
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required' });
     }
@@ -379,10 +389,10 @@ router.post('/bulk-send', async (req, res) => {
     }
 
     // Check if WhatsApp is configured
-    if (!whatsappService.isConfigured()) {
+    if (!whatsappService.isConfigured(whatsappConfig)) {
       return res.status(503).json({
         error: 'WhatsApp is not configured',
-        message: 'Please configure WHATSAPP_TOKEN and WHATSAPP_PHONE_ID in environment variables'
+        message: 'Please configure WhatsApp API credentials in Settings'
       });
     }
 
@@ -409,15 +419,20 @@ router.post('/bulk-send', async (req, res) => {
           continue;
         }
 
-        // Send the message
-        const result = await whatsappService.sendMessage(phone, message);
+        // Normalize phone number for deduplication
+        const normalizedResult = normalizePhoneNumber(phone);
+        const normalizedPhone = normalizedResult.normalized || phone;
+        const phoneCountryCode = normalizedResult.country ? `+${normalizedResult.country}` : '+91';
+
+        // Send the message with tenant-specific config
+        const result = await whatsappService.sendMessage(phone, message, whatsappConfig);
 
         // Get or create conversation
         let conversation = await prisma.whatsAppConversation.findUnique({
           where: {
-            userId_contactPhone: {
+            userId_contactPhoneNormalized: {
               userId,
-              contactPhone: phone
+              contactPhoneNormalized: normalizedPhone
             }
           }
         });
@@ -431,6 +446,8 @@ router.post('/bulk-send', async (req, res) => {
               tenantId: req.tenant.id,
               contactName,
               contactPhone: phone,
+              contactPhoneCountryCode: phoneCountryCode,
+              contactPhoneNormalized: normalizedPhone,
               contactId: contactId || null,
               lastMessage: message,
               lastMessageAt: new Date(),
@@ -655,12 +672,17 @@ router.post('/conversations/start', async (req, res) => {
       return res.status(400).json({ error: 'Contact phone is required' });
     }
 
+    // Normalize phone number for deduplication
+    const normalizedResult = normalizePhoneNumber(contactPhone);
+    const normalizedPhone = normalizedResult.normalized || contactPhone;
+    const countryCode = normalizedResult.country ? `+${normalizedResult.country}` : '+91';
+
     // Check if conversation already exists
     let conversation = await prisma.whatsAppConversation.findUnique({
       where: {
-        userId_contactPhone: {
+        userId_contactPhoneNormalized: {
           userId,
-          contactPhone
+          contactPhoneNormalized: normalizedPhone
         }
       },
       include: {
@@ -680,6 +702,8 @@ router.post('/conversations/start', async (req, res) => {
           tenantId: req.tenant.id,
           contactName: contactName || contactPhone,
           contactPhone,
+          contactPhoneCountryCode: countryCode,
+          contactPhoneNormalized: normalizedPhone,
           contactId: contactId || null,
           filePath
         },
