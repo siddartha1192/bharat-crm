@@ -388,18 +388,11 @@ For appointments, ALWAYS require complete dates:
 
       console.log('✅ Structured Response:', JSON.stringify(structuredResponse, null, 2));
 
-      // Save messages to database and manage memory
+      // ✅ NOTE: Messages are saved by the webhook handler (routes/whatsapp.js)
+      // DO NOT save messages here to prevent duplicates
+
+      // Check if we need to summarize conversation
       try {
-        // Get conversation tenantId for saving messages
-        const conv = await prisma.whatsAppConversation.findUnique({
-          where: { id: conversationId },
-          select: { tenantId: true }
-        });
-
-        await this.saveMessage(conversationId, 'contact', userMessage, contactName, conv.tenantId);
-        await this.saveMessage(conversationId, 'ai', structuredResponse.message, 'AI Assistant', conv.tenantId);
-
-        // Check if we need to summarize conversation
         const conversation = await prisma.whatsAppConversation.findUnique({
           where: { id: conversationId }
         });

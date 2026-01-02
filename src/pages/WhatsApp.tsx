@@ -205,6 +205,24 @@ export default function WhatsApp() {
     return () => clearTimeout(timer);
   }, [contactSearch]);
 
+  // ✅ Helper function to deduplicate messages
+  const deduplicateMessages = (messages: Message[]): Message[] => {
+    const seen = new Map<string, boolean>();
+    const deduplicated: Message[] = [];
+
+    for (const msg of messages) {
+      // Use message ID as primary key, fallback to content-based key
+      const key = msg.id || `${msg.sender}:${msg.message}:${msg.createdAt}`;
+
+      if (!seen.has(key)) {
+        seen.set(key, true);
+        deduplicated.push(msg);
+      }
+    }
+
+    return deduplicated;
+  };
+
   const fetchConversations = async (showLoading = true) => {
     try {
       if (showLoading) setLoading(true);
@@ -247,7 +265,9 @@ export default function WhatsApp() {
 
       const data = await response.json();
       setSelectedConversation(data);
-      setMessages(data.messages.reverse()); // Reverse to show oldest first
+      // ✅ Deduplicate and reverse to show oldest first
+      const deduplicated = deduplicateMessages(data.messages);
+      setMessages(deduplicated.reverse());
     } catch (error) {
       console.error('Error loading conversation:', error);
       toast({
@@ -271,7 +291,9 @@ export default function WhatsApp() {
       if (!response.ok) throw new Error('Failed to refresh messages');
 
       const data = await response.json();
-      const newMessages = data.messages.reverse();
+      // ✅ Deduplicate before reversing
+      const deduplicated = deduplicateMessages(data.messages);
+      const newMessages = deduplicated.reverse();
 
       // Update messages if there are new ones
       if (newMessages.length > messages.length) {
