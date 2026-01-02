@@ -21,46 +21,46 @@ const WHATSAPP_MEMORY_CONFIG = {
 
 class WhatsAppAIService {
   constructor() {
-    this.llm = null;
-    this.initialized = false;
+    this.vectorDBInitialized = false;
   }
 
   /**
-   * Initialize the WhatsApp AI
+   * Initialize Vector DB (one-time initialization)
    */
-  async initialize() {
-    if (this.initialized || !aiConfig.enabled) {
+  async initializeVectorDB() {
+    if (this.vectorDBInitialized) {
       return;
     }
 
     try {
-      console.log('🤖 Initializing WhatsApp AI Service...');
-
-      this.llm = new ChatOpenAI({
-        openAIApiKey: aiConfig.openaiApiKey,
-        modelName: aiConfig.whatsappAI.model,
-        temperature: aiConfig.whatsappAI.temperature,
-        maxTokens: aiConfig.whatsappAI.maxTokens,
-        modelKwargs: {
-          response_format: { type: "json_object" }
-        }
-      });
-
-      // Try to initialize vector DB for feature retrieval (optional)
-      try {
-        await vectorDBService.initialize();
-        console.log('✅ Vector DB initialized for WhatsApp AI');
-      } catch (error) {
-        console.warn('⚠️ Vector DB initialization failed - WhatsApp AI will work without product knowledge context');
-        console.warn('   Error:', error.message);
-      }
-
-      this.initialized = true;
-      console.log('✅ WhatsApp AI Service initialized');
+      await vectorDBService.initialize();
+      this.vectorDBInitialized = true;
+      console.log('✅ Vector DB initialized for WhatsApp AI');
     } catch (error) {
-      console.error('❌ Error initializing WhatsApp AI:', error);
-      throw error;
+      console.warn('⚠️ Vector DB initialization failed - WhatsApp AI will work without product knowledge context');
+      console.warn('   Error:', error.message);
     }
+  }
+
+  /**
+   * Create LLM instance with tenant-specific API key
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration
+   * @returns {ChatOpenAI} - LLM instance
+   */
+  createLLM(tenantConfig) {
+    if (!tenantConfig || !tenantConfig.apiKey) {
+      throw new Error('OpenAI API not configured for this tenant. Please configure OpenAI API settings in Settings.');
+    }
+
+    return new ChatOpenAI({
+      openAIApiKey: tenantConfig.apiKey,
+      modelName: tenantConfig.model || aiConfig.whatsappAI.model,
+      temperature: tenantConfig.temperature !== undefined ? tenantConfig.temperature : aiConfig.whatsappAI.temperature,
+      maxTokens: aiConfig.whatsappAI.maxTokens,
+      modelKwargs: {
+        response_format: { type: "json_object" }
+      }
+    });
   }
 
   /**
@@ -282,11 +282,15 @@ For appointments, ALWAYS require complete dates:
    * @param {string} userMessage - User's message
    * @param {string} userId - User ID
    * @param {string} contactName - Name of the contact (optional)
-   * @param {string} tenantId - Tenant ID for multi-tenant isolation (optional, will be fetched from conversation if not provided)
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration (REQUIRED)
    * @returns {Object} Structured response { message, actions, metadata }
    */
-  async processMessage(conversationId, userMessage, userId, contactName = null, tenantId = null) {
-    await this.initialize();
+  async processMessage(conversationId, userMessage, userId, contactName = null, tenantConfig = null) {
+    // Initialize Vector DB (one-time)
+    await this.initializeVectorDB();
+
+    // Create tenant-specific LLM
+    const llm = this.createLLM(tenantConfig);
 
     try {
       console.log('\n🤖 WhatsApp AI Processing...');
@@ -339,7 +343,7 @@ For appointments, ALWAYS require complete dates:
       messages.push(new HumanMessage(userMessage));
 
       // Get AI response
-      const response = await this.llm.invoke(messages);
+      const response = await llm.invoke(messages);
       let responseContent = response.content;
 
       console.log('🤖 Raw AI Response:', responseContent);
@@ -395,7 +399,7 @@ For appointments, ALWAYS require complete dates:
         if (conversation && conversation.messageCount > WHATSAPP_MEMORY_CONFIG.SUMMARIZE_THRESHOLD) {
           console.log(`📊 WhatsApp message count (${conversation.messageCount}) exceeds threshold, triggering summarization...`);
           // Run summarization in background
-          this.summarizeConversation(conversationId, userId).catch(err =>
+          this.summarizeConversation(conversationId, userId, tenantConfig).catch(err =>
             console.error('WhatsApp summarization failed:', err)
           );
         }
@@ -451,8 +455,9 @@ For appointments, ALWAYS require complete dates:
    * Summarize old WhatsApp messages to compress memory
    * @param {string} conversationId - Conversation ID
    * @param {string} userId - User ID
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration
    */
-  async summarizeConversation(conversationId, userId) {
+  async summarizeConversation(conversationId, userId, tenantConfig) {
     try {
       console.log('📝 Summarizing WhatsApp conversation to compress memory...');
 
@@ -490,8 +495,8 @@ Summary:`;
 
       // Create a separate LLM instance WITHOUT json_object response format for summarization
       const summaryLLM = new ChatOpenAI({
-        openAIApiKey: aiConfig.openaiApiKey,
-        modelName: aiConfig.whatsappAI.model,
+        openAIApiKey: tenantConfig?.apiKey,
+        modelName: tenantConfig?.model || aiConfig.whatsappAI.model,
         temperature: 0.3,
         maxTokens: 500,
         // No response_format here - we want plain text summary
@@ -525,10 +530,12 @@ Summary:`;
   }
 
   /**
-   * Check if service is enabled
+   * Check if service is enabled for a tenant
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration
+   * @returns {boolean}
    */
-  isEnabled() {
-    return aiConfig.enabled;
+  isEnabled(tenantConfig = null) {
+    return !!(tenantConfig && tenantConfig.apiKey && tenantConfig.enabled !== false);
   }
 }
 

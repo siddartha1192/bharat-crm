@@ -5,6 +5,9 @@ const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middl
 const portalAIService = require('../services/ai/portalAI.service');
 const whatsappAIService = require('../services/ai/whatsappAI.service');
 const vectorDBService = require('../services/ai/vectorDB.service');
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
 
 // Apply authentication to all AI routes
 router.use(authenticate);
@@ -24,11 +27,19 @@ router.post('/chat', async (req, res) => {
 
     console.log(`\n🚀 Portal AI Query from user ${userId}: "${message}"`);
 
+    // Get tenant settings for OpenAI configuration
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: req.user.tenantId },
+      select: { settings: true }
+    });
+    const openaiConfig = tenant?.settings?.openai || null;
+
     // Process with Portal AI
     const response = await portalAIService.processMessage(
       message,
       userId,
       req.user.tenantId,
+      openaiConfig,
       conversationHistory || []
     );
 
