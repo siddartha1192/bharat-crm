@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
+const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 const prisma = new PrismaClient();
 
 // POST promotional lead (public - no auth required)
@@ -10,6 +11,7 @@ router.post('/lead', async (req, res) => {
       name,
       email,
       phone,
+      phoneCountryCode,
       company,
       message
     } = req.body;
@@ -20,6 +22,14 @@ router.post('/lead', async (req, res) => {
         error: 'Name and email are required',
         success: false
       });
+    }
+
+    // Normalize phone number if provided
+    let phoneNormalized = null;
+    if (phone) {
+      const countryCode = phoneCountryCode || '+91';
+      const phoneResult = normalizePhoneNumber(phone, countryCode);
+      phoneNormalized = phoneResult.normalized;
     }
 
     // Basic email validation
@@ -59,19 +69,23 @@ router.post('/lead', async (req, res) => {
 
     if (existingLead) {
       // Update existing lead with new information
+      const updateData = {
+        phone: phone || existingLead.phone,
+        phoneCountryCode: phoneCountryCode || existingLead.phoneCountryCode || '+91',
+        phoneNormalized: phoneNormalized || existingLead.phoneNormalized,
+        company: company || existingLead.company,
+        notes: existingLead.notes +
+          `\n\n[${new Date().toISOString()}] Promotional page re-submission:\n` +
+          `Message: ${message || 'N/A'}\n` +
+          `IP: ${ipAddress}\n` +
+          `Referrer: ${referrer || 'Direct'}`,
+        priority: 'high', // Bump priority for re-submission
+        updatedAt: new Date()
+      };
+
       const updatedLead = await prisma.lead.update({
         where: { id: existingLead.id },
-        data: {
-          phone: phone || existingLead.phone,
-          company: company || existingLead.company,
-          notes: existingLead.notes +
-            `\n\n[${new Date().toISOString()}] Promotional page re-submission:\n` +
-            `Message: ${message || 'N/A'}\n` +
-            `IP: ${ipAddress}\n` +
-            `Referrer: ${referrer || 'Direct'}`,
-          priority: 'high', // Bump priority for re-submission
-          updatedAt: new Date()
-        }
+        data: updateData
       });
 
       return res.json({
@@ -139,6 +153,8 @@ router.post('/lead', async (req, res) => {
         name,
         email,
         phone: phone || '',
+        phoneCountryCode: phoneCountryCode || '+91',
+        phoneNormalized,
         company: company || '',
         source: 'promotional-website',
         status: 'new',

@@ -18,6 +18,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { UserCircle, X } from 'lucide-react';
 import { AssignmentDropdown } from '@/components/common/AssignmentDropdown';
+import { PhoneInput } from '@/components/shared/PhoneInput';
 
 interface ContactDialogProps {
   contact?: Contact | null;
@@ -33,8 +34,11 @@ export function ContactDialog({ contact, open, onOpenChange, onSave }: ContactDi
     designation: '',
     email: '',
     phone: '',
+    phoneCountryCode: '+91',
     alternatePhone: '',
+    alternatePhoneCountryCode: '+91',
     whatsapp: '',
+    whatsappCountryCode: '+91',
     type: 'prospect' as ContactType,
     industry: 'other' as IndustryType,
     companySize: '',
@@ -61,8 +65,11 @@ export function ContactDialog({ contact, open, onOpenChange, onSave }: ContactDi
         designation: contact.designation || '',
         email: contact.email || '',
         phone: contact.phone || '',
+        phoneCountryCode: (contact as any).phoneCountryCode || '+91',
         alternatePhone: contact.alternatePhone || '',
+        alternatePhoneCountryCode: (contact as any).alternatePhoneCountryCode || '+91',
         whatsapp: contact.whatsapp || '',
+        whatsappCountryCode: (contact as any).whatsappCountryCode || '+91',
         type: contact.type || 'prospect',
         industry: contact.industry || 'other',
         companySize: contact.companySize || '',
@@ -88,8 +95,11 @@ export function ContactDialog({ contact, open, onOpenChange, onSave }: ContactDi
         designation: '',
         email: '',
         phone: '',
+        phoneCountryCode: '+91',
         alternatePhone: '',
+        alternatePhoneCountryCode: '+91',
         whatsapp: '',
+        whatsappCountryCode: '+91',
         type: 'prospect',
         industry: 'other',
         companySize: '',
@@ -120,8 +130,11 @@ export function ContactDialog({ contact, open, onOpenChange, onSave }: ContactDi
       designation: formData.designation,
       email: formData.email,
       phone: formData.phone,
+      phoneCountryCode: formData.phoneCountryCode,
       alternatePhone: formData.alternatePhone || undefined,
+      alternatePhoneCountryCode: formData.alternatePhone ? formData.alternatePhoneCountryCode : undefined,
       whatsapp: formData.whatsapp || undefined,
+      whatsappCountryCode: formData.whatsapp ? formData.whatsappCountryCode : undefined,
       type: formData.type,
       industry: formData.industry,
       companySize: formData.companySize,
@@ -142,7 +155,7 @@ export function ContactDialog({ contact, open, onOpenChange, onSave }: ContactDi
       tags: formData.tags.split(',').map(t => t.trim()).filter(t => t),
       assignedTo: formData.assignedTo,
       lifetimeValue: Number(formData.lifetimeValue),
-    };
+    } as Contact;
 
     onSave(newContact);
     onOpenChange(false);
@@ -201,51 +214,46 @@ export function ContactDialog({ contact, open, onOpenChange, onSave }: ContactDi
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-semibold">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                    className="border-2 focus:border-blue-500 rounded-lg"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-sm font-semibold">Phone *</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    required
-                    className="border-2 focus:border-blue-500 rounded-lg"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-semibold">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                  className="border-2 focus:border-blue-500 rounded-lg"
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="alternatePhone" className="text-sm font-semibold">Alternate Phone</Label>
-                  <Input
-                    id="alternatePhone"
-                    value={formData.alternatePhone}
-                    onChange={(e) => setFormData({ ...formData, alternatePhone: e.target.value })}
-                    className="border-2 focus:border-blue-500 rounded-lg"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="whatsapp" className="text-sm font-semibold">WhatsApp</Label>
-                  <Input
-                    id="whatsapp"
-                    value={formData.whatsapp}
-                    onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
-                    placeholder="+91 98765 43210"
-                    className="border-2 focus:border-blue-500 rounded-lg"
-                  />
-                </div>
-              </div>
+              <PhoneInput
+                label="Phone"
+                id="phone"
+                phoneValue={formData.phone}
+                countryCodeValue={formData.phoneCountryCode}
+                onPhoneChange={(value) => setFormData({ ...formData, phone: value })}
+                onCountryCodeChange={(value) => setFormData({ ...formData, phoneCountryCode: value })}
+                required
+              />
+
+              <PhoneInput
+                label="Alternate Phone"
+                id="alternatePhone"
+                phoneValue={formData.alternatePhone}
+                countryCodeValue={formData.alternatePhoneCountryCode}
+                onPhoneChange={(value) => setFormData({ ...formData, alternatePhone: value })}
+                onCountryCodeChange={(value) => setFormData({ ...formData, alternatePhoneCountryCode: value })}
+              />
+
+              <PhoneInput
+                label="WhatsApp"
+                id="whatsapp"
+                phoneValue={formData.whatsapp}
+                countryCodeValue={formData.whatsappCountryCode}
+                onPhoneChange={(value) => setFormData({ ...formData, whatsapp: value })}
+                onCountryCodeChange={(value) => setFormData({ ...formData, whatsappCountryCode: value })}
+                placeholder="9876543210"
+              />
             </div>
 
             {/* Company Information */}

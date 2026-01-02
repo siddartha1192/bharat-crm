@@ -9,6 +9,7 @@ const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middl
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const openaiService = require('../services/openai');
+const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 
 // Import io instance for WebSocket broadcasts
 const { io } = require('../server');
@@ -995,6 +996,12 @@ async function processIncomingMessage(message, value) {
       fromPhone = '+' + fromPhone;
     }
 
+    // Normalize phone number to E.164 format for deduplication
+    const normalizedResult = normalizePhoneNumber(fromPhone);
+    const normalizedPhone = normalizedResult.normalized || fromPhone;
+
+    console.log(`📞 Phone normalization: ${fromPhone} -> ${normalizedPhone}`);
+
     // Get contact name from the webhook data
     let contactName = fromPhone;
     if (value.contacts && value.contacts.length > 0) {
@@ -1044,12 +1051,10 @@ async function processIncomingMessage(message, value) {
     }
 
     // Find all users who might have this conversation
-    // (In multi-user scenario, we need to find the right user)
+    // First try using normalized phone number (preferred method)
     let conversations = await prisma.whatsAppConversation.findMany({
       where: {
-        contactPhone: {
-          in: phoneVariations
-        }
+        contactPhoneNormalized: normalizedPhone
       },
       include: {
         user: {
@@ -1057,6 +1062,23 @@ async function processIncomingMessage(message, value) {
         }
       }
     });
+
+    // Fallback: If no conversation found with normalized phone, try old phone variations
+    if (conversations.length === 0) {
+      console.log(`No conversation found with normalized phone, trying old phone variations...`);
+      conversations = await prisma.whatsAppConversation.findMany({
+        where: {
+          contactPhone: {
+            in: phoneVariations
+          }
+        },
+        include: {
+          user: {
+            select: { id: true, name: true, tenantId: true }
+          }
+        }
+      });
+    }
 
     // If no exact match for conversation, try last 10 digits matching
     if (conversations.length === 0) {
@@ -1141,6 +1163,8 @@ async function processIncomingMessage(message, value) {
             tenantId: userInfo.tenantId,
             contactName: userInfo.contactName,
             contactPhone: fromPhone,
+            contactPhoneCountryCode: normalizedResult.country ? `+${normalizedResult.country}` : '+91',
+            contactPhoneNormalized: normalizedPhone,
             contactId: userInfo.contactId,
             lastMessage: messageText,
             lastMessageAt: new Date(parseInt(timestamp) * 1000),
@@ -1149,400 +1173,306 @@ async function processIncomingMessage(message, value) {
           }
         });
 
-        // Save the message
-        const savedMessage = await prisma.whatsAppMessage.create({
-          data: {
-            conversationId: conversation.id,
-            tenantId: userInfo.tenantId,
-            message: messageText,
-            sender: 'contact',
-            senderName: contactName,
-            status: 'received',
-            messageType,
-            metadata: {
-              whatsappMessageId: messageId,
-              timestamp: timestamp
-            }
+        // Add to conversations array for AI processing later
+        conversations.push({
+          ...conversation,
+          user: {
+            id: userInfo.userId,
+            name: userInfo.userName,
+            tenantId: userInfo.tenantId
           }
         });
 
-        // Save to file
-        await conversationStorage.saveMessage(userInfo.userId, fromPhone, savedMessage);
-        console.log(`✅ Message saved to conversation for user ${userInfo.userId}`);
+        console.log(`✅ Created conversation ${conversation.id} for user ${userInfo.userId}`);
+      }
+    }
 
-        // 🔌 Broadcast new message via WebSocket
-        if (io) {
-          io.to(`user:${userInfo.userId}`).emit('whatsapp:new_message', {
-            conversationId: conversation.id,
-            message: savedMessage
-          });
+    // Now process all conversations (both new and existing)
+    console.log(`\n📋 Processing ${conversations.length} conversation(s) for ${fromPhone}`);
 
-          io.to(`user:${userInfo.userId}`).emit('whatsapp:conversation_updated', {
-            conversationId: conversation.id,
-            contactName: conversation.contactName,
-            lastMessage: messageText,
-            lastMessageAt: conversation.lastMessageAt,
-            unreadCount: conversation.unreadCount,
-            aiEnabled: conversation.aiEnabled
-          });
+    // Check if this is the first occurrence across ALL conversations in ALL tenants (for AI processing)
+    const isFirstOccurrence = !(await prisma.whatsAppMessage.findFirst({
+      where: {
+        whatsappMessageId: messageId
+      }
+    }));
 
-          console.log(`🔌 WebSocket: Broadcasted new message to user ${userInfo.userId}`);
+    console.log(`📝 First occurrence of message ${messageId}: ${isFirstOccurrence}`);
+
+    // Step 1: Save incoming message to ALL conversations
+    for (const conversation of conversations) {
+      console.log(`Saving message to conversation ${conversation.id} for user ${conversation.userId}`);
+
+      // If conversation doesn't have a contactId, try to find and link the contact
+      if (!conversation.contactId) {
+        console.log(`⚠️ Conversation ${conversation.id} has no contactId. Searching for matching contact...`);
+        console.log(`   Incoming phone: ${fromPhone}`);
+        console.log(`   Phone variations: ${phoneVariations.join(', ')}`);
+        console.log(`   Last 10 digits: ${getLastDigits(fromPhone, 10)}`);
+
+        // First try exact match with phone variations
+        let matchingContacts = await prisma.contact.findMany({
+          where: {
+            userId: conversation.userId,
+            OR: [
+              { whatsapp: { in: phoneVariations } },
+              { phone: { in: phoneVariations } }
+            ]
+          }
+        });
+
+        console.log(`   Exact match results: ${matchingContacts.length} contacts found`);
+
+        // If no exact match, try last 10 digits matching
+        if (matchingContacts.length === 0) {
+          console.log(`   No exact match found. Trying last 10 digits comparison...`);
+          const allUserContacts = await findContactByLast10Digits(fromPhone);
+          // Filter to only this user's contacts
+          matchingContacts = allUserContacts.filter(c => c.userId === conversation.userId);
+          console.log(`   Last 10 digits match results: ${matchingContacts.length} contacts found`);
+
+          // Debug: Show all user's contacts with phone numbers for debugging
+          if (matchingContacts.length === 0) {
+            const allContactsForUser = await prisma.contact.findMany({
+              where: { userId: conversation.userId },
+              select: { id: true, name: true, phone: true, whatsapp: true }
+            });
+            console.log(`   DEBUG: User has ${allContactsForUser.length} total contacts:`);
+            allContactsForUser.forEach(c => {
+              const phoneLast10 = getLastDigits(c.phone, 10);
+              const whatsappLast10 = getLastDigits(c.whatsapp, 10);
+              console.log(`     - ${c.name}: phone=${c.phone} (last10: ${phoneLast10}), whatsapp=${c.whatsapp} (last10: ${whatsappLast10})`);
+            });
+          }
         }
+
+        // If we found a matching contact, update the conversation
+        if (matchingContacts.length > 0) {
+          const matchedContact = matchingContacts[0];
+          console.log(`✅ Found matching contact: ${matchedContact.name} (${matchedContact.id}). Linking to conversation...`);
+
+          await prisma.whatsAppConversation.update({
+            where: { id: conversation.id },
+            data: {
+              contactId: matchedContact.id,
+              contactName: matchedContact.name
+            }
+          });
+
+          // Update the conversation object for use in AI processing
+          conversation.contactId = matchedContact.id;
+          conversation.contactName = matchedContact.name;
+
+          console.log(`✅ Conversation ${conversation.id} now linked to contact ${matchedContact.id}`);
+        } else {
+          console.log(`⚠️ No matching contact found for ${fromPhone}. Conversation remains without contactId.`);
+        }
+      }
+
+      // Check if message already exists in THIS conversation (per-conversation deduplication)
+      const existingMessage = await prisma.whatsAppMessage.findFirst({
+        where: {
+          whatsappMessageId: messageId,
+          conversationId: conversation.id
+        }
+      });
+
+      if (existingMessage) {
+        console.log(`⚠️ Message ${messageId} already exists in conversation ${conversation.id}, skipping`);
+        continue; // Skip this conversation
+      }
+
+      // Update conversation
+      await prisma.whatsAppConversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessage: messageText,
+          lastMessageAt: new Date(parseInt(timestamp) * 1000),
+          unreadCount: { increment: 1 }
+        }
+      });
+
+      // Save the incoming message
+      const savedMessage = await prisma.whatsAppMessage.create({
+        data: {
+          conversationId: conversation.id,
+          tenantId: conversation.tenantId,
+          message: messageText,
+          sender: 'contact',
+          senderName: contactName,
+          status: 'received',
+          messageType,
+          whatsappMessageId: messageId,
+          metadata: {
+            timestamp: timestamp,
+            isFirstOccurrence // Track for reference
+          }
+        }
+      });
+
+      // Save to file
+      await conversationStorage.saveMessage(conversation.userId, fromPhone, savedMessage);
+      console.log(`✅ Message saved to conversation ${conversation.id} for user ${conversation.userId}`);
+
+      // 🔌 Broadcast new message via WebSocket
+      if (io) {
+        io.to(`user:${conversation.userId}`).emit('whatsapp:new_message', {
+          conversationId: conversation.id,
+          message: savedMessage
+        });
+
+        io.to(`user:${conversation.userId}`).emit('whatsapp:conversation_updated', {
+          conversationId: conversation.id,
+          contactName: contactName,
+          lastMessage: messageText,
+          lastMessageAt: new Date(parseInt(timestamp) * 1000),
+          unreadCount: conversation.unreadCount + 1,
+          aiEnabled: conversation.aiEnabled
+        });
+
+        console.log(`🔌 WebSocket: Broadcasted incoming message to user ${conversation.userId}`);
+      }
+    }
+
+    // Step 2: Process AI ONCE if this is first occurrence and any conversation has AI enabled
+    const aiEnabledConversation = conversations.find(conv => conv.aiEnabled);
+
+    console.log(`\n🔍 AI CHECK:`);
+    console.log(`   - whatsappAIService.isEnabled(): ${whatsappAIService.isEnabled()}`);
+    console.log(`   - Any conversation has AI enabled: ${!!aiEnabledConversation}`);
+    console.log(`   - messageType: ${messageType}`);
+    console.log(`   - isFirstOccurrence: ${isFirstOccurrence}`);
+    console.log(`   - ALL CONDITIONS MET: ${whatsappAIService.isEnabled() && !!aiEnabledConversation && messageType === 'text' && isFirstOccurrence}`);
+
+    if (whatsappAIService.isEnabled() && aiEnabledConversation && messageType === 'text' && isFirstOccurrence) {
+      try {
+        console.log(`\n🤖 ✅ AI PROCESSING STARTING for ${conversations.length} conversation(s)...`);
 
         // Get tenant settings for API configurations
         const tenant = await prisma.tenant.findUnique({
-          where: { id: userInfo.tenantId },
+          where: { id: aiEnabledConversation.tenantId },
           select: { settings: true }
         });
         const { whatsappConfig, openaiConfig } = getTenantAPIConfig(tenant);
 
-        // Process AI response if enabled for new conversation (Structured)
-        console.log(`\n🔍 AI CHECK FOR NEW CONVERSATION:`);
-        console.log(`   - whatsappAIService.isEnabled(): ${whatsappAIService.isEnabled()}`);
-        console.log(`   - conversation.aiEnabled: ${conversation.aiEnabled}`);
-        console.log(`   - messageType: ${messageType}`);
-        console.log(`   - ALL CONDITIONS MET: ${whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text'}`);
+        // Get structured AI response using first AI-enabled conversation
+        const aiResult = await whatsappAIService.processMessage(
+          aiEnabledConversation.id,
+          messageText,
+          aiEnabledConversation.userId,
+          contactName,
+          openaiConfig
+        );
 
-        if (whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text') {
-          try {
-            console.log(`\n🤖 ✅ AI PROCESSING STARTING (Structured) for new conversation ${conversation.id}...`);
+        console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
 
-            // Get structured AI response with tenant-specific OpenAI config
-            const aiResult = await whatsappAIService.processMessage(
-              conversation.id,
-              messageText,
-              conversation.userId,
-              contactName,
-              openaiConfig
-            );
-
-            console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
-
-            // Execute any actions (only if contact exists in CRM)
-            const actionResults = await actionHandlerService.executeActions(
-              aiResult.actions,
-              {
-                userId: conversation.userId,
-                contactPhone: fromPhone,
-                conversationId: conversation.id,
-                contactId: conversation.contactId,  // null for unknown contacts
-                isKnownContact: !!conversation.contactId  // true only if contact exists
-              }
-            );
-
-            console.log(`\n⚡ Executed ${actionResults.length} action(s)`);
-
-            // Check if any actions failed and notify user
-            const failedActions = actionResults.filter(result => !result.success);
-            let messageToSend = aiResult.message;
-
-            if (failedActions.length > 0) {
-              console.log(`\n⚠️ ${failedActions.length} action(s) failed`);
-
-              // Build error message for user
-              const errorDetails = failedActions.map(fa => {
-                return `• ${fa.action}: ${fa.error || 'Unknown error'}`;
-              }).join('\n');
-
-              messageToSend = `⚠️ I encountered an issue while processing your request:\n\n${errorDetails}\n\nCould you please provide the information again? I need all required details to complete this action.`;
-
-              console.log(`\n🔔 Notifying user about failed actions`);
-            }
-
-            // Send message to WhatsApp with tenant-specific config
-            if (whatsappService.isConfigured(whatsappConfig) && messageToSend) {
-              const sentMessage = await whatsappService.sendMessage(fromPhone, messageToSend, whatsappConfig);
-              console.log(`   ✅ WhatsApp message sent! Message ID: ${sentMessage.messageId}`);
-
-              // Save AI response to database
-              const aiMessage = await prisma.whatsAppMessage.create({
-                data: {
-                  conversationId: conversation.id,
-                  tenantId: conversation.tenantId,
-                  message: messageToSend,
-                  sender: 'ai',
-                  senderName: 'AI Assistant',
-                  status: 'sent',
-                  messageType: 'text',
-                  isAiGenerated: true,
-                  metadata: {
-                    whatsappMessageId: sentMessage.messageId,
-                    intent: aiResult.metadata?.intent,
-                    sentiment: aiResult.metadata?.sentiment,
-                    actions: actionResults,
-                  }
-                }
-              });
-
-              // Update conversation
-              await prisma.whatsAppConversation.update({
-                where: { id: conversation.id },
-                data: {
-                  lastMessage: messageToSend,
-                  lastMessageAt: new Date()
-                }
-              });
-
-              // Save to file
-              await conversationStorage.saveMessage(conversation.userId, fromPhone, aiMessage);
-              console.log(`\n✅ ✅ ✅ AI RESPONSE SENT AND SAVED TO NEW CONVERSATION!`);
-            } else {
-              console.log(`\n⚠️ WhatsApp service not configured or no message to send`);
-            }
-          } catch (aiError) {
-            console.error('\n❌❌❌ ERROR GENERATING AI RESPONSE FOR NEW CONVERSATION:');
-            console.error('Error message:', aiError.message);
-            console.error('Error stack:', aiError.stack);
-            // Continue processing even if AI fails
+        // Execute any actions (only if contact exists in CRM)
+        const actionResults = await actionHandlerService.executeActions(
+          aiResult.actions,
+          {
+            userId: aiEnabledConversation.userId,
+            contactPhone: fromPhone,
+            conversationId: aiEnabledConversation.id,
+            contactId: aiEnabledConversation.contactId,
+            isKnownContact: !!aiEnabledConversation.contactId
           }
-        } else {
-          console.log(`\n⏭️ SKIPPING AI - Conditions not met`);
+        );
+
+        console.log(`\n⚡ Executed ${actionResults.length} action(s)`);
+
+        // Check if any actions failed
+        const failedActions = actionResults.filter(result => !result.success);
+        let messageToSend = aiResult.message;
+
+        if (failedActions.length > 0) {
+          console.log(`\n⚠️ ${failedActions.length} action(s) failed`);
+
+          const errorDetails = failedActions.map(fa => {
+            return `• ${fa.action}: ${fa.error || 'Unknown error'}`;
+          }).join('\n');
+
+          messageToSend = `⚠️ I encountered an issue while processing your request:\n\n${errorDetails}\n\nCould you please provide the information again? I need all required details to complete this action.`;
+
+          console.log(`\n🔔 Notifying user about failed actions`);
         }
-      }
-    } else {
-      console.log(`Found ${conversations.length} existing conversation(s) for ${fromPhone}`);
 
-      // Update existing conversations
-      for (const conversation of conversations) {
-        console.log(`Updating conversation ${conversation.id} for user ${conversation.userId}`);
+        // Send WhatsApp reply ONCE
+        let whatsappMessageId = null;
+        if (whatsappService.isConfigured(whatsappConfig) && messageToSend) {
+          const sentMessage = await whatsappService.sendMessage(fromPhone, messageToSend, whatsappConfig);
+          whatsappMessageId = sentMessage.messageId;
+          console.log(`   ✅ WhatsApp message sent ONCE! Message ID: ${whatsappMessageId}`);
+        } else {
+          console.log(`\n⚠️ WhatsApp service not configured or no message to send`);
+        }
 
-        // If conversation doesn't have a contactId, try to find and link the contact
-        if (!conversation.contactId) {
-          console.log(`⚠️ Conversation ${conversation.id} has no contactId. Searching for matching contact...`);
-          console.log(`   Incoming phone: ${fromPhone}`);
-          console.log(`   Phone variations: ${phoneVariations.join(', ')}`);
-          console.log(`   Last 10 digits: ${getLastDigits(fromPhone, 10)}`);
+        // Step 3: Save AI response to ALL conversations with this contact
+        console.log(`\n📨 Saving AI response to ALL ${conversations.length} conversation(s)...`);
 
-          // First try exact match with phone variations
-          let matchingContacts = await prisma.contact.findMany({
-            where: {
-              userId: conversation.userId,
-              OR: [
-                { whatsapp: { in: phoneVariations } },
-                { phone: { in: phoneVariations } }
-              ]
+        for (const conversation of conversations) {
+          const aiMessage = await prisma.whatsAppMessage.create({
+            data: {
+              conversationId: conversation.id,
+              tenantId: conversation.tenantId,
+              message: messageToSend,
+              sender: 'ai',
+              senderName: 'AI Assistant',
+              status: 'sent',
+              messageType: 'text',
+              isAiGenerated: true,
+              whatsappMessageId: whatsappMessageId,
+              metadata: {
+                whatsappMessageId: whatsappMessageId,
+                intent: aiResult.metadata?.intent,
+                sentiment: aiResult.metadata?.sentiment,
+                actions: actionResults,
+              }
             }
           });
 
-          console.log(`   Exact match results: ${matchingContacts.length} contacts found`);
-
-          // If no exact match, try last 10 digits matching
-          if (matchingContacts.length === 0) {
-            console.log(`   No exact match found. Trying last 10 digits comparison...`);
-            const allUserContacts = await findContactByLast10Digits(fromPhone);
-            // Filter to only this user's contacts
-            matchingContacts = allUserContacts.filter(c => c.userId === conversation.userId);
-            console.log(`   Last 10 digits match results: ${matchingContacts.length} contacts found`);
-
-            // Debug: Show all user's contacts with phone numbers for debugging
-            if (matchingContacts.length === 0) {
-              const allContactsForUser = await prisma.contact.findMany({
-                where: { userId: conversation.userId },
-                select: { id: true, name: true, phone: true, whatsapp: true }
-              });
-              console.log(`   DEBUG: User has ${allContactsForUser.length} total contacts:`);
-              allContactsForUser.forEach(c => {
-                const phoneLast10 = getLastDigits(c.phone, 10);
-                const whatsappLast10 = getLastDigits(c.whatsapp, 10);
-                console.log(`     - ${c.name}: phone=${c.phone} (last10: ${phoneLast10}), whatsapp=${c.whatsapp} (last10: ${whatsappLast10})`);
-              });
+          // Update conversation
+          await prisma.whatsAppConversation.update({
+            where: { id: conversation.id },
+            data: {
+              lastMessage: messageToSend,
+              lastMessageAt: new Date()
             }
-          }
+          });
 
-          // If we found a matching contact, update the conversation
-          if (matchingContacts.length > 0) {
-            const matchedContact = matchingContacts[0];
-            console.log(`✅ Found matching contact: ${matchedContact.name} (${matchedContact.id}). Linking to conversation...`);
+          // Save to file
+          await conversationStorage.saveMessage(conversation.userId, fromPhone, aiMessage);
+          console.log(`   ✅ AI response saved to conversation ${conversation.id} for user ${conversation.userId}`);
 
-            await prisma.whatsAppConversation.update({
-              where: { id: conversation.id },
-              data: {
-                contactId: matchedContact.id,
-                contactName: matchedContact.name
-              }
+          // 🔌 Broadcast AI message via WebSocket to each user
+          if (io) {
+            io.to(`user:${conversation.userId}`).emit('whatsapp:new_message', {
+              conversationId: conversation.id,
+              message: aiMessage
             });
 
-            // Update the conversation object for use in AI processing
-            conversation.contactId = matchedContact.id;
-            conversation.contactName = matchedContact.name;
+            io.to(`user:${conversation.userId}`).emit('whatsapp:conversation_updated', {
+              conversationId: conversation.id,
+              contactName: contactName,
+              lastMessage: messageToSend,
+              lastMessageAt: new Date(),
+              unreadCount: 0, // AI messages don't increase unread count
+              aiEnabled: conversation.aiEnabled
+            });
 
-            console.log(`✅ Conversation ${conversation.id} now linked to contact ${matchedContact.id}`);
-          } else {
-            console.log(`⚠️ No matching contact found for ${fromPhone}. Conversation remains without contactId.`);
+            console.log(`   🔌 WebSocket: Broadcasted AI message to user ${conversation.userId}`);
           }
         }
 
-        // Update conversation
-        await prisma.whatsAppConversation.update({
-          where: { id: conversation.id },
-          data: {
-            lastMessage: messageText,
-            lastMessageAt: new Date(parseInt(timestamp) * 1000),
-            unreadCount: { increment: 1 }
-          }
-        });
+        console.log(`\n✅ ✅ ✅ AI RESPONSE PROCESSED ONCE AND SAVED TO ALL ${conversations.length} CONVERSATION(S)!`);
 
-        // Save the message
-        const savedMessage = await prisma.whatsAppMessage.create({
-          data: {
-            conversationId: conversation.id,
-            tenantId: conversation.tenantId,
-            message: messageText,
-            sender: 'contact',
-            senderName: contactName,
-            status: 'received',
-            messageType,
-            metadata: {
-              whatsappMessageId: messageId,
-              timestamp: timestamp
-            }
-          }
-        });
-
-        // Save to file
-        await conversationStorage.saveMessage(conversation.userId, fromPhone, savedMessage);
-        console.log(`✅ Message saved to existing conversation for user ${conversation.userId}`);
-
-        // 🔌 Broadcast new message via WebSocket
-        if (io) {
-          io.to(`user:${conversation.userId}`).emit('whatsapp:new_message', {
-            conversationId: conversation.id,
-            message: savedMessage
-          });
-
-          io.to(`user:${conversation.userId}`).emit('whatsapp:conversation_updated', {
-            conversationId: conversation.id,
-            contactName: contactName,
-            lastMessage: messageText,
-            lastMessageAt: new Date(parseInt(timestamp) * 1000),
-            unreadCount: conversation.unreadCount + 1,
-            aiEnabled: conversation.aiEnabled
-          });
-
-          console.log(`🔌 WebSocket: Broadcasted new message to user ${conversation.userId}`);
-        }
-
-        // Process AI response if enabled (Structured)
-        console.log(`\n🔍 AI CHECK FOR EXISTING CONVERSATION (${conversation.id}):`);
-        console.log(`   - whatsappAIService.isEnabled(): ${whatsappAIService.isEnabled()}`);
-        console.log(`   - conversation.aiEnabled: ${conversation.aiEnabled}`);
-        console.log(`   - messageType: ${messageType}`);
-        console.log(`   - ALL CONDITIONS MET: ${whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text'}`);
-
-        if (whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text') {
-          try {
-            console.log(`\n🤖 ✅ AI PROCESSING STARTING (Structured) for existing conversation ${conversation.id}...`);
-
-            // Get structured AI response
-            const aiResult = await whatsappAIService.processMessage(
-              conversation.id,
-              messageText,
-              conversation.userId,
-              contactName
-            );
-
-            console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
-
-            // Execute any actions (only if contact exists in CRM)
-            const actionResults = await actionHandlerService.executeActions(
-              aiResult.actions,
-              {
-                userId: conversation.userId,
-                contactPhone: fromPhone,
-                conversationId: conversation.id,
-                contactId: conversation.contactId,  // null for unknown contacts
-                isKnownContact: !!conversation.contactId  // true only if contact exists
-              }
-            );
-
-            console.log(`\n⚡ Executed ${actionResults.length} action(s)`);
-
-            // Check if any actions failed and notify user
-            const failedActions = actionResults.filter(result => !result.success);
-            let messageToSend = aiResult.message;
-
-            if (failedActions.length > 0) {
-              console.log(`\n⚠️ ${failedActions.length} action(s) failed`);
-
-              // Build error message for user
-              const errorDetails = failedActions.map(fa => {
-                return `• ${fa.action}: ${fa.error || 'Unknown error'}`;
-              }).join('\n');
-
-              messageToSend = `⚠️ I encountered an issue while processing your request:\n\n${errorDetails}\n\nCould you please provide the information again? I need all required details to complete this action.`;
-
-              console.log(`\n🔔 Notifying user about failed actions`);
-            }
-
-            // Send message to WhatsApp
-            if (whatsappService.isConfigured() && messageToSend) {
-              const sentMessage = await whatsappService.sendMessage(fromPhone, messageToSend);
-              console.log(`   ✅ WhatsApp message sent! Message ID: ${sentMessage.messageId}`);
-
-              // Save AI response to database
-              const aiMessage = await prisma.whatsAppMessage.create({
-                data: {
-                  conversationId: conversation.id,
-                  tenantId: conversation.tenantId,
-                  message: messageToSend,
-                  sender: 'ai',
-                  senderName: 'AI Assistant',
-                  status: 'sent',
-                  messageType: 'text',
-                  isAiGenerated: true,
-                  metadata: {
-                    whatsappMessageId: sentMessage.messageId,
-                    intent: aiResult.metadata?.intent,
-                    sentiment: aiResult.metadata?.sentiment,
-                    actions: actionResults,
-                  }
-                }
-              });
-
-              // Update conversation
-              await prisma.whatsAppConversation.update({
-                where: { id: conversation.id },
-                data: {
-                  lastMessage: messageToSend,
-                  lastMessageAt: new Date()
-                }
-              });
-
-              // Save to file
-              await conversationStorage.saveMessage(conversation.userId, fromPhone, aiMessage);
-              console.log(`\n✅ ✅ ✅ AI RESPONSE SENT AND SAVED TO EXISTING CONVERSATION!`);
-
-              // 🔌 Broadcast AI message via WebSocket
-              if (io) {
-                io.to(`user:${conversation.userId}`).emit('whatsapp:new_message', {
-                  conversationId: conversation.id,
-                  message: aiMessage
-                });
-
-                io.to(`user:${conversation.userId}`).emit('whatsapp:conversation_updated', {
-                  conversationId: conversation.id,
-                  contactName: contactName,
-                  lastMessage: aiResult.message,
-                  lastMessageAt: new Date(),
-                  unreadCount: 0, // AI messages don't increase unread count
-                  aiEnabled: conversation.aiEnabled
-                });
-
-                console.log(`🔌 WebSocket: Broadcasted AI message to user ${conversation.userId}`);
-              }
-            } else {
-              console.log(`\n⚠️ WhatsApp service not configured or no message to send`);
-            }
-          } catch (aiError) {
-            console.error('\n❌❌❌ ERROR GENERATING AI RESPONSE FOR EXISTING CONVERSATION:');
-            console.error('Error message:', aiError.message);
-            console.error('Error stack:', aiError.stack);
-            // Continue processing even if AI fails
-          }
-        } else {
-          console.log(`\n⏭️ SKIPPING AI - Conditions not met for existing conversation`);
-        }
+      } catch (aiError) {
+        console.error('\n❌❌❌ ERROR GENERATING AI RESPONSE:');
+        console.error('Error message:', aiError.message);
+        console.error('Error stack:', aiError.stack);
+        // Continue processing even if AI fails
       }
+    } else {
+      console.log(`\n⏭️ SKIPPING AI - Conditions not met`);
     }
 
     console.log(`\n✅ Successfully processed incoming message from ${fromPhone}`);

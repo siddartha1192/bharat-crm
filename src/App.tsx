@@ -34,6 +34,7 @@ import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 import Forms from "./pages/Forms";
 import PromoLanding from "./pages/PromoLanding";
+import PublicForm from "./pages/PublicForm";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,7 @@ const App = () => (
               <Routes>
               {/* Public routes */}
               <Route path="/" element={<PromoLanding />} />
+              <Route path="/f/:slug" element={<PublicForm />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />

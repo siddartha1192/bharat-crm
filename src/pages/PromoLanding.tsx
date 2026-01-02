@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useState, useRef } from 'react';
 import axios from 'axios';
+import { PhoneInput } from '@/components/shared/PhoneInput';
+import { Label } from '@/components/ui/label';
 
 export default function PromoLanding() {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
@@ -26,6 +28,7 @@ export default function PromoLanding() {
     name: '',
     email: '',
     phone: '',
+    phoneCountryCode: '+91',
     company: '',
     message: ''
   });
@@ -51,7 +54,7 @@ export default function PromoLanding() {
 
       if (response.data.success) {
         setSubmitSuccess(true);
-        setFormData({ name: '', email: '', phone: '', company: '', message: '' });
+        setFormData({ name: '', email: '', phone: '', phoneCountryCode: '+91', company: '', message: '' });
 
         // Reset success message after 5 seconds
         setTimeout(() => setSubmitSuccess(false), 5000);
@@ -570,17 +573,14 @@ export default function PromoLanding() {
                     </div>
 
                     <div>
-                      <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
-                        Phone Number
-                      </label>
-                      <Input
+                      <PhoneInput
+                        label="Phone Number"
                         id="phone"
-                        name="phone"
-                        type="tel"
-                        value={formData.phone}
-                        onChange={handleInputChange}
-                        placeholder="+91 98765 43210"
-                        className="h-12 text-base border-2 border-gray-300 focus:border-purple-500"
+                        phoneValue={formData.phone}
+                        countryCodeValue={formData.phoneCountryCode}
+                        onPhoneChange={(value) => setFormData({ ...formData, phone: value })}
+                        onCountryCodeChange={(value) => setFormData({ ...formData, phoneCountryCode: value })}
+                        placeholder="9876543210"
                         disabled={isSubmitting}
                       />
                     </div>
