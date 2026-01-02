@@ -22,37 +22,43 @@ const MEMORY_CONFIG = {
 
 class PortalAIService {
   constructor() {
-    this.llm = null;
-    this.initialized = false;
+    this.vectorDBInitialized = false;
   }
 
   /**
-   * Initialize the Portal AI
+   * Initialize Vector DB (one-time initialization)
    */
-  async initialize() {
-    if (this.initialized || !aiConfig.enabled) {
+  async initializeVectorDB() {
+    if (this.vectorDBInitialized) {
       return;
     }
 
     try {
-      console.log('🚀 Initializing Portal AI Service (Enterprise)...');
-
-      this.llm = new ChatOpenAI({
-        openAIApiKey: aiConfig.openaiApiKey,
-        modelName: aiConfig.portalAI.model,
-        temperature: aiConfig.portalAI.temperature,
-        maxTokens: aiConfig.portalAI.maxTokens,
-      });
-
-      // Initialize vector DB
       await vectorDBService.initialize();
-
-      this.initialized = true;
-      console.log('✅ Portal AI Service initialized');
+      this.vectorDBInitialized = true;
+      console.log('✅ Vector DB initialized for Portal AI');
     } catch (error) {
-      console.error('❌ Error initializing Portal AI:', error);
-      throw error;
+      console.warn('⚠️ Vector DB initialization failed');
+      console.warn('   Error:', error.message);
     }
+  }
+
+  /**
+   * Create LLM instance with tenant-specific API key
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration
+   * @returns {ChatOpenAI} - LLM instance
+   */
+  createLLM(tenantConfig) {
+    if (!tenantConfig || !tenantConfig.apiKey) {
+      throw new Error('OpenAI API not configured for this tenant. Please configure OpenAI API settings in Settings.');
+    }
+
+    return new ChatOpenAI({
+      openAIApiKey: tenantConfig.apiKey,
+      modelName: tenantConfig.model || aiConfig.portalAI.model,
+      temperature: tenantConfig.temperature !== undefined ? tenantConfig.temperature : aiConfig.portalAI.temperature,
+      maxTokens: aiConfig.portalAI.maxTokens,
+    });
   }
 
   /**
@@ -303,8 +309,9 @@ Remember: Use your functions! You have direct database access - use it to provid
    * Summarize old messages to compress conversation memory
    * @param {string} conversationId - Conversation ID
    * @param {string} userId - User ID
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration
    */
-  async summarizeConversation(conversationId, userId) {
+  async summarizeConversation(conversationId, userId, tenantConfig) {
     try {
       console.log('📝 Summarizing conversation to compress memory...');
 
@@ -340,8 +347,11 @@ ${conversationText}
 
 Summary:`;
 
+      // Create LLM for summarization
+      const summaryLLM = this.createLLM(tenantConfig);
+
       // Get summary from LLM
-      const summaryResponse = await this.llm.invoke([new HumanMessage(summaryPrompt)]);
+      const summaryResponse = await summaryLLM.invoke([new HumanMessage(summaryPrompt)]);
       const summary = summaryResponse.content;
 
       console.log(`📊 Summarized ${messagesToSummarize.length} messages into summary`);
@@ -399,11 +409,16 @@ Summary:`;
    * @param {string} userMessage - User's message
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration (REQUIRED)
    * @param {Array} conversationHistory - Deprecated: Previous messages (now loaded from DB)
    * @returns {Object} AI response with optional data
    */
-  async processMessage(userMessage, userId, tenantId, conversationHistory = []) {
-    await this.initialize();
+  async processMessage(userMessage, userId, tenantId, tenantConfig = null, conversationHistory = []) {
+    // Initialize Vector DB (one-time)
+    await this.initializeVectorDB();
+
+    // Create tenant-specific LLM
+    const llm = this.createLLM(tenantConfig);
 
     try {
       console.log('\n🚀 Portal AI Processing...');
@@ -467,7 +482,7 @@ Summary:`;
         console.log(`\n🔄 Iteration ${iteration + 1}`);
 
         // Invoke LLM with tools
-        const response = await this.llm.invoke(messages, {
+        const response = await llm.invoke(messages, {
           tools,
           tool_choice: iteration === 0 ? 'auto' : 'auto',
         });
@@ -512,7 +527,7 @@ Summary:`;
 
       // If we hit max iterations, get a final response
       if (!finalResponse) {
-        const finalResponseObj = await this.llm.invoke(messages);
+        const finalResponseObj = await llm.invoke(messages);
         finalResponse = finalResponseObj.content;
       }
 
@@ -533,7 +548,7 @@ Summary:`;
       if (currentMessageCount > MEMORY_CONFIG.SUMMARIZE_THRESHOLD) {
         console.log(`📊 Message count (${currentMessageCount}) exceeds threshold, triggering summarization...`);
         // Run summarization in background (don't wait for it)
-        this.summarizeConversation(conversation.id, userId).catch(err =>
+        this.summarizeConversation(conversation.id, userId, tenantConfig).catch(err =>
           console.error('Summarization failed:', err)
         );
       }

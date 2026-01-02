@@ -338,10 +338,23 @@ router.post('/:id/ai-edit', async (req, res) => {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
+    // Get tenant settings for OpenAI configuration
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: req.user.tenantId },
+      select: { settings: true }
+    });
+    const openaiConfig = tenant?.settings?.openai;
+
+    if (!openaiConfig || !openaiConfig.apiKey) {
+      return res.status(400).json({
+        error: 'OpenAI API not configured for this tenant. Please configure OpenAI API settings in Settings.'
+      });
+    }
+
     // Use OpenAI to generate content based on prompt
     const OpenAI = require('openai');
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
+      apiKey: openaiConfig.apiKey
     });
 
     const systemPrompt = `You are a professional copywriter and web designer.

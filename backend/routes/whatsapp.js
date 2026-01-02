@@ -822,11 +822,18 @@ router.get('/ai-status', async (req, res) => {
   try {
     const userId = req.user.id;
 
+    // Get tenant settings for API configurations
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: req.tenant.id },
+      select: { settings: true }
+    });
+    const { openaiConfig } = getTenantAPIConfig(tenant);
+
     res.json({
-      aiFeatureEnabled: whatsappAIService.isEnabled(),
-      message: whatsappAIService.isEnabled()
+      aiFeatureEnabled: whatsappAIService.isEnabled(openaiConfig),
+      message: whatsappAIService.isEnabled(openaiConfig)
         ? 'AI assistant is available and ready to use'
-        : 'AI assistant is disabled globally (check ENABLE_AI_FEATURE env variable)'
+        : 'AI assistant is not configured. Please configure OpenAI API settings in Settings.'
     });
   } catch (error) {
     console.error('Error checking AI status:', error);
@@ -1337,23 +1344,29 @@ async function processIncomingMessage(message, value) {
     // Step 2: Process AI ONCE if this is first occurrence and any conversation has AI enabled
     const aiEnabledConversation = conversations.find(conv => conv.aiEnabled);
 
+    // Get tenant settings for API configurations (needed for AI check)
+    let whatsappConfig = null;
+    let openaiConfig = null;
+    if (aiEnabledConversation) {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: aiEnabledConversation.tenantId },
+        select: { settings: true }
+      });
+      const configs = getTenantAPIConfig(tenant);
+      whatsappConfig = configs.whatsappConfig;
+      openaiConfig = configs.openaiConfig;
+    }
+
     console.log(`\n🔍 AI CHECK:`);
-    console.log(`   - whatsappAIService.isEnabled(): ${whatsappAIService.isEnabled()}`);
+    console.log(`   - whatsappAIService.isEnabled(openaiConfig): ${whatsappAIService.isEnabled(openaiConfig)}`);
     console.log(`   - Any conversation has AI enabled: ${!!aiEnabledConversation}`);
     console.log(`   - messageType: ${messageType}`);
     console.log(`   - isFirstOccurrence: ${isFirstOccurrence}`);
-    console.log(`   - ALL CONDITIONS MET: ${whatsappAIService.isEnabled() && !!aiEnabledConversation && messageType === 'text' && isFirstOccurrence}`);
+    console.log(`   - ALL CONDITIONS MET: ${whatsappAIService.isEnabled(openaiConfig) && !!aiEnabledConversation && messageType === 'text' && isFirstOccurrence}`);
 
-    if (whatsappAIService.isEnabled() && aiEnabledConversation && messageType === 'text' && isFirstOccurrence) {
+    if (whatsappAIService.isEnabled(openaiConfig) && aiEnabledConversation && messageType === 'text' && isFirstOccurrence) {
       try {
         console.log(`\n🤖 ✅ AI PROCESSING STARTING for ${conversations.length} conversation(s)...`);
-
-        // Get tenant settings for API configurations
-        const tenant = await prisma.tenant.findUnique({
-          where: { id: aiEnabledConversation.tenantId },
-          select: { settings: true }
-        });
-        const { whatsappConfig, openaiConfig } = getTenantAPIConfig(tenant);
 
         // Get structured AI response using first AI-enabled conversation
         const aiResult = await whatsappAIService.processMessage(

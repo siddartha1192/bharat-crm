@@ -1,13 +1,10 @@
 /**
  * Enterprise AI Configuration
  * All AI-related configuration loaded from environment variables
+ * NOTE: openaiApiKey is NOT included here - must be configured per-tenant in Settings
  */
 
 module.exports = {
-  // General AI Configuration
-  enabled: process.env.ENABLE_AI_FEATURE !== 'false',
-  openaiApiKey: process.env.OPENAI_API_KEY,
-
   // Company/Product Information
   company: {
     name: process.env.COMPANY_NAME || 'Bharat CRM',
