@@ -20,6 +20,7 @@ import { UserPlus, X, AlertCircle } from 'lucide-react';
 import { AssignmentDropdown } from '@/components/common/AssignmentDropdown';
 import { pipelineStagesAPI, pipelineConfigAPI } from '@/lib/api';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PhoneInput } from '@/components/shared/PhoneInput';
 
 interface LeadDialogProps {
   lead?: Lead | null;
@@ -34,7 +35,9 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
     company: '',
     email: '',
     phone: '',
+    phoneCountryCode: '+91',
     whatsapp: '',
+    whatsappCountryCode: '+91',
     source: 'web-form' as LeadSource,
     status: 'new' as LeadStatus,
     stageId: undefined as string | undefined,
@@ -72,7 +75,9 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
         company: lead.company || '',
         email: lead.email || '',
         phone: lead.phone || '',
+        phoneCountryCode: lead.phoneCountryCode || '+91',
         whatsapp: lead.whatsapp || '',
+        whatsappCountryCode: lead.whatsappCountryCode || '+91',
         source: lead.source || 'web-form',
         status: statusSlug,
         stageId: stageId,
@@ -94,7 +99,9 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
         company: '',
         email: '',
         phone: '',
+        phoneCountryCode: '+91',
         whatsapp: '',
+        whatsappCountryCode: '+91',
         source: 'web-form',
         status: 'new',
         stageId: defaultStageId,
@@ -161,7 +168,9 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
       company: formData.company,
       email: formData.email,
       phone: formData.phone,
+      phoneCountryCode: formData.phoneCountryCode,
       whatsapp: formData.whatsapp || undefined,
+      whatsappCountryCode: formData.whatsapp ? formData.whatsappCountryCode : undefined,
       source: formData.source,
       status: formData.status,
       stageId: formData.stageId, // ✅ Now sending stageId!
@@ -256,40 +265,37 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-semibold">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                    className="border-2 focus:border-blue-500 rounded-lg"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-sm font-semibold">Phone *</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    required
-                    className="border-2 focus:border-blue-500 rounded-lg"
-                  />
-                </div>
-              </div>
-
               <div className="space-y-2">
-                <Label htmlFor="whatsapp" className="text-sm font-semibold">WhatsApp</Label>
+                <Label htmlFor="email" className="text-sm font-semibold">Email *</Label>
                 <Input
-                  id="whatsapp"
-                  value={formData.whatsapp}
-                  onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
-                  placeholder="+91 98765 43210"
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
                   className="border-2 focus:border-blue-500 rounded-lg"
                 />
               </div>
+
+              <PhoneInput
+                label="Phone"
+                id="phone"
+                phoneValue={formData.phone}
+                countryCodeValue={formData.phoneCountryCode}
+                onPhoneChange={(value) => setFormData({ ...formData, phone: value })}
+                onCountryCodeChange={(value) => setFormData({ ...formData, phoneCountryCode: value })}
+                required
+              />
+
+              <PhoneInput
+                label="WhatsApp"
+                id="whatsapp"
+                phoneValue={formData.whatsapp}
+                countryCodeValue={formData.whatsappCountryCode}
+                onPhoneChange={(value) => setFormData({ ...formData, whatsapp: value })}
+                onCountryCodeChange={(value) => setFormData({ ...formData, whatsappCountryCode: value })}
+                placeholder="9876543210"
+              />
             </div>
 
             {/* Lead Details */}

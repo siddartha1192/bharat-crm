@@ -5,6 +5,7 @@ const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const automationService = require('../services/automation');
 const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
+const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 const prisma = new PrismaClient();
 
 // Helper function: Map lead status to deal stage
@@ -217,10 +218,31 @@ router.post('/', validateAssignment, async (req, res) => {
       leadStatus = defaultLeadStage.slug || 'new';
     }
 
+    // Normalize phone numbers for consistent storage
+    let phoneNormalized = null;
+    if (leadData.phone) {
+      const phoneResult = normalizePhoneNumber(
+        leadData.phone,
+        leadData.phoneCountryCode || '+91'
+      );
+      phoneNormalized = phoneResult.normalized || leadData.phone;
+    }
+
+    let whatsappNormalized = null;
+    if (leadData.whatsapp) {
+      const whatsappResult = normalizePhoneNumber(
+        leadData.whatsapp,
+        leadData.whatsappCountryCode || '+91'
+      );
+      whatsappNormalized = whatsappResult.normalized || leadData.whatsapp;
+    }
+
     // Create the Lead only (no automatic deal creation)
     const lead = await prisma.lead.create({
       data: {
         ...leadData,
+        phoneNormalized,
+        whatsappNormalized,
         assignedTo,
         createdBy,
         userId,
@@ -238,8 +260,8 @@ router.post('/', validateAssignment, async (req, res) => {
         id: lead.id,
         name: lead.name,
         email: lead.email,
-        phone: lead.phone,
-        whatsapp: lead.whatsapp,
+        phone: lead.phoneNormalized || lead.phone,
+        whatsapp: lead.whatsappNormalized || lead.whatsapp,
         company: lead.company,
         status: lead.status,
         entityType: 'Lead'
@@ -419,6 +441,23 @@ router.put('/:id', async (req, res) => {
       }
     }
 
+    // Normalize phone numbers if being updated
+    if (updateData.phone) {
+      const phoneResult = normalizePhoneNumber(
+        updateData.phone,
+        updateData.phoneCountryCode || '+91'
+      );
+      updateData.phoneNormalized = phoneResult.normalized || updateData.phone;
+    }
+
+    if (updateData.whatsapp) {
+      const whatsappResult = normalizePhoneNumber(
+        updateData.whatsapp,
+        updateData.whatsappCountryCode || '+91'
+      );
+      updateData.whatsappNormalized = whatsappResult.normalized || updateData.whatsapp;
+    }
+
     // Update Lead and sync with Deal in transaction
     const result = await prisma.$transaction(async (tx) => {
       // Update the Lead
@@ -507,8 +546,8 @@ router.put('/:id', async (req, res) => {
           id: result.id,
           name: result.name,
           email: result.email,
-          phone: result.phone,
-          whatsapp: result.whatsapp,
+          phone: result.phoneNormalized || result.phone,
+          whatsapp: result.whatsappNormalized || result.whatsapp,
           company: result.company,
           fromStage: fromStage?.name || existingLead.status,
           toStage: toStage?.name || updateData.status,
@@ -528,8 +567,8 @@ router.put('/:id', async (req, res) => {
           id: result.id,
           name: result.name,
           email: result.email,
-          phone: result.phone,
-          whatsapp: result.whatsapp,
+          phone: result.phoneNormalized || result.phone,
+          whatsapp: result.whatsappNormalized || result.whatsapp,
           company: result.company,
           fromStage: existingLead.status,
           toStage: updateData.status,

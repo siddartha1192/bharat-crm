@@ -436,7 +436,11 @@ class CampaignService {
             name: true,
             email: true,
             phone: true,
+            phoneNormalized: true,
+            phoneCountryCode: true,
             whatsapp: true,
+            whatsappNormalized: true,
+            whatsappCountryCode: true,
             company: true,
           },
           take: CAMPAIGN_CONFIG.MAX_RECIPIENTS,
@@ -447,7 +451,10 @@ class CampaignService {
           recipientId: lead.id,
           recipientName: lead.name,
           recipientEmail: channel === 'email' ? lead.email : null,
-          recipientPhone: channel === 'whatsapp' ? (lead.whatsapp || lead.phone) : null,
+          // Use normalized WhatsApp number, fallback to normalized phone, then raw values
+          recipientPhone: channel === 'whatsapp'
+            ? (lead.whatsappNormalized || lead.phoneNormalized || lead.whatsapp || lead.phone)
+            : null,
         }));
       } else if (targetType === 'contacts') {
         // Apply filters for contacts
@@ -470,7 +477,11 @@ class CampaignService {
             name: true,
             email: true,
             phone: true,
+            phoneNormalized: true,
+            phoneCountryCode: true,
             whatsapp: true,
+            whatsappNormalized: true,
+            whatsappCountryCode: true,
             company: true,
           },
           take: CAMPAIGN_CONFIG.MAX_RECIPIENTS,
@@ -481,19 +492,38 @@ class CampaignService {
           recipientId: contact.id,
           recipientName: contact.name,
           recipientEmail: channel === 'email' ? contact.email : null,
-          recipientPhone: channel === 'whatsapp' ? (contact.whatsapp || contact.phone) : null,
+          // Use normalized WhatsApp number, fallback to normalized phone, then raw values
+          recipientPhone: channel === 'whatsapp'
+            ? (contact.whatsappNormalized || contact.phoneNormalized || contact.whatsapp || contact.phone)
+            : null,
         }));
       } else if (targetType === 'all') {
         // Get both leads and contacts
         const [leads, contacts] = await Promise.all([
           prisma.lead.findMany({
             where: { userId: campaign.userId },
-            select: { id: true, name: true, email: true, phone: true, whatsapp: true },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              phoneNormalized: true,
+              whatsapp: true,
+              whatsappNormalized: true,
+            },
             take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
           }),
           prisma.contact.findMany({
             where: { userId: campaign.userId },
-            select: { id: true, name: true, email: true, phone: true, whatsapp: true },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              phoneNormalized: true,
+              whatsapp: true,
+              whatsappNormalized: true,
+            },
             take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
           }),
         ]);
@@ -503,7 +533,9 @@ class CampaignService {
           recipientId: lead.id,
           recipientName: lead.name,
           recipientEmail: channel === 'email' ? lead.email : null,
-          recipientPhone: channel === 'whatsapp' ? (lead.whatsapp || lead.phone) : null,
+          recipientPhone: channel === 'whatsapp'
+            ? (lead.whatsappNormalized || lead.phoneNormalized || lead.whatsapp || lead.phone)
+            : null,
         }));
 
         const contactRecipients = contacts.map(contact => ({
@@ -511,7 +543,9 @@ class CampaignService {
           recipientId: contact.id,
           recipientName: contact.name,
           recipientEmail: channel === 'email' ? contact.email : null,
-          recipientPhone: channel === 'whatsapp' ? (contact.whatsapp || contact.phone) : null,
+          recipientPhone: channel === 'whatsapp'
+            ? (contact.whatsappNormalized || contact.phoneNormalized || contact.whatsapp || contact.phone)
+            : null,
         }));
 
         recipients = [...leadRecipients, ...contactRecipients];
@@ -524,7 +558,16 @@ class CampaignService {
                 userId: campaign.userId,
                 tags: { hasSome: targetFilters.tags },
               },
-              select: { id: true, name: true, email: true, phone: true, whatsapp: true, company: true },
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                phoneNormalized: true,
+                whatsapp: true,
+                whatsappNormalized: true,
+                company: true,
+              },
               take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
             }),
             prisma.contact.findMany({
@@ -532,7 +575,16 @@ class CampaignService {
                 userId: campaign.userId,
                 tags: { hasSome: targetFilters.tags },
               },
-              select: { id: true, name: true, email: true, phone: true, whatsapp: true, company: true },
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                phoneNormalized: true,
+                whatsapp: true,
+                whatsappNormalized: true,
+                company: true,
+              },
               take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
             }),
           ]);
@@ -542,7 +594,9 @@ class CampaignService {
             recipientId: lead.id,
             recipientName: lead.name,
             recipientEmail: channel === 'email' ? lead.email : null,
-            recipientPhone: channel === 'whatsapp' ? (lead.whatsapp || lead.phone) : null,
+            recipientPhone: channel === 'whatsapp'
+              ? (lead.whatsappNormalized || lead.phoneNormalized || lead.whatsapp || lead.phone)
+              : null,
           }));
 
           const contactRecipients = contacts.map(contact => ({
@@ -550,7 +604,9 @@ class CampaignService {
             recipientId: contact.id,
             recipientName: contact.name,
             recipientEmail: channel === 'email' ? contact.email : null,
-            recipientPhone: channel === 'whatsapp' ? (contact.whatsapp || contact.phone) : null,
+            recipientPhone: channel === 'whatsapp'
+              ? (contact.whatsappNormalized || contact.phoneNormalized || contact.whatsapp || contact.phone)
+              : null,
           }));
 
           recipients = [...leadRecipients, ...contactRecipients];
@@ -879,10 +935,6 @@ class CampaignService {
         messageId = result.messageId;
         success = result.success;
       } else if (campaign.channel === 'whatsapp') {
-        if (!whatsappService.isConfigured()) {
-          throw new Error('WhatsApp service is not configured');
-        }
-
         // Get tenant WhatsApp configuration if available
         let tenantConfig = null;
         if (campaign.tenantId) {
@@ -891,6 +943,10 @@ class CampaignService {
             select: { settings: true }
           });
           tenantConfig = tenant?.settings?.whatsapp || null;
+        }
+
+        if (!whatsappService.isConfigured(tenantConfig)) {
+          throw new Error('WhatsApp service is not configured for this tenant. Please configure WhatsApp API settings in Settings.');
         }
 
         const whatsappMessageType = campaign.whatsappMessageType || 'text';
@@ -1141,11 +1197,21 @@ class CampaignService {
           userId,
         });
       } else if (campaign.channel === 'whatsapp') {
-        if (!whatsappService.isConfigured()) {
-          throw new Error('WhatsApp service is not configured');
+        // Get tenant WhatsApp configuration if available
+        let tenantConfig = null;
+        if (campaign.tenantId) {
+          const tenant = await prisma.tenant.findUnique({
+            where: { id: campaign.tenantId },
+            select: { settings: true }
+          });
+          tenantConfig = tenant?.settings?.whatsapp || null;
         }
 
-        await whatsappService.sendMessage(tempRecipient.recipientPhone, `[TEST] ${content}`);
+        if (!whatsappService.isConfigured(tenantConfig)) {
+          throw new Error('WhatsApp service is not configured for this tenant. Please configure WhatsApp API settings in Settings.');
+        }
+
+        await whatsappService.sendMessage(tempRecipient.recipientPhone, `[TEST] ${content}`, tenantConfig);
       }
 
       return { success: true, message: 'Test message sent successfully' };

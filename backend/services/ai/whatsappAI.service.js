@@ -307,8 +307,8 @@ For appointments, ALWAYS require complete dates:
         },
       });
 
-      // Use tenantId from parameter or fetch from conversation
-      const effectiveTenantId = tenantId || conversation?.tenantId;
+      // Get tenantId from conversation for vector DB search
+      const effectiveTenantId = conversation?.tenantId;
 
       // Search vector DB for relevant product information with tenant isolation
       let productContext = '';

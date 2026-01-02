@@ -296,6 +296,22 @@ async function executeWhatsAppAction(rule, data, user) {
     console.log('🔍 Executing WhatsApp action with data:', JSON.stringify(data, null, 2));
     console.log('🔍 Rule type:', rule.type);
 
+    // Get tenant-specific WhatsApp configuration
+    let whatsappConfig = null;
+    if (user.tenantId) {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+        select: { settings: true }
+      });
+      whatsappConfig = tenant?.settings?.whatsapp || null;
+    }
+
+    // Check if WhatsApp is configured for this tenant
+    if (!whatsappService.isConfigured(whatsappConfig)) {
+      console.log('⚠️ WhatsApp is not configured for this tenant, skipping WhatsApp action');
+      return;
+    }
+
     // Get WhatsApp message template (use custom or default)
     const hasCustomMessage = rule.whatsappMessage && rule.whatsappMessage.trim() !== '';
 
@@ -325,12 +341,12 @@ async function executeWhatsAppAction(rule, data, user) {
     // Determine recipient number - prioritize whatsapp field, fallback to phone
     const recipientNumber = data.whatsapp || data.phone;
 
-    // Send WhatsApp message
+    // Send WhatsApp message with tenant-specific configuration
     if (recipientNumber) {
       await whatsappService.sendMessage(
         recipientNumber,
         finalMessage,
-        null // tenantConfig can be added later for multi-tenant WhatsApp
+        whatsappConfig
       );
 
       console.log(`✅ Sent automation WhatsApp message to ${recipientNumber}`);
