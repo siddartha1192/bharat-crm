@@ -8,7 +8,11 @@ export interface Lead {
   company: string;
   email: string;
   phone: string;
+  phoneCountryCode?: string; // Country code for phone (e.g., +91)
+  phoneNormalized?: string; // E.164 format for phone
   whatsapp?: string;
+  whatsappCountryCode?: string; // Country code for WhatsApp (e.g., +91)
+  whatsappNormalized?: string; // E.164 format for WhatsApp
   source: LeadSource;
   status: LeadStatus;
   stageId?: string; // Reference to PipelineStage.id for dynamic stages
