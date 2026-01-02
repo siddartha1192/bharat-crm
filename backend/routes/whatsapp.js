@@ -1159,6 +1159,47 @@ async function processIncomingMessage(message, value, tenant) {
       conversations = await findConversationsByLast10Digits(fromPhone, tenant.id);
     }
 
+    // 🔥 CRITICAL FIX: Deduplicate conversations by userId + normalized phone
+    // If multiple conversations found (e.g., old format + new format), use only ONE
+    if (conversations.length > 1) {
+      console.log(`⚠️  WARNING: Found ${conversations.length} conversations for ${fromPhone}. Deduplicating...`);
+
+      // Group by userId + normalized phone
+      const conversationsByUserPhone = new Map();
+      conversations.forEach(conv => {
+        const key = `${conv.userId}:${normalizedPhone}`;
+        if (!conversationsByUserPhone.has(key)) {
+          conversationsByUserPhone.set(key, []);
+        }
+        conversationsByUserPhone.get(key).push(conv);
+      });
+
+      // For each user+phone combination, keep only the best conversation
+      const deduplicatedConversations = [];
+      for (const [key, convs] of conversationsByUserPhone.entries()) {
+        if (convs.length > 1) {
+          console.log(`   ⚠️  User has ${convs.length} duplicate conversations for ${normalizedPhone}`);
+
+          // Prefer conversation with normalized phone set correctly
+          const preferred = convs.find(c => c.contactPhoneNormalized === normalizedPhone) ||
+                          convs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+          console.log(`   ✅ Using conversation ${preferred.id} (${preferred.contactPhoneNormalized})`);
+          deduplicatedConversations.push(preferred);
+
+          // Log the ones we're skipping
+          convs.filter(c => c.id !== preferred.id).forEach(skipped => {
+            console.log(`   ⏭️  Skipping duplicate conversation ${skipped.id}`);
+          });
+        } else {
+          deduplicatedConversations.push(convs[0]);
+        }
+      }
+
+      conversations = deduplicatedConversations;
+      console.log(`   ✅ After deduplication: ${conversations.length} conversation(s)`);
+    }
+
     // If no conversation exists, try to find the contact in the CRM
     if (conversations.length === 0) {
       console.log(`No existing conversation found for ${fromPhone}. Searching for contact...`);
