@@ -4,15 +4,12 @@ const fs = require('fs');
 
 class WhatsAppService {
   constructor() {
-    // Default credentials from environment variables (backward compatibility)
-    this.defaultToken = process.env.WHATSAPP_TOKEN;
-    this.defaultPhoneId = process.env.WHATSAPP_PHONE_ID;
     this.baseUrl = 'https://graph.facebook.com/v18.0';
   }
 
   /**
-   * Get credentials (tenant-specific or default from env)
-   * @param {Object} tenantConfig - Optional tenant-specific WhatsApp configuration
+   * Get credentials from tenant-specific configuration
+   * @param {Object} tenantConfig - Tenant-specific WhatsApp configuration (REQUIRED)
    * @returns {Object} - { token, phoneId }
    */
   getCredentials(tenantConfig = null) {
@@ -22,9 +19,10 @@ class WhatsAppService {
         phoneId: tenantConfig.phoneId
       };
     }
+    // No fallback - tenant MUST configure their own WhatsApp API
     return {
-      token: this.defaultToken,
-      phoneId: this.defaultPhoneId
+      token: null,
+      phoneId: null
     };
   }
 
@@ -40,7 +38,7 @@ class WhatsAppService {
       const { token, phoneId } = this.getCredentials(tenantConfig);
 
       if (!token || !phoneId) {
-        throw new Error('WhatsApp API credentials not configured. Please configure in Settings or set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID in .env');
+        throw new Error('WhatsApp API credentials not configured for this tenant. Please configure WhatsApp API settings in Settings.');
       }
 
       // Clean phone number (remove spaces, dashes, etc)
@@ -89,7 +87,7 @@ class WhatsAppService {
       const { token, phoneId } = this.getCredentials(tenantConfig);
 
       if (!token || !phoneId) {
-        throw new Error('WhatsApp API credentials not configured');
+        throw new Error('WhatsApp API credentials not configured for this tenant. Please configure WhatsApp API settings in Settings.');
       }
 
       // If mediaPath is a URL, return it directly (WhatsApp supports URLs)
@@ -142,7 +140,7 @@ class WhatsAppService {
       const { token, phoneId } = this.getCredentials(tenantConfig);
 
       if (!token || !phoneId) {
-        throw new Error('WhatsApp API credentials not configured');
+        throw new Error('WhatsApp API credentials not configured for this tenant. Please configure WhatsApp API settings in Settings.');
       }
 
       const cleanedNumber = to.replace(/\D/g, '');
@@ -203,7 +201,7 @@ class WhatsAppService {
       const { token, phoneId } = this.getCredentials(tenantConfig);
 
       if (!token || !phoneId) {
-        throw new Error('WhatsApp API credentials not configured');
+        throw new Error('WhatsApp API credentials not configured for this tenant. Please configure WhatsApp API settings in Settings.');
       }
 
       const cleanedNumber = to.replace(/\D/g, '');
@@ -267,7 +265,7 @@ class WhatsAppService {
       const { token, phoneId } = this.getCredentials(tenantConfig);
 
       if (!token || !phoneId) {
-        throw new Error('WhatsApp API credentials not configured');
+        throw new Error('WhatsApp API credentials not configured for this tenant. Please configure WhatsApp API settings in Settings.');
       }
 
       const cleanedNumber = to.replace(/\D/g, '');
@@ -326,7 +324,7 @@ class WhatsAppService {
       const { token, phoneId } = this.getCredentials(tenantConfig);
 
       if (!token || !phoneId) {
-        throw new Error('WhatsApp API credentials not configured');
+        throw new Error('WhatsApp API credentials not configured for this tenant. Please configure WhatsApp API settings in Settings.');
       }
 
       const cleanedNumber = to.replace(/\D/g, '');
@@ -390,7 +388,7 @@ class WhatsAppService {
       const { token, phoneId } = this.getCredentials(tenantConfig);
 
       if (!token || !phoneId) {
-        throw new Error('WhatsApp API credentials not configured');
+        throw new Error('WhatsApp API credentials not configured for this tenant. Please configure WhatsApp API settings in Settings.');
       }
 
       const cleanedNumber = to.replace(/\D/g, '');

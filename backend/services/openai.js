@@ -3,11 +3,9 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-// Check if AI feature is enabled globally (fallback setting)
-const AI_ENABLED = process.env.ENABLE_AI_FEATURE !== 'false';
-const DEFAULT_OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-const DEFAULT_OPENAI_TEMPERATURE = parseFloat(process.env.WHATSAPP_AI_TEMPERATURE || '0.7');
+// Default model and temperature for tenants who don't specify
+const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
+const DEFAULT_OPENAI_TEMPERATURE = 0.7;
 const OWNER_EMAIL = process.env.OWNER_EMAIL || 'siddartha1192@gmail.com';
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001/api';
 
@@ -145,8 +143,8 @@ Remember: You're representing Bharat CRM. Be helpful, professional, and always f
 
 class OpenAIService {
   /**
-   * Get OpenAI configuration (tenant-specific or default from env)
-   * @param {Object} tenantConfig - Optional tenant-specific OpenAI configuration
+   * Get OpenAI configuration from tenant-specific settings
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration (REQUIRED)
    * @returns {Object} - { apiKey, model, temperature, enabled }
    */
   getConfig(tenantConfig = null) {
@@ -155,27 +153,28 @@ class OpenAIService {
         apiKey: tenantConfig.apiKey,
         model: tenantConfig.model || DEFAULT_OPENAI_MODEL,
         temperature: tenantConfig.temperature !== undefined ? tenantConfig.temperature : DEFAULT_OPENAI_TEMPERATURE,
-        enabled: tenantConfig.enabled !== undefined ? tenantConfig.enabled : AI_ENABLED
+        enabled: tenantConfig.enabled !== undefined ? tenantConfig.enabled : true
       };
     }
+    // No fallback - tenant MUST configure their own OpenAI API
     return {
-      apiKey: DEFAULT_OPENAI_API_KEY,
+      apiKey: null,
       model: DEFAULT_OPENAI_MODEL,
       temperature: DEFAULT_OPENAI_TEMPERATURE,
-      enabled: AI_ENABLED
+      enabled: false
     };
   }
 
   /**
-   * Create OpenAI client with tenant-specific or default configuration
-   * @param {Object} tenantConfig - Optional tenant-specific OpenAI configuration
+   * Create OpenAI client with tenant-specific configuration
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration (REQUIRED)
    * @returns {OpenAI} - OpenAI client instance
    */
   createClient(tenantConfig = null) {
     const config = this.getConfig(tenantConfig);
 
     if (!config.enabled || !config.apiKey) {
-      throw new Error('OpenAI is not configured. Please configure API key in Settings or set OPENAI_API_KEY in .env');
+      throw new Error('OpenAI API not configured for this tenant. Please configure OpenAI API settings in Settings.');
     }
 
     return new OpenAI({ apiKey: config.apiKey });
