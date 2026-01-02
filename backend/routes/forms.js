@@ -4,6 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { normalizePhoneNumber } = require('../utils/phoneNormalization');
+const automationService = require('../services/automation');
 const prisma = new PrismaClient();
 
 // Apply authentication and tenant context to authenticated routes
@@ -457,6 +458,28 @@ router.post('/public/submit/:slug', async (req, res) => {
           });
 
           console.log(`✅ Lead created from form submission: ${result.lead.id}`);
+
+          // ✅ Trigger automation for lead creation (send email notifications)
+          try {
+            const leadOwner = await prisma.user.findUnique({
+              where: { id: result.lead.userId }
+            });
+
+            if (leadOwner) {
+              await automationService.triggerAutomation('lead.created', {
+                id: result.lead.id,
+                name: result.lead.name,
+                email: result.lead.email,
+                company: result.lead.company,
+                status: result.lead.status,
+                entityType: 'Lead'
+              }, leadOwner);
+              console.log('   ✅ Lead creation automation triggered for form submission');
+            }
+          } catch (automationError) {
+            console.error('   ⚠️ Error triggering lead creation automation:', automationError);
+            // Don't fail the lead creation if automation fails
+          }
         }
       } catch (error) {
         console.error('Error creating lead from submission:', error);
