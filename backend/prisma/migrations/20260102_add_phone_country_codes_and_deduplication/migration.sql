@@ -42,8 +42,9 @@ CREATE INDEX "WhatsAppConversation_contactPhoneNormalized_idx" ON "WhatsAppConve
 -- AlterTable WhatsAppMessage - Add whatsappMessageId field for deduplication
 ALTER TABLE "WhatsAppMessage" ADD COLUMN "whatsappMessageId" TEXT;
 
--- Create unique constraint on whatsappMessageId and tenantId
-CREATE UNIQUE INDEX "WhatsAppMessage_whatsappMessageId_tenantId_key" ON "WhatsAppMessage"("whatsappMessageId", "tenantId") WHERE "whatsappMessageId" IS NOT NULL;
+-- Create unique constraint on whatsappMessageId and conversationId (not tenantId!)
+-- This allows same message to appear in multiple conversations within same tenant
+CREATE UNIQUE INDEX "WhatsAppMessage_whatsappMessageId_conversationId_key" ON "WhatsAppMessage"("whatsappMessageId", "conversationId") WHERE "whatsappMessageId" IS NOT NULL;
 
 -- Create index for whatsappMessageId
 CREATE INDEX "WhatsAppMessage_whatsappMessageId_idx" ON "WhatsAppMessage"("whatsappMessageId");

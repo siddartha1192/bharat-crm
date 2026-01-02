@@ -576,7 +576,7 @@ model WhatsAppMessage {
   conversationId String
   conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  @@unique([whatsappMessageId, tenantId])
+  @@unique([whatsappMessageId, conversationId])
   @@index([conversationId])
   @@index([createdAt])
   @@index([tenantId])

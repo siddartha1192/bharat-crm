@@ -1173,18 +1173,28 @@ async function processIncomingMessage(message, value) {
           }
         });
 
-        // Check if message already exists (deduplication)
+        // Check if message already exists in THIS conversation (per-conversation deduplication)
         const existingMessage = await prisma.whatsAppMessage.findFirst({
           where: {
             whatsappMessageId: messageId,
-            tenantId: userInfo.tenantId
+            conversationId: conversation.id
           }
         });
 
         if (existingMessage) {
-          console.log(`⚠️ Message ${messageId} already exists, skipping duplicate`);
-          continue; // Skip this user and move to next
+          console.log(`⚠️ Message ${messageId} already exists in conversation ${conversation.id}, skipping`);
+          continue; // Skip this conversation
         }
+
+        // Check if this is the first occurrence across ALL conversations in tenant (for AI processing)
+        const isFirstOccurrence = !(await prisma.whatsAppMessage.findFirst({
+          where: {
+            whatsappMessageId: messageId,
+            tenantId: userInfo.tenantId
+          }
+        }));
+
+        console.log(`📝 Saving message to conversation ${conversation.id} (User: ${userInfo.userId}, First occurrence: ${isFirstOccurrence})`);
 
         // Save the message with whatsappMessageId in dedicated field
         const savedMessage = await prisma.whatsAppMessage.create({
@@ -1198,7 +1208,8 @@ async function processIncomingMessage(message, value) {
             messageType,
             whatsappMessageId: messageId, // Store in dedicated field for uniqueness
             metadata: {
-              timestamp: timestamp
+              timestamp: timestamp,
+              isFirstOccurrence // Track if this is the first occurrence for AI processing
             }
           }
         });
@@ -1234,13 +1245,15 @@ async function processIncomingMessage(message, value) {
         const { whatsappConfig, openaiConfig } = getTenantAPIConfig(tenant);
 
         // Process AI response if enabled for new conversation (Structured)
+        // ONLY process on first occurrence to avoid duplicate AI responses
         console.log(`\n🔍 AI CHECK FOR NEW CONVERSATION:`);
         console.log(`   - whatsappAIService.isEnabled(): ${whatsappAIService.isEnabled()}`);
         console.log(`   - conversation.aiEnabled: ${conversation.aiEnabled}`);
         console.log(`   - messageType: ${messageType}`);
-        console.log(`   - ALL CONDITIONS MET: ${whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text'}`);
+        console.log(`   - isFirstOccurrence: ${isFirstOccurrence}`);
+        console.log(`   - ALL CONDITIONS MET: ${whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text' && isFirstOccurrence}`);
 
-        if (whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text') {
+        if (whatsappAIService.isEnabled() && conversation.aiEnabled && messageType === 'text' && isFirstOccurrence) {
           try {
             console.log(`\n🤖 ✅ AI PROCESSING STARTING (Structured) for new conversation ${conversation.id}...`);
 
