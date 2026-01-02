@@ -643,6 +643,32 @@ router.get('/conversations/:conversationId', async (req, res) => {
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
+    // ✅ Deduplicate messages (in case there are duplicates from old saves)
+    if (conversation.messages && conversation.messages.length > 0) {
+      const seenMessages = new Map();
+      const deduplicatedMessages = [];
+
+      for (const msg of conversation.messages) {
+        // Create a unique key for deduplication
+        let key;
+        if (msg.whatsappMessageId) {
+          // Use WhatsApp message ID as unique key
+          key = msg.whatsappMessageId;
+        } else {
+          // For messages without WhatsApp ID, use content + sender + timestamp
+          key = `${msg.sender}:${msg.message}:${msg.createdAt.getTime()}`;
+        }
+
+        // Keep the first occurrence (most recent due to DESC order)
+        if (!seenMessages.has(key)) {
+          seenMessages.set(key, true);
+          deduplicatedMessages.push(msg);
+        }
+      }
+
+      conversation.messages = deduplicatedMessages;
+    }
+
     // Mark as read (reset unread count)
     if (conversation.unreadCount > 0) {
       await prisma.whatsAppConversation.update({
@@ -1493,8 +1519,6 @@ async function processIncomingMessage(message, value, tenant) {
           contactName,
           openaiConfig
         );
-
-        console.log(`\n🤖 Structured AI Response:`, JSON.stringify(aiResult, null, 2));
 
         // Execute any actions (only if contact exists in CRM)
         const actionResults = await actionHandlerService.executeActions(
