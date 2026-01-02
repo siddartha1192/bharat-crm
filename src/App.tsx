@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -39,19 +40,23 @@ import PublicForm from "./pages/PublicForm";
 const queryClient = new QueryClient();
 
 // Protected layout wrapper
-const ProtectedLayout = ({ children }: { children: React.ReactNode }) => (
-  <ProtectedRoute>
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <Header />
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
+const ProtectedLayout = ({ children }: { children: React.ReactNode }) => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  return (
+    <ProtectedRoute>
+      <div className="flex min-h-screen bg-background">
+        <Sidebar mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
+        <div className="flex-1 flex flex-col">
+          <Header onMenuClick={() => setMobileMenuOpen(true)} />
+          <main className="flex-1 overflow-auto">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
-  </ProtectedRoute>
-);
+    </ProtectedRoute>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
