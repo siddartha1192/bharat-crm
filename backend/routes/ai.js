@@ -34,6 +34,15 @@ router.post('/chat', async (req, res) => {
     });
     const openaiConfig = tenant?.settings?.openai || null;
 
+    // Check if OpenAI is configured for this tenant
+    if (!openaiConfig || !openaiConfig.apiKey) {
+      return res.status(400).json({
+        error: 'AI_NOT_CONFIGURED',
+        message: 'OpenAI API is not configured for your account. Please configure OpenAI API settings in Settings.',
+        requiresSetup: true
+      });
+    }
+
     // Process with Portal AI
     const response = await portalAIService.processMessage(
       message,

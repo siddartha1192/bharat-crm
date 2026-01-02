@@ -885,17 +885,47 @@ router.post('/webhook', async (req, res) => {
           if (change.field === 'messages') {
             const value = change.value;
 
-            // Process incoming messages
+            // CRITICAL: Extract phone_number_id to identify which tenant this message belongs to
+            const phoneNumberId = value.metadata?.phone_number_id;
+
+            if (!phoneNumberId) {
+              console.error('❌ No phone_number_id in webhook metadata. Cannot identify tenant.');
+              continue;
+            }
+
+            console.log(`\n🔍 Webhook received for phone_number_id: ${phoneNumberId}`);
+
+            // Find tenant that owns this phone_number_id
+            const tenant = await prisma.tenant.findFirst({
+              where: {
+                settings: {
+                  path: ['whatsapp', 'phoneId'],
+                  equals: phoneNumberId
+                }
+              },
+              select: { id: true, name: true, settings: true }
+            });
+
+            if (!tenant) {
+              console.error(`❌ No tenant found with phone_number_id: ${phoneNumberId}`);
+              console.error(`   This phone number is not configured in any tenant's WhatsApp settings.`);
+              console.error(`   Message will be ignored.`);
+              continue;
+            }
+
+            console.log(`✅ Message belongs to tenant: ${tenant.name} (${tenant.id})`);
+
+            // Process incoming messages for this tenant
             if (value.messages && value.messages.length > 0) {
               for (const message of value.messages) {
-                await processIncomingMessage(message, value);
+                await processIncomingMessage(message, value, tenant);
               }
             }
 
             // Process message status updates (delivered, read, etc.)
             if (value.statuses && value.statuses.length > 0) {
               for (const status of value.statuses) {
-                await processMessageStatus(status);
+                await processMessageStatus(status, tenant);
               }
             }
           }
@@ -923,9 +953,10 @@ function getLastDigits(phone, digits = 10) {
 /**
  * Find contact by comparing last 10 digits of phone number
  * @param {string} phoneNumber - Phone number to search
+ * @param {string} tenantId - Tenant ID to filter by
  * @returns {Promise<Array>} Array of matching contacts
  */
-async function findContactByLast10Digits(phoneNumber) {
+async function findContactByLast10Digits(phoneNumber, tenantId) {
   const last10Digits = getLastDigits(phoneNumber, 10);
 
   if (last10Digits.length < 10) {
@@ -933,10 +964,13 @@ async function findContactByLast10Digits(phoneNumber) {
     return [];
   }
 
-  console.log(`🔍 Searching contacts by last 10 digits: ${last10Digits}`);
+  console.log(`🔍 Searching contacts by last 10 digits: ${last10Digits} (Tenant: ${tenantId})`);
 
-  // Get all contacts
+  // Get all contacts for this tenant only
   const allContacts = await prisma.contact.findMany({
+    where: {
+      tenantId: tenantId // CRITICAL: Filter by tenant
+    },
     include: {
       user: {
         select: { id: true, name: true, tenantId: true, role: true }
@@ -959,9 +993,10 @@ async function findContactByLast10Digits(phoneNumber) {
 /**
  * Find conversations by comparing last 10 digits of phone number
  * @param {string} phoneNumber - Phone number to search
+ * @param {string} tenantId - Tenant ID to filter by
  * @returns {Promise<Array>} Array of matching conversations
  */
-async function findConversationsByLast10Digits(phoneNumber) {
+async function findConversationsByLast10Digits(phoneNumber, tenantId) {
   const last10Digits = getLastDigits(phoneNumber, 10);
 
   if (last10Digits.length < 10) {
@@ -969,10 +1004,13 @@ async function findConversationsByLast10Digits(phoneNumber) {
     return [];
   }
 
-  console.log(`🔍 Searching conversations by last 10 digits: ${last10Digits}`);
+  console.log(`🔍 Searching conversations by last 10 digits: ${last10Digits} (Tenant: ${tenantId})`);
 
-  // Get all conversations
+  // Get all conversations for this tenant only
   const allConversations = await prisma.whatsAppConversation.findMany({
+    where: {
+      tenantId: tenantId // CRITICAL: Filter by tenant
+    },
     include: {
       user: {
         select: { id: true, name: true, tenantId: true }
@@ -992,11 +1030,13 @@ async function findConversationsByLast10Digits(phoneNumber) {
 }
 
 // Helper function to process incoming messages
-async function processIncomingMessage(message, value) {
+async function processIncomingMessage(message, value, tenant) {
   try {
     let fromPhone = message.from;
     const messageId = message.id;
     const timestamp = message.timestamp;
+
+    console.log(`\n📨 Processing message for tenant: ${tenant.name} (${tenant.id})`);
 
     // Normalize phone number - add + prefix if not present
     if (!fromPhone.startsWith('+')) {
@@ -1057,11 +1097,12 @@ async function processIncomingMessage(message, value) {
       phoneVariations.push('+' + fromPhone); // with +
     }
 
-    // Find all users who might have this conversation
+    // Find all users who might have this conversation - FILTERED BY TENANT
     // First try using normalized phone number (preferred method)
     let conversations = await prisma.whatsAppConversation.findMany({
       where: {
-        contactPhoneNormalized: normalizedPhone
+        contactPhoneNormalized: normalizedPhone,
+        tenantId: tenant.id // CRITICAL: Filter by tenant
       },
       include: {
         user: {
@@ -1077,7 +1118,8 @@ async function processIncomingMessage(message, value) {
         where: {
           contactPhone: {
             in: phoneVariations
-          }
+          },
+          tenantId: tenant.id // CRITICAL: Filter by tenant
         },
         include: {
           user: {
@@ -1090,16 +1132,17 @@ async function processIncomingMessage(message, value) {
     // If no exact match for conversation, try last 10 digits matching
     if (conversations.length === 0) {
       console.log(`No exact conversation match. Trying last 10 digits comparison...`);
-      conversations = await findConversationsByLast10Digits(fromPhone);
+      conversations = await findConversationsByLast10Digits(fromPhone, tenant.id);
     }
 
     // If no conversation exists, try to find the contact in the CRM
     if (conversations.length === 0) {
       console.log(`No existing conversation found for ${fromPhone}. Searching for contact...`);
 
-      // First try exact match with phone variations
+      // First try exact match with phone variations - FILTERED BY TENANT
       let contacts = await prisma.contact.findMany({
         where: {
+          tenantId: tenant.id, // CRITICAL: Filter by tenant
           OR: [
             { whatsapp: { in: phoneVariations } },
             { phone: { in: phoneVariations } }
@@ -1115,7 +1158,7 @@ async function processIncomingMessage(message, value) {
       // If no exact match, try last 10 digits matching
       if (contacts.length === 0) {
         console.log(`No exact match found. Trying last 10 digits comparison...`);
-        contacts = await findContactByLast10Digits(fromPhone);
+        contacts = await findContactByLast10Digits(fromPhone, tenant.id);
       }
 
       console.log(`Found ${contacts.length} contacts matching phone number`);
@@ -1124,11 +1167,12 @@ async function processIncomingMessage(message, value) {
       let usersToCreateConversationsFor = [];
 
       if (contacts.length === 0) {
-        console.log(`⚠️ No contacts found for ${fromPhone}. Finding ADMIN user to create conversation...`);
+        console.log(`⚠️ No contacts found for ${fromPhone}. Finding ADMIN user from this tenant to create conversation...`);
 
-        // Find first ADMIN user from any tenant to handle this message
+        // Find first ADMIN user from THIS tenant to handle this message
         const adminUser = await prisma.user.findFirst({
           where: {
+            tenantId: tenant.id, // CRITICAL: Filter by tenant
             role: 'ADMIN',
             isActive: true
           },
@@ -1358,13 +1402,14 @@ async function processIncomingMessage(message, value) {
     }
 
     console.log(`\n🔍 AI CHECK:`);
+    console.log(`   - whatsappService.isConfigured(whatsappConfig): ${whatsappService.isConfigured(whatsappConfig)}`);
     console.log(`   - whatsappAIService.isEnabled(openaiConfig): ${whatsappAIService.isEnabled(openaiConfig)}`);
     console.log(`   - Any conversation has AI enabled: ${!!aiEnabledConversation}`);
     console.log(`   - messageType: ${messageType}`);
     console.log(`   - isFirstOccurrence: ${isFirstOccurrence}`);
-    console.log(`   - ALL CONDITIONS MET: ${whatsappAIService.isEnabled(openaiConfig) && !!aiEnabledConversation && messageType === 'text' && isFirstOccurrence}`);
+    console.log(`   - ALL CONDITIONS MET: ${whatsappService.isConfigured(whatsappConfig) && whatsappAIService.isEnabled(openaiConfig) && !!aiEnabledConversation && messageType === 'text' && isFirstOccurrence}`);
 
-    if (whatsappAIService.isEnabled(openaiConfig) && aiEnabledConversation && messageType === 'text' && isFirstOccurrence) {
+    if (whatsappService.isConfigured(whatsappConfig) && whatsappAIService.isEnabled(openaiConfig) && aiEnabledConversation && messageType === 'text' && isFirstOccurrence) {
       try {
         console.log(`\n🤖 ✅ AI PROCESSING STARTING for ${conversations.length} conversation(s)...`);
 
@@ -1499,14 +1544,17 @@ async function processIncomingMessage(message, value) {
 }
 
 // Helper function to process message status updates
-async function processMessageStatus(status) {
+async function processMessageStatus(status, tenant) {
   try {
     const messageId = status.id;
     const statusValue = status.status; // 'sent', 'delivered', 'read', 'failed'
 
-    // Update message status in database
+    console.log(`\n📊 Status update for tenant: ${tenant.name} (${tenant.id})`);
+
+    // Update message status in database - FILTERED BY TENANT
     const message = await prisma.whatsAppMessage.findFirst({
       where: {
+        tenantId: tenant.id, // CRITICAL: Filter by tenant
         metadata: {
           path: ['whatsappMessageId'],
           equals: messageId
