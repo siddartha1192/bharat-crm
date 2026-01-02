@@ -9,6 +9,7 @@ const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middl
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const openaiService = require('../services/openai');
+const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 
 // Import io instance for WebSocket broadcasts
 const { io } = require('../server');
@@ -995,6 +996,12 @@ async function processIncomingMessage(message, value) {
       fromPhone = '+' + fromPhone;
     }
 
+    // Normalize phone number to E.164 format for deduplication
+    const normalizedResult = normalizePhoneNumber(fromPhone);
+    const normalizedPhone = normalizedResult.normalized || fromPhone;
+
+    console.log(`📞 Phone normalization: ${fromPhone} -> ${normalizedPhone}`);
+
     // Get contact name from the webhook data
     let contactName = fromPhone;
     if (value.contacts && value.contacts.length > 0) {
@@ -1044,12 +1051,10 @@ async function processIncomingMessage(message, value) {
     }
 
     // Find all users who might have this conversation
-    // (In multi-user scenario, we need to find the right user)
+    // First try using normalized phone number (preferred method)
     let conversations = await prisma.whatsAppConversation.findMany({
       where: {
-        contactPhone: {
-          in: phoneVariations
-        }
+        contactPhoneNormalized: normalizedPhone
       },
       include: {
         user: {
@@ -1057,6 +1062,23 @@ async function processIncomingMessage(message, value) {
         }
       }
     });
+
+    // Fallback: If no conversation found with normalized phone, try old phone variations
+    if (conversations.length === 0) {
+      console.log(`No conversation found with normalized phone, trying old phone variations...`);
+      conversations = await prisma.whatsAppConversation.findMany({
+        where: {
+          contactPhone: {
+            in: phoneVariations
+          }
+        },
+        include: {
+          user: {
+            select: { id: true, name: true, tenantId: true }
+          }
+        }
+      });
+    }
 
     // If no exact match for conversation, try last 10 digits matching
     if (conversations.length === 0) {
@@ -1141,6 +1163,8 @@ async function processIncomingMessage(message, value) {
             tenantId: userInfo.tenantId,
             contactName: userInfo.contactName,
             contactPhone: fromPhone,
+            contactPhoneCountryCode: normalizedResult.country ? `+${normalizedResult.country}` : '+91',
+            contactPhoneNormalized: normalizedPhone,
             contactId: userInfo.contactId,
             lastMessage: messageText,
             lastMessageAt: new Date(parseInt(timestamp) * 1000),
@@ -1149,7 +1173,20 @@ async function processIncomingMessage(message, value) {
           }
         });
 
-        // Save the message
+        // Check if message already exists (deduplication)
+        const existingMessage = await prisma.whatsAppMessage.findFirst({
+          where: {
+            whatsappMessageId: messageId,
+            tenantId: userInfo.tenantId
+          }
+        });
+
+        if (existingMessage) {
+          console.log(`⚠️ Message ${messageId} already exists, skipping duplicate`);
+          continue; // Skip this user and move to next
+        }
+
+        // Save the message with whatsappMessageId in dedicated field
         const savedMessage = await prisma.whatsAppMessage.create({
           data: {
             conversationId: conversation.id,
@@ -1159,8 +1196,8 @@ async function processIncomingMessage(message, value) {
             senderName: contactName,
             status: 'received',
             messageType,
+            whatsappMessageId: messageId, // Store in dedicated field for uniqueness
             metadata: {
-              whatsappMessageId: messageId,
               timestamp: timestamp
             }
           }

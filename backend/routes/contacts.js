@@ -4,6 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
+const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 const prisma = new PrismaClient();
 
 // Apply authentication and tenant context to all routes
@@ -145,6 +146,42 @@ router.post('/', validateAssignment, async (req, res) => {
     // Remove auto-generated fields and transform address
     const { id, createdAt, updatedAt, address, ...contactData } = req.body;
 
+    // Normalize phone numbers
+    const phoneCountryCode = contactData.phoneCountryCode || '+91';
+    const phoneResult = normalizePhoneNumber(contactData.phone, phoneCountryCode);
+
+    let alternatePhoneNormalized = null;
+    if (contactData.alternatePhone) {
+      const altPhoneCountryCode = contactData.alternatePhoneCountryCode || '+91';
+      const altPhoneResult = normalizePhoneNumber(contactData.alternatePhone, altPhoneCountryCode);
+      alternatePhoneNormalized = altPhoneResult.normalized;
+    }
+
+    let whatsappNormalized = null;
+    if (contactData.whatsapp) {
+      const whatsappCountryCode = contactData.whatsappCountryCode || '+91';
+      const whatsappResult = normalizePhoneNumber(contactData.whatsapp, whatsappCountryCode);
+      whatsappNormalized = whatsappResult.normalized;
+    }
+
+    // Check for duplicate contacts based on normalized phone number
+    if (phoneResult.normalized) {
+      const existingContact = await prisma.contact.findFirst({
+        where: {
+          phoneNormalized: phoneResult.normalized,
+          tenantId: req.tenant.id
+        }
+      });
+
+      if (existingContact) {
+        return res.status(409).json({
+          error: 'Duplicate Contact',
+          message: `A contact with this phone number already exists: ${existingContact.name} (${existingContact.company})`,
+          existingContactId: existingContact.id
+        });
+      }
+    }
+
     // Auto-assign to creator if not specified
     const assignedTo = contactData.assignedTo || req.user.name;
     const createdBy = userId;
@@ -152,6 +189,9 @@ router.post('/', validateAssignment, async (req, res) => {
     // Transform nested address to flat fields
     const data = {
       ...contactData,
+      phoneNormalized: phoneResult.normalized,
+      alternatePhoneNormalized,
+      whatsappNormalized,
       assignedTo,
       createdBy,
       userId,
@@ -211,6 +251,25 @@ router.put('/:id', async (req, res) => {
           message: `You do not have permission to assign to ${contactData.assignedTo}`
         });
       }
+    }
+
+    // Normalize phone numbers if they are being updated
+    if (contactData.phone) {
+      const phoneCountryCode = contactData.phoneCountryCode || existingContact.phoneCountryCode || '+91';
+      const phoneResult = normalizePhoneNumber(contactData.phone, phoneCountryCode);
+      contactData.phoneNormalized = phoneResult.normalized;
+    }
+
+    if (contactData.alternatePhone) {
+      const altPhoneCountryCode = contactData.alternatePhoneCountryCode || existingContact.alternatePhoneCountryCode || '+91';
+      const altPhoneResult = normalizePhoneNumber(contactData.alternatePhone, altPhoneCountryCode);
+      contactData.alternatePhoneNormalized = altPhoneResult.normalized;
+    }
+
+    if (contactData.whatsapp) {
+      const whatsappCountryCode = contactData.whatsappCountryCode || existingContact.whatsappCountryCode || '+91';
+      const whatsappResult = normalizePhoneNumber(contactData.whatsapp, whatsappCountryCode);
+      contactData.whatsappNormalized = whatsappResult.normalized;
     }
 
     // Transform nested address to flat fields if address is provided
