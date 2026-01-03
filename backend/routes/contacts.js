@@ -165,21 +165,29 @@ router.post('/', validateAssignment, async (req, res) => {
     }
 
     // Check for duplicate contacts based on normalized phone number
+    // Use visibility filter to check if user can see existing contact
     if (phoneResult.normalized) {
+      const visibilityFilter = await getVisibilityFilter(req.user);
       const existingContact = await prisma.contact.findFirst({
         where: {
           phoneNormalized: phoneResult.normalized,
-          tenantId: req.tenant.id
+          tenantId: req.tenant.id,
+          ...visibilityFilter // Apply RBAC rules
         }
       });
 
       if (existingContact) {
-        return res.status(409).json({
-          error: 'Duplicate Contact',
-          message: `A contact with this phone number already exists: ${existingContact.name} (${existingContact.company})`,
-          existingContactId: existingContact.id
+        // Contact exists and user can see it - suggest updating instead
+        return res.status(200).json({
+          warning: 'Contact already exists',
+          message: `A contact with this phone number already exists: ${existingContact.name} (${existingContact.company || 'N/A'})`,
+          existingContact: transformContactForFrontend(existingContact),
+          suggestion: 'update' // Frontend can redirect to edit page
         });
       }
+
+      // If we reach here, either no contact exists OR contact exists but user can't see it
+      // Allow creation in both cases (tenant-wide sharing with RBAC)
     }
 
     // Auto-assign to creator if not specified
