@@ -80,7 +80,8 @@ router.post('/send', async (req, res) => {
         return res.status(404).json({ error: 'Contact not found or you do not have permission to access it' });
       }
 
-      recipientPhone = contact.whatsapp || contact.phone;
+      // Use normalized phone numbers (with country code) for WhatsApp
+      recipientPhone = contact.whatsappNormalized || contact.phoneNormalized || contact.whatsapp || contact.phone;
       contactName = contact.name;
     }
 
@@ -232,7 +233,8 @@ router.post('/send-template', async (req, res) => {
         return res.status(404).json({ error: 'Contact not found or you do not have permission to access it' });
       }
 
-      recipientPhone = contact.whatsapp || contact.phone;
+      // Use normalized phone numbers (with country code) for WhatsApp
+      recipientPhone = contact.whatsappNormalized || contact.phoneNormalized || contact.whatsapp || contact.phone;
     }
 
     if (!recipientPhone) {
