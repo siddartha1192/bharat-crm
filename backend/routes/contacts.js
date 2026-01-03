@@ -165,46 +165,27 @@ router.post('/', validateAssignment, async (req, res) => {
     }
 
     // Check for duplicate contacts based on normalized phone number
-    // First check if ANY contact exists with this phone (tenant-wide)
+    // Check only within current user's contacts (not tenant-wide)
     if (phoneResult.normalized) {
-      const anyExistingContact = await prisma.contact.findFirst({
+      const existingContact = await prisma.contact.findFirst({
         where: {
           phoneNormalized: phoneResult.normalized,
-          tenantId: req.tenant.id
-          // No visibility filter - check all contacts in tenant
+          tenantId: req.tenant.id,
+          userId: userId // Check only user's own contacts
         }
       });
 
-      if (anyExistingContact) {
-        // Contact exists - now check if user can see it
-        const visibilityFilter = await getVisibilityFilter(req.user);
-        const visibleContact = await prisma.contact.findFirst({
-          where: {
-            id: anyExistingContact.id,
-            ...visibilityFilter
-          }
+      if (existingContact) {
+        // User already has a contact with this phone number
+        return res.status(409).json({
+          error: 'Duplicate Contact',
+          message: `You already have a contact with this phone number: ${existingContact.name} (${existingContact.company || 'N/A'})`,
+          existingContact: transformContactForFrontend(existingContact),
+          suggestion: 'update'
         });
-
-        if (visibleContact) {
-          // User can see the existing contact - return details
-          return res.status(409).json({
-            error: 'Duplicate Contact',
-            message: `A contact with this phone number already exists: ${visibleContact.name} (${visibleContact.company || 'N/A'})`,
-            existingContact: transformContactForFrontend(visibleContact),
-            suggestion: 'update'
-          });
-        } else {
-          // Contact exists but user can't see it (different department/team)
-          // Don't allow duplicate creation, but don't reveal who owns it
-          return res.status(409).json({
-            error: 'Duplicate Contact',
-            message: `A contact with this phone number already exists in your organization. Please contact your administrator.`,
-            suggestion: 'contact_admin'
-          });
-        }
       }
 
-      // No existing contact found - allow creation
+      // No duplicate found in user's contacts - allow creation
     }
 
     // Auto-assign to creator if not specified
