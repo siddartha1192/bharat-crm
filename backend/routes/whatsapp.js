@@ -195,9 +195,30 @@ router.post('/send', async (req, res) => {
     });
   } catch (error) {
     console.error('Error sending WhatsApp message:', error);
-    res.status(500).json({
+
+    // Provide specific error messages based on error type
+    let errorMessage = 'Failed to send WhatsApp message';
+    let statusCode = 500;
+
+    if (error.message.includes('Invalid phone number') || error.message.includes('phone number')) {
+      errorMessage = 'Invalid phone number format. Please ensure the number includes country code (e.g., +919876543210)';
+      statusCode = 400;
+    } else if (error.message.includes('WhatsApp API') || error.message.includes('API')) {
+      errorMessage = 'WhatsApp service error. Please check your WhatsApp Business API configuration.';
+      statusCode = 503;
+    } else if (error.message.includes('network') || error.message.includes('timeout')) {
+      errorMessage = 'Network error. Please check your internet connection and try again.';
+      statusCode = 503;
+    } else if (error.message.includes('credentials') || error.message.includes('unauthorized')) {
+      errorMessage = 'WhatsApp API credentials are invalid. Please update your settings.';
+      statusCode = 401;
+    }
+
+    res.status(statusCode).json({
       error: 'Failed to send message',
-      message: error.message
+      message: errorMessage,
+      details: error.message, // Include original error for debugging
+      suggestion: statusCode === 400 ? 'Check phone number format' : statusCode === 503 ? 'Try again later' : 'Contact administrator'
     });
   }
 });
@@ -265,9 +286,33 @@ router.post('/send-template', async (req, res) => {
     });
   } catch (error) {
     console.error('Error sending template message:', error);
-    res.status(500).json({
+
+    // Provide specific error messages based on error type
+    let errorMessage = 'Failed to send WhatsApp template message';
+    let statusCode = 500;
+
+    if (error.message.includes('Invalid phone number') || error.message.includes('phone number')) {
+      errorMessage = 'Invalid phone number format. Please ensure the number includes country code (e.g., +919876543210)';
+      statusCode = 400;
+    } else if (error.message.includes('template') && error.message.includes('not found')) {
+      errorMessage = 'Template not found. Please check the template name and ensure it is approved.';
+      statusCode = 404;
+    } else if (error.message.includes('WhatsApp API') || error.message.includes('API')) {
+      errorMessage = 'WhatsApp service error. Please check your WhatsApp Business API configuration.';
+      statusCode = 503;
+    } else if (error.message.includes('network') || error.message.includes('timeout')) {
+      errorMessage = 'Network error. Please check your internet connection and try again.';
+      statusCode = 503;
+    } else if (error.message.includes('credentials') || error.message.includes('unauthorized')) {
+      errorMessage = 'WhatsApp API credentials are invalid. Please update your settings.';
+      statusCode = 401;
+    }
+
+    res.status(statusCode).json({
       error: 'Failed to send template message',
-      message: error.message
+      message: errorMessage,
+      details: error.message, // Include original error for debugging
+      suggestion: statusCode === 400 ? 'Check phone number format' : statusCode === 404 ? 'Verify template exists' : statusCode === 503 ? 'Try again later' : 'Contact administrator'
     });
   }
 });
@@ -794,13 +839,23 @@ router.get('/search-contacts', async (req, res) => {
         name: true,
         company: true,
         phone: true,
+        phoneNormalized: true,      // Include normalized with country code
         whatsapp: true,
+        whatsappNormalized: true,   // Include normalized with country code
         email: true
       },
       take: 10
     });
 
-    res.json({ contacts });
+    // Transform contacts to use normalized numbers for WhatsApp
+    const transformedContacts = contacts.map(contact => ({
+      ...contact,
+      // Use normalized numbers (with country code) as primary, fallback to raw
+      phone: contact.phoneNormalized || contact.phone,
+      whatsapp: contact.whatsappNormalized || contact.whatsapp
+    }));
+
+    res.json({ contacts: transformedContacts });
   } catch (error) {
     console.error('Error searching contacts:', error);
     res.status(500).json({
