@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Users, Shield, Eye, UserCog, Loader2, Mail } from 'lucide-react';
+import { Plus, Users, Shield, Eye, UserCog, Loader2, Mail, Lock, Check, X } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -199,7 +200,7 @@ export default function UserManagement() {
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">User Management</h1>
             <p className="text-muted-foreground">
-              Manage team members and their roles
+              Manage team members, roles, and permissions
             </p>
           </div>
           <Button onClick={() => setAddUserOpen(true)}>
@@ -209,7 +210,22 @@ export default function UserManagement() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Tabs */}
+      <Tabs defaultValue="users" className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="users" className="gap-2">
+            <Users className="w-4 h-4" />
+            Users
+          </TabsTrigger>
+          <TabsTrigger value="permissions" className="gap-2">
+            <Lock className="w-4 h-4" />
+            Role Permissions
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Users Tab */}
+        <TabsContent value="users" className="space-y-6">
+          {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center justify-between">
@@ -249,61 +265,361 @@ export default function UserManagement() {
         </Card>
       </div>
 
-      {/* Users Table */}
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  No users found. Add your first team member!
-                </TableCell>
-              </TableRow>
-            ) : (
-              users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{getRoleBadge(user.role)}</TableCell>
-                  <TableCell>
-                    {user.isActive ? (
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        Active
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                        Inactive
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(user.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toggleUserStatus(user.id, user.isActive)}
-                    >
-                      {user.isActive ? 'Deactivate' : 'Activate'}
-                    </Button>
-                  </TableCell>
+          {/* Users Table */}
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {users.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      No users found. Add your first team member!
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>{getRoleBadge(user.role)}</TableCell>
+                      <TableCell>
+                        {user.isActive ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                            Inactive
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleUserStatus(user.id, user.isActive)}
+                        >
+                          {user.isActive ? 'Deactivate' : 'Activate'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        {/* Role Permissions Tab */}
+        <TabsContent value="permissions" className="space-y-6">
+          {/* Role Overview Cards */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card className="p-6 border-2 border-blue-200 bg-blue-50/50">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-blue-500 rounded-lg">
+                  <Shield className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Admin</h3>
+                  <p className="text-xs text-muted-foreground">Level 4</p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Full system access including user management, settings, and all features
+              </p>
+            </Card>
+
+            <Card className="p-6 border-2 border-purple-200 bg-purple-50/50">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-purple-500 rounded-lg">
+                  <UserCog className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Manager</h3>
+                  <p className="text-xs text-muted-foreground">Level 3</p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Manage team operations, leads, deals, and generate reports
+              </p>
+            </Card>
+
+            <Card className="p-6 border-2 border-green-200 bg-green-50/50">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-green-500 rounded-lg">
+                  <Users className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Agent</h3>
+                  <p className="text-xs text-muted-foreground">Level 2</p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Create and manage own leads, contacts, deals, and tasks
+              </p>
+            </Card>
+
+            <Card className="p-6 border-2 border-gray-200 bg-gray-50/50">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-gray-500 rounded-lg">
+                  <Eye className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Viewer</h3>
+                  <p className="text-xs text-muted-foreground">Level 1</p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Read-only access to view data and reports
+              </p>
+            </Card>
+          </div>
+
+          {/* Permissions Matrix */}
+          <Card>
+            <div className="p-6">
+              <h3 className="text-xl font-bold mb-2">Permission Matrix</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Comprehensive overview of permissions for each role
+              </p>
+
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="w-[250px] font-bold">Permission</TableHead>
+                      <TableHead className="text-center font-bold">
+                        <div className="flex items-center justify-center gap-2">
+                          <Shield className="w-4 h-4 text-blue-500" />
+                          Admin
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-center font-bold">
+                        <div className="flex items-center justify-center gap-2">
+                          <UserCog className="w-4 h-4 text-purple-500" />
+                          Manager
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-center font-bold">
+                        <div className="flex items-center justify-center gap-2">
+                          <Users className="w-4 h-4 text-green-500" />
+                          Agent
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-center font-bold">
+                        <div className="flex items-center justify-center gap-2">
+                          <Eye className="w-4 h-4 text-gray-500" />
+                          Viewer
+                        </div>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {/* User Management */}
+                    <TableRow className="bg-blue-50/30">
+                      <TableCell colSpan={5} className="font-semibold text-blue-900">
+                        👥 User Management
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Create/Delete Users</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Manage Roles</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">View Users</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                    </TableRow>
+
+                    {/* Leads */}
+                    <TableRow className="bg-green-50/30">
+                      <TableCell colSpan={5} className="font-semibold text-green-900">
+                        🎯 Leads
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Full CRUD</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Badge variant="outline" className="text-xs">Own Only</Badge></TableCell>
+                      <TableCell className="text-center"><Badge variant="outline" className="text-xs">Read Only</Badge></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Assign/Export</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                    </TableRow>
+
+                    {/* Contacts */}
+                    <TableRow className="bg-purple-50/30">
+                      <TableCell colSpan={5} className="font-semibold text-purple-900">
+                        📇 Contacts
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Full CRUD</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Badge variant="outline" className="text-xs">Own Only</Badge></TableCell>
+                      <TableCell className="text-center"><Badge variant="outline" className="text-xs">Read Only</Badge></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Export</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                    </TableRow>
+
+                    {/* Deals */}
+                    <TableRow className="bg-orange-50/30">
+                      <TableCell colSpan={5} className="font-semibold text-orange-900">
+                        💰 Deals
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Full CRUD</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Badge variant="outline" className="text-xs">Own Only</Badge></TableCell>
+                      <TableCell className="text-center"><Badge variant="outline" className="text-xs">Read Only</Badge></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Assign</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                    </TableRow>
+
+                    {/* Tasks */}
+                    <TableRow className="bg-pink-50/30">
+                      <TableCell colSpan={5} className="font-semibold text-pink-900">
+                        ✅ Tasks
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Full CRUD</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Badge variant="outline" className="text-xs">Own Only</Badge></TableCell>
+                      <TableCell className="text-center"><Badge variant="outline" className="text-xs">Read Only</Badge></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Assign</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                    </TableRow>
+
+                    {/* WhatsApp */}
+                    <TableRow className="bg-teal-50/30">
+                      <TableCell colSpan={5} className="font-semibold text-teal-900">
+                        💬 WhatsApp
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Full Access</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Badge variant="outline" className="text-xs">Read Only</Badge></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">AI Toggle</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                    </TableRow>
+
+                    {/* Analytics */}
+                    <TableRow className="bg-indigo-50/30">
+                      <TableCell colSpan={5} className="font-semibold text-indigo-900">
+                        📊 Analytics & Reports
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">View/Export</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                    </TableRow>
+
+                    {/* Settings */}
+                    <TableRow className="bg-gray-50/30">
+                      <TableCell colSpan={5} className="font-semibold text-gray-900">
+                        ⚙️ Settings
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">View/Update</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Badge variant="outline" className="text-xs">View Only</Badge></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="pl-8">Integrations</TableCell>
+                      <TableCell className="text-center"><Check className="w-5 h-5 text-green-600 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><X className="w-5 h-5 text-red-400 mx-auto" /></TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </Card>
+
+          {/* Legend */}
+          <Card className="p-6 bg-muted/30">
+            <h4 className="font-semibold mb-3">Legend</h4>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="flex items-center gap-2">
+                <Check className="w-5 h-5 text-green-600" />
+                <span className="text-sm">Full access granted</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <X className="w-5 h-5 text-red-400" />
+                <span className="text-sm">No access</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">Own Only</Badge>
+                <span className="text-sm">Can only manage their own records</span>
+              </div>
+            </div>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Add User Dialog */}
       <Dialog open={addUserOpen} onOpenChange={setAddUserOpen}>
