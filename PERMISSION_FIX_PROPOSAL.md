@@ -107,11 +107,15 @@ From `backend/middleware/assignment.js:9-99`:
 
 ## Proposed Solutions
 
-### 🟢 **Option 1: Tenant-Wide Shared Contacts (RECOMMENDED)**
+### 🟢 **Option 1: Tenant-Wide Shared Contacts + Message Deduplication Fix (RECOMMENDED)**
 
-**Description**: Contacts become shared resources within a tenant, similar to Salesforce, HubSpot, and other enterprise CRMs.
+**Description**: Contacts become shared resources within a tenant, similar to Salesforce, HubSpot, and other enterprise CRMs. **PLUS** fix existing WhatsApp message duplication issues caused by race conditions.
+
+**⚠️ CRITICAL**: The code already has a deduplication workaround at `whatsapp.js:646-670`, proving duplicates ARE happening. We should fix the root cause while implementing shared contacts.
 
 #### Changes Required
+
+**Part A: Shared Contacts (Fixes Permission Issues)**
 
 1. **Remove `userId` from Contact ownership logic**
    - Keep `userId` field for backwards compatibility but don't use it for access control
@@ -164,22 +168,157 @@ From `backend/middleware/assignment.js:9-99`:
    });
    ```
 
+**Part B: Message Deduplication Fix (Prevents Duplicates)**
+
+5. **Fix Race Condition in Webhook Message Processing** (`whatsapp.js:1417-1456`)
+
+   **Current code** (race condition):
+   ```javascript
+   // ❌ Check then insert - allows race conditions!
+   const existingMessage = await prisma.whatsAppMessage.findFirst({
+     where: {
+       whatsappMessageId: messageId,
+       conversationId: conversation.id
+     }
+   });
+
+   if (existingMessage) {
+     continue; // Skip
+   }
+
+   // If webhook retries, both requests pass the check and both insert!
+   const savedMessage = await prisma.whatsAppMessage.create({
+     data: { /* ... */ }
+   });
+   ```
+
+   **Updated code** (atomic with error handling):
+   ```javascript
+   // ✅ Atomic create with graceful duplicate handling
+   let savedMessage;
+
+   try {
+     savedMessage = await prisma.whatsAppMessage.create({
+       data: {
+         conversationId: conversation.id,
+         tenantId: conversation.tenantId,
+         message: messageText,
+         sender: 'contact',
+         senderName: contactName,
+         status: 'received',
+         messageType,
+         whatsappMessageId: messageId, // Always set
+         metadata: {
+           timestamp: timestamp,
+           isFirstOccurrence
+         }
+       }
+     });
+
+     console.log(`✅ Message saved to conversation ${conversation.id}`);
+
+   } catch (error) {
+     // Handle unique constraint violation gracefully
+     if (error.code === 'P2002') {
+       // Duplicate detected - skip silently
+       console.log(`⚠️ Message ${messageId} already exists in conversation ${conversation.id}`);
+       continue; // Don't broadcast duplicate
+     } else {
+       // Other error - log and skip
+       console.error(`❌ Error saving message:`, error);
+       continue;
+     }
+   }
+   ```
+
+6. **Apply Same Fix to AI Response Messages** (`whatsapp.js:1570-1588`)
+
+   Wrap AI message creation in try-catch to handle duplicates on retry:
+   ```javascript
+   try {
+     const aiMessage = await prisma.whatsAppMessage.create({
+       data: {
+         conversationId: conversation.id,
+         // ...
+         whatsappMessageId: whatsappMessageId, // Ensure always set
+       }
+     });
+     // ... broadcast logic
+   } catch (error) {
+     if (error.code === 'P2002') {
+       console.log(`⚠️ AI message already saved to conversation ${conversation.id}`);
+       continue; // Skip duplicate
+     } else {
+       console.error(`❌ Error saving AI message:`, error);
+       continue;
+     }
+   }
+   ```
+
+7. **Ensure whatsappMessageId is Always Set**
+
+   For incoming messages:
+   ```javascript
+   const messageId = message.id;
+   if (!messageId) {
+     console.error(`❌ No message ID from WhatsApp, skipping`);
+     return; // Don't process messages without ID
+   }
+   ```
+
+   For AI responses:
+   ```javascript
+   // Ensure AI messages have unique IDs
+   const whatsappMessageId = result.messageId || `ai-${Date.now()}-${conversation.id}`;
+   ```
+
+8. **Keep Frontend Deduplication as Defensive Measure** (`whatsapp.js:646-670`)
+
+   Keep existing deduplication logic but add monitoring:
+   ```javascript
+   // ✅ Keep as defensive programming during transition
+   if (conversation.messages && conversation.messages.length > 0) {
+     const seenMessages = new Map();
+     const deduplicatedMessages = [];
+
+     for (const msg of conversation.messages) {
+       let key = msg.whatsappMessageId || `${msg.sender}:${msg.message}:${msg.createdAt.getTime()}`;
+       if (!seenMessages.has(key)) {
+         seenMessages.set(key, true);
+         deduplicatedMessages.push(msg);
+       }
+     }
+
+     // Monitor if duplicates found
+     if (conversation.messages.length !== deduplicatedMessages.length) {
+       console.warn(`⚠️ Removed ${conversation.messages.length - deduplicatedMessages.length} duplicates from conversation ${conversationId}`);
+     }
+
+     conversation.messages = deduplicatedMessages;
+   }
+   ```
+
 #### Migration Strategy
 
 Since Contact model already has `tenantId`, `userId`, `createdBy`, and `assignedTo`, **no database migration is needed**. Just update API logic.
 
 #### Pros
-- ✅ Aligns with standard CRM practices
-- ✅ No data duplication
+- ✅ **Fixes TWO critical issues at once**: permissions + message duplicates
+- ✅ Aligns with standard CRM practices (contacts)
+- ✅ Prevents race conditions (messages)
+- ✅ No data duplication (contacts)
+- ✅ No duplicate messages (WhatsApp)
 - ✅ Respects existing RBAC system
-- ✅ No database changes needed
+- ✅ No database migration needed
 - ✅ Managers can see team contacts
 - ✅ Admins can manage all contacts
+- ✅ Graceful error handling for webhook retries
 - ✅ Single source of truth per contact
 
 #### Cons
-- ⚠️ Requires thorough testing
+- ⚠️ Requires thorough testing (more changes)
 - ⚠️ Existing frontend may need updates for UI messages
+- ⚠️ Need to monitor for edge cases during rollout
 
 ---
 
@@ -288,13 +427,21 @@ Since Contact model already has `tenantId`, `userId`, `createdBy`, and `assigned
 ### Files to Modify
 
 ```
+# Part A: Shared Contacts
 backend/routes/contacts.js       (Lines 167-183: duplicate check)
 backend/routes/whatsapp.js       (Lines 68-77, 217-227: contact lookup)
 backend/routes/whatsapp.js       (Lines 762-771: contact search)
+
+# Part B: Message Deduplication
+backend/routes/whatsapp.js       (Lines 1417-1456: incoming message save)
+backend/routes/whatsapp.js       (Lines 1570-1588: AI response save)
+backend/routes/whatsapp.js       (Lines 646-670: add monitoring to dedup)
+backend/routes/whatsapp.js       (Lines 1086-1100: validate messageId)
 ```
 
 ### Testing Requirements
 
+**Part A: Shared Contacts**
 - ✅ Admin can create/view/edit all contacts
 - ✅ Manager can create/view/edit department/team contacts
 - ✅ Agent can create/view/edit own contacts and assigned contacts
@@ -302,6 +449,16 @@ backend/routes/whatsapp.js       (Lines 762-771: contact search)
 - ✅ WhatsApp messages work with visibility rules
 - ✅ Duplicate phone detection works but doesn't block
 - ✅ Contact assignment respects `validateAssignment` middleware
+
+**Part B: Message Deduplication**
+- ✅ Webhook retries don't create duplicate messages
+- ✅ Concurrent webhook requests handled gracefully
+- ✅ Unique constraint violations don't crash webhook
+- ✅ AI responses don't duplicate on retry
+- ✅ Messages without whatsappMessageId are rejected
+- ✅ Frontend deduplication still works as fallback
+- ✅ Monitoring logs show duplicate detection
+- ✅ No performance regression with try-catch
 
 ---
 
@@ -389,18 +546,25 @@ backend/routes/whatsapp.js       (Lines 762-771: contact search)
 
 ## Summary
 
-**Current Problem**: Overly restrictive ownership checks prevent team collaboration
+**Current Problems**:
+1. Overly restrictive ownership checks prevent team collaboration
+2. Race conditions cause duplicate WhatsApp messages in database
 
-**Recommended Solution**: Use existing RBAC visibility filters instead of hard userId checks
+**Recommended Solution**:
+1. Use existing RBAC visibility filters instead of hard userId checks
+2. Add atomic error handling to prevent message duplication
 
 **Impact**:
+- ✅ **Fixes TWO critical issues**: permissions + duplicates
 - ✅ Managers can work with team contacts
 - ✅ Admins can manage all contacts
 - ✅ WhatsApp works across the team
-- ✅ No data duplication
+- ✅ No contact data duplication
+- ✅ No duplicate messages (fixes existing bug!)
+- ✅ Graceful webhook retry handling
 - ✅ Aligns with CRM industry standards
 
-**Risk**: Low (uses existing RBAC system, no schema changes)
+**Risk**: Low-Medium (uses existing RBAC system, adds error handling, no schema changes)
 
-**Effort**: ~3-5 days development + testing
+**Effort**: ~5-7 days development + testing (3 days dedup + 2 days contacts + 2 days testing)
 
