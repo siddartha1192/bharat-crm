@@ -204,12 +204,15 @@ export default function Reports() {
   const monthlyData = getMonthlyData();
 
   // Calculate stats using dynamic stage mapping
-  const wonLeadsCount = leads.filter(l => wonStageIds.includes(l.stageId)).length;
+  const wonDealsCount = deals.filter(d => wonStageIds.includes(d.stageId)).length;
   const wonDealsRevenue = deals.filter(d => wonStageIds.includes(d.stageId)).reduce((sum, d) => sum + d.value, 0);
 
   const stats = {
     totalLeads: leads.length,
-    conversionRate: leads.length > 0 ? ((wonLeadsCount / leads.length) * 100).toFixed(1) : '0.0',
+    // Conversion Rate = Won Deals / Total Leads (if no won stage or zero won deals, show 0)
+    conversionRate: (leads.length > 0 && wonDealsCount > 0)
+      ? ((wonDealsCount / leads.length) * 100).toFixed(1)
+      : '0.0',
     avgDealSize: deals.length > 0 ? (deals.reduce((sum, d) => sum + d.value, 0) / deals.length / 100000).toFixed(1) : '0.0',
     totalRevenue: (wonDealsRevenue / 100000).toFixed(1),
   };

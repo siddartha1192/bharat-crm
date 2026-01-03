@@ -122,9 +122,10 @@ async function calculateForecast(userId, tenantId, period, startDate, endDate) {
     // Weighted value = expected revenue from active deals (probability-adjusted)
     const weightedValue = activeDeals.reduce((sum, deal) => sum + (deal.value * deal.probability / 100), 0);
 
-    // Conversion rate = won / (won + lost) - only for CLOSED deals
-    const closedDeals = wonDeals.length + lostDeals.length;
-    const conversionRate = closedDeals > 0 ? (wonDeals.length / closedDeals) * 100 : 0;
+    // Conversion rate = won deals / total leads (if no won deals or no leads, show 0)
+    const conversionRate = (leads.length > 0 && wonDeals.length > 0)
+      ? (wonDeals.length / leads.length) * 100
+      : 0;
 
     // Calculate stage breakdown
     const stageBreakdown = {};
