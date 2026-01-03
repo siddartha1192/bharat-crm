@@ -9,14 +9,16 @@ const prisma = new PrismaClient();
 /**
  * Calculate sales forecast for a given period
  * @param {String} userId - User ID (optional, null for organization-wide)
+ * @param {String} tenantId - Tenant ID (required for multi-tenant isolation)
  * @param {String} period - 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
  * @param {Date} startDate - Start date for forecast period
  * @param {Date} endDate - End date for forecast period
  */
-async function calculateForecast(userId, period, startDate, endDate) {
+async function calculateForecast(userId, tenantId, period, startDate, endDate) {
   try {
-    // Build filter based on userId and date range
+    // Build filter based on tenantId, userId and date range
     const filter = {
+      tenantId,
       createdAt: {
         gte: startDate,
         lte: endDate
@@ -120,9 +122,10 @@ async function calculateForecast(userId, period, startDate, endDate) {
     // Weighted value = expected revenue from active deals (probability-adjusted)
     const weightedValue = activeDeals.reduce((sum, deal) => sum + (deal.value * deal.probability / 100), 0);
 
-    // Conversion rate = won / (won + lost) - only for CLOSED deals
-    const closedDeals = wonDeals.length + lostDeals.length;
-    const conversionRate = closedDeals > 0 ? (wonDeals.length / closedDeals) * 100 : 0;
+    // Conversion rate = won deals / total leads (if no won deals or no leads, show 0)
+    const conversionRate = (leads.length > 0 && wonDeals.length > 0)
+      ? (wonDeals.length / leads.length) * 100
+      : 0;
 
     // Calculate stage breakdown
     const stageBreakdown = {};
@@ -177,12 +180,15 @@ async function calculateForecast(userId, period, startDate, endDate) {
     const previousEndDate = new Date(startDate);
 
     const previousFilter = {
-      ...filter,
+      tenantId,
       createdAt: {
         gte: previousStartDate,
         lte: previousEndDate
       }
     };
+    if (userId) {
+      previousFilter.userId = userId;
+    }
 
     const previousWonDeals = wonStageIds.length > 0 ? await prisma.deal.findMany({
       where: {
@@ -201,6 +207,7 @@ async function calculateForecast(userId, period, startDate, endDate) {
     try {
       const goal = await prisma.revenueGoal.findFirst({
         where: {
+          tenantId,
           userId: userId || null,
           startDate: { lte: endDate },
           endDate: { gte: startDate }
@@ -251,11 +258,12 @@ async function calculateForecast(userId, period, startDate, endDate) {
 /**
  * Save forecast to database
  */
-async function saveForecast(userId, forecastData) {
+async function saveForecast(userId, tenantId, forecastData) {
   try {
     return await prisma.salesForecast.create({
       data: {
         userId: userId || null,
+        tenantId,
         forecastDate: forecastData.forecastDate,
         forecastPeriod: forecastData.forecastPeriod,
         expectedRevenue: forecastData.expectedRevenue,
@@ -281,9 +289,9 @@ async function saveForecast(userId, forecastData) {
 /**
  * Get historical forecasts
  */
-async function getForecasts(userId, period, limit = 10) {
+async function getForecasts(userId, tenantId, period, limit = 10) {
   try {
-    const filter = { forecastPeriod: period };
+    const filter = { tenantId, forecastPeriod: period };
     if (userId) {
       filter.userId = userId;
     }
@@ -302,13 +310,14 @@ async function getForecasts(userId, period, limit = 10) {
 /**
  * Get trend data for charts
  */
-async function getTrendData(userId, period, months = 6) {
+async function getTrendData(userId, tenantId, period, months = 6) {
   try {
     const endDate = new Date();
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
 
     const filter = {
+      tenantId,
       forecastDate: {
         gte: startDate,
         lte: endDate
@@ -327,31 +336,21 @@ async function getTrendData(userId, period, months = 6) {
 
     // Get tenant's won stages
     let wonStageIds = [];
-    if (userId || forecasts.length > 0) {
-      const user = userId ? await prisma.user.findUnique({
-        where: { id: userId },
-        select: { tenantId: true }
-      }) : await prisma.user.findFirst({
-        select: { tenantId: true }
-      });
-
-      if (user) {
-        const wonStages = await prisma.pipelineStage.findMany({
-          where: {
-            tenantId: user.tenantId,
-            slug: { contains: 'won' },
-            isActive: true,
-          },
-          select: { id: true },
-        });
-        wonStageIds = wonStages.map(s => s.id);
-      }
-    }
+    const wonStages = await prisma.pipelineStage.findMany({
+      where: {
+        tenantId,
+        slug: { contains: 'won' },
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    wonStageIds = wonStages.map(s => s.id);
 
     // Also get actual revenue data (using dynamic won stages)
     const actualDeals = wonStageIds.length > 0 ? await prisma.deal.groupBy({
       by: ['createdAt'],
       where: {
+        tenantId,
         stageId: { in: wonStageIds },
         createdAt: {
           gte: startDate,
@@ -377,34 +376,28 @@ async function getTrendData(userId, period, months = 6) {
 /**
  * Get pipeline health metrics
  */
-async function getPipelineHealth(userId) {
+async function getPipelineHealth(userId, tenantId) {
   try {
-    const filter = userId ? { userId } : {};
+    const filter = { tenantId };
+    if (userId) {
+      filter.userId = userId;
+    }
 
     // Get tenant's closed stages dynamically
     let closedStageIds = [];
-    const user = userId ? await prisma.user.findUnique({
-      where: { id: userId },
-      select: { tenantId: true }
-    }) : await prisma.user.findFirst({
-      select: { tenantId: true }
+    const closedStages = await prisma.pipelineStage.findMany({
+      where: {
+        tenantId,
+        OR: [
+          { slug: { contains: 'won' } },
+          { slug: { contains: 'lost' } },
+          { slug: { contains: 'closed' } },
+        ],
+        isActive: true,
+      },
+      select: { id: true },
     });
-
-    if (user) {
-      const closedStages = await prisma.pipelineStage.findMany({
-        where: {
-          tenantId: user.tenantId,
-          OR: [
-            { slug: { contains: 'won' } },
-            { slug: { contains: 'lost' } },
-            { slug: { contains: 'closed' } },
-          ],
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      closedStageIds = closedStages.map(s => s.id);
-    }
+    closedStageIds = closedStages.map(s => s.id);
 
     // Get all active deals (exclude closed deals dynamically)
     const deals = await prisma.deal.findMany({
@@ -476,7 +469,7 @@ async function getPipelineHealth(userId) {
 /**
  * Create or update revenue goal
  */
-async function saveRevenueGoal(userId, goalData) {
+async function saveRevenueGoal(userId, tenantId, goalData) {
   try {
     if (goalData.id) {
       // Update existing goal
@@ -495,6 +488,7 @@ async function saveRevenueGoal(userId, goalData) {
       return await prisma.revenueGoal.create({
         data: {
           userId: userId || null,
+          tenantId,
           period: goalData.period,
           targetRevenue: goalData.targetRevenue,
           startDate: new Date(goalData.startDate),
@@ -512,9 +506,9 @@ async function saveRevenueGoal(userId, goalData) {
 /**
  * Get revenue goals
  */
-async function getRevenueGoals(userId, period = null) {
+async function getRevenueGoals(userId, tenantId, period = null) {
   try {
-    const filter = { userId: userId || null };
+    const filter = { tenantId, userId: userId || null };
     if (period) {
       filter.period = period;
     }
@@ -532,12 +526,13 @@ async function getRevenueGoals(userId, period = null) {
 /**
  * Get active revenue goal for current period
  */
-async function getActiveRevenueGoal(userId, period = 'monthly') {
+async function getActiveRevenueGoal(userId, tenantId, period = 'monthly') {
   try {
     const now = new Date();
 
     return await prisma.revenueGoal.findFirst({
       where: {
+        tenantId,
         userId: userId || null,
         period,
         startDate: { lte: now },
@@ -553,12 +548,13 @@ async function getActiveRevenueGoal(userId, period = 'monthly') {
 /**
  * Delete revenue goal
  */
-async function deleteRevenueGoal(goalId, userId) {
+async function deleteRevenueGoal(goalId, userId, tenantId) {
   try {
     return await prisma.revenueGoal.delete({
       where: {
         id: goalId,
-        userId: userId || null
+        userId: userId || null,
+        tenantId
       }
     });
   } catch (error) {

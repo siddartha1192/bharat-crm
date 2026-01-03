@@ -465,28 +465,24 @@ const Invoices = () => {
             title="Total Invoices"
             value={stats.totalInvoices}
             icon={FileText}
-            trend={{ value: 12, isPositive: true }}
             colorClass="bg-gradient-to-br from-primary to-primary/80"
           />
           <StatsCard
             title="Paid Amount"
             value={`₹${(stats.paidAmount / 100000).toFixed(2)}L`}
             icon={CheckCircle}
-            trend={{ value: 8, isPositive: true }}
             colorClass="bg-gradient-to-br from-accent to-accent/80"
           />
           <StatsCard
             title="Pending Amount"
             value={`₹${(stats.pendingAmount / 1000).toFixed(1)}K`}
             icon={DollarSign}
-            trend={{ value: 3, isPositive: false }}
             colorClass="bg-gradient-to-br from-accent to-accent/80"
           />
           <StatsCard
             title="Overdue Amount"
             value={`₹${(stats.overdueAmount / 100000).toFixed(2)}L`}
             icon={AlertCircle}
-            trend={{ value: 15, isPositive: false }}
             colorClass="bg-gradient-to-br from-destructive to-destructive/80"
           />
         </div>
