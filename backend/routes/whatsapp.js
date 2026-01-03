@@ -65,15 +65,18 @@ router.post('/send', async (req, res) => {
     let contactName = 'Contact';
 
     if (contactId) {
+      // Use visibility filter instead of userId for RBAC
+      const visibilityFilter = await getVisibilityFilter(req.user);
       const contact = await prisma.contact.findFirst({
-        where: getTenantFilter(req, {
+        where: {
           id: contactId,
-          userId
-        })
+          tenantId: req.tenant.id,
+          ...visibilityFilter // Apply role-based visibility
+        }
       });
 
       if (!contact) {
-        return res.status(404).json({ error: 'Contact not found' });
+        return res.status(404).json({ error: 'Contact not found or you do not have permission to access it' });
       }
 
       recipientPhone = contact.whatsapp || contact.phone;
@@ -210,19 +213,22 @@ router.post('/send-template', async (req, res) => {
       return res.status(400).json({ error: 'Template name is required' });
     }
 
-    // If contactId is provided, verify the contact belongs to the user
+    // If contactId is provided, verify the contact is visible to user
     let recipientPhone = phoneNumber;
 
     if (contactId) {
+      // Use visibility filter instead of userId for RBAC
+      const visibilityFilter = await getVisibilityFilter(req.user);
       const contact = await prisma.contact.findFirst({
-        where: getTenantFilter(req, {
+        where: {
           id: contactId,
-          userId
-        })
+          tenantId: req.tenant.id,
+          ...visibilityFilter // Apply role-based visibility
+        }
       });
 
       if (!contact) {
-        return res.status(404).json({ error: 'Contact not found' });
+        return res.status(404).json({ error: 'Contact not found or you do not have permission to access it' });
       }
 
       recipientPhone = contact.whatsapp || contact.phone;
@@ -643,10 +649,11 @@ router.get('/conversations/:conversationId', async (req, res) => {
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
-    // ✅ Deduplicate messages (in case there are duplicates from old saves)
+    // ✅ Deduplicate messages (defensive measure - should not be needed after race condition fix)
     if (conversation.messages && conversation.messages.length > 0) {
       const seenMessages = new Map();
       const deduplicatedMessages = [];
+      const originalCount = conversation.messages.length;
 
       for (const msg of conversation.messages) {
         // Create a unique key for deduplication
@@ -664,6 +671,13 @@ router.get('/conversations/:conversationId', async (req, res) => {
           seenMessages.set(key, true);
           deduplicatedMessages.push(msg);
         }
+      }
+
+      // Monitor if duplicates are still occurring (should be rare after fix)
+      if (originalCount !== deduplicatedMessages.length) {
+        const duplicateCount = originalCount - deduplicatedMessages.length;
+        console.warn(`⚠️ Removed ${duplicateCount} duplicate message(s) from conversation ${conversationId}`);
+        console.warn(`   This should not happen frequently. If seen often, investigate race condition fix.`);
       }
 
       conversation.messages = deduplicatedMessages;
@@ -752,23 +766,26 @@ router.post('/conversations/start', async (req, res) => {
 // Search contacts for new conversation
 router.get('/search-contacts', async (req, res) => {
   try {
-    const userId = req.user.id;
     const { query } = req.query;
 
     if (!query || query.trim().length < 2) {
       return res.json({ contacts: [] });
     }
 
+    // Use visibility filter for RBAC instead of userId
+    const visibilityFilter = await getVisibilityFilter(req.user);
+
     const contacts = await prisma.contact.findMany({
-      where: getTenantFilter(req, {
-        userId,
+      where: {
+        ...getTenantFilter(req), // Tenant filtering
+        ...visibilityFilter,     // Role-based visibility
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
           { phone: { contains: query } },
           { whatsapp: { contains: query } },
           { company: { contains: query, mode: 'insensitive' } }
         ]
-      }),
+      },
       select: {
         id: true,
         name: true,
@@ -1087,6 +1104,12 @@ async function processIncomingMessage(message, value, tenant) {
     const timestamp = message.timestamp;
 
     console.log(`\n📨 Processing message for tenant: ${tenant.name} (${tenant.id})`);
+
+    // Validate messageId is present (required for deduplication)
+    if (!messageId) {
+      console.error(`❌ No message ID from WhatsApp webhook, cannot process message safely`);
+      return; // Skip messages without ID - can't deduplicate
+    }
 
     // Normalize phone number - add + prefix if not present
     if (!fromPhone.startsWith('+')) {
@@ -1414,50 +1437,54 @@ async function processIncomingMessage(message, value, tenant) {
         }
       }
 
-      // Check if message already exists in THIS conversation (per-conversation deduplication)
-      const existingMessage = await prisma.whatsAppMessage.findFirst({
-        where: {
-          whatsappMessageId: messageId,
-          conversationId: conversation.id
-        }
-      });
+      // Use atomic create with error handling to prevent race condition duplicates
+      let savedMessage;
 
-      if (existingMessage) {
-        console.log(`⚠️ Message ${messageId} already exists in conversation ${conversation.id}, skipping`);
-        continue; // Skip this conversation
-      }
-
-      // Update conversation
-      await prisma.whatsAppConversation.update({
-        where: { id: conversation.id },
-        data: {
-          lastMessage: messageText,
-          lastMessageAt: new Date(parseInt(timestamp) * 1000),
-          unreadCount: { increment: 1 }
-        }
-      });
-
-      // Save the incoming message
-      const savedMessage = await prisma.whatsAppMessage.create({
-        data: {
-          conversationId: conversation.id,
-          tenantId: conversation.tenantId,
-          message: messageText,
-          sender: 'contact',
-          senderName: contactName,
-          status: 'received',
-          messageType,
-          whatsappMessageId: messageId,
-          metadata: {
-            timestamp: timestamp,
-            isFirstOccurrence // Track for reference
+      try {
+        // First update conversation (non-critical, can fail)
+        await prisma.whatsAppConversation.update({
+          where: { id: conversation.id },
+          data: {
+            lastMessage: messageText,
+            lastMessageAt: new Date(parseInt(timestamp) * 1000),
+            unreadCount: { increment: 1 }
           }
+        });
+
+        // Then create message atomically (critical operation)
+        savedMessage = await prisma.whatsAppMessage.create({
+          data: {
+            conversationId: conversation.id,
+            tenantId: conversation.tenantId,
+            message: messageText,
+            sender: 'contact',
+            senderName: contactName,
+            status: 'received',
+            messageType,
+            whatsappMessageId: messageId, // Always set from webhook
+            metadata: {
+              timestamp: timestamp,
+              isFirstOccurrence // Track for reference
+            }
+          }
+        });
+
+        console.log(`✅ Message saved to conversation ${conversation.id} for user ${conversation.userId}`);
+
+      } catch (error) {
+        // Handle unique constraint violation gracefully (duplicate message)
+        if (error.code === 'P2002') {
+          console.log(`⚠️ Message ${messageId} already exists in conversation ${conversation.id}, skipping duplicate`);
+          continue; // Skip this conversation - don't broadcast duplicate
+        } else {
+          // Other database error - log and skip
+          console.error(`❌ Error saving message to conversation ${conversation.id}:`, error.message);
+          continue; // Skip this conversation
         }
-      });
+      }
 
       // Save to file
       await conversationStorage.saveMessage(conversation.userId, fromPhone, savedMessage);
-      console.log(`✅ Message saved to conversation ${conversation.id} for user ${conversation.userId}`);
 
       // 🔌 Broadcast new message via WebSocket (ONLY ONCE per user)
       if (io && !broadcastedUsers.has(conversation.userId)) {
@@ -1567,25 +1594,40 @@ async function processIncomingMessage(message, value, tenant) {
         const broadcastedUsers = new Set();
 
         for (const conversation of conversations) {
-          const aiMessage = await prisma.whatsAppMessage.create({
-            data: {
-              conversationId: conversation.id,
-              tenantId: conversation.tenantId,
-              message: messageToSend,
-              sender: 'ai',
-              senderName: 'AI Assistant',
-              status: 'sent',
-              messageType: 'text',
-              isAiGenerated: true,
-              whatsappMessageId: whatsappMessageId,
-              metadata: {
-                whatsappMessageId: whatsappMessageId,
-                intent: aiResult.metadata?.intent,
-                sentiment: aiResult.metadata?.sentiment,
-                actions: actionResults,
+          let aiMessage;
+
+          try {
+            // Create AI message atomically
+            aiMessage = await prisma.whatsAppMessage.create({
+              data: {
+                conversationId: conversation.id,
+                tenantId: conversation.tenantId,
+                message: messageToSend,
+                sender: 'ai',
+                senderName: 'AI Assistant',
+                status: 'sent',
+                messageType: 'text',
+                isAiGenerated: true,
+                whatsappMessageId: whatsappMessageId || `ai-${Date.now()}-${conversation.id}`, // Ensure always set
+                metadata: {
+                  whatsappMessageId: whatsappMessageId,
+                  intent: aiResult.metadata?.intent,
+                  sentiment: aiResult.metadata?.sentiment,
+                  actions: actionResults,
+                }
               }
+            });
+
+          } catch (error) {
+            // Handle unique constraint violation (duplicate AI message on retry)
+            if (error.code === 'P2002') {
+              console.log(`⚠️ AI message already saved to conversation ${conversation.id}, skipping duplicate`);
+              continue; // Skip this conversation - don't broadcast duplicate
+            } else {
+              console.error(`❌ Error saving AI message to conversation ${conversation.id}:`, error.message);
+              continue; // Skip this conversation
             }
-          });
+          }
 
           // Update conversation
           await prisma.whatsAppConversation.update({
