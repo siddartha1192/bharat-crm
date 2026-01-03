@@ -6,6 +6,7 @@ const whatsappAIService = require('../services/ai/whatsappAI.service');
 const actionHandlerService = require('../services/ai/actionHandler.service');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
+const { getVisibilityFilter } = require('../middleware/assignment');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const openaiService = require('../services/openai');
