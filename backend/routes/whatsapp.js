@@ -461,11 +461,14 @@ router.post('/bulk-send', async (req, res) => {
     // Send message to each contact
     for (const contact of contacts) {
       try {
-        const { id: contactId, name: contactName, phone } = contact;
+        const { id: contactId, name: contactName, phone, whatsapp, whatsappNormalized, phoneNormalized } = contact;
 
-        if (!phone) {
+        // Use normalized phone number with country code (prefer whatsapp fields, fallback to phone)
+        const recipientPhone = whatsappNormalized || phoneNormalized || whatsapp || phone;
+
+        if (!recipientPhone) {
           results.push({
-            phone: 'N/A',
+            phone: phone || 'N/A',
             name: contactName,
             success: false,
             error: 'No phone number'
@@ -473,13 +476,13 @@ router.post('/bulk-send', async (req, res) => {
           continue;
         }
 
-        // Normalize phone number for deduplication
-        const normalizedResult = normalizePhoneNumber(phone);
-        const normalizedPhone = normalizedResult.normalized || phone;
+        // Normalize phone number for deduplication and storage
+        const normalizedResult = normalizePhoneNumber(recipientPhone);
+        const normalizedPhone = normalizedResult.normalized || recipientPhone;
         const phoneCountryCode = normalizedResult.country ? `+${normalizedResult.country}` : '+91';
 
-        // Send the message with tenant-specific config
-        const result = await whatsappService.sendMessage(phone, message, whatsappConfig);
+        // Send the message with tenant-specific config using normalized phone number
+        const result = await whatsappService.sendMessage(recipientPhone, message, whatsappConfig);
 
         // Get or create conversation
         let conversation = await prisma.whatsAppConversation.findUnique({
@@ -493,13 +496,13 @@ router.post('/bulk-send', async (req, res) => {
 
         if (!conversation) {
           // Create new conversation
-          const filePath = conversationStorage.getFilePath(userId, phone);
+          const filePath = conversationStorage.getFilePath(userId, recipientPhone);
           conversation = await prisma.whatsAppConversation.create({
             data: {
               userId,
               tenantId: req.tenant.id,
               contactName,
-              contactPhone: phone,
+              contactPhone: recipientPhone,
               contactPhoneCountryCode: phoneCountryCode,
               contactPhoneNormalized: normalizedPhone,
               contactId: contactId || null,
@@ -534,7 +537,7 @@ router.post('/bulk-send', async (req, res) => {
         });
 
         // Save message to file
-        await conversationStorage.saveMessage(userId, phone, savedMessage);
+        await conversationStorage.saveMessage(userId, recipientPhone, savedMessage);
 
         // 🔌 Broadcast sent message via WebSocket
         if (io) {
@@ -554,7 +557,7 @@ router.post('/bulk-send', async (req, res) => {
         }
 
         results.push({
-          phone,
+          phone: recipientPhone,
           name: contactName,
           success: true,
           messageId: result.messageId
@@ -564,10 +567,11 @@ router.post('/bulk-send', async (req, res) => {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
       } catch (error) {
-        console.error(`Error sending bulk message to ${contact.phone}:`, error);
+        const errorPhone = whatsappNormalized || phoneNormalized || whatsapp || phone || 'unknown';
+        console.error(`Error sending bulk message to ${errorPhone}:`, error);
         results.push({
-          phone: contact.phone,
-          name: contact.name,
+          phone: errorPhone,
+          name: contactName,
           success: false,
           error: error.message || 'Failed to send'
         });
