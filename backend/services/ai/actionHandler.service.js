@@ -346,7 +346,7 @@ Notes: ${data.notes || 'None'}
       const assignedToName = ownerUser.name || ownerUser.email;
       const status = 'new';
       const priority = data.priority || 'medium';
-      const estimatedValue = data.estimatedValue || 0;
+      const estimatedValue = parseFloat(data.estimatedValue) || 0;
       const company = data.company || '';
 
       // Get default lead stage - try multiple strategies
