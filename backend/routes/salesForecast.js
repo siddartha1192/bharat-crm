@@ -31,6 +31,7 @@ router.get('/calculate', async (req, res) => {
 
     const forecast = await salesForecastService.calculateForecast(
       targetUserId,
+      req.tenant.id,
       period,
       start,
       end
@@ -53,6 +54,7 @@ router.post('/save', async (req, res) => {
 
     const savedForecast = await salesForecastService.saveForecast(
       req.user.id,
+      req.tenant.id,
       forecastData
     );
 
@@ -82,6 +84,7 @@ router.get('/history', async (req, res) => {
 
     const forecasts = await salesForecastService.getForecasts(
       targetUserId,
+      req.tenant.id,
       period,
       parseInt(limit)
     );
@@ -112,6 +115,7 @@ router.get('/trends', async (req, res) => {
 
     const trends = await salesForecastService.getTrendData(
       targetUserId,
+      req.tenant.id,
       period,
       parseInt(months)
     );
@@ -139,7 +143,7 @@ router.get('/pipeline-health', async (req, res) => {
       targetUserId = req.user.id; // AGENT sees only their own
     }
 
-    const health = await salesForecastService.getPipelineHealth(targetUserId);
+    const health = await salesForecastService.getPipelineHealth(targetUserId, req.tenant.id);
 
     res.json(health);
   } catch (error) {
@@ -163,6 +167,7 @@ router.get('/organization', authorize('ADMIN', 'MANAGER'), async (req, res) => {
     // Calculate org-wide forecast (userId = null)
     const forecast = await salesForecastService.calculateForecast(
       null,
+      req.tenant.id,
       period,
       start,
       end
@@ -188,7 +193,7 @@ router.post('/revenue-goal', async (req, res) => {
       ? null
       : req.user.id;
 
-    const goal = await salesForecastService.saveRevenueGoal(targetUserId, goalData);
+    const goal = await salesForecastService.saveRevenueGoal(targetUserId, req.tenant.id, goalData);
 
     res.json(goal);
   } catch (error) {
@@ -213,7 +218,7 @@ router.get('/revenue-goals', async (req, res) => {
       targetUserId = req.user.id; // AGENT sees only their own
     }
 
-    const goals = await salesForecastService.getRevenueGoals(targetUserId, period);
+    const goals = await salesForecastService.getRevenueGoals(targetUserId, req.tenant.id, period);
 
     res.json(goals);
   } catch (error) {
@@ -238,7 +243,7 @@ router.get('/revenue-goal/active', async (req, res) => {
       targetUserId = req.user.id; // AGENT sees only their own
     }
 
-    const goal = await salesForecastService.getActiveRevenueGoal(targetUserId, period);
+    const goal = await salesForecastService.getActiveRevenueGoal(targetUserId, req.tenant.id, period);
 
     res.json(goal);
   } catch (error) {
@@ -255,7 +260,7 @@ router.delete('/revenue-goal/:id', async (req, res) => {
   try {
     const goalId = req.params.id;
 
-    await salesForecastService.deleteRevenueGoal(goalId, req.user.id);
+    await salesForecastService.deleteRevenueGoal(goalId, req.user.id, req.tenant.id);
 
     res.json({ message: 'Revenue goal deleted successfully' });
   } catch (error) {
