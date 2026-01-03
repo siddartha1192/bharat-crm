@@ -21,10 +21,13 @@ router.get('/calculate', async (req, res) => {
     const start = startDate ? new Date(startDate) : new Date(new Date().setDate(1)); // First day of current month
     const end = endDate ? new Date(endDate) : new Date(); // Today
 
-    // Only admins and managers can view other users' forecasts
-    const targetUserId = userId && (req.user.role === 'ADMIN' || req.user.role === 'MANAGER')
-      ? userId
-      : req.user.id;
+    // ADMIN and MANAGER see organization-wide data by default, AGENT sees their own
+    let targetUserId;
+    if (req.user.role === 'ADMIN' || req.user.role === 'MANAGER') {
+      targetUserId = userId || null; // null = organization-wide
+    } else {
+      targetUserId = req.user.id; // AGENT sees only their own
+    }
 
     const forecast = await salesForecastService.calculateForecast(
       targetUserId,
@@ -69,10 +72,13 @@ router.get('/history', async (req, res) => {
   try {
     const { period = 'monthly', limit = 10, userId } = req.query;
 
-    // Only admins and managers can view other users' forecasts
-    const targetUserId = userId && (req.user.role === 'ADMIN' || req.user.role === 'MANAGER')
-      ? userId
-      : req.user.id;
+    // ADMIN and MANAGER see organization-wide data by default, AGENT sees their own
+    let targetUserId;
+    if (req.user.role === 'ADMIN' || req.user.role === 'MANAGER') {
+      targetUserId = userId || null; // null = organization-wide
+    } else {
+      targetUserId = req.user.id; // AGENT sees only their own
+    }
 
     const forecasts = await salesForecastService.getForecasts(
       targetUserId,
@@ -96,10 +102,13 @@ router.get('/trends', async (req, res) => {
   try {
     const { period = 'monthly', months = 6, userId } = req.query;
 
-    // Only admins and managers can view other users' forecasts
-    const targetUserId = userId && (req.user.role === 'ADMIN' || req.user.role === 'MANAGER')
-      ? userId
-      : req.user.id;
+    // ADMIN and MANAGER see organization-wide data by default, AGENT sees their own
+    let targetUserId;
+    if (req.user.role === 'ADMIN' || req.user.role === 'MANAGER') {
+      targetUserId = userId || null; // null = organization-wide
+    } else {
+      targetUserId = req.user.id; // AGENT sees only their own
+    }
 
     const trends = await salesForecastService.getTrendData(
       targetUserId,
@@ -122,10 +131,13 @@ router.get('/pipeline-health', async (req, res) => {
   try {
     const { userId } = req.query;
 
-    // Only admins and managers can view other users' pipeline health
-    const targetUserId = userId && (req.user.role === 'ADMIN' || req.user.role === 'MANAGER')
-      ? userId
-      : req.user.id;
+    // ADMIN and MANAGER see organization-wide data by default, AGENT sees their own
+    let targetUserId;
+    if (req.user.role === 'ADMIN' || req.user.role === 'MANAGER') {
+      targetUserId = userId || null; // null = organization-wide
+    } else {
+      targetUserId = req.user.id; // AGENT sees only their own
+    }
 
     const health = await salesForecastService.getPipelineHealth(targetUserId);
 
@@ -193,10 +205,13 @@ router.get('/revenue-goals', async (req, res) => {
   try {
     const { period, userId } = req.query;
 
-    // Only admins and managers can view other users' goals
-    const targetUserId = userId && (req.user.role === 'ADMIN' || req.user.role === 'MANAGER')
-      ? userId
-      : req.user.id;
+    // ADMIN and MANAGER see organization-wide data by default, AGENT sees their own
+    let targetUserId;
+    if (req.user.role === 'ADMIN' || req.user.role === 'MANAGER') {
+      targetUserId = userId || null; // null = organization-wide
+    } else {
+      targetUserId = req.user.id; // AGENT sees only their own
+    }
 
     const goals = await salesForecastService.getRevenueGoals(targetUserId, period);
 
@@ -215,10 +230,13 @@ router.get('/revenue-goal/active', async (req, res) => {
   try {
     const { period = 'monthly', userId } = req.query;
 
-    // Only admins and managers can view other users' goals
-    const targetUserId = userId && (req.user.role === 'ADMIN' || req.user.role === 'MANAGER')
-      ? userId
-      : req.user.id;
+    // ADMIN and MANAGER see organization-wide data by default, AGENT sees their own
+    let targetUserId;
+    if (req.user.role === 'ADMIN' || req.user.role === 'MANAGER') {
+      targetUserId = userId || null; // null = organization-wide
+    } else {
+      targetUserId = req.user.id; // AGENT sees only their own
+    }
 
     const goal = await salesForecastService.getActiveRevenueGoal(targetUserId, period);
 
