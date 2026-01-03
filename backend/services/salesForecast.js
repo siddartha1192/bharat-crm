@@ -58,54 +58,47 @@ async function calculateForecast(userId, tenantId, period, startDate, endDate) {
       where: filter
     });
 
-    // Get tenantId to find closed stages dynamically
-    const tenantId = deals.length > 0 ? deals[0].user.tenantId :
-                     leads.length > 0 ? (await prisma.user.findUnique({ where: { id: userId }, select: { tenantId: true } }))?.tenantId :
-                     null;
-
-    // Find "won" and "lost" stages dynamically
+    // Find "won" and "lost" stages dynamically using the tenantId parameter
     let wonStageIds = [];
     let lostStageIds = [];
     let stageWarnings = [];
 
-    if (tenantId) {
-      // Use explicit stage mapping (isWonStage, isLostStage) for accurate conversion rate calculations
-      const wonStages = await prisma.pipelineStage.findMany({
-        where: {
-          tenantId,
-          isWonStage: true,
-          isActive: true,
-        },
-        select: { id: true, name: true, slug: true },
-      });
+    // Use explicit stage mapping (isWonStage, isLostStage) for accurate conversion rate calculations
+    const wonStages = await prisma.pipelineStage.findMany({
+      where: {
+        tenantId,
+        isWonStage: true,
+        isActive: true,
+      },
+      select: { id: true, name: true, slug: true },
+    });
 
-      const lostStages = await prisma.pipelineStage.findMany({
-        where: {
-          tenantId,
-          isLostStage: true,
-          isActive: true,
-        },
-        select: { id: true, name: true, slug: true },
-      });
+    const lostStages = await prisma.pipelineStage.findMany({
+      where: {
+        tenantId,
+        isLostStage: true,
+        isActive: true,
+      },
+      select: { id: true, name: true, slug: true },
+    });
 
-      wonStageIds = wonStages.map(s => s.id);
-      lostStageIds = lostStages.map(s => s.id);
+    wonStageIds = wonStages.map(s => s.id);
+    lostStageIds = lostStages.map(s => s.id);
 
-      // STRICT VALIDATION: Warn user if critical stages are missing
-      if (wonStageIds.length === 0) {
-        stageWarnings.push('⚠️  No "won" stage configured. Please go to Pipeline Settings and mark a stage as "Won Stage" (e.g., "Closed Won") for accurate revenue forecasting.');
-      }
-      if (lostStageIds.length === 0) {
-        stageWarnings.push('⚠️  No "lost" stage configured. Please go to Pipeline Settings and mark a stage as "Lost Stage" (e.g., "Closed Lost") for accurate conversion rate tracking.');
-      }
+    // STRICT VALIDATION: Warn user if critical stages are missing
+    if (wonStageIds.length === 0) {
+      stageWarnings.push('⚠️  No "won" stage configured. Please go to Pipeline Settings and mark a stage as "Won Stage" (e.g., "Closed Won") for accurate revenue forecasting.');
+    }
+    if (lostStageIds.length === 0) {
+      stageWarnings.push('⚠️  No "lost" stage configured. Please go to Pipeline Settings and mark a stage as "Lost Stage" (e.g., "Closed Lost") for accurate conversion rate tracking.');
+    }
 
-      // Log detected stages for transparency
-      if (wonStageIds.length > 0) {
-        console.log(`✅ Using won stages for conversion rate: ${wonStages.map(s => s.name).join(', ')}`);
-      }
-      if (lostStageIds.length > 0) {
-        console.log(`✅ Using lost stages for conversion rate: ${lostStages.map(s => s.name).join(', ')}`);
-      }
+    // Log detected stages for transparency
+    if (wonStageIds.length > 0) {
+      console.log(`✅ Using won stages for conversion rate: ${wonStages.map(s => s.name).join(', ')}`);
+    }
+    if (lostStageIds.length > 0) {
+      console.log(`✅ Using lost stages for conversion rate: ${lostStages.map(s => s.name).join(', ')}`);
     }
 
     // Calculate metrics with DYNAMIC stage detection (works with any custom stages)
