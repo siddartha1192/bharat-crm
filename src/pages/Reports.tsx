@@ -150,8 +150,17 @@ export default function Reports() {
     .filter(d => d.value > 0); // Only show stages with leads
 
   // Get won and lost stage IDs for dynamic filtering
-  const wonStageIds = pipelineStages.filter(s => s.isWonStage).map(s => s.id);
-  const lostStageIds = pipelineStages.filter(s => s.isLostStage).map(s => s.id);
+  // First try explicit flags, then fall back to slug-based detection
+  let wonStageIds = pipelineStages.filter(s => s.isWonStage).map(s => s.id);
+  let lostStageIds = pipelineStages.filter(s => s.isLostStage).map(s => s.id);
+
+  // FALLBACK: If no stages are explicitly marked, detect by slug pattern
+  if (wonStageIds.length === 0) {
+    wonStageIds = pipelineStages.filter(s => s.slug?.includes('won')).map(s => s.id);
+  }
+  if (lostStageIds.length === 0) {
+    lostStageIds = pipelineStages.filter(s => s.slug?.includes('lost')).map(s => s.id);
+  }
 
   // Monthly Performance - Calculate from real data
   const getMonthlyData = () => {

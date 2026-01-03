@@ -82,8 +82,37 @@ async function calculateForecast(userId, tenantId, period, startDate, endDate) {
       select: { id: true, name: true, slug: true },
     });
 
-    wonStageIds = wonStages.map(s => s.id);
-    lostStageIds = lostStages.map(s => s.id);
+    // FALLBACK: If no stages are explicitly marked, use slug-based detection
+    let wonStagesFallback = [];
+    let lostStagesFallback = [];
+
+    if (wonStages.length === 0) {
+      wonStagesFallback = await prisma.pipelineStage.findMany({
+        where: {
+          tenantId,
+          slug: { contains: 'won' },
+          isActive: true,
+        },
+        select: { id: true, name: true, slug: true },
+      });
+    }
+
+    if (lostStages.length === 0) {
+      lostStagesFallback = await prisma.pipelineStage.findMany({
+        where: {
+          tenantId,
+          slug: { contains: 'lost' },
+          isActive: true,
+        },
+        select: { id: true, name: true, slug: true },
+      });
+    }
+
+    const finalWonStages = wonStages.length > 0 ? wonStages : wonStagesFallback;
+    const finalLostStages = lostStages.length > 0 ? lostStages : lostStagesFallback;
+
+    wonStageIds = finalWonStages.map(s => s.id);
+    lostStageIds = finalLostStages.map(s => s.id);
 
     // STRICT VALIDATION: Warn user if critical stages are missing
     if (wonStageIds.length === 0) {
@@ -95,10 +124,12 @@ async function calculateForecast(userId, tenantId, period, startDate, endDate) {
 
     // Log detected stages for transparency
     if (wonStageIds.length > 0) {
-      console.log(`✅ Using won stages for conversion rate: ${wonStages.map(s => s.name).join(', ')}`);
+      const detectionMethod = wonStages.length > 0 ? 'isWonStage flag' : 'slug pattern';
+      console.log(`✅ Using won stages for conversion rate (${detectionMethod}): ${finalWonStages.map(s => s.name).join(', ')}`);
     }
     if (lostStageIds.length > 0) {
-      console.log(`✅ Using lost stages for conversion rate: ${lostStages.map(s => s.name).join(', ')}`);
+      const detectionMethod = lostStages.length > 0 ? 'isLostStage flag' : 'slug pattern';
+      console.log(`✅ Using lost stages for conversion rate (${detectionMethod}): ${finalLostStages.map(s => s.name).join(', ')}`);
     }
 
     // Calculate metrics with DYNAMIC stage detection (works with any custom stages)
