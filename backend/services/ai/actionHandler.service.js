@@ -7,6 +7,7 @@ const { PrismaClient } = require('@prisma/client');
 const aiConfig = require('../../config/ai.config');
 const googleCalendarService = require('../googleCalendar.js');
 const automationService = require('../automation');
+const roundRobinService = require('../roundRobin');
 
 const prisma = new PrismaClient();
 
@@ -343,7 +344,22 @@ Notes: ${data.notes || 'None'}
         return statusMapping[leadStatus] || 'lead';
       };
 
-      const assignedToName = ownerUser.name || ownerUser.email;
+      // Determine assignment using round-robin if enabled, otherwise assign to owner
+      let assignedToName = ownerUser.name || ownerUser.email;
+      let assignedToUserId = ownerUser.id;
+      let assignmentReason = 'whatsapp_owner';
+
+      // Check for round-robin assignment
+      try {
+        const nextAgent = await roundRobinService.getNextAgent(ownerUser.tenantId, ownerUser.id, ownerUser.name);
+        assignedToName = nextAgent.userName;
+        assignedToUserId = nextAgent.userId;
+        assignmentReason = nextAgent.reason;
+      } catch (error) {
+        console.error('Error getting next agent from round-robin:', error);
+        // Fall back to owner (already set above)
+      }
+
       const status = 'new';
       const priority = data.priority || 'medium';
       const estimatedValue = parseFloat(data.estimatedValue) || 0;
@@ -413,6 +429,25 @@ Notes: ${data.notes || 'None'}
       });
 
       console.log(`   ✅ Lead created: ${lead.id} - Use manual conversion to create deal`);
+
+      // Log round-robin assignment if applicable
+      if (assignmentReason && assignmentReason !== 'whatsapp_owner') {
+        try {
+          const state = await roundRobinService.getState(ownerUser.tenantId);
+          await roundRobinService.logAssignment(
+            ownerUser.tenantId,
+            lead.id,
+            assignedToUserId,
+            assignedToName,
+            assignmentReason,
+            state?.rotationCycle || 0
+          );
+          console.log(`   ✅ Round-robin assignment logged: ${assignedToName} (${assignmentReason})`);
+        } catch (logError) {
+          console.error('   ⚠️ Error logging round-robin assignment:', logError);
+          // Don't fail the request if logging fails
+        }
+      }
 
       // Trigger automation for lead creation (to send email notifications)
       try {
