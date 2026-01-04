@@ -344,6 +344,9 @@ export default function BulkMessaging() {
         // Send media messages to each contact individually
         for (const contact of selectedContactsData) {
           try {
+            // Use normalized phone number with country code
+            const recipientPhone = contact.whatsappNormalized || contact.phoneNormalized || contact.whatsapp || contact.phone;
+
             const endpoint = selectedMedia
               ? `/whatsapp/send-${selectedMedia.type}`
               : `/whatsapp/send-image`; // default to image if URL provided
@@ -351,7 +354,7 @@ export default function BulkMessaging() {
             const mediaUrlToSend = mediaUrl.trim() || (selectedMedia ? URL.createObjectURL(selectedMedia.file) : '');
 
             const payload: any = {
-              phoneNumber: contact.whatsapp || contact.phone,
+              phoneNumber: recipientPhone,
             };
 
             if (selectedMedia?.type === 'image' || !selectedMedia) {
@@ -380,7 +383,7 @@ export default function BulkMessaging() {
             if (response.ok) {
               const data = await response.json();
               bulkResults.push({
-                phone: contact.whatsapp || contact.phone,
+                phone: recipientPhone,
                 name: contact.name,
                 success: true,
                 messageId: data.messageId,
@@ -388,7 +391,7 @@ export default function BulkMessaging() {
             } else {
               const error = await response.json();
               bulkResults.push({
-                phone: contact.whatsapp || contact.phone,
+                phone: recipientPhone,
                 name: contact.name,
                 success: false,
                 error: error.error || 'Failed to send',
@@ -396,7 +399,7 @@ export default function BulkMessaging() {
             }
           } catch (error: any) {
             bulkResults.push({
-              phone: contact.whatsapp || contact.phone,
+              phone: recipientPhone,
               name: contact.name,
               success: false,
               error: error.message,
@@ -412,6 +415,9 @@ export default function BulkMessaging() {
 
         for (const contact of selectedContactsData) {
           try {
+            // Use normalized phone number with country code
+            const recipientPhone = contact.whatsappNormalized || contact.phoneNormalized || contact.whatsapp || contact.phone;
+
             const response = await fetch(`${API_URL}/whatsapp/send-template`, {
               method: 'POST',
               headers: {
@@ -419,7 +425,7 @@ export default function BulkMessaging() {
                 Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify({
-                phoneNumber: contact.whatsapp || contact.phone,
+                phoneNumber: recipientPhone,
                 templateName: templateName.trim(),
                 languageCode: templateLanguage,
                 components,
@@ -429,7 +435,7 @@ export default function BulkMessaging() {
             if (response.ok) {
               const data = await response.json();
               bulkResults.push({
-                phone: contact.whatsapp || contact.phone,
+                phone: recipientPhone,
                 name: contact.name,
                 success: true,
                 messageId: data.messageId,
@@ -437,7 +443,7 @@ export default function BulkMessaging() {
             } else {
               const error = await response.json();
               bulkResults.push({
-                phone: contact.whatsapp || contact.phone,
+                phone: recipientPhone,
                 name: contact.name,
                 success: false,
                 error: error.error || 'Failed to send',
@@ -445,7 +451,7 @@ export default function BulkMessaging() {
             }
           } catch (error: any) {
             bulkResults.push({
-              phone: contact.whatsapp || contact.phone,
+              phone: recipientPhone,
               name: contact.name,
               success: false,
               error: error.message,
