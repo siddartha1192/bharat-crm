@@ -134,11 +134,11 @@ export default function RoundRobinSettings() {
 
       // Load configuration, state, users, teams, and departments in parallel
       const [configRes, stateRes, usersRes, teamsRes, statsRes] = await Promise.all([
-        fetch(`${API_URL}/api/round-robin/config`, { headers }),
-        fetch(`${API_URL}/api/round-robin/state`, { headers }),
-        fetch(`${API_URL}/api/users/assignable`, { headers }),
-        fetch(`${API_URL}/api/teams`, { headers }),
-        fetch(`${API_URL}/api/round-robin/statistics?period=30d`, { headers }),
+        fetch(`${API_URL}/round-robin/config`, { headers }),
+        fetch(`${API_URL}/round-robin/state`, { headers }),
+        fetch(`${API_URL}/users/assignable`, { headers }),
+        fetch(`${API_URL}/teams`, { headers }),
+        fetch(`${API_URL}/round-robin/statistics?period=30d`, { headers }),
       ]);
 
       if (configRes.ok) {
@@ -183,7 +183,7 @@ export default function RoundRobinSettings() {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/round-robin/config`, {
+      const response = await fetch(`${API_URL}/round-robin/config`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -224,7 +224,7 @@ export default function RoundRobinSettings() {
   const resetRotation = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/round-robin/reset`, {
+      const response = await fetch(`${API_URL}/round-robin/reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -255,7 +255,7 @@ export default function RoundRobinSettings() {
   const previewNextAgent = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/round-robin/preview`, {
+      const response = await fetch(`${API_URL}/round-robin/preview`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
