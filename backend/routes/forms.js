@@ -5,6 +5,7 @@ const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 const automationService = require('../services/automation');
+const roundRobinService = require('../services/roundRobin');
 const prisma = new PrismaClient();
 
 // Apply authentication and tenant context to authenticated routes
@@ -380,6 +381,22 @@ router.post('/public/submit/:slug', async (req, res) => {
             }
           });
         } else {
+          // Determine assignment using round-robin if enabled, otherwise use form config
+          let assignedTo = form.autoAssignTo || form.user.name;
+          let assignedToUserId = form.userId;
+          let assignmentReason = 'form_auto_assign';
+
+          // Check for round-robin assignment
+          try {
+            const nextAgent = await roundRobinService.getNextAgent(form.tenantId, form.userId, form.user.name);
+            assignedTo = nextAgent.userName;
+            assignedToUserId = nextAgent.userId;
+            assignmentReason = nextAgent.reason;
+          } catch (error) {
+            console.error('Error getting next agent from round-robin:', error);
+            // Fall back to form configuration (already set above)
+          }
+
           // Create new lead
           const leadData = {
             name,
@@ -392,7 +409,7 @@ router.post('/public/submit/:slug', async (req, res) => {
             status: 'new',
             priority: 'medium',
             estimatedValue: 0,
-            assignedTo: form.autoAssignTo || form.user.name,
+            assignedTo,
             createdBy: form.userId,
             notes: `Form submission from: ${form.name}\n\nSubmission data:\n${JSON.stringify(data, null, 2)}`,
             tags: ['web-form', form.slug],
@@ -458,6 +475,25 @@ router.post('/public/submit/:slug', async (req, res) => {
           });
 
           console.log(`✅ Lead created from form submission: ${result.lead.id}`);
+
+          // Log round-robin assignment if applicable
+          if (assignmentReason && assignmentReason !== 'form_auto_assign') {
+            try {
+              const state = await roundRobinService.getState(form.tenantId);
+              await roundRobinService.logAssignment(
+                form.tenantId,
+                result.lead.id,
+                assignedToUserId,
+                assignedTo,
+                assignmentReason,
+                state?.rotationCycle || 0
+              );
+              console.log(`   ✅ Round-robin assignment logged: ${assignedTo} (${assignmentReason})`);
+            } catch (logError) {
+              console.error('   ⚠️ Error logging round-robin assignment:', logError);
+              // Don't fail the request if logging fails
+            }
+          }
 
           // ✅ Trigger automation for lead creation (send email notifications)
           try {
