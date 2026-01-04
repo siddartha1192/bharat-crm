@@ -4,6 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const automationService = require('../services/automation');
+const roundRobinService = require('../services/roundRobin');
 const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
 const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 const prisma = new PrismaClient();
@@ -179,8 +180,27 @@ router.post('/', validateAssignment, async (req, res) => {
     const userId = req.user.id;
     const leadData = req.body;
 
-    // Auto-assign to creator if not specified
-    const assignedTo = leadData.assignedTo || req.user.name;
+    // Determine assignment using round-robin if enabled, otherwise use manual assignment or creator
+    let assignedTo = leadData.assignedTo; // Explicit assignment from request
+    let assignedToUserId = userId; // Default to creator
+    let assignmentReason = 'manual';
+
+    // If no explicit assignment, check for round-robin
+    if (!assignedTo) {
+      try {
+        const nextAgent = await roundRobinService.getNextAgent(req.tenant.id, req.user.id, req.user.name);
+        assignedTo = nextAgent.userName;
+        assignedToUserId = nextAgent.userId;
+        assignmentReason = nextAgent.reason;
+      } catch (error) {
+        console.error('Error getting next agent from round-robin:', error);
+        // Fall back to creator
+        assignedTo = req.user.name;
+        assignedToUserId = req.user.id;
+        assignmentReason = 'fallback_creator';
+      }
+    }
+
     const createdBy = userId;
 
     // Check for duplicates based on email to prevent duplicate entries
@@ -253,6 +273,25 @@ router.post('/', validateAssignment, async (req, res) => {
     });
 
     console.log(`Lead created: ${lead.id} - Use /api/leads/${lead.id}/create-deal to manually convert to deal`);
+
+    // Log round-robin assignment if applicable
+    if (assignmentReason && assignmentReason !== 'manual') {
+      try {
+        const state = await roundRobinService.getState(req.tenant.id);
+        await roundRobinService.logAssignment(
+          req.tenant.id,
+          lead.id,
+          assignedToUserId,
+          assignedTo,
+          assignmentReason,
+          state?.rotationCycle || 0
+        );
+        console.log(`Round-robin assignment logged: ${assignedTo} (${assignmentReason})`);
+      } catch (logError) {
+        console.error('Error logging round-robin assignment:', logError);
+        // Don't fail the request if logging fails
+      }
+    }
 
     // Trigger automation for lead creation
     try {
