@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { normalizePhoneNumber } = require('../utils/phoneNormalization');
+const roundRobinService = require('../services/roundRobin');
 const prisma = new PrismaClient();
 
 // POST promotional lead (public - no auth required)
@@ -136,6 +137,22 @@ router.post('/lead', async (req, res) => {
       });
     }
 
+    // Determine assignment using round-robin if enabled, otherwise assign to admin
+    let assignedToName = adminUser.name;
+    let assignedToUserId = adminUser.id;
+    let assignmentReason = 'promo_admin';
+
+    // Check for round-robin assignment
+    try {
+      const nextAgent = await roundRobinService.getNextAgent(adminUser.tenantId, adminUser.id, adminUser.name);
+      assignedToName = nextAgent.userName;
+      assignedToUserId = nextAgent.userId;
+      assignmentReason = nextAgent.reason;
+    } catch (error) {
+      console.error('Error getting next agent from round-robin:', error);
+      // Fall back to admin (already set above)
+    }
+
     // Create new lead
     const leadNotes = `Lead from promotional website\n\n` +
       `Name: ${name}\n` +
@@ -160,7 +177,7 @@ router.post('/lead', async (req, res) => {
         status: 'new',
         priority: 'high', // Promo page leads are high priority
         estimatedValue: 0,
-        assignedTo: adminUser.name,
+        assignedTo: assignedToName,
         createdBy: adminUser.id,
         notes: leadNotes,
         tags: ['promo-website', 'inbound', 'demo-request'],
@@ -171,6 +188,25 @@ router.post('/lead', async (req, res) => {
     });
 
     console.log(`✅ New promotional lead created: ${lead.id} (${email})`);
+
+    // Log round-robin assignment if applicable
+    if (assignmentReason && assignmentReason !== 'promo_admin') {
+      try {
+        const state = await roundRobinService.getState(adminUser.tenantId);
+        await roundRobinService.logAssignment(
+          adminUser.tenantId,
+          lead.id,
+          assignedToUserId,
+          assignedToName,
+          assignmentReason,
+          state?.rotationCycle || 0
+        );
+        console.log(`✅ Round-robin assignment logged: ${assignedToName} (${assignmentReason})`);
+      } catch (logError) {
+        console.error('⚠️ Error logging round-robin assignment:', logError);
+        // Don't fail the request if logging fails
+      }
+    }
 
     res.status(201).json({
       success: true,

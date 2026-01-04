@@ -7,6 +7,7 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Switch } from '../ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -19,8 +20,9 @@ import {
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
 import { api, pipelineStagesAPI } from '../../lib/api';
-import { Plus, Trash2, Edit, Power, Mail, MessageSquare, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit, Power, Mail, MessageSquare, CheckCircle2, XCircle, AlertCircle, Users, Zap } from 'lucide-react';
 import { toast } from 'sonner';
+import RoundRobinSettings from './RoundRobinSettings';
 
 interface AutomationRule {
   id?: string;
@@ -213,16 +215,29 @@ export default function AutomationSettings() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold">Automation Rules</h2>
-          <p className="text-muted-foreground">Configure automated workflows for Email and WhatsApp campaigns</p>
-        </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Rule
-        </Button>
-      </div>
+      <Tabs defaultValue="rules" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="rules">
+            <Zap className="w-4 h-4 mr-2" />
+            Automation Rules
+          </TabsTrigger>
+          <TabsTrigger value="round-robin">
+            <Users className="w-4 h-4 mr-2" />
+            Round-Robin Assignment
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="rules" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold">Automation Rules</h2>
+              <p className="text-muted-foreground">Configure automated workflows for Email and WhatsApp campaigns</p>
+            </div>
+            <Button onClick={() => handleOpenDialog()}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Rule
+            </Button>
+          </div>
 
       {loading ? (
         <p>Loading automation rules...</p>
@@ -555,6 +570,12 @@ export default function AutomationSettings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="round-robin">
+          <RoundRobinSettings />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

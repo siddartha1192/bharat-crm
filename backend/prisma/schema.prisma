@@ -702,6 +702,84 @@ model AutomationRule {
   @@index([tenantId])
 }
 
+model RoundRobinConfig {
+  id        String  @id @default(uuid())
+  isEnabled Boolean @default(false)
+
+  // Assignment pool configuration
+  assignmentScope String @default("all") // 'all' | 'team' | 'department' | 'custom'
+  teamId          String?
+  departmentId    String?
+  customUserIds   String[] @default([]) // For custom user selection
+
+  // Working hours (JSON format: { monday: { start: "09:00", end: "17:00" }, ... })
+  workingHours Json?
+  timezone     String @default("UTC")
+
+  // Capacity limits
+  maxLeadsPerDay  Int? // Max leads per agent per day
+  maxLeadsPerWeek Int? // Max leads per agent per week
+
+  // Fallback configuration
+  fallbackToCreator Boolean @default(true) // Assign to creator if no agent available
+  fallbackUserId    String? // Specific fallback user
+
+  // Advanced options
+  skipInactiveUsers Boolean @default(true)
+  skipFullAgents    Boolean @default(true) // Skip agents who reached capacity
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Multi-tenant
+  tenantId String @unique
+
+  @@index([tenantId])
+  @@index([isEnabled])
+}
+
+model RoundRobinState {
+  id String @id @default(uuid())
+
+  // Last assigned user tracking
+  lastAssignedUserId   String
+  lastAssignedUserName String
+  lastAssignedAt       DateTime @default(now())
+
+  // Rotation metadata
+  assignmentCount Int      @default(0) // Total assignments made
+  rotationCycle   Int      @default(1) // Current rotation cycle number
+  userPool        String[] @default([]) // Ordered list of user IDs in rotation
+
+  // Multi-tenant
+  tenantId String @unique
+
+  @@index([tenantId])
+  @@index([lastAssignedAt])
+}
+
+model RoundRobinAssignment {
+  id String @id @default(uuid())
+
+  // Assignment details
+  leadId     String
+  userId     String
+  userName   String
+  assignedAt DateTime @default(now())
+
+  // Metadata
+  assignmentReason String // 'round_robin' | 'fallback_creator' | 'fallback_user' | 'no_agents_available'
+  rotationCycle    Int    @default(0)
+
+  // Multi-tenant
+  tenantId String
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([leadId])
+  @@index([assignedAt])
+}
+
 model Document {
   id       String @id @default(uuid())
   fileName String // Original file name
