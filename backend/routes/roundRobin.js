@@ -1,15 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const roundRobinService = require('../services/roundRobin');
-const { authenticateToken, requireTenant } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth');
+const { tenantContext } = require('../middleware/tenant');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+
+// Apply authentication and tenant context to all routes
+router.use(authenticate);
+router.use(tenantContext);
 
 /**
  * GET /api/round-robin/config
  * Get round-robin configuration for tenant
  */
-router.get('/config', authenticateToken, requireTenant, async (req, res) => {
+router.get('/config', async (req, res) => {
   try {
     const config = await roundRobinService.getConfig(req.tenant.id);
 
@@ -43,7 +48,7 @@ router.get('/config', authenticateToken, requireTenant, async (req, res) => {
  * POST /api/round-robin/config
  * Save or update round-robin configuration
  */
-router.post('/config', authenticateToken, requireTenant, async (req, res) => {
+router.post('/config', async (req, res) => {
   try {
     // Only ADMIN and MANAGER can configure round-robin
     if (req.user.role !== 'ADMIN' && req.user.role !== 'MANAGER') {
@@ -82,7 +87,7 @@ router.post('/config', authenticateToken, requireTenant, async (req, res) => {
  * GET /api/round-robin/state
  * Get current round-robin state (last assigned agent, rotation info)
  */
-router.get('/state', authenticateToken, requireTenant, async (req, res) => {
+router.get('/state', async (req, res) => {
   try {
     const state = await roundRobinService.getState(req.tenant.id);
 
@@ -126,7 +131,7 @@ router.get('/state', authenticateToken, requireTenant, async (req, res) => {
  * POST /api/round-robin/reset
  * Reset round-robin rotation
  */
-router.post('/reset', authenticateToken, requireTenant, async (req, res) => {
+router.post('/reset', async (req, res) => {
   try {
     // Only ADMIN and MANAGER can reset rotation
     if (req.user.role !== 'ADMIN' && req.user.role !== 'MANAGER') {
@@ -149,7 +154,7 @@ router.post('/reset', authenticateToken, requireTenant, async (req, res) => {
  * GET /api/round-robin/statistics
  * Get round-robin assignment statistics
  */
-router.get('/statistics', authenticateToken, requireTenant, async (req, res) => {
+router.get('/statistics', async (req, res) => {
   try {
     const { startDate, endDate, period = '30d' } = req.query;
 
@@ -181,7 +186,7 @@ router.get('/statistics', authenticateToken, requireTenant, async (req, res) => 
  * POST /api/round-robin/preview
  * Preview next agent assignment without actually assigning
  */
-router.post('/preview', authenticateToken, requireTenant, async (req, res) => {
+router.post('/preview', async (req, res) => {
   try {
     const nextAgent = await roundRobinService.getNextAgent(
       req.tenant.id,
@@ -203,7 +208,7 @@ router.post('/preview', authenticateToken, requireTenant, async (req, res) => {
  * GET /api/round-robin/eligible-agents
  * Get list of eligible agents based on current configuration
  */
-router.get('/eligible-agents', authenticateToken, requireTenant, async (req, res) => {
+router.get('/eligible-agents', async (req, res) => {
   try {
     const config = await roundRobinService.getConfig(req.tenant.id);
 
@@ -230,7 +235,7 @@ router.get('/eligible-agents', authenticateToken, requireTenant, async (req, res
  * GET /api/round-robin/assignments
  * Get recent round-robin assignments with pagination
  */
-router.get('/assignments', authenticateToken, requireTenant, async (req, res) => {
+router.get('/assignments', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
