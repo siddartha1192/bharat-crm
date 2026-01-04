@@ -45,6 +45,8 @@ interface Contact {
   company: string;
   phone: string;
   whatsapp?: string;
+  whatsappNormalized?: string;
+  phoneNormalized?: string;
   email?: string;
 }
 
@@ -328,6 +330,9 @@ export default function BulkMessaging() {
               id: c.id,
               name: c.name,
               phone: c.whatsapp || c.phone,
+              whatsapp: c.whatsapp,
+              whatsappNormalized: c.whatsappNormalized,
+              phoneNormalized: c.phoneNormalized,
             })),
           }),
         });
