@@ -103,7 +103,7 @@ services:
       GMAIL_USER: ${GMAIL_USER}
       GMAIL_REFRESH_TOKEN: ${GMAIL_REFRESH_TOKEN}
       GMAIL_REDIRECT_URI: ${GMAIL_REDIRECT_URI}
-
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     volumes:
       - backend_uploads:/app/uploads
       - backend_knowledge:/app/knowledge_base
