@@ -408,19 +408,37 @@ class AuthService {
           user = users[0];
         }
 
-        // Update Google info if needed
+        // Update Google info if needed (only if googleId not already taken by another user)
         if (!user.googleId) {
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data: {
-              googleId,
-              googleEmail: email,
-              googleProfilePic: picture,
-            },
-            include: {
-              tenant: true
-            }
-          });
+          // Check if any of the found users already has this googleId
+          const googleIdAlreadyTaken = users.some(u => u.googleId === googleId);
+
+          if (!googleIdAlreadyTaken) {
+            // Safe to add googleId to this user
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                googleId,
+                googleEmail: email,
+                googleProfilePic: picture,
+              },
+              include: {
+                tenant: true
+              }
+            });
+          } else {
+            // GoogleId is already taken by another account, just update the profile pic
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                googleEmail: email,
+                googleProfilePic: picture,
+              },
+              include: {
+                tenant: true
+              }
+            });
+          }
         }
 
         // Log activity
