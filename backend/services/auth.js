@@ -205,15 +205,48 @@ class AuthService {
 
   /**
    * Login with email/password
+   * Supports multi-tenant: if user exists in multiple tenants, returns list to choose from
    */
-  async login(email, password, ipAddress, userAgent) {
-    // Find user (use findFirst since email is no longer unique globally, only per tenant)
-    const user = await prisma.user.findFirst({
+  async login(email, password, ipAddress, userAgent, tenantId = null) {
+    // Find all users with this email across all tenants
+    const users = await prisma.user.findMany({
       where: { email },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          }
+        }
+      }
     });
 
-    if (!user) {
+    if (!users || users.length === 0) {
       throw new Error('Invalid email or password');
+    }
+
+    // If tenantId is provided, find the specific user in that tenant
+    let user;
+    if (tenantId) {
+      user = users.find(u => u.tenantId === tenantId);
+      if (!user) {
+        throw new Error('Invalid email or password');
+      }
+    } else if (users.length > 1) {
+      // Multiple accounts with same email - user needs to select organization
+      return {
+        requiresTenantSelection: true,
+        tenants: users.map(u => ({
+          tenantId: u.tenant.id,
+          tenantName: u.tenant.name,
+          tenantSlug: u.tenant.slug,
+          role: u.role,
+        }))
+      };
+    } else {
+      // Only one account with this email
+      user = users[0];
     }
 
     if (!user.isActive) {
@@ -244,6 +277,7 @@ class AuthService {
         company: user.company,
         role: user.role,
         tenantId: user.tenantId,
+        tenantName: user.tenant.name,
       },
       token,
       refreshToken,
@@ -399,8 +433,8 @@ class AuthService {
       throw new Error('Invalid or expired refresh token');
     }
 
-    // Generate new tokens
-    const newToken = this.generateToken(session.userId, session.user.role);
+    // Generate new tokens with tenant context
+    const newToken = this.generateToken(session.userId, session.user.role, session.user.tenantId);
     const newRefreshToken = this.generateRefreshToken();
 
     // Update session

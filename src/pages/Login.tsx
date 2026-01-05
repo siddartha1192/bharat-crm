@@ -6,7 +6,14 @@ import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Building2, Mail, Lock, Loader2, User, Briefcase } from 'lucide-react';
+import { Building2, Mail, Lock, Loader2, User, Briefcase, Building } from 'lucide-react';
+
+interface Tenant {
+  tenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  role: string;
+}
 
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
@@ -17,6 +24,8 @@ export default function Login() {
     name: '',
     company: ''
   });
+  const [showTenantSelection, setShowTenantSelection] = useState(false);
+  const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { login, register, loginWithGoogle } = useAuth();
@@ -28,7 +37,15 @@ export default function Login() {
     try {
       if (isLogin) {
         // Use AuthContext login function
-        await login(formData.email, formData.password);
+        const result = await login(formData.email, formData.password);
+
+        // Check if tenant selection is required
+        if (result.requiresTenantSelection && result.tenants) {
+          setAvailableTenants(result.tenants);
+          setShowTenantSelection(true);
+          setLoading(false);
+          return;
+        }
       } else {
         // Use AuthContext register function
         await register(formData.email, formData.password, formData.name, formData.company);
@@ -53,12 +70,88 @@ export default function Login() {
     }
   };
 
+  const handleTenantSelect = async (tenantId: string) => {
+    setLoading(true);
+    try {
+      // Login with selected tenant
+      await login(formData.email, formData.password, tenantId);
+
+      toast({
+        title: 'Welcome back!',
+        description: 'You have successfully logged in.',
+      });
+
+      // Navigate to dashboard
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Auth error:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Authentication failed. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
   };
+
+  // Show tenant selection screen if needed
+  if (showTenantSelection) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 space-y-6">
+          <div className="text-center space-y-2">
+            <div className="flex items-center justify-center mb-4">
+              <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                <Building className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">Select Organization</h1>
+            <p className="text-muted-foreground">
+              You have accounts in multiple organizations. Please select which one to sign in to.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {availableTenants.map((tenant) => (
+              <Button
+                key={tenant.tenantId}
+                variant="outline"
+                className="w-full h-auto p-4 flex items-start gap-3 hover:border-primary"
+                onClick={() => handleTenantSelect(tenant.tenantId)}
+                disabled={loading}
+              >
+                <Building className="w-5 h-5 mt-0.5 text-primary" />
+                <div className="flex-1 text-left">
+                  <div className="font-semibold">{tenant.tenantName}</div>
+                  <div className="text-xs text-muted-foreground">Role: {tenant.role}</div>
+                </div>
+              </Button>
+            ))}
+          </div>
+
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              setShowTenantSelection(false);
+              setAvailableTenants([]);
+            }}
+            disabled={loading}
+          >
+            Back to Login
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10 flex items-center justify-center p-4">

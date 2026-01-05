@@ -12,11 +12,23 @@ interface User {
   profilePic?: string;
 }
 
+interface Tenant {
+  tenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  role: string;
+}
+
+interface LoginResult {
+  requiresTenantSelection?: boolean;
+  tenants?: Tenant[];
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, tenantId?: string) => Promise<LoginResult>;
   loginWithGoogle: () => Promise<void>;
   register: (email: string, password: string, name: string, company?: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -90,20 +102,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, tenantId?: string): Promise<LoginResult> => {
     try {
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, tenantId }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.error || 'Login failed');
+      }
+
+      // Check if tenant selection is required
+      if (data.requiresTenantSelection) {
+        return {
+          requiresTenantSelection: true,
+          tenants: data.tenants
+        };
       }
 
       // Store tokens and user data
@@ -117,6 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(data.user);
       // Dispatch custom event to notify usePermissions hook
       window.dispatchEvent(new Event('user-updated'));
+
+      return {};
     } catch (error) {
       throw error;
     }

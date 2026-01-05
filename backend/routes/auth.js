@@ -46,10 +46,12 @@ router.post('/register', async (req, res) => {
 /**
  * Login with email/password
  * POST /api/auth/login
+ * Body: { email, password, tenantId? }
+ * If user exists in multiple tenants, returns { requiresTenantSelection: true, tenants: [...] }
  */
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, tenantId } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -58,7 +60,7 @@ router.post('/login', async (req, res) => {
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
     const userAgent = req.headers['user-agent'];
 
-    const result = await authService.login(email, password, ipAddress, userAgent);
+    const result = await authService.login(email, password, ipAddress, userAgent, tenantId);
 
     res.json(result);
   } catch (error) {
