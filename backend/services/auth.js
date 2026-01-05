@@ -302,8 +302,9 @@ class AuthService {
 
   /**
    * Google OAuth - Handle callback and login/signup
+   * Supports multi-tenant: if user exists in multiple tenants, returns list to choose from
    */
-  async googleAuth(code, ipAddress, userAgent) {
+  async googleAuth(code, ipAddress, userAgent, tenantId = null) {
     try {
       // Exchange code for tokens
       const { tokens } = await googleClient.getToken(code);
@@ -321,17 +322,50 @@ class AuthService {
       const name = payload.name;
       const picture = payload.picture;
 
-      // Check if user exists
-      let user = await prisma.user.findFirst({
+      // Find all users with this googleId or email across all tenants
+      const users = await prisma.user.findMany({
         where: {
           OR: [
             { googleId },
             { email },
           ],
         },
+        include: {
+          tenant: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            }
+          }
+        }
       });
 
-      if (user) {
+      let user;
+
+      if (users.length > 0) {
+        // If tenantId is provided, find the specific user in that tenant
+        if (tenantId) {
+          user = users.find(u => u.tenantId === tenantId);
+          if (!user) {
+            throw new Error('Account not found in the selected organization');
+          }
+        } else if (users.length > 1) {
+          // Multiple accounts - user needs to select organization
+          return {
+            requiresTenantSelection: true,
+            tenants: users.map(u => ({
+              tenantId: u.tenant.id,
+              tenantName: u.tenant.name,
+              tenantSlug: u.tenant.slug,
+              role: u.role,
+            }))
+          };
+        } else {
+          // Only one account
+          user = users[0];
+        }
+
         // Update Google info if needed
         if (!user.googleId) {
           user = await prisma.user.update({
@@ -341,6 +375,9 @@ class AuthService {
               googleEmail: email,
               googleProfilePic: picture,
             },
+            include: {
+              tenant: true
+            }
           });
         }
 
@@ -367,7 +404,7 @@ class AuthService {
                 contactEmail: email,
                 status: 'TRIAL',
                 plan: 'FREE',
-                maxUsers: 5,
+                maxUsers: 2,
                 subscriptionStart: new Date(),
                 subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
                 settings: {
