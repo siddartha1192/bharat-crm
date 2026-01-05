@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Users, Shield, Eye, UserCog, Loader2, Mail, Lock, Check, X } from 'lucide-react';
+import { Plus, Users, Shield, Eye, UserCog, Loader2, Mail, Lock, Check, X, AlertTriangle } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -57,6 +57,7 @@ export default function UserManagement() {
   const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [newRole, setNewRole] = useState<User['role'] | ''>('');
   const [updatingRole, setUpdatingRole] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -73,12 +74,20 @@ export default function UserManagement() {
         },
       });
 
+      if (response.status === 403) {
+        // User doesn't have permission to view users
+        setAccessDenied(true);
+        setLoading(false);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error('Failed to fetch users');
       }
 
       const data = await response.json();
       setUsers(data);
+      setAccessDenied(false);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -237,6 +246,35 @@ export default function UserManagement() {
       <div className="min-h-screen bg-background p-6">
         <div className="flex items-center justify-center h-96">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="flex items-center justify-center h-96">
+          <Card className="max-w-md w-full p-8">
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="p-4 bg-destructive/10 rounded-full">
+                  <AlertTriangle className="w-12 h-12 text-destructive" />
+                </div>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
+                <p className="text-muted-foreground">
+                  You do not have permission to manage users. This feature is only available to Administrators and Managers.
+                </p>
+              </div>
+              <div className="pt-4">
+                <p className="text-sm text-muted-foreground">
+                  If you need access, please contact your administrator.
+                </p>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
     );
