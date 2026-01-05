@@ -144,10 +144,12 @@ router.post('/google/reauth', authenticate, async (req, res) => {
 /**
  * Google OAuth - Handle callback
  * POST /api/auth/google/callback
+ * Body: { code, tenantId? }
+ * If user exists in multiple tenants, returns { requiresTenantSelection: true, tenants: [...] }
  */
 router.post('/google/callback', async (req, res) => {
   try {
-    const { code } = req.body;
+    const { code, tenantId } = req.body;
 
     if (!code) {
       return res.status(400).json({ error: 'Authorization code is required' });
@@ -156,7 +158,7 @@ router.post('/google/callback', async (req, res) => {
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
     const userAgent = req.headers['user-agent'];
 
-    const result = await authService.googleAuth(code, ipAddress, userAgent);
+    const result = await authService.googleAuth(code, ipAddress, userAgent, tenantId);
 
     res.json(result);
   } catch (error) {
