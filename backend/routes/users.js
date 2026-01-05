@@ -162,11 +162,37 @@ router.post('/', hasPermission('ADMIN'), async (req, res) => {
       return res.status(400).json({ error: 'User with this email already exists in your organization' });
     }
 
-    // Get tenant info for company field
+    // Get tenant info for company field and check user limits
     const tenant = await prisma.tenant.findUnique({
       where: { id: req.tenant.id },
-      select: { name: true }
+      select: {
+        name: true,
+        maxUsers: true,
+        plan: true
+      }
     });
+
+    if (!tenant) {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    // Check current user count for this tenant
+    const currentUserCount = await prisma.user.count({
+      where: {
+        tenantId: req.tenant.id,
+        isActive: true
+      }
+    });
+
+    // Enforce user limit
+    if (currentUserCount >= tenant.maxUsers) {
+      return res.status(403).json({
+        error: `User limit reached. Your ${tenant.plan} plan allows maximum ${tenant.maxUsers} users. Please upgrade your plan or deactivate existing users.`,
+        currentUsers: currentUserCount,
+        maxUsers: tenant.maxUsers,
+        plan: tenant.plan
+      });
+    }
 
     // Create user without password (they'll set it via forgot password)
     const newUser = await prisma.user.create({
