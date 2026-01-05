@@ -19,7 +19,7 @@ export default function AuthCallback() {
   const [status, setStatus] = useState<'processing' | 'success' | 'error' | 'tenant-selection'>('processing');
   const [message, setMessage] = useState('Authenticating with Google...');
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [authCode, setAuthCode] = useState<string>('');
+  const [pendingAuthId, setPendingAuthId] = useState<string>('');
 
   useEffect(() => {
     console.log('🔍 AuthCallback mounted');
@@ -81,7 +81,7 @@ export default function AuthCallback() {
         // Check if tenant selection is required
         if (data.requiresTenantSelection) {
           console.log('🏢 Multiple tenants found, showing selection...');
-          setAuthCode(code);
+          setPendingAuthId(data.pendingAuthId);
           setTenants(data.tenants);
           setStatus('tenant-selection');
           setMessage('Select your organization');
@@ -130,7 +130,7 @@ export default function AuthCallback() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ code: authCode, tenantId }),
+        body: JSON.stringify({ pendingAuthId, tenantId }),
       });
 
       if (!response.ok) {
