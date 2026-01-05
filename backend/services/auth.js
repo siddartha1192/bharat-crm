@@ -17,6 +17,19 @@ const googleClient = new OAuth2Client(
   process.env.GOOGLE_AUTH_REDIRECT_URI || 'http://localhost:8080/auth/google/callback'
 );
 
+// In-memory store for pending Google authentications (with expiry)
+const pendingGoogleAuths = new Map();
+
+// Clean up expired pending auths every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of pendingGoogleAuths.entries()) {
+    if (value.expiresAt < now) {
+      pendingGoogleAuths.delete(key);
+    }
+  }
+}, 10 * 60 * 1000);
+
 class AuthService {
   /**
    * Generate JWT token with tenant context
@@ -304,42 +317,58 @@ class AuthService {
    * Google OAuth - Handle callback and login/signup
    * Supports multi-tenant: if user exists in multiple tenants, returns list to choose from
    */
-  async googleAuth(code, ipAddress, userAgent, tenantId = null) {
+  async googleAuth(code, ipAddress, userAgent, pendingAuthId = null, tenantId = null) {
     try {
-      // Exchange code for tokens
-      const { tokens } = await googleClient.getToken(code);
-      googleClient.setCredentials(tokens);
+      let googleId, email, name, picture, users;
 
-      // Get user info
-      const ticket = await googleClient.verifyIdToken({
-        idToken: tokens.id_token,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
+      // If pendingAuthId is provided, retrieve stored auth data
+      if (pendingAuthId) {
+        const pendingAuth = pendingGoogleAuths.get(pendingAuthId);
+        if (!pendingAuth || pendingAuth.expiresAt < Date.now()) {
+          throw new Error('Authentication session expired. Please login again.');
+        }
 
-      const payload = ticket.getPayload();
-      const googleId = payload.sub;
-      const email = payload.email;
-      const name = payload.name;
-      const picture = payload.picture;
+        // Retrieve stored data
+        ({ googleId, email, name, picture, users } = pendingAuth);
 
-      // Find all users with this googleId or email across all tenants
-      const users = await prisma.user.findMany({
-        where: {
-          OR: [
-            { googleId },
-            { email },
-          ],
-        },
-        include: {
-          tenant: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
+        // Clean up the pending auth
+        pendingGoogleAuths.delete(pendingAuthId);
+      } else {
+        // Exchange code for tokens (first time only)
+        const { tokens } = await googleClient.getToken(code);
+        googleClient.setCredentials(tokens);
+
+        // Get user info
+        const ticket = await googleClient.verifyIdToken({
+          idToken: tokens.id_token,
+          audience: process.env.GOOGLE_CLIENT_ID,
+        });
+
+        const payload = ticket.getPayload();
+        googleId = payload.sub;
+        email = payload.email;
+        name = payload.name;
+        picture = payload.picture;
+
+        // Find all users with this googleId or email across all tenants
+        users = await prisma.user.findMany({
+          where: {
+            OR: [
+              { googleId },
+              { email },
+            ],
+          },
+          include: {
+            tenant: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              }
             }
           }
-        }
-      });
+        });
+      }
 
       let user;
 
@@ -351,9 +380,22 @@ class AuthService {
             throw new Error('Account not found in the selected organization');
           }
         } else if (users.length > 1) {
-          // Multiple accounts - user needs to select organization
+          // Multiple accounts - store pending auth and return tenant list
+          const authId = crypto.randomBytes(32).toString('hex');
+          pendingGoogleAuths.set(authId, {
+            googleId,
+            email,
+            name,
+            picture,
+            users,
+            ipAddress,
+            userAgent,
+            expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
+          });
+
           return {
             requiresTenantSelection: true,
+            pendingAuthId: authId,
             tenants: users.map(u => ({
               tenantId: u.tenant.id,
               tenantName: u.tenant.name,
