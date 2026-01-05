@@ -53,6 +53,10 @@ export default function UserManagement() {
     email: '',
     role: 'AGENT' as User['role'],
   });
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showRoleDialog, setShowRoleDialog] = useState(false);
+  const [newRole, setNewRole] = useState<User['role'] | ''>('');
+  const [updatingRole, setUpdatingRole] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -159,6 +163,53 @@ export default function UserManagement() {
         description: error.message,
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleChangeRole = (user: User) => {
+    setSelectedUser(user);
+    setNewRole(user.role);
+    setShowRoleDialog(true);
+  };
+
+  const handleUpdateRole = async () => {
+    if (!selectedUser || !newRole) return;
+
+    try {
+      setUpdatingRole(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/users/${selectedUser.id}/role`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role: newRole }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update role');
+      }
+
+      toast({
+        title: 'Role Updated',
+        description: `${selectedUser.name}'s role has been changed to ${newRole}`,
+      });
+
+      await fetchUsers();
+      setShowRoleDialog(false);
+      setSelectedUser(null);
+      setNewRole('');
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update user role',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingRole(false);
     }
   };
 
@@ -306,13 +357,22 @@ export default function UserManagement() {
                         {new Date(user.createdAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => toggleUserStatus(user.id, user.isActive)}
-                        >
-                          {user.isActive ? 'Deactivate' : 'Activate'}
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleChangeRole(user)}
+                          >
+                            Change Role
+                          </Button>
+                          <Button
+                            variant={user.isActive ? 'destructive' : 'default'}
+                            size="sm"
+                            onClick={() => toggleUserStatus(user.id, user.isActive)}
+                          >
+                            {user.isActive ? 'Deactivate' : 'Activate'}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -725,6 +785,95 @@ export default function UserManagement() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Role Dialog */}
+      <Dialog open={showRoleDialog} onOpenChange={setShowRoleDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change User Role</DialogTitle>
+            <DialogDescription>
+              Update the role for {selectedUser?.name}. This will change their permissions immediately.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Current Role</label>
+              <div>
+                <Badge variant="outline">
+                  {selectedUser?.role}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="newRole">New Role</Label>
+              <Select
+                value={newRole}
+                onValueChange={(value: User['role']) => setNewRole(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ADMIN">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4" />
+                      <div>
+                        <div className="font-medium">Admin</div>
+                        <div className="text-xs text-muted-foreground">Full system access</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="MANAGER">
+                    <div className="flex items-center gap-2">
+                      <UserCog className="w-4 h-4" />
+                      <div>
+                        <div className="font-medium">Manager</div>
+                        <div className="text-xs text-muted-foreground">Manage team operations</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="AGENT">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      <div>
+                        <div className="font-medium">Agent</div>
+                        <div className="text-xs text-muted-foreground">Manage own resources</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="VIEWER">
+                    <div className="flex items-center gap-2">
+                      <Eye className="w-4 h-4" />
+                      <div>
+                        <div className="font-medium">Viewer</div>
+                        <div className="text-xs text-muted-foreground">Read-only access</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRoleDialog(false)} disabled={updatingRole}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateRole} disabled={!newRole || newRole === selectedUser?.role || updatingRole}>
+              {updatingRole ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                'Update Role'
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
