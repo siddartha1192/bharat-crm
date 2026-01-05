@@ -142,6 +142,18 @@ router.put('/api/tenants/:id', async (req, res) => {
     const { id } = req.params;
     const { name, domain, plan, status, maxUsers, settings } = req.body;
 
+    // Determine maxUsers based on plan if plan is being updated and maxUsers not explicitly set
+    let finalMaxUsers = maxUsers;
+    if (plan && maxUsers === undefined) {
+      const planLimits = {
+        'FREE': 2,
+        'STARTER': 10,
+        'PROFESSIONAL': 50,
+        'ENTERPRISE': 999
+      };
+      finalMaxUsers = planLimits[plan] || 2;
+    }
+
     const tenant = await prisma.tenant.update({
       where: { id },
       data: {
@@ -149,7 +161,7 @@ router.put('/api/tenants/:id', async (req, res) => {
         ...(domain && { domain }),
         ...(plan && { plan }),
         ...(status && { status }),
-        ...(maxUsers !== undefined && { maxUsers }),
+        ...(finalMaxUsers !== undefined && { maxUsers: finalMaxUsers }),
         ...(settings && { settings }),
       }
     });

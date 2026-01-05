@@ -78,8 +78,7 @@ services:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@postgres:5432/bharat_crm
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       QDRANT_URL: http://qdrant:6333
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      FRONTEND_URL: ${FRONTEND_URL}
+      # ENCRYPTION_KEY and FRONTEND_URL loaded from env_file below
     env_file:
       - ./backend/.env
     volumes:

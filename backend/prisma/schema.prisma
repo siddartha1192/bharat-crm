@@ -49,7 +49,7 @@ model Tenant {
   plan              SubscriptionPlan @default(FREE)
   subscriptionStart DateTime?
   subscriptionEnd   DateTime?
-  maxUsers          Int              @default(5)
+  maxUsers          Int              @default(2) // FREE plan: 2 users, can be updated when upgrading
 
   // Settings
   settings Json? // Tenant-specific settings (branding, features, etc.)
