@@ -228,40 +228,56 @@ router.put('/openai', authenticate, async (req, res) => {
       });
     }
 
-    // Test OpenAI configuration before saving
-    try {
-      const testConfig = {
-        apiKey,
-        model: model || 'gpt-4o-mini',
-        temperature: temperature !== undefined ? temperature : 0.7,
-        enabled: enabled !== false
-      };
+    // Get current OpenAI settings
+    const currentSettings = user.tenant.settings || {};
+    const currentOpenAISettings = currentSettings.openai || {};
 
-      const isEnabled = openaiService.isEnabled(testConfig);
-      if (!isEnabled) {
-        throw new Error('Invalid OpenAI configuration');
-      }
+    // Use provided API key or keep existing one
+    const finalApiKey = apiKey || currentOpenAISettings.apiKey;
 
-      // Test the API key with a simple call
-      const testClient = openaiService.createClient(testConfig);
-      // Just creating the client validates the API key format
-    } catch (error) {
+    // Validate that we have an API key
+    if (!finalApiKey) {
       return res.status(400).json({
         success: false,
-        error: 'Failed to validate OpenAI configuration: ' + error.message
+        error: 'OpenAI API Key is required'
       });
     }
 
+    // Test OpenAI configuration before saving (only if new API key provided)
+    if (apiKey) {
+      try {
+        const testConfig = {
+          apiKey: finalApiKey,
+          model: model || 'gpt-4o-mini',
+          temperature: temperature !== undefined ? temperature : 0.7,
+          enabled: enabled !== false
+        };
+
+        const isEnabled = openaiService.isEnabled(testConfig);
+        if (!isEnabled) {
+          throw new Error('Invalid OpenAI configuration');
+        }
+
+        // Test the API key with a simple call
+        const testClient = openaiService.createClient(testConfig);
+        // Just creating the client validates the API key format
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          error: 'Failed to validate OpenAI configuration: ' + error.message
+        });
+      }
+    }
+
     // Update tenant settings
-    const currentSettings = user.tenant.settings || {};
     const updatedSettings = {
       ...currentSettings,
       openai: {
-        apiKey,
-        model: model || 'gpt-4o-mini',
-        temperature: temperature !== undefined ? temperature : 0.7,
-        enabled: enabled !== false,
-        companyName: companyName.trim()
+        apiKey: finalApiKey,
+        model: model || currentOpenAISettings.model || 'gpt-4o-mini',
+        temperature: temperature !== undefined ? temperature : (currentOpenAISettings.temperature !== undefined ? currentOpenAISettings.temperature : 0.7),
+        enabled: enabled !== undefined ? enabled : (currentOpenAISettings.enabled !== undefined ? currentOpenAISettings.enabled : true),
+        companyName: companyName ? companyName.trim() : (currentOpenAISettings.companyName || 'Bharat CRM')
       }
     };
 

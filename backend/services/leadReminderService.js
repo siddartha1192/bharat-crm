@@ -14,6 +14,7 @@ const prisma = new PrismaClient();
 const DEFAULT_CONFIG = {
   enabled: false,
   checkIntervalHours: 24, // Check for leads older than 24 hours
+  schedulerIntervalMinutes: 60, // How often scheduler runs (in minutes)
   recipientUserIds: [], // List of user IDs to receive reminders
   recipientEmails: [], // Manual list of email addresses to receive reminders
   recipientPhones: [], // Manual list of WhatsApp phone numbers to receive reminders
@@ -362,11 +363,11 @@ Please follow up with these leads as soon as possible.
       console.log(`   ⚠️ No custom reminder template found, using default format`);
 
       // Fallback: Simple default format
-      renderedSubject = `🔔 ${leadsCount} Uncontacted Lead${leadsCount > 1 ? 's' : ''} - Follow-up Required`;
+      renderedSubject = `[REMINDER] ${leadsCount} Uncontacted Lead${leadsCount > 1 ? 's' : ''} - Follow-up Required`;
 
       renderedHtmlBody = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2563eb;">🔔 Lead Follow-up Reminder</h2>
+          <h2 style="color: #2563eb;">Lead Follow-up Reminder</h2>
           <p>Hello <strong>${recipient.name}</strong>,</p>
           <p>You have <strong>${leadsCount}</strong> uncontacted lead${leadsCount > 1 ? 's' : ''} that need follow-up:</p>
           ${leadsTableHtml}

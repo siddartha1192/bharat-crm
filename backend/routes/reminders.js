@@ -55,12 +55,13 @@ router.put('/config', async (req, res) => {
       });
     }
 
-    const { enabled, checkIntervalHours, recipientUserIds, recipientEmails, recipientPhones, sendWhatsApp, sendEmail, includedStages } = req.body;
+    const { enabled, checkIntervalHours, schedulerIntervalMinutes, recipientUserIds, recipientEmails, recipientPhones, sendWhatsApp, sendEmail, includedStages } = req.body;
 
     // Build config object from provided fields
     const configUpdate = {};
     if (typeof enabled !== 'undefined') configUpdate.enabled = enabled;
     if (checkIntervalHours) configUpdate.checkIntervalHours = checkIntervalHours;
+    if (schedulerIntervalMinutes) configUpdate.schedulerIntervalMinutes = schedulerIntervalMinutes;
     if (recipientUserIds) configUpdate.recipientUserIds = recipientUserIds;
     if (recipientEmails) configUpdate.recipientEmails = recipientEmails;
     if (recipientPhones) configUpdate.recipientPhones = recipientPhones;
@@ -69,6 +70,12 @@ router.put('/config', async (req, res) => {
     if (includedStages) configUpdate.includedStages = includedStages;
 
     const updatedConfig = await leadReminderService.updateConfig(tenantId, configUpdate);
+
+    // Restart scheduler if interval changed
+    if (schedulerIntervalMinutes) {
+      console.log(`⚙️  Scheduler interval changed to ${schedulerIntervalMinutes} minutes, restarting scheduler...`);
+      await leadReminderScheduler.restart();
+    }
 
     res.json({
       success: true,
@@ -215,17 +222,22 @@ router.post('/check-now', async (req, res) => {
 router.get('/status', async (req, res) => {
   try {
     const isRunning = leadReminderScheduler.isRunning();
+    const currentInterval = leadReminderScheduler.getCurrentInterval();
     const config = await leadReminderService.getConfig(req.user.tenantId);
 
     res.json({
       success: true,
       scheduler: {
         running: isRunning,
-        checkInterval: 'Every hour'
+        intervalMinutes: currentInterval || config.schedulerIntervalMinutes || 60,
+        checkInterval: currentInterval
+          ? `Every ${currentInterval} minute${currentInterval > 1 ? 's' : ''}`
+          : 'Every hour'
       },
       config: {
         enabled: config.enabled,
         checkIntervalHours: config.checkIntervalHours,
+        schedulerIntervalMinutes: config.schedulerIntervalMinutes,
         recipientsConfigured: config.recipientUserIds?.length || 0
       }
     });
