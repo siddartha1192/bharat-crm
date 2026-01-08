@@ -6,6 +6,7 @@
 const { PrismaClient } = require('@prisma/client');
 const whatsappService = require('./whatsapp');
 const emailService = require('./email');
+const EmailTemplateService = require('./emailTemplate');
 
 const prisma = new PrismaClient();
 
@@ -289,6 +290,9 @@ class LeadReminderService {
 
     const moreLeads = leadsCount > 5 ? `\n\n...and ${leadsCount - 5} more leads` : '';
 
+    // Get tenant-specific company name from settings
+    const companyName = tenant.settings?.openai?.companyName || tenant.name || 'Bharat CRM';
+
     // Prepare message
     const message = `🔔 Lead Follow-up Reminder
 
@@ -300,7 +304,7 @@ ${leadsList}${moreLeads}
 
 Please follow up with these leads as soon as possible.
 
-- ${tenant.name} CRM`;
+- ${companyName}`;
 
     const htmlMessage = `<div style="font-family: Arial, sans-serif; max-width: 600px;">
   <h2 style="color: #2563eb;">🔔 Lead Follow-up Reminder</h2>
@@ -317,7 +321,7 @@ Please follow up with these leads as soon as possible.
   ${leadsCount > 5 ? `<p style="color: #6b7280;">...and ${leadsCount - 5} more leads</p>` : ''}
   <p style="margin-top: 20px;">Please follow up with these leads as soon as possible.</p>
   <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-  <p style="color: #6b7280; font-size: 12px;">${tenant.name} CRM</p>
+  <p style="color: #6b7280; font-size: 12px;">${companyName}</p>
 </div>`;
 
     let emailSent = false;

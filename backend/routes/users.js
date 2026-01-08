@@ -4,6 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const emailService = require('../services/email');
+const EmailTemplateService = require('../services/emailTemplate');
 
 const prisma = new PrismaClient();
 
@@ -218,7 +219,7 @@ router.post('/', hasPermission('ADMIN'), async (req, res) => {
 
     // Send welcome email with instructions
     try {
-      await sendWelcomeEmail(email, name, role, adminId);
+      await sendWelcomeEmail(email, name, role, adminId, req.tenant.id);
       console.log(`✅ Welcome email sent to ${email}`);
     } catch (emailError) {
       console.error('Failed to send welcome email:', emailError);
@@ -242,11 +243,51 @@ router.post('/', hasPermission('ADMIN'), async (req, res) => {
 });
 
 // Helper function to send welcome email
-async function sendWelcomeEmail(email, name, role, adminId) {
+async function sendWelcomeEmail(email, name, role, adminId, tenantId) {
   const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:8080'}/login`;
   const forgotPasswordUrl = `${process.env.FRONTEND_URL || 'http://localhost:8080'}/forgot-password`;
 
-  const html = `
+  try {
+    // Try to get and render template from database
+    const rendered = await EmailTemplateService.renderTemplateByType(
+      'new_user',
+      tenantId,
+      {
+        userName: name,
+        userEmail: email,
+        loginUrl,
+        role,
+      }
+    );
+
+    // Track template usage
+    if (rendered.templateId) {
+      await EmailTemplateService.trackUsage(rendered.templateId, false);
+    }
+
+    return await emailService.sendEmail({
+      to: email,
+      subject: rendered.subject,
+      html: rendered.htmlBody,
+      userId: adminId,
+      entityType: 'UserOnboarding',
+    });
+  } catch (error) {
+    console.error('Error using email template for new user, falling back to default:', error.message);
+
+    // Fallback: Get tenant settings for company name
+    let companyName = 'Bharat CRM';
+    try {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { settings: true }
+      });
+      companyName = tenant?.settings?.openai?.companyName || 'Bharat CRM';
+    } catch (err) {
+      console.error('Failed to get tenant settings:', err.message);
+    }
+
+    const html = `
     <!DOCTYPE html>
     <html>
       <head>
@@ -263,11 +304,11 @@ async function sendWelcomeEmail(email, name, role, adminId) {
       <body>
         <div class="container">
           <div class="header">
-            <h1>Welcome to Bharat CRM!</h1>
+            <h1>Welcome to ${companyName}!</h1>
           </div>
           <div class="content">
             <p>Hi ${name},</p>
-            <p>Your account has been created on Bharat CRM with the role of <strong>${role}</strong>.</p>
+            <p>Your account has been created on ${companyName} with the role of <strong>${role}</strong>.</p>
 
             <div class="info-box">
               <strong>📧 Your Login Email:</strong> ${email}
@@ -300,7 +341,7 @@ async function sendWelcomeEmail(email, name, role, adminId) {
             <p>If you have any questions, please contact your administrator.</p>
 
             <div class="footer">
-              <p>Bharat CRM - Built for Indian Businesses</p>
+              <p>${companyName} - Powered by Bharat CRM</p>
             </div>
           </div>
         </div>
@@ -308,12 +349,12 @@ async function sendWelcomeEmail(email, name, role, adminId) {
     </html>
   `;
 
-  const text = `
-    Welcome to Bharat CRM!
+    const text = `
+    Welcome to ${companyName}!
 
     Hi ${name},
 
-    Your account has been created on Bharat CRM with the role of ${role}.
+    Your account has been created on ${companyName} with the role of ${role}.
 
     Your Login Email: ${email}
 
@@ -328,17 +369,18 @@ async function sendWelcomeEmail(email, name, role, adminId) {
 
     If you have any questions, please contact your administrator.
 
-    Bharat CRM - Built for Indian Businesses
+    ${companyName} - Powered by Bharat CRM
   `;
 
-  return await emailService.sendEmail({
-    to: email,
-    subject: 'Welcome to Bharat CRM - Set Your Password',
-    text,
-    html,
-    userId: adminId,
-    entityType: 'UserOnboarding',
-  });
+    return await emailService.sendEmail({
+      to: email,
+      subject: `Welcome to ${companyName} - Set Your Password`,
+      text,
+      html,
+      userId: adminId,
+      entityType: 'UserOnboarding',
+    });
+  }
 }
 
 function getRoleDescriptionHTML(role) {
