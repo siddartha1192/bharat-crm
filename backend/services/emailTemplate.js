@@ -42,6 +42,8 @@ class EmailTemplateService {
    */
   static async getTemplateByType(type, tenantId) {
     try {
+      console.log(`\n📧 Getting email template for type: ${type}, tenant: ${tenantId}`);
+
       // First, try to get custom active template
       let template = await prisma.emailTemplate.findFirst({
         where: {
@@ -55,8 +57,13 @@ class EmailTemplateService {
         },
       });
 
-      // If no custom template, get default template
-      if (!template) {
+      if (template) {
+        console.log(`   ✅ Found CUSTOM template: "${template.name}" (ID: ${template.id})`);
+        console.log(`      isActive: ${template.isActive}, isDefault: ${template.isDefault}`);
+      } else {
+        console.log(`   ⚠️ No custom template found, looking for default...`);
+
+        // If no custom template, get default template
         template = await prisma.emailTemplate.findFirst({
           where: {
             type,
@@ -65,6 +72,13 @@ class EmailTemplateService {
             isDefault: true,
           },
         });
+
+        if (template) {
+          console.log(`   ✅ Found DEFAULT template: "${template.name}" (ID: ${template.id})`);
+          console.log(`      isActive: ${template.isActive}, isDefault: ${template.isDefault}`);
+        } else {
+          console.log(`   ❌ No template found at all for type: ${type}`);
+        }
       }
 
       return template;
