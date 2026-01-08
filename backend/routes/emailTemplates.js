@@ -386,10 +386,9 @@ router.post('/:id/test', authenticate, async (req, res) => {
     await emailService.sendEmail({
       to: [recipientEmail],
       subject: `[TEST] ${renderedSubject}`,
-      body: renderedHtmlBody,
-      htmlBody: renderedHtmlBody,
+      text: renderedHtmlBody,
+      html: renderedHtmlBody,
       userId,
-      tenantId,
       entityType: 'EmailTemplate',
       entityId: id,
     });
