@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import axios from 'axios';
+import { getDefaultTemplateByType } from '@/constants/emailTemplates';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -313,6 +314,28 @@ export default function EmailTemplatesSettings() {
       });
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleTypeChange = (value: string) => {
+    // Update the type
+    setFormData({ ...formData, type: value });
+
+    // Only pre-populate if creating a new template (not editing)
+    if (!selectedTemplate) {
+      const defaultTemplate = getDefaultTemplateByType(value);
+      if (defaultTemplate) {
+        setFormData({
+          ...formData,
+          type: value,
+          subject: defaultTemplate.subject,
+          htmlBody: defaultTemplate.htmlBody,
+        });
+        toast({
+          title: 'Default Template Loaded',
+          description: 'The default template has been loaded as a reference. You can now modify it as needed.',
+        });
+      }
     }
   };
 
@@ -631,7 +654,7 @@ export default function EmailTemplatesSettings() {
                 <Label htmlFor="type">Template Type</Label>
                 <Select
                   value={formData.type}
-                  onValueChange={(value) => setFormData({ ...formData, type: value })}
+                  onValueChange={handleTypeChange}
                   disabled={!!selectedTemplate}
                 >
                   <SelectTrigger>
