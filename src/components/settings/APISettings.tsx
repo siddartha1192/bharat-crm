@@ -899,7 +899,7 @@ export default function APISettings() {
                 <Button
                   onClick={testOpenAIConnection}
                   variant="outline"
-                  disabled={testingOpenAI || !openaiApiKey}
+                  disabled={testingOpenAI || (!openaiApiKey && !openaiSettings.hasApiKey)}
                 >
                   {testingOpenAI ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -910,7 +910,7 @@ export default function APISettings() {
                 </Button>
                 <Button
                   onClick={saveOpenAISettings}
-                  disabled={savingOpenAI || !openaiApiKey}
+                  disabled={savingOpenAI || (!openaiApiKey && !openaiSettings.hasApiKey)}
                 >
                   {savingOpenAI ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

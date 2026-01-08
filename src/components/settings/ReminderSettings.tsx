@@ -14,6 +14,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 interface ReminderConfig {
   enabled: boolean;
   checkIntervalHours: number;
+  schedulerIntervalMinutes: number;
   recipientUserIds: string[];
   recipientEmails: string[];
   recipientPhones: string[];
@@ -38,10 +39,12 @@ interface ReminderStatus {
   scheduler: {
     running: boolean;
     checkInterval: string;
+    intervalMinutes: number;
   };
   config: {
     enabled: boolean;
     checkIntervalHours: number;
+    schedulerIntervalMinutes: number;
     recipientsConfigured: number;
   };
 }
@@ -88,9 +91,10 @@ export default function ReminderSettings() {
       const stagesData = await stagesRes.json();
       const statusData = await statusRes.json();
 
-      // Ensure arrays exist
+      // Ensure arrays exist and set defaults
       const loadedConfig = {
         ...configData.config,
+        schedulerIntervalMinutes: configData.config.schedulerIntervalMinutes || 60,
         recipientEmails: configData.config.recipientEmails || [],
         recipientPhones: configData.config.recipientPhones || [],
         includedStages: configData.config.includedStages || []
@@ -355,7 +359,7 @@ export default function ReminderSettings() {
                 Enable Reminders
               </Label>
               <p className="text-sm text-muted-foreground">
-                Automatically check for uncontacted leads every hour
+                Automatically check for uncontacted leads at configured intervals
               </p>
             </div>
             <Switch
@@ -388,6 +392,36 @@ export default function ReminderSettings() {
                 <SelectItem value="48">48 hours</SelectItem>
                 <SelectItem value="72">72 hours</SelectItem>
                 <SelectItem value="168">1 week</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Scheduler Interval */}
+          <div className="space-y-2">
+            <Label htmlFor="schedulerInterval" className="font-semibold">
+              Scheduler Check Frequency
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              How often the system should check for uncontacted leads and send reminders
+            </p>
+            <Select
+              value={config.schedulerIntervalMinutes.toString()}
+              onValueChange={(value) => setConfig({ ...config, schedulerIntervalMinutes: parseInt(value) })}
+            >
+              <SelectTrigger id="schedulerInterval" className="border-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Every 5 minutes</SelectItem>
+                <SelectItem value="10">Every 10 minutes</SelectItem>
+                <SelectItem value="15">Every 15 minutes</SelectItem>
+                <SelectItem value="30">Every 30 minutes</SelectItem>
+                <SelectItem value="60">Every hour (recommended)</SelectItem>
+                <SelectItem value="120">Every 2 hours</SelectItem>
+                <SelectItem value="180">Every 3 hours</SelectItem>
+                <SelectItem value="360">Every 6 hours</SelectItem>
+                <SelectItem value="720">Every 12 hours</SelectItem>
+                <SelectItem value="1440">Every 24 hours</SelectItem>
               </SelectContent>
             </Select>
           </div>
