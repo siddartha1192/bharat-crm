@@ -114,7 +114,7 @@ export default function EmailTemplatesSettings() {
   const [previewSubject, setPreviewSubject] = useState('');
   const [testEmail, setTestEmail] = useState('');
   const [saving, setSaving] = useState(false);
-  const [testing, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [filterType, setFilterType] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -290,7 +290,7 @@ export default function EmailTemplatesSettings() {
 
   const handleSendTest = async () => {
     try {
-      setSaving(true);
+      setTesting(true);
       const token = localStorage.getItem('token');
       await axios.post(
         `${API_URL}/email-templates/${selectedTemplate?.id}/test`,
@@ -312,7 +312,7 @@ export default function EmailTemplatesSettings() {
         variant: 'destructive',
       });
     } finally {
-      setSaving(false);
+      setTesting(false);
     }
   };
 
@@ -803,8 +803,8 @@ export default function EmailTemplatesSettings() {
             <Button variant="outline" onClick={() => setIsTestEmailOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSendTest} disabled={saving}>
-              {saving ? (
+            <Button onClick={handleSendTest} disabled={testing}>
+              {testing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Sending...
