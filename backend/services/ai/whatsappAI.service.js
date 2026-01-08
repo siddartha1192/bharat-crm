@@ -69,6 +69,8 @@ class WhatsAppAIService {
    */
   getSystemPrompt(tenantConfig) {
     const companyName = tenantConfig?.companyName || aiConfig.company.name;
+    console.log(`🏢 WhatsApp AI - Company Name: "${companyName}" (from ${tenantConfig?.companyName ? 'tenant config' : 'default config'})`);
+    console.log(`   Full tenantConfig:`, JSON.stringify(tenantConfig, null, 2));
     return `You are an AI assistant for ${companyName} on WhatsApp.
 
 **CRITICAL: YOU MUST ALWAYS RESPOND IN VALID JSON FORMAT. NEVER RESPOND IN PLAIN TEXT.**

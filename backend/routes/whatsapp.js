@@ -1586,6 +1586,10 @@ async function processIncomingMessage(message, value, tenant) {
       const configs = getTenantAPIConfig(tenant);
       whatsappConfig = configs.whatsappConfig;
       openaiConfig = configs.openaiConfig;
+      console.log(`\n🔧 WhatsApp AI - Loaded OpenAI Config for tenant ${aiEnabledConversation.tenantId}:`);
+      console.log(`   Company Name: "${openaiConfig?.companyName || 'NOT SET'}"`);
+      console.log(`   Model: ${openaiConfig?.model}`);
+      console.log(`   Has API Key: ${!!openaiConfig?.apiKey}`);
     }
 
     console.log(`\n🔍 AI CHECK:`);
