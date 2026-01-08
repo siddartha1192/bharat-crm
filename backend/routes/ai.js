@@ -33,6 +33,10 @@ router.post('/chat', async (req, res) => {
       select: { settings: true }
     });
     const openaiConfig = tenant?.settings?.openai || null;
+    console.log(`\n🔧 AI Chat - Loaded OpenAI Config for tenant ${req.user.tenantId}:`);
+    console.log(`   Company Name: "${openaiConfig?.companyName || 'NOT SET'}"`);
+    console.log(`   Model: ${openaiConfig?.model}`);
+    console.log(`   Has API Key: ${!!openaiConfig?.apiKey}`);
 
     // Check if OpenAI is configured for this tenant
     if (!openaiConfig || !openaiConfig.apiKey) {

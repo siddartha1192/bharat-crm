@@ -84,6 +84,8 @@ class PortalAIService {
       : '';
 
     const companyName = tenantConfig?.companyName || aiConfig.company.name;
+    console.log(`🏢 Portal AI - Company Name: "${companyName}" (from ${tenantConfig?.companyName ? 'tenant config' : 'default config'})`);
+    console.log(`   Full tenantConfig:`, JSON.stringify(tenantConfig, null, 2));
     return `You are an enterprise-grade AI assistant for ${companyName} CRM Portal.
 
 **CURRENT DATE AND TIME:**
