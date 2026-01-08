@@ -270,7 +270,8 @@ export default function APISettings() {
   };
 
   const saveOpenAISettings = async () => {
-    if (!openaiApiKey) {
+    // API key is required only if not already configured
+    if (!openaiApiKey && !openaiSettings.hasApiKey) {
       toast({
         title: 'Validation Error',
         description: 'OpenAI API Key is required',
@@ -290,19 +291,27 @@ export default function APISettings() {
 
     try {
       setSavingOpenAI(true);
+
+      // Prepare body - only include apiKey if it's provided
+      const body: any = {
+        model: openaiModel,
+        temperature: openaiTemperature,
+        enabled: openaiEnabled,
+        companyName: openaiCompanyName.trim(),
+      };
+
+      // Only include API key if user entered one
+      if (openaiApiKey) {
+        body.apiKey = openaiApiKey;
+      }
+
       const response = await fetch(`${API_URL}/settings/openai`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          apiKey: openaiApiKey,
-          model: openaiModel,
-          temperature: openaiTemperature,
-          enabled: openaiEnabled,
-          companyName: openaiCompanyName.trim(),
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {

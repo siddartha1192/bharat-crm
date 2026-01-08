@@ -254,7 +254,7 @@ const defaultTemplates = [
     name: 'Lead Reminder Email',
     description: 'Email sent for uncontacted leads follow-up reminders',
     type: 'reminder',
-    subject: '🔔 {{leadsCount}} Uncontacted Leads - Follow-up Required',
+    subject: '[REMINDER] {{leadsCount}} Uncontacted Leads - Follow-up Required',
     htmlBody: `<!DOCTYPE html>
 <html>
 <head>
@@ -272,7 +272,7 @@ const defaultTemplates = [
 <body>
   <div class="container">
     <div class="header">
-      <h1>⏰ Lead Follow-up Reminder</h1>
+      <h1>Lead Follow-up Reminder</h1>
     </div>
     <div class="content">
       <p>Hi <strong>{{recipientName}}</strong>,</p>
