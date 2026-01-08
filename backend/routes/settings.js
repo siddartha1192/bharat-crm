@@ -54,7 +54,8 @@ router.get('/api-config', authenticate, async (req, res) => {
           hasApiKey: !!settings.openai?.apiKey,
           model: settings.openai?.model || 'gpt-4o-mini',
           temperature: settings.openai?.temperature !== undefined ? settings.openai.temperature : 0.7,
-          enabled: settings.openai?.enabled !== false
+          enabled: settings.openai?.enabled !== false,
+          companyName: settings.openai?.companyName || 'Bharat CRM'
         },
         cloudinary: {
           configured: !!(settings.cloudinary?.cloudName && settings.cloudinary?.apiKey && settings.cloudinary?.apiSecret),
@@ -181,13 +182,21 @@ router.put('/whatsapp', authenticate, async (req, res) => {
 router.put('/openai', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { apiKey, model, temperature, enabled } = req.body;
+    const { apiKey, model, temperature, enabled, companyName } = req.body;
 
     // Validate required fields
     if (!apiKey) {
       return res.status(400).json({
         success: false,
         error: 'OpenAI API key is required'
+      });
+    }
+
+    // Validate company name
+    if (!companyName || companyName.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        error: 'Company name is required'
       });
     }
 
@@ -251,7 +260,8 @@ router.put('/openai', authenticate, async (req, res) => {
         apiKey,
         model: model || 'gpt-4o-mini',
         temperature: temperature !== undefined ? temperature : 0.7,
-        enabled: enabled !== false
+        enabled: enabled !== false,
+        companyName: companyName.trim()
       }
     };
 
@@ -267,7 +277,8 @@ router.put('/openai', authenticate, async (req, res) => {
         configured: true,
         model: model || 'gpt-4o-mini',
         temperature: temperature !== undefined ? temperature : 0.7,
-        enabled: enabled !== false
+        enabled: enabled !== false,
+        companyName: companyName.trim()
       }
     });
   } catch (error) {

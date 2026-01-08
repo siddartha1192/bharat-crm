@@ -3,6 +3,7 @@ const { PrismaClient } = require('@prisma/client');
 const { google } = require('googleapis');
 const gmailIntegrationService = require('./gmailIntegration');
 const { decrypt } = require('../utils/encryption');
+const EmailTemplateService = require('./emailTemplate');
 
 const prisma = new PrismaClient();
 
@@ -307,138 +308,97 @@ class EmailService {
  
 
   /**
-
    * Send password reset email
-
+   * Now uses centralized template system
    */
-
   async sendPasswordResetEmail(email, resetToken, userId) {
     console.log('📧 Sending password reset email:', { email, userId, hasToken: !!resetToken });
 
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:8080'}/reset-password?token=${resetToken}`;
 
+    try {
+      // Get user to find tenant
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, tenantId: true },
+      });
 
+      if (!user) {
+        throw new Error('User not found');
+      }
 
-    const html = `
+      // Try to get template from database
+      const rendered = await EmailTemplateService.renderTemplateByType(
+        'password_reset',
+        user.tenantId,
+        {
+          userName: user.name,
+          resetLink: resetUrl,
+          expiryTime: '1 hour',
+        }
+      );
 
-      <!DOCTYPE html>
+      // Track template usage
+      if (rendered.templateId) {
+        await EmailTemplateService.trackUsage(rendered.templateId, false);
+      }
 
-      <html>
+      return await this.sendEmail({
+        to: email,
+        subject: rendered.subject,
+        html: rendered.htmlBody,
+        userId,
+        entityType: 'PasswordReset',
+      });
+    } catch (error) {
+      console.error('Error using email template, falling back to default:', error.message);
 
-        <head>
-
-          <style>
-
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-
-            .header { background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
-
-            .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
-
-            .button { display: inline-block; background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
-
-            .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }
-
-          </style>
-
-        </head>
-
-        <body>
-
-          <div class="container">
-
-            <div class="header">
-
-              <h1>Reset Your Password</h1>
-
-            </div>
-
-            <div class="content">
-
-              <p>Hi there,</p>
-
-              <p>You recently requested to reset your password for your Bharat CRM account. Click the button below to reset it:</p>
-
-              <center>
-
-                <a href="${resetUrl}" class="button">Reset Password</a>
-
-              </center>
-
-              <p>Or copy and paste this URL into your browser:</p>
-
-              <p style="word-break: break-all; color: #2563eb;">${resetUrl}</p>
-
-              <p><strong>This link will expire in 1 hour.</strong></p>
-
-              <p>If you didn't request a password reset, you can safely ignore this email.</p>
-
-              <div class="footer">
-
-                <p>Bharat CRM - Built for Indian Businesses</p>
-
+      // Fallback to inline template if template system fails
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+              .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+              .button { display: inline-block; background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+              .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Reset Your Password</h1>
               </div>
-
+              <div class="content">
+                <p>Hi there,</p>
+                <p>You recently requested to reset your password for your Bharat CRM account. Click the button below to reset it:</p>
+                <center>
+                  <a href="${resetUrl}" class="button">Reset Password</a>
+                </center>
+                <p>Or copy and paste this URL into your browser:</p>
+                <p style="word-break: break-all; color: #2563eb;">${resetUrl}</p>
+                <p><strong>This link will expire in 1 hour.</strong></p>
+                <p>If you didn't request a password reset, you can safely ignore this email.</p>
+                <div class="footer">
+                  <p>Bharat CRM - Built for Indian Businesses</p>
+                </div>
+              </div>
             </div>
+          </body>
+        </html>
+      `;
 
-          </div>
-
-        </body>
-
-      </html>
-
-    `;
-
- 
-
-    const text = `
-
-      Reset Your Password
-
- 
-
-      You recently requested to reset your password for your Bharat CRM account.
-
- 
-
-      Click the link below to reset it:
-
-      ${resetUrl}
-
- 
-
-      This link will expire in 1 hour.
-
- 
-
-      If you didn't request a password reset, you can safely ignore this email.
-
- 
-
-      Bharat CRM - Built for Indian Businesses
-
-    `;
-
- 
-
-    return await this.sendEmail({
-
-      to: email,
-
-      subject: 'Reset Your Bharat CRM Password',
-
-      text,
-
-      html,
-
-      userId,
-
-      entityType: 'PasswordReset',
-
-    });
-
+      return await this.sendEmail({
+        to: email,
+        subject: 'Reset Your Bharat CRM Password',
+        html,
+        userId,
+        entityType: 'PasswordReset',
+      });
+    }
   }
 
  
