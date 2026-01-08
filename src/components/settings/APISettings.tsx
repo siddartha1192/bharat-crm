@@ -44,6 +44,7 @@ interface OpenAISettings {
   model: string;
   temperature: number;
   enabled: boolean;
+  companyName: string;
 }
 
 interface CloudinarySettings {
@@ -82,6 +83,7 @@ export default function APISettings() {
     model: 'gpt-4o-mini',
     temperature: 0.7,
     enabled: true,
+    companyName: 'Bharat CRM',
   });
 
   const [cloudinarySettings, setCloudinarySettings] = useState<CloudinarySettings>({
@@ -110,6 +112,7 @@ export default function APISettings() {
   const [openaiModel, setOpenaiModel] = useState('gpt-4o-mini');
   const [openaiTemperature, setOpenaiTemperature] = useState(0.7);
   const [openaiEnabled, setOpenaiEnabled] = useState(true);
+  const [openaiCompanyName, setOpenaiCompanyName] = useState('Bharat CRM');
   const [cloudinaryCloudName, setCloudinaryCloudName] = useState('');
   const [cloudinaryApiKey, setCloudinaryApiKey] = useState('');
   const [cloudinaryApiSecret, setCloudinaryApiSecret] = useState('');
@@ -164,6 +167,7 @@ export default function APISettings() {
       setOpenaiModel(data.settings.openai.model);
       setOpenaiTemperature(data.settings.openai.temperature);
       setOpenaiEnabled(data.settings.openai.enabled);
+      setOpenaiCompanyName(data.settings.openai.companyName || 'Bharat CRM');
       setCloudinaryCloudName(data.settings.cloudinary.cloudName || '');
 
       // Fetch mail settings separately
@@ -275,6 +279,15 @@ export default function APISettings() {
       return;
     }
 
+    if (!openaiCompanyName || openaiCompanyName.trim() === '') {
+      toast({
+        title: 'Validation Error',
+        description: 'Company Name is required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       setSavingOpenAI(true);
       const response = await fetch(`${API_URL}/settings/openai`, {
@@ -288,6 +301,7 @@ export default function APISettings() {
           model: openaiModel,
           temperature: openaiTemperature,
           enabled: openaiEnabled,
+          companyName: openaiCompanyName.trim(),
         }),
       });
 
@@ -805,6 +819,20 @@ export default function APISettings() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Your OpenAI API key (starts with sk-)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="company-name">Company Name *</Label>
+                <Input
+                  id="company-name"
+                  type="text"
+                  placeholder="e.g., Acme Corporation"
+                  value={openaiCompanyName}
+                  onChange={(e) => setOpenaiCompanyName(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your company name - used in AI responses when referring to your business
                 </p>
               </div>
 

@@ -63,8 +63,12 @@ class PortalAIService {
 
   /**
    * Get system prompt for Portal AI
+   * @param {string} userId - User ID
+   * @param {Object} dbStats - Database statistics
+   * @param {Array} pipelineStages - Pipeline stages
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration
    */
-  getSystemPrompt(userId, dbStats = {}, pipelineStages = []) {
+  getSystemPrompt(userId, dbStats = {}, pipelineStages = [], tenantConfig = null) {
     const now = new Date();
     const currentDate = now.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -79,7 +83,8 @@ class PortalAIService {
       ? `\n**AVAILABLE PIPELINE STAGES:**\nThe user has the following pipeline stages configured:\n${pipelineStages.map(s => `- ${s.name} (slug: "${s.slug}")${s.isDefault ? ' [DEFAULT]' : ' [CUSTOM]'}`).join('\n')}\n\nWhen querying deals by stage, use the exact slug values listed above.`
       : '';
 
-    return `You are an enterprise-grade AI assistant for ${aiConfig.company.name} CRM Portal.
+    const companyName = tenantConfig?.companyName || aiConfig.company.name;
+    return `You are an enterprise-grade AI assistant for ${companyName} CRM Portal.
 
 **CURRENT DATE AND TIME:**
 Today is ${currentDate}
@@ -451,7 +456,7 @@ Summary:`;
 
       // Build messages array
       const messages = [
-        new SystemMessage(this.getSystemPrompt(userId, dbStats, pipelineStages) + docContext),
+        new SystemMessage(this.getSystemPrompt(userId, dbStats, pipelineStages, tenantConfig) + docContext),
       ];
 
       // Add conversation history from database (includes summary if available)

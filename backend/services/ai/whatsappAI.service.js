@@ -65,9 +65,11 @@ class WhatsAppAIService {
 
   /**
    * Get system prompt for WhatsApp AI
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration
    */
-  getSystemPrompt() {
-    return `You are an AI assistant for ${aiConfig.company.name} on WhatsApp.
+  getSystemPrompt(tenantConfig) {
+    const companyName = tenantConfig?.companyName || aiConfig.company.name;
+    return `You are an AI assistant for ${companyName} on WhatsApp.
 
 **CRITICAL: YOU MUST ALWAYS RESPOND IN VALID JSON FORMAT. NEVER RESPOND IN PLAIN TEXT.**
 
@@ -336,7 +338,7 @@ For appointments, ALWAYS require complete dates:
 
       // Build message history
       const messages = [
-        new SystemMessage(this.getSystemPrompt() + productContext),
+        new SystemMessage(this.getSystemPrompt(tenantConfig) + productContext),
       ];
 
       // Add conversation history (reversed to chronological order)

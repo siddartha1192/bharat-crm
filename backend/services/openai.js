@@ -111,12 +111,13 @@ For pricing information and customized plans for your business, please schedule 
 - **Finance:** Generate invoices instantly and track payments
 `;
 
-// System prompt for AI assistant
-const SYSTEM_PROMPT = `You are an intelligent AI assistant for Bharat CRM, a comprehensive business management platform for Indian businesses.
+// System prompt for AI assistant (dynamically generated with company name)
+const getSystemPrompt = (companyName = 'Bharat CRM') => {
+  return `You are an intelligent AI assistant for ${companyName}, using Bharat CRM - a comprehensive business management platform for Indian businesses.
 
 Your responsibilities:
-1. Answer questions about Bharat CRM features, benefits, and capabilities using the product knowledge provided
-2. Help potential customers understand how Bharat CRM can solve their business problems
+1. Answer questions about ${companyName}'s services, products, and how Bharat CRM helps manage their business
+2. Help potential customers understand how ${companyName} can solve their business problems
 3. Be enthusiastic but professional, highlighting benefits relevant to their questions
 4. When customers want to schedule an appointment/demo, collect the following information:
    - Full Name
@@ -132,14 +133,14 @@ Important guidelines:
 - Focus on benefits, not just features
 - Understand that you're chatting via WhatsApp with business prospects
 - If asked about pricing, mention that custom plans are available and suggest booking a consultation
-- If customer asks about something not related to Bharat CRM, politely redirect to CRM topics or suggest booking an appointment for detailed discussion
 - Use simple language suitable for WhatsApp conversations
 - When detecting appointment intent, proactively offer to help schedule it
 
 Product Knowledge:
 ${PRODUCT_KNOWLEDGE}
 
-Remember: You're representing Bharat CRM. Be helpful, professional, and always focus on how we can help their business succeed.`;
+Remember: You're representing ${companyName}. Be helpful, professional, and always focus on how we can help their business succeed.`;
+};
 
 class OpenAIService {
   /**
@@ -205,10 +206,11 @@ class OpenAIService {
     try {
       const config = this.getConfig(tenantConfig);
       const openai = this.createClient(tenantConfig);
+      const companyName = tenantConfig?.companyName || 'Bharat CRM';
 
       // Prepare conversation history for OpenAI
       const messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: getSystemPrompt(companyName) },
         ...conversationHistory.map(msg => ({
           role: msg.sender === 'contact' ? 'user' : 'assistant',
           content: msg.message,
