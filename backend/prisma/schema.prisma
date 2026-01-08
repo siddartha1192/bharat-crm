@@ -160,6 +160,9 @@ model User {
   campaigns             Campaign[]
   forms                 Form[]
   landingPages          LandingPage[]
+  createdEmailTemplates EmailTemplate[]        @relation("CreatedEmailTemplates")
+  editedEmailTemplates  EmailTemplate[]        @relation("EditedEmailTemplates")
+  emailTemplateVersions EmailTemplateVersion[]
 
   @@unique([email, tenantId])
   @@index([email])
@@ -1211,4 +1214,93 @@ model LandingPage {
   @@index([slug])
   @@index([isPublished])
   @@index([tenantId])
+}
+
+// ==========================================
+// EMAIL TEMPLATE MANAGEMENT
+// ==========================================
+
+model EmailTemplate {
+  id          String  @id @default(uuid())
+  name        String // e.g., "Password Reset Email", "New User Welcome"
+  description String? @db.Text // Description of when this template is used
+
+  // Template type/category for organization
+  type String // 'password_reset' | 'reminder' | 'invoice' | 'new_user' | 'form_embed' | 'lead_created' | 'stage_change' | 'custom'
+
+  // Email content
+  subject  String @db.Text
+  htmlBody String @db.Text
+
+  // Variable definitions and documentation
+  // Example: [{"name": "userName", "description": "User's full name", "example": "John Doe", "required": true}]
+  variables Json? // Array of available variables for this template
+
+  // Template status
+  isActive  Boolean @default(true) // Can be used in production
+  isDefault Boolean @default(false) // System default template (cannot be deleted)
+
+  // Version tracking
+  version Int @default(1)
+
+  // Usage statistics
+  usageCount     Int       @default(0) // How many times this template was used
+  lastUsedAt     DateTime? // Last time this template was sent
+  lastTestedAt   DateTime? // Last time a test email was sent
+  testEmailCount Int       @default(0) // Number of test emails sent
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Multi-tenant relationship
+  tenantId String
+
+  // Created by / Last edited by
+  createdBy     String
+  createdByUser User   @relation("CreatedEmailTemplates", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  lastEditedBy     String?
+  lastEditedByUser User?   @relation("EditedEmailTemplates", fields: [lastEditedBy], references: [id], onDelete: SetNull)
+
+  // Version history
+  versions EmailTemplateVersion[]
+
+  @@unique([tenantId, type, isDefault]) // Only one default template per type per tenant
+  @@index([tenantId])
+  @@index([type])
+  @@index([isActive])
+  @@index([isDefault])
+  @@index([createdBy])
+}
+
+model EmailTemplateVersion {
+  id String @id @default(uuid())
+
+  // Link to parent template
+  templateId String
+  template   EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  // Version information
+  version     Int
+  changeNotes String? @db.Text // What changed in this version
+
+  // Snapshot of template at this version
+  subject  String @db.Text
+  htmlBody String @db.Text
+
+  // Who made the change
+  changedBy     String
+  changedByUser User   @relation(fields: [changedBy], references: [id], onDelete: Cascade)
+
+  // When
+  createdAt DateTime @default(now())
+
+  // Multi-tenant relationship
+  tenantId String
+
+  @@index([templateId])
+  @@index([version])
+  @@index([tenantId])
+  @@index([createdAt])
 }

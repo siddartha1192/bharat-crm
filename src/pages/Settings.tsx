@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Zap, Database, Send, Settings as SettingsIcon, Bell, Plug } from 'lucide-react';
+import { Users, Zap, Database, Send, Settings as SettingsIcon, Bell, Plug, Mail } from 'lucide-react';
 import { UserManagement } from '@/components/settings/UserManagement';
 import AutomationSettings from '@/components/settings/AutomationSettings';
 import VectorDataUpload from '@/components/settings/VectorDataUpload';
@@ -9,6 +9,7 @@ import CampaignSettings from '@/components/settings/CampaignSettings';
 import APISettings from '@/components/settings/APISettings';
 import ReminderSettings from '@/components/settings/ReminderSettings';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
+import EmailTemplatesSettings from '@/components/settings/EmailTemplatesSettings';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -38,7 +39,7 @@ export default function Settings() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7 lg:w-[1400px]">
+        <TabsList className="grid w-full grid-cols-8 lg:w-[1600px]">
           <ProtectedFeature permission="users:read">
             <TabsTrigger value="users">
               <Users className="w-4 h-4 mr-2" />
@@ -60,6 +61,13 @@ export default function Settings() {
             <Plug className="w-4 h-4 mr-2" />
             Integrations
           </TabsTrigger>
+
+          <ProtectedFeature permission="users:read">
+            <TabsTrigger value="email-templates">
+              <Mail className="w-4 h-4 mr-2" />
+              Email Templates
+            </TabsTrigger>
+          </ProtectedFeature>
 
           <ProtectedFeature permission="users:read">
             <TabsTrigger value="reminders">
@@ -104,6 +112,13 @@ export default function Settings() {
         <TabsContent value="integrations" className="space-y-4">
           <IntegrationSettings />
         </TabsContent>
+
+        {/* Email Templates (Admin Only) */}
+        <ProtectedFeature permission="users:read">
+          <TabsContent value="email-templates" className="space-y-4">
+            <EmailTemplatesSettings />
+          </TabsContent>
+        </ProtectedFeature>
 
         {/* Reminders (Admin Only) */}
         <ProtectedFeature permission="users:read">

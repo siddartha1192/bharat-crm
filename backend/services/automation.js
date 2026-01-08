@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const emailService = require('./email');
 const whatsappService = require('./whatsapp');
+const EmailTemplateService = require('./emailTemplate');
 const prisma = new PrismaClient();
 
 /**
@@ -229,44 +230,70 @@ async function triggerAutomation(event, data, user) {
 
 /**
  * Execute email action
+ * Now uses centralized template system with fallback to custom/default templates
  */
 async function executeEmailAction(rule, data, user) {
   try {
     console.log('🔍 Executing email action with data:', JSON.stringify(data, null, 2));
     console.log('🔍 Rule type:', rule.type);
 
-    // Get email template (use custom or default)
-    // Handle both null and empty strings by using trim()
-    const hasCustomSubject = rule.emailSubject && rule.emailSubject.trim() !== '';
-    const hasCustomTemplate = rule.emailTemplate && rule.emailTemplate.trim() !== '';
-
-    let emailSubject = hasCustomSubject
-      ? rule.emailSubject.trim()
-      : (DEFAULT_TEMPLATES[rule.type]?.subject || 'Notification');
-
-    let emailTemplate = hasCustomTemplate
-      ? rule.emailTemplate.trim()
-      : (DEFAULT_TEMPLATES[rule.type]?.html || '<p>{{message}}</p>');
+    let emailSubject, emailHtml, templateId;
 
     // Prepare template variables
     const variables = {
+      leadName: data.name || '',
       name: data.name || '',
       company: data.company || '',
       email: data.email || '',
+      phone: data.phone || '',
+      source: data.source || '',
       stage: data.toStage || data.status || '',
       fromStage: data.fromStage || '',
       toStage: data.toStage || '',
-      message: data.message || ''
+      message: data.message || '',
+      assignedTo: user?.name || '',
+      changedBy: user?.name || '',
     };
 
     console.log('🔍 Template variables:', JSON.stringify(variables, null, 2));
-    console.log('🔍 Template before replacement:', emailTemplate.substring(0, 200));
 
-    // Replace variables in subject and template
-    emailSubject = replaceTemplateVariables(emailSubject, variables);
-    const emailHtml = replaceTemplateVariables(emailTemplate, variables);
+    // Priority 1: Try centralized template system
+    try {
+      const rendered = await EmailTemplateService.renderTemplateByType(
+        rule.type,
+        user.tenantId,
+        variables
+      );
 
-    console.log('🔍 Template after replacement:', emailHtml.substring(0, 200));
+      emailSubject = rendered.subject;
+      emailHtml = rendered.htmlBody;
+      templateId = rendered.templateId;
+
+      console.log('✅ Using centralized template system');
+    } catch (templateError) {
+      console.log('⚠️  Centralized template not found, using fallback:', templateError.message);
+
+      // Priority 2: Use custom template from automation rule
+      const hasCustomSubject = rule.emailSubject && rule.emailSubject.trim() !== '';
+      const hasCustomTemplate = rule.emailTemplate && rule.emailTemplate.trim() !== '';
+
+      emailSubject = hasCustomSubject
+        ? rule.emailSubject.trim()
+        : (DEFAULT_TEMPLATES[rule.type]?.subject || 'Notification');
+
+      let emailTemplate = hasCustomTemplate
+        ? rule.emailTemplate.trim()
+        : (DEFAULT_TEMPLATES[rule.type]?.html || '<p>{{message}}</p>');
+
+      console.log('🔍 Using fallback template');
+      console.log('🔍 Template before replacement:', emailTemplate.substring(0, 200));
+
+      // Replace variables in subject and template
+      emailSubject = replaceTemplateVariables(emailSubject, variables);
+      emailHtml = replaceTemplateVariables(emailTemplate, variables);
+
+      console.log('🔍 Template after replacement:', emailHtml.substring(0, 200));
+    }
 
     // Send email
     if (data.email) {
@@ -280,10 +307,15 @@ async function executeEmailAction(rule, data, user) {
         entityId: data.id
       });
 
-      console.log(`Sent automation email to ${data.email}`);
+      // Track template usage if centralized template was used
+      if (templateId) {
+        await EmailTemplateService.trackUsage(templateId, false);
+      }
+
+      console.log(`✅ Sent automation email to ${data.email}`);
     }
   } catch (error) {
-    console.error('Error executing email action:', error);
+    console.error('❌ Error executing email action:', error);
     throw error;
   }
 }
