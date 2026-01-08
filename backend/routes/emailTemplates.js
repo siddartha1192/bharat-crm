@@ -12,6 +12,62 @@ const emailService = require('../services/email');
  */
 
 // ==========================================
+// DEBUG ENDPOINT - Get template selection info
+// ==========================================
+
+/**
+ * GET /api/email-templates/debug/:type
+ * Debug endpoint to see which template would be selected for a type
+ */
+router.get('/debug/:type', authenticate, async (req, res) => {
+  try {
+    const { type } = req.params;
+    const { tenantId, role } = req.user;
+
+    if (role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Only admins can access debug info' });
+    }
+
+    // Get all templates of this type for the tenant
+    const allTemplates = await prisma.emailTemplate.findMany({
+      where: { tenantId, type },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        isActive: true,
+        isDefault: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    // Get what template would actually be used
+    const selectedTemplate = await EmailTemplateService.getTemplateByType(type, tenantId);
+
+    res.json({
+      type,
+      tenantId,
+      allTemplates,
+      selectedTemplate: selectedTemplate ? {
+        id: selectedTemplate.id,
+        name: selectedTemplate.name,
+        isActive: selectedTemplate.isActive,
+        isDefault: selectedTemplate.isDefault,
+      } : null,
+      selectionLogic: {
+        step1: 'Look for custom template (isDefault=false, isActive=true)',
+        step2: 'If not found, look for default template (isDefault=true, isActive=true)',
+      },
+    });
+  } catch (error) {
+    console.error('Error in debug endpoint:', error);
+    res.status(500).json({ error: 'Failed to get debug info' });
+  }
+});
+
+// ==========================================
 // GET ALL TEMPLATES
 // ==========================================
 
