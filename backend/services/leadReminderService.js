@@ -284,45 +284,108 @@ class LeadReminderService {
    */
   async sendReminder(tenant, recipient, leads, config) {
     const leadsCount = leads.length;
-    const leadsList = leads.slice(0, 5).map(lead =>
-      `• ${lead.name} (${lead.email || 'No email'}) - Created: ${lead.createdAt.toLocaleDateString()}`
-    ).join('\n');
 
-    const moreLeads = leadsCount > 5 ? `\n\n...and ${leadsCount - 5} more leads` : '';
+    // Format leads list as HTML table for email template
+    const leadsTableHtml = `
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <thead>
+          <tr style="background: #f3f4f6;">
+            <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Name</th>
+            <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Email</th>
+            <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Phone</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${leads.map(lead => `
+            <tr>
+              <td style="padding: 12px; border: 1px solid #e5e7eb;">${lead.name}</td>
+              <td style="padding: 12px; border: 1px solid #e5e7eb;">${lead.email || 'N/A'}</td>
+              <td style="padding: 12px; border: 1px solid #e5e7eb;">${lead.phone || 'N/A'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
+    // Format leads list as plain text for WhatsApp/fallback
+    const leadsListText = leads.map(lead =>
+      `• ${lead.name} - Email: ${lead.email || 'N/A'}, Phone: ${lead.phone || 'N/A'}`
+    ).join('\n');
 
     // Get tenant-specific company name from settings
     const companyName = tenant.settings?.openai?.companyName || tenant.name || 'Bharat CRM';
 
-    // Prepare message
-    const message = `🔔 Lead Follow-up Reminder
+    let renderedSubject, renderedHtmlBody, renderedTextBody;
 
-Hello ${recipient.name},
+    // Try to use custom template from database
+    try {
+      const rendered = await EmailTemplateService.renderTemplateByType(
+        'reminder',
+        tenant.id,
+        {
+          recipientName: recipient.name,
+          leadsCount: leadsCount.toString(),
+          leadsList: leadsTableHtml,
+          leadsListText: leadsListText,
+          checkIntervalHours: config.checkIntervalHours.toString(),
+          companyName: companyName,
+        }
+      );
 
-You have ${leadsCount} lead${leadsCount > 1 ? 's' : ''} that ${leadsCount > 1 ? 'have' : 'has'} not been contacted in the last ${config.checkIntervalHours} hours:
+      renderedSubject = rendered.subject;
+      renderedHtmlBody = rendered.htmlBody;
+      renderedTextBody = EmailTemplateService.renderTemplate(
+        `Hello {{recipientName}},
 
-${leadsList}${moreLeads}
+You have {{leadsCount}} uncontacted lead(s) that need follow-up:
+
+{{leadsListText}}
+
+Please follow up with these leads as soon as possible.
+
+- {{companyName}}`,
+        {
+          recipientName: recipient.name,
+          leadsCount: leadsCount.toString(),
+          leadsListText: leadsListText,
+          companyName: companyName,
+        }
+      );
+
+      console.log(`   ✅ Using CUSTOM reminder template for tenant ${tenant.id}`);
+
+      // Track template usage if template was used
+      if (rendered.templateId) {
+        await EmailTemplateService.trackUsage(rendered.templateId, false);
+      }
+    } catch (error) {
+      console.log(`   ⚠️ No custom reminder template found, using default format`);
+
+      // Fallback: Simple default format
+      renderedSubject = `🔔 ${leadsCount} Uncontacted Lead${leadsCount > 1 ? 's' : ''} - Follow-up Required`;
+
+      renderedHtmlBody = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #2563eb;">🔔 Lead Follow-up Reminder</h2>
+          <p>Hello <strong>${recipient.name}</strong>,</p>
+          <p>You have <strong>${leadsCount}</strong> uncontacted lead${leadsCount > 1 ? 's' : ''} that need follow-up:</p>
+          ${leadsTableHtml}
+          <p style="margin-top: 20px;">Please follow up with these leads as soon as possible.</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+          <p style="color: #6b7280; font-size: 12px;">${companyName}</p>
+        </div>
+      `;
+
+      renderedTextBody = `Hello ${recipient.name},
+
+You have ${leadsCount} uncontacted lead${leadsCount > 1 ? 's' : ''} that need follow-up:
+
+${leadsListText}
 
 Please follow up with these leads as soon as possible.
 
 - ${companyName}`;
-
-    const htmlMessage = `<div style="font-family: Arial, sans-serif; max-width: 600px;">
-  <h2 style="color: #2563eb;">🔔 Lead Follow-up Reminder</h2>
-  <p>Hello <strong>${recipient.name}</strong>,</p>
-  <p>You have <strong>${leadsCount}</strong> lead${leadsCount > 1 ? 's' : ''} that ${leadsCount > 1 ? 'have' : 'has'} not been contacted in the last <strong>${config.checkIntervalHours} hours</strong>:</p>
-  <ul style="background: #f3f4f6; padding: 20px; border-radius: 8px;">
-    ${leads.slice(0, 5).map(lead => `
-      <li style="margin-bottom: 8px;">
-        <strong>${lead.name}</strong> (${lead.email || 'No email'})<br/>
-        <span style="color: #6b7280; font-size: 12px;">Created: ${lead.createdAt.toLocaleDateString()}</span>
-      </li>
-    `).join('')}
-  </ul>
-  ${leadsCount > 5 ? `<p style="color: #6b7280;">...and ${leadsCount - 5} more leads</p>` : ''}
-  <p style="margin-top: 20px;">Please follow up with these leads as soon as possible.</p>
-  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-  <p style="color: #6b7280; font-size: 12px;">${companyName}</p>
-</div>`;
+    }
 
     let emailSent = false;
     let whatsappSent = false;
@@ -363,9 +426,9 @@ Please follow up with these leads as soon as possible.
 
         await emailService.sendEmail({
           to: recipient.email,
-          subject: `🔔 ${leadsCount} Uncontacted Lead${leadsCount > 1 ? 's' : ''} - Follow-up Required`,
-          text: message,
-          html: htmlMessage,
+          subject: renderedSubject,
+          text: renderedTextBody,
+          html: renderedHtmlBody,
           userId: senderId,
           entityType: 'LeadReminder'
         });
@@ -384,7 +447,7 @@ Please follow up with these leads as soon as possible.
         const whatsappConfig = tenantSettings.whatsapp || null;
 
         if (whatsappService.isConfigured(whatsappConfig)) {
-          await whatsappService.sendMessage(recipient.phone, message, whatsappConfig);
+          await whatsappService.sendMessage(recipient.phone, renderedTextBody, whatsappConfig);
           console.log(`   ✅ WhatsApp reminder sent to ${recipient.phone}`);
           whatsappSent = true;
         } else {

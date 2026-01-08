@@ -251,63 +251,52 @@ const defaultTemplates = [
   // REMINDER NOTIFICATION
   // ==========================================
   {
-    name: 'Reminder Notification Email',
-    description: 'Email sent for lead reminders and follow-ups',
+    name: 'Lead Reminder Email',
+    description: 'Email sent for uncontacted leads follow-up reminders',
     type: 'reminder',
-    subject: 'Reminder: Follow Up with {{leadName}}',
+    subject: '🔔 {{leadsCount}} Uncontacted Leads - Follow-up Required',
     htmlBody: `<!DOCTYPE html>
 <html>
 <head>
   <style>
     body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; padding: 20px; }
     .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
     .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
-    .reminder-box { background: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; }
-    .button { display: inline-block; background: #ef4444; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+    .leads-table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; }
+    .leads-table th { padding: 12px; text-align: left; background: #f3f4f6; border: 1px solid #e5e7eb; font-weight: 600; }
+    .leads-table td { padding: 12px; border: 1px solid #e5e7eb; }
     .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>⏰ Reminder Alert</h1>
+      <h1>⏰ Lead Follow-up Reminder</h1>
     </div>
     <div class="content">
-      <p>Hi {{assignedTo}},</p>
-      <p>This is a friendly reminder about your upcoming follow-up:</p>
+      <p>Hi <strong>{{recipientName}}</strong>,</p>
+      <p>You have <strong>{{leadsCount}}</strong> uncontacted leads that need follow-up:</p>
 
-      <div class="reminder-box">
-        <h3 style="margin-top: 0;">Lead Details</h3>
-        <p><strong>Name:</strong> {{leadName}}</p>
-        <p><strong>Company:</strong> {{leadCompany}}</p>
-        <p><strong>Due Date:</strong> {{reminderDate}}</p>
-        <p><strong>Email:</strong> {{leadEmail}}</p>
-        <p><strong>Phone:</strong> {{leadPhone}}</p>
-      </div>
+      {{leadsList}}
 
-      <h3>Reminder Message:</h3>
-      <p>{{reminderMessage}}</p>
-
-      <center>
-        <a href="#" class="button">View Lead Details</a>
-      </center>
+      <p style="margin-top: 20px;">Please follow up with these leads as soon as possible to maintain engagement and conversion rates.</p>
 
       <div class="footer">
-        <p>Bharat CRM - Built for Indian Businesses</p>
+        <p>{{companyName}}</p>
+        <p>Powered by Bharat CRM</p>
       </div>
     </div>
   </div>
 </body>
 </html>`,
     variables: [
-      { name: 'leadName', description: 'Lead\'s full name', example: 'Jane Smith', required: true },
-      { name: 'leadCompany', description: 'Lead\'s company', example: 'Acme Corp', required: false },
-      { name: 'reminderMessage', description: 'Reminder message content', example: 'Follow up on proposal', required: true },
-      { name: 'reminderDate', description: 'When reminder is due', example: 'Jan 10, 2024', required: true },
-      { name: 'assignedTo', description: 'User assigned to follow up', example: 'John Doe', required: false },
-      { name: 'leadPhone', description: 'Lead\'s phone number', example: '+1234567890', required: false },
-      { name: 'leadEmail', description: 'Lead\'s email', example: 'jane@acme.com', required: false },
+      { name: 'recipientName', description: 'Recipient\'s name (user receiving reminder)', example: 'John Doe', required: true },
+      { name: 'leadsCount', description: 'Number of uncontacted leads', example: '4', required: true },
+      { name: 'leadsList', description: 'HTML table of leads (name, email, phone)', example: '<table>...</table>', required: true },
+      { name: 'leadsListText', description: 'Plain text list of leads', example: '• Lead 1\n• Lead 2', required: false },
+      { name: 'checkIntervalHours', description: 'Hours since leads were created', example: '24', required: false },
+      { name: 'companyName', description: 'Company name', example: 'Tech Solutions Inc', required: false },
     ],
   },
 
