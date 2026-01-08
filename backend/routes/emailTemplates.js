@@ -124,7 +124,7 @@ router.get('/:id', authenticate, async (req, res) => {
 router.post('/', authenticate, async (req, res) => {
   try {
     const { name, description, type, subject, htmlBody, variables, isActive } = req.body;
-    const { tenantId, userId, role } = req.user;
+    const { tenantId, id: userId, role } = req.user;
 
     if (role !== 'ADMIN') {
       return res.status(403).json({ error: 'Only admins can manage email templates' });
@@ -199,7 +199,7 @@ router.put('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, subject, htmlBody, variables, isActive, changeNotes } = req.body;
-    const { tenantId, userId, role } = req.user;
+    const { tenantId, id: userId, role } = req.user;
 
     if (role !== 'ADMIN') {
       return res.status(403).json({ error: 'Only admins can manage email templates' });
@@ -357,7 +357,7 @@ router.post('/:id/test', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { testEmail, variables } = req.body;
-    const { tenantId, userId, role, email: userEmail } = req.user;
+    const { tenantId, id: userId, role, email: userEmail } = req.user;
 
     if (role !== 'ADMIN') {
       return res.status(403).json({ error: 'Only admins can send test emails' });
@@ -502,7 +502,7 @@ router.get('/meta/variables/:type', authenticate, async (req, res) => {
 router.post('/:id/duplicate', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const { tenantId, userId, role } = req.user;
+    const { tenantId, id: userId, role } = req.user;
 
     if (role !== 'ADMIN') {
       return res.status(403).json({ error: 'Only admins can manage email templates' });
