@@ -231,6 +231,7 @@ class EmailService {
     const senderEmail = user.googleEmail || user.email;
 
     // Create email log entry
+    // If no text body provided, use html as fallback for the body field
     const emailLog = await prisma.emailLog.create({
       data: {
         to: toArray,
@@ -238,7 +239,7 @@ class EmailService {
         bcc: bccArray,
         from: senderEmail,
         subject,
-        body: text,
+        body: text || html || '',
         htmlBody: html || null,
         status: 'pending',
         userId,
