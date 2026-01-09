@@ -21,6 +21,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Required for Twilio webhooks
 
 // Create HTTP server for both Express and Socket.IO
 const httpServer = http.createServer(app);
