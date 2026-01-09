@@ -86,6 +86,7 @@ const gmailIntegrationRoutes = require('./routes/integrations/gmail');
 const debugRoutes = require('./routes/debug-gmail');
 const promoRoutes = require('./routes/promo');
 const emailTemplatesRoutes = require('./routes/emailTemplates');
+const callsRoutes = require('./routes/calls');
 
 // Use routes
 app.use('/tenant-admin', tenantAdminRoutes);
@@ -121,6 +122,7 @@ app.use('/api/integrations/gmail', gmailIntegrationRoutes);
 app.use('/api/debug', debugRoutes);
 app.use('/api/promo', promoRoutes);
 app.use('/api/email-templates', emailTemplatesRoutes);
+app.use('/api/calls', callsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -197,6 +199,12 @@ campaignScheduler.start();
 // Initialize lead reminder scheduler
 const leadReminderScheduler = require('./services/leadReminderScheduler');
 leadReminderScheduler.start();
+
+// Initialize call scheduler
+const callScheduler = require('./services/callScheduler');
+callScheduler.initialize(io);
+callScheduler.start();
+callScheduler.startCleanup();
 
 // Start server (HTTP + WebSocket on same port)
 httpServer.listen(PORT, () => {

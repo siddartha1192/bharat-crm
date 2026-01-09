@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const emailService = require('./email');
 const whatsappService = require('./whatsapp');
 const EmailTemplateService = require('./emailTemplate');
+const callQueueService = require('./callQueueService');
 const prisma = new PrismaClient();
 
 /**
@@ -212,6 +213,9 @@ async function triggerAutomation(event, data, user) {
             break;
           case 'assign_lead':
             await executeAssignAction(rule, data, user);
+            break;
+          case 'make_call':
+            await executeCallAction(rule, data, user);
             break;
           default:
             console.log(`Unknown action type: ${rule.actionType}`);
@@ -545,6 +549,100 @@ async function toggleAutomationRule(ruleId, userId, isEnabled) {
     });
   } catch (error) {
     console.error('Error toggling automation rule:', error);
+    throw error;
+  }
+}
+
+/**
+ * Execute call action
+ * Queues an AI or manual call via the non-blocking queue system
+ */
+async function executeCallAction(rule, data, user) {
+  try {
+    console.log('📞 Executing call action for rule:', rule.name);
+
+    // Get call settings to check if auto-calling is enabled
+    const callSettings = await prisma.callSettings.findUnique({
+      where: { tenantId: user.tenantId }
+    });
+
+    if (!callSettings) {
+      console.log('⚠️  Call settings not configured for tenant, skipping call');
+      return;
+    }
+
+    // Check if auto-calling is enabled for this trigger type
+    if (rule.triggerEvent === 'lead.created' && !callSettings.autoCallOnLeadCreate) {
+      console.log('⏭️  Auto-call on lead create is disabled, skipping');
+      return;
+    }
+
+    if (rule.triggerEvent.includes('stage_changed') && !callSettings.autoCallOnStageChange) {
+      console.log('⏭️  Auto-call on stage change is disabled, skipping');
+      return;
+    }
+
+    // Determine phone number and entity IDs
+    let phoneNumber = data.phone || data.whatsapp;
+    let leadId = data.id;
+    let contactId = null;
+
+    if (!phoneNumber) {
+      console.log('⚠️  No phone number available for call, skipping');
+      return;
+    }
+
+    // Get call script from rule or use default
+    let callScriptId = rule.actionConfig?.callScriptId || callSettings.defaultCallScriptId;
+
+    // Determine call type from rule config
+    const callType = rule.actionConfig?.callType || 'ai';
+
+    // Apply delay if configured
+    const delaySeconds = rule.actionConfig?.delaySeconds || callSettings.autoCallDelaySeconds || 0;
+    const scheduledFor = delaySeconds > 0
+      ? new Date(Date.now() + delaySeconds * 1000)
+      : null;
+
+    // Queue the call (non-blocking!)
+    const queueItem = await callQueueService.queueCall({
+      tenantId: user.tenantId,
+      leadId,
+      contactId,
+      phoneNumber,
+      phoneCountryCode: data.phoneCountryCode || '+91',
+      callType,
+      callScriptId,
+      triggerType: rule.triggerEvent, // 'lead.created' | 'lead.stage_changed'
+      triggerData: {
+        ruleName: rule.name,
+        fromStage: data.fromStage,
+        toStage: data.toStage,
+        leadName: data.name,
+        company: data.company
+      },
+      automationRuleId: rule.id,
+      priority: rule.actionConfig?.priority || 7, // Higher priority for automation
+      scheduledFor,
+      maxAttempts: rule.actionConfig?.maxAttempts || 3,
+      createdById: user.id,
+      metadata: {
+        source: 'automation',
+        ruleName: rule.name
+      }
+    });
+
+    console.log('✅ Call queued successfully:', {
+      queueItemId: queueItem.id,
+      phoneNumber,
+      leadId,
+      callType,
+      scheduledFor
+    });
+
+    return queueItem;
+  } catch (error) {
+    console.error('❌ Error executing call action:', error);
     throw error;
   }
 }
