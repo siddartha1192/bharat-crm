@@ -6,7 +6,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const twilioService = require('./twilio');
-const { parsePhoneNumber } = require('libphonenumber-js');
+const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 
 const prisma = new PrismaClient();
 
@@ -53,10 +53,23 @@ class CallService {
         });
       }
 
+      // Normalize phone number to E.164 format for Twilio
+      const phoneNormalization = normalizePhoneNumber(
+        queueItem.phoneNumber,
+        queueItem.phoneCountryCode || '+91'
+      );
+
+      if (!phoneNormalization.isValid) {
+        throw new Error(`Invalid phone number: ${phoneNormalization.error}`);
+      }
+
+      const normalizedPhone = phoneNormalization.normalized;
+      console.log(`[CALL SERVICE] Normalized phone: ${queueItem.phoneNumber} -> ${normalizedPhone}`);
+
       // Make the call via Twilio
       const twilioCall = await twilioService.makeCall(
         settings,
-        queueItem.phoneNumber,
+        normalizedPhone,
         queueItem.leadId || queueItem.contactId,
         queueItem.callType
       );
@@ -67,7 +80,7 @@ class CallService {
           tenantId: queueItem.tenantId,
           leadId: queueItem.leadId,
           contactId: queueItem.contactId,
-          phoneNumber: queueItem.phoneNumber,
+          phoneNumber: normalizedPhone, // Store normalized phone number
           phoneCountryCode: queueItem.phoneCountryCode,
           direction: 'outbound',
           callType: queueItem.callType,

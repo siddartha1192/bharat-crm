@@ -264,7 +264,7 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
         leadId: lead.id,
         phoneNumber: lead.phone,
         callType,
-        scriptId: selectedScript || undefined,
+        callScriptId: selectedScript || undefined,
       });
 
       setShowCallDialog(false);
@@ -731,7 +731,7 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
             </div>
 
             {/* Script Selection (for AI calls) */}
-            {callType === 'ai' && scripts && scripts.length > 0 && (
+            {callType === 'ai' && scripts && Array.isArray(scripts) && scripts.length > 0 && (
               <div className="space-y-2">
                 <Label>Call Script (Optional)</Label>
                 <Select value={selectedScript} onValueChange={setSelectedScript}>
@@ -740,10 +740,10 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">No script</SelectItem>
-                    {scripts.map((script: any) => (
+                    {scripts.filter(script => script && script.id).map((script: any) => (
                       <SelectItem key={script.id} value={script.id}>
                         <div className="flex items-center gap-2">
-                          <span>{script.name}</span>
+                          <span>{script.name || 'Unnamed Script'}</span>
                           {script.isDefault && (
                             <Badge variant="secondary" className="text-xs">
                               Default
