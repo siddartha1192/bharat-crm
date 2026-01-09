@@ -11,10 +11,16 @@ class TwilioService {
    * Create Twilio client
    */
   createClient(accountSid, authToken) {
-    if (!accountSid || !authToken) {
+    // Trim whitespace from credentials
+    const cleanSid = accountSid?.trim();
+    const cleanToken = authToken?.trim();
+
+    if (!cleanSid || !cleanToken) {
       throw new Error('Twilio credentials not configured');
     }
-    return twilio(accountSid, authToken);
+
+    console.log('[TWILIO] Creating client with Account SID:', cleanSid.substring(0, 8) + '...');
+    return twilio(cleanSid, cleanToken);
   }
 
   /**
@@ -27,6 +33,10 @@ class TwilioService {
    */
   async makeCall(settings, phoneNumber, leadId = null, callType = 'ai') {
     try {
+      // Log credential info (masked)
+      console.log('[TWILIO] Using Account SID:', settings.twilioAccountSid?.substring(0, 8) + '...');
+      console.log('[TWILIO] Auth Token length:', settings.twilioAuthToken?.length || 0);
+
       const client = this.createClient(
         settings.twilioAccountSid,
         settings.twilioAuthToken
