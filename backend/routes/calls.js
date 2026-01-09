@@ -802,7 +802,13 @@ router.post('/webhook/status', async (req, res) => {
 router.post('/webhook/recording', async (req, res) => {
   try {
     const recordingData = req.body;
-    console.log('[WEBHOOK] Recording completed:', recordingData);
+    console.log('[WEBHOOK] Recording completed:', JSON.stringify(recordingData, null, 2));
+
+    // Validate CallSid exists
+    if (!recordingData.CallSid) {
+      console.error('[WEBHOOK] Missing CallSid in recording data');
+      return res.sendStatus(400);
+    }
 
     await callService.handleRecordingComplete(recordingData.CallSid, recordingData);
 
