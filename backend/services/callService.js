@@ -133,6 +133,12 @@ class CallService {
    */
   async updateCallStatus(callSid, statusData) {
     try {
+      // Validate callSid
+      if (!callSid) {
+        console.error('[CALL SERVICE] Missing callSid in updateCallStatus');
+        return null;
+      }
+
       const callLog = await prisma.callLog.findUnique({
         where: { twilioCallSid: callSid }
       });

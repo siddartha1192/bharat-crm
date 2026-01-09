@@ -761,7 +761,13 @@ router.post('/webhook/twiml', async (req, res) => {
 router.post('/webhook/status', async (req, res) => {
   try {
     const statusData = req.body;
-    console.log('[WEBHOOK] Status update:', statusData);
+    console.log('[WEBHOOK] Status update:', JSON.stringify(statusData, null, 2));
+
+    // Validate CallSid exists
+    if (!statusData.CallSid) {
+      console.error('[WEBHOOK] Missing CallSid in status data');
+      return res.sendStatus(400);
+    }
 
     // Validate webhook (optional - enable in production)
     // const signature = req.headers['x-twilio-signature'];
