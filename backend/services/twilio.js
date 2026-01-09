@@ -98,20 +98,25 @@ class TwilioService {
     const response = new VoiceResponse();
     const baseUrl = process.env.APP_URL || 'http://localhost:3001';
 
-    // Start recording if enabled
-    if (enableRecording) {
-      response.record({
-        recordingStatusCallback: `${baseUrl}/api/calls/webhook/recording`,
-        recordingStatusCallbackEvent: ['completed'],
-        maxLength: 300, // 5 minutes max
-        playBeep: false
-      });
-    }
+    // Recording is handled via Twilio API call parameters, not TwiML Record verb
+    // This allows interactive Gather to work properly
 
-    // Start with a greeting
+    // Start with a greeting, then gather speech input
     const greeting = script?.aiGreeting || `Hello ${lead?.name || 'there'}, this is a call from our team. How can I help you today?`;
 
-    response.say(
+    // Create gather for speech input - the greeting will be said before listening
+    const gather = response.gather({
+      input: 'speech',
+      timeout: 5, // Wait 5 seconds for user to start speaking after greeting
+      speechTimeout: 'auto', // Auto-detect when user stops speaking
+      action: `${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}`,
+      method: 'POST',
+      language: 'en-IN',
+      hints: 'product, price, demo, meeting, interested, yes, no, hello' // Help Twilio recognize common words
+    });
+
+    // Say the greeting INSIDE the gather - this plays before waiting for speech
+    gather.say(
       {
         voice: 'alice',
         language: 'en-IN'
@@ -119,17 +124,7 @@ class TwilioService {
       greeting
     );
 
-    // Use Gather to collect speech input for interactive conversation
-    const gather = response.gather({
-      input: 'speech',
-      timeout: 5, // Wait 5 seconds for user to start speaking
-      speechTimeout: 'auto', // Auto-detect when user stops speaking
-      action: `${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}`,
-      method: 'POST',
-      language: 'en-IN'
-    });
-
-    // If user doesn't say anything after gather timeout
+    // If user doesn't say anything after gather timeout, this will execute
     response.say(
       {
         voice: 'alice',
@@ -154,27 +149,28 @@ class TwilioService {
     const response = new VoiceResponse();
     const baseUrl = process.env.APP_URL || 'http://localhost:3001';
 
-    // Speak the AI response
-    response.say(
-      {
-        voice: 'alice',
-        language: 'en-IN'
-      },
-      aiResponse
-    );
-
     if (continueConversation) {
-      // Gather next user input to continue conversation
+      // Create gather that first says AI response, then waits for user input
       const gather = response.gather({
         input: 'speech',
         timeout: 5, // Wait 5 seconds for user to start speaking
         speechTimeout: 'auto', // Auto-detect when user stops speaking
         action: `${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}`,
         method: 'POST',
-        language: 'en-IN'
+        language: 'en-IN',
+        hints: 'product, price, demo, meeting, interested, yes, no, hello, thanks, okay'
       });
 
-      // If user doesn't respond
+      // Say AI response INSIDE the gather, then it will wait for user speech
+      gather.say(
+        {
+          voice: 'alice',
+          language: 'en-IN'
+        },
+        aiResponse
+      );
+
+      // If user doesn't respond after timeout
       response.say(
         {
           voice: 'alice',
@@ -183,13 +179,13 @@ class TwilioService {
         'Thank you for your time. Goodbye.'
       );
     } else {
-      // End conversation
+      // End conversation - just say final message and hangup
       response.say(
         {
           voice: 'alice',
           language: 'en-IN'
         },
-        'Thank you for your time. Goodbye.'
+        aiResponse
       );
     }
 
