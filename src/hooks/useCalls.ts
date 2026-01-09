@@ -36,9 +36,16 @@ export function useCallSettings() {
   return useQuery({
     queryKey: ['callSettings'],
     queryFn: async () => {
-      const data = await getCallSettings();
-      return data.settings;
+      try {
+        const data = await getCallSettings();
+        return data.settings;
+      } catch (error) {
+        console.error('Error fetching call settings:', error);
+        return null;
+      }
     },
+    retry: false,
+    staleTime: 30000,
   });
 }
 
@@ -72,9 +79,16 @@ export function useCallScripts(params?: { scriptType?: string; isActive?: boolea
   return useQuery({
     queryKey: ['callScripts', params],
     queryFn: async () => {
-      const data = await getCallScripts(params);
-      return data.scripts;
+      try {
+        const data = await getCallScripts(params);
+        return data.scripts;
+      } catch (error) {
+        console.error('Error fetching call scripts:', error);
+        return [];
+      }
     },
+    retry: false,
+    staleTime: 30000,
   });
 }
 
