@@ -9,6 +9,8 @@ const { PrismaClient } = require('@prisma/client');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const { authenticate } = require('../middleware/auth');
+const { tenantContext } = require('../middleware/tenant');
 
 const callQueueService = require('../services/callQueueService');
 const callService = require('../services/callService');
@@ -41,6 +43,23 @@ const upload = multer({
       cb(new Error('Invalid file type. Allowed: txt, pdf, doc, docx, md'));
     }
   }
+});
+
+// Apply authentication and tenant context to all routes EXCEPT webhooks
+router.use((req, res, next) => {
+  // Skip auth for webhook endpoints (called by Twilio servers)
+  if (req.path.startsWith('/webhook/')) {
+    return next();
+  }
+  authenticate(req, res, next);
+});
+
+router.use((req, res, next) => {
+  // Skip tenant context for webhook endpoints
+  if (req.path.startsWith('/webhook/')) {
+    return next();
+  }
+  tenantContext(req, res, next);
 });
 
 // ==========================================
