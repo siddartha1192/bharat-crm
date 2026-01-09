@@ -734,12 +734,11 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
             {callType === 'ai' && scripts && Array.isArray(scripts) && scripts.length > 0 && (
               <div className="space-y-2">
                 <Label>Call Script (Optional)</Label>
-                <Select value={selectedScript} onValueChange={setSelectedScript}>
+                <Select value={selectedScript || undefined} onValueChange={setSelectedScript}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a script" />
+                    <SelectValue placeholder="No script (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No script</SelectItem>
                     {scripts.filter(script => script && script.id).map((script: any) => (
                       <SelectItem key={script.id} value={script.id}>
                         <div className="flex items-center gap-2">
