@@ -1008,6 +1008,70 @@ router.post('/webhook/recording-complete', async (req, res) => {
 // ==========================================
 
 /**
+ * POST /api/calls/debug/cleanup-stuck-calls
+ * Cleanup stuck active calls that are blocking the queue
+ */
+router.post('/debug/cleanup-stuck-calls', async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+
+    // Find stuck calls (active for more than 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+    const stuckCalls = await prisma.callLog.findMany({
+      where: {
+        tenantId,
+        twilioStatus: { in: ['queued', 'ringing', 'in-progress'] },
+        createdAt: { lt: fiveMinutesAgo }
+      }
+    });
+
+    console.log(`[CLEANUP] Found ${stuckCalls.length} stuck calls for tenant: ${tenantId}`);
+
+    // Update stuck calls to failed
+    const result = await prisma.callLog.updateMany({
+      where: {
+        tenantId,
+        twilioStatus: { in: ['queued', 'ringing', 'in-progress'] },
+        createdAt: { lt: fiveMinutesAgo }
+      },
+      data: {
+        twilioStatus: 'failed',
+        callOutcome: 'failed',
+        endedAt: new Date(),
+        updatedAt: new Date()
+      }
+    });
+
+    // Get updated active calls count
+    const activeCalls = await prisma.callLog.count({
+      where: {
+        tenantId,
+        twilioStatus: { in: ['queued', 'ringing', 'in-progress'] }
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Cleaned up ${result.count} stuck calls`,
+      stuckCallsFound: stuckCalls.length,
+      callsUpdated: result.count,
+      remainingActiveCalls: activeCalls,
+      stuckCalls: stuckCalls.map(call => ({
+        id: call.id,
+        phoneNumber: call.phoneNumber,
+        twilioStatus: call.twilioStatus,
+        createdAt: call.createdAt,
+        age: Math.round((Date.now() - call.createdAt.getTime()) / 1000 / 60) + ' minutes'
+      }))
+    });
+  } catch (error) {
+    console.error('[CLEANUP] Error cleaning up stuck calls:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/calls/debug/queue-status
  * Debug endpoint to check queue processing status
  */
