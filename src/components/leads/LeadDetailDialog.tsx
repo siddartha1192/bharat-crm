@@ -115,8 +115,8 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
 
   // Call hooks
   const initiateCall = useInitiateCall();
-  const { data: scripts } = useCallScripts();
-  const { data: callSettings } = useCallSettings();
+  const { data: scripts, isLoading: scriptsLoading } = useCallScripts();
+  const { data: callSettings, isLoading: settingsLoading } = useCallSettings();
 
   useEffect(() => {
     if (lead && open) {
