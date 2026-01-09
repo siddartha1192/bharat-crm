@@ -36,6 +36,7 @@
     "jsonwebtoken": "^9.0.2",
     "langchain": "^1.1.2",
     "libphonenumber-js": "^1.12.33",
+    "moment-timezone": "^0.5.46",
     "multer": "^2.0.2",
     "node-cron": "^3.0.3",
     "nodemailer": "^7.0.11",
@@ -45,7 +46,9 @@
     "prisma": "5.9.1",
     "qdrant-client": "^0.0.1",
     "socket.io": "^4.8.1",
-    "uuid": "^13.0.0"
+    "twilio": "^5.3.7",
+    "uuid": "^13.0.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"

@@ -16,6 +16,7 @@ import {
   Shield,
   TrendingUp,
   FormInput,
+  Phone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -33,6 +34,7 @@ const navigation = [
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
   { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
   { name: 'Emails', href: '/emails', icon: Mail },
+  { name: 'AI Calls', href: '/calls', icon: Phone, badge: 'New' },
   { name: 'Forms', href: '/forms', icon: FormInput, badge: 'New' },
   { name: 'Invoices', href: '/invoices', icon: FileText },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
