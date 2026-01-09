@@ -36,6 +36,7 @@ import NotFound from "./pages/NotFound";
 import Forms from "./pages/Forms";
 import PromoLanding from "./pages/PromoLanding";
 import PublicForm from "./pages/PublicForm";
+import Calls from "./pages/Calls";
 
 const queryClient = new QueryClient();
 
@@ -85,6 +86,7 @@ const App = () => (
               <Route path="/tasks" element={<ProtectedLayout><Tasks /></ProtectedLayout>} />
               <Route path="/whatsapp" element={<ProtectedLayout><WhatsApp /></ProtectedLayout>} />
               <Route path="/emails" element={<ProtectedLayout><Emails /></ProtectedLayout>} />
+              <Route path="/calls" element={<ProtectedLayout><Calls /></ProtectedLayout>} />
               <Route path="/invoices" element={<ProtectedLayout><Invoices /></ProtectedLayout>} />
               <Route path="/reports" element={<ProtectedLayout><Reports /></ProtectedLayout>} />
               <Route path="/forecast" element={<ProtectedLayout><SalesForecast /></ProtectedLayout>} />

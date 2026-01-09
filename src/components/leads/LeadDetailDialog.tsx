@@ -12,7 +12,25 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { api } from '@/lib/api';
+import { useInitiateCall, useCallScripts, useCallSettings } from '@/hooks/useCalls';
 import {
   Building2,
   Mail,
@@ -36,6 +54,7 @@ import {
   Loader2,
   ArrowRight,
   Sparkles,
+  PhoneCall,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -89,7 +108,15 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
   const [creatingDeal, setCreatingDeal] = useState(false);
+  const [showCallDialog, setShowCallDialog] = useState(false);
+  const [callType, setCallType] = useState<'ai' | 'manual'>('ai');
+  const [selectedScript, setSelectedScript] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Call hooks
+  const initiateCall = useInitiateCall();
+  const { data: scripts } = useCallScripts();
+  const { data: callSettings } = useCallSettings();
 
   useEffect(() => {
     if (lead && open) {
@@ -217,6 +244,34 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
       toast.error(errorMessage);
     } finally {
       setCreatingDeal(false);
+    }
+  };
+
+  const handleInitiateCall = async () => {
+    if (!lead || !lead.phone) {
+      toast.error('No phone number available for this lead');
+      return;
+    }
+
+    // Check if call settings are configured
+    if (!callSettings?.twilioPhoneNumber) {
+      toast.error('Call settings not configured. Please configure in Settings.');
+      return;
+    }
+
+    try {
+      await initiateCall.mutateAsync({
+        leadId: lead.id,
+        phoneNumber: lead.phone,
+        callType,
+        scriptId: selectedScript || undefined,
+      });
+
+      setShowCallDialog(false);
+      toast.success('Call initiated successfully and added to queue');
+    } catch (error: any) {
+      console.error('Error initiating call:', error);
+      toast.error(error.response?.data?.error || 'Failed to initiate call');
     }
   };
 
@@ -601,6 +656,14 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
 
         {/* Modern Action Footer */}
         <div className="border-t bg-gradient-to-r from-slate-50 to-slate-100/50 px-8 py-4 flex gap-3 shadow-lg">
+          <Button
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg transition-all"
+            onClick={() => setShowCallDialog(true)}
+            disabled={!lead.phone}
+          >
+            <PhoneCall className="w-4 h-4 mr-2" />
+            Make Call
+          </Button>
           <Button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all" onClick={handleSendEmail}>
             <Mail className="w-4 h-4 mr-2" />
             Send Email
@@ -611,6 +674,126 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
           </Button>
         </div>
       </SheetContent>
+
+      {/* Call Initiation Dialog */}
+      <Dialog open={showCallDialog} onOpenChange={setShowCallDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Initiate Call</DialogTitle>
+            <DialogDescription>
+              Choose call type and configure options for {lead?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Phone Number */}
+            <div className="space-y-2">
+              <Label>Phone Number</Label>
+              <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border">
+                <Phone className="w-4 h-4 text-gray-500" />
+                <span className="font-mono text-sm">{lead?.phone}</span>
+              </div>
+            </div>
+
+            {/* Call Type */}
+            <div className="space-y-2">
+              <Label>Call Type</Label>
+              <RadioGroup value={callType} onValueChange={(value: any) => setCallType(value)}>
+                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <RadioGroupItem value="ai" id="ai" />
+                  <Label htmlFor="ai" className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                      <div>
+                        <div className="font-medium">AI Call</div>
+                        <div className="text-xs text-gray-500">
+                          Automated call with AI assistant
+                        </div>
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <RadioGroupItem value="manual" id="manual" />
+                  <Label htmlFor="manual" className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-green-600" />
+                      <div>
+                        <div className="font-medium">Manual Call</div>
+                        <div className="text-xs text-gray-500">
+                          Direct call without AI assistance
+                        </div>
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Script Selection (for AI calls) */}
+            {callType === 'ai' && scripts && scripts.length > 0 && (
+              <div className="space-y-2">
+                <Label>Call Script (Optional)</Label>
+                <Select value={selectedScript} onValueChange={setSelectedScript}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a script" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No script</SelectItem>
+                    {scripts.map((script: any) => (
+                      <SelectItem key={script.id} value={script.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{script.name}</span>
+                          {script.isDefault && (
+                            <Badge variant="secondary" className="text-xs">
+                              Default
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Warning if settings not configured */}
+            {!callSettings?.twilioPhoneNumber && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600 mt-0.5" />
+                  <div className="text-sm text-amber-800">
+                    Call settings not configured. Please configure Twilio settings in the Calls section.
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCallDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleInitiateCall}
+              disabled={initiateCall.isPending || !callSettings?.twilioPhoneNumber}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {initiateCall.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Initiating...
+                </>
+              ) : (
+                <>
+                  <PhoneCall className="w-4 h-4 mr-2" />
+                  Initiate Call
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }
