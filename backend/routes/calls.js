@@ -1004,6 +1004,109 @@ router.post('/webhook/recording-complete', async (req, res) => {
 });
 
 // ==========================================
+// DEBUG ENDPOINTS
+// ==========================================
+
+/**
+ * GET /api/calls/debug/queue-status
+ * Debug endpoint to check queue processing status
+ */
+router.get('/debug/queue-status', async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+
+    // Get call settings
+    const settings = await prisma.callSettings.findUnique({
+      where: { tenantId }
+    });
+
+    // Get pending calls
+    const pendingCalls = await prisma.callQueue.findMany({
+      where: {
+        tenantId,
+        status: 'pending'
+      },
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        lead: { select: { name: true, phone: true } }
+      }
+    });
+
+    // Get active calls
+    const activeCalls = await prisma.callLog.count({
+      where: {
+        tenantId,
+        twilioStatus: { in: ['queued', 'ringing', 'in-progress'] }
+      }
+    });
+
+    // Check business hours
+    const moment = require('moment-timezone');
+    const now = moment().tz(settings?.timezone || 'Asia/Kolkata');
+    const dayOfWeek = now.format('ddd').toLowerCase();
+    const currentTime = now.format('HH:mm');
+
+    const businessDays = Array.isArray(settings?.businessDays)
+      ? settings.businessDays
+      : (settings?.businessDays?.value || []);
+
+    const isBusinessDay = businessDays.includes(dayOfWeek);
+    const isBusinessHours = settings?.enableBusinessHours
+      ? (currentTime >= settings.businessHoursStart && currentTime <= settings.businessHoursEnd)
+      : true;
+
+    res.json({
+      settings: {
+        configured: !!settings,
+        twilioConfigured: !!(settings?.twilioAccountSid && settings?.twilioAuthToken),
+        openaiConfigured: !!settings?.openaiApiKey,
+        maxConcurrentCalls: settings?.maxConcurrentCalls || 0,
+        enableBusinessHours: settings?.enableBusinessHours || false,
+        businessHoursStart: settings?.businessHoursStart,
+        businessHoursEnd: settings?.businessHoursEnd,
+        businessDays: businessDays,
+        timezone: settings?.timezone || 'Asia/Kolkata'
+      },
+      currentTime: {
+        timestamp: now.format(),
+        dayOfWeek,
+        time: currentTime,
+        isBusinessDay,
+        isBusinessHours,
+        canProcessCalls: !settings?.enableBusinessHours || (isBusinessDay && isBusinessHours)
+      },
+      queue: {
+        pendingCount: pendingCalls.length,
+        activeCalls,
+        availableSlots: Math.max(0, (settings?.maxConcurrentCalls || 5) - activeCalls),
+        pendingCalls: pendingCalls.map(call => ({
+          id: call.id,
+          leadName: call.lead?.name,
+          phone: call.phoneNumber,
+          createdAt: call.createdAt,
+          scheduledFor: call.scheduledFor,
+          attempts: call.attempts,
+          errorMessage: call.errorMessage
+        }))
+      },
+      recommendation: !settings?.twilioConfigured
+        ? 'Configure Twilio credentials in Call Settings'
+        : (!settings?.enableBusinessHours || (isBusinessDay && isBusinessHours))
+          ? activeCalls >= (settings?.maxConcurrentCalls || 5)
+            ? 'Max concurrent calls reached. Wait for calls to complete.'
+            : pendingCalls.length > 0
+              ? 'Scheduler should process calls in next 30 seconds'
+              : 'No pending calls to process'
+          : 'Outside business hours. Calls will process during business hours.'
+    });
+  } catch (error) {
+    console.error('[CALLS API] Error in debug endpoint:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
 // ANALYTICS & STATS
 // ==========================================
 
