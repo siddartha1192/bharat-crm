@@ -26,7 +26,7 @@ import {
   CallQueueItem,
   CallStats,
 } from '@/lib/calls-api';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 // ==========================================
 // CALL SETTINGS HOOKS
@@ -56,17 +56,10 @@ export function useUpdateCallSettings() {
     mutationFn: (data: Partial<CallSettings>) => updateCallSettings(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['callSettings'] });
-      toast({
-        title: 'Settings Updated',
-        description: 'Call settings have been updated successfully',
-      });
+      toast.success('Call settings have been updated successfully');
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to update call settings',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to update call settings');
     },
   });
 }
@@ -111,17 +104,10 @@ export function useCreateCallScript() {
     mutationFn: (data: FormData) => createCallScript(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['callScripts'] });
-      toast({
-        title: 'Script Created',
-        description: 'Call script has been created successfully',
-      });
+      toast.success('Call script has been created successfully');
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create call script',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to create call script');
     },
   });
 }
@@ -135,17 +121,10 @@ export function useUpdateCallScript() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['callScripts'] });
       queryClient.invalidateQueries({ queryKey: ['callScript'] });
-      toast({
-        title: 'Script Updated',
-        description: 'Call script has been updated successfully',
-      });
+      toast.success('Call script has been updated successfully');
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to update call script',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to update call script');
     },
   });
 }
@@ -157,17 +136,10 @@ export function useDeleteCallScript() {
     mutationFn: (id: string) => deleteCallScript(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['callScripts'] });
-      toast({
-        title: 'Script Deleted',
-        description: 'Call script has been deleted successfully',
-      });
+      toast.success('Call script has been deleted successfully');
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to delete call script',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to delete call script');
     },
   });
 }
@@ -212,17 +184,10 @@ export function useCancelCall() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['callLogs'] });
       queryClient.invalidateQueries({ queryKey: ['callLog'] });
-      toast({
-        title: 'Call Cancelled',
-        description: 'The call has been cancelled successfully',
-      });
+      toast.success('The call has been cancelled successfully');
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to cancel call',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to cancel call');
     },
   });
 }
@@ -235,17 +200,10 @@ export function useGenerateCallSummary() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['callLogs'] });
       queryClient.invalidateQueries({ queryKey: ['callLog'] });
-      toast({
-        title: 'Summary Generated',
-        description: 'AI summary has been generated successfully',
-      });
+      toast.success('AI summary has been generated successfully');
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to generate summary',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to generate summary');
     },
   });
 }
@@ -270,17 +228,10 @@ export function useInitiateCall() {
     }) => initiateCall(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['callQueue'] });
-      toast({
-        title: 'Call Initiated',
-        description: 'Call has been queued successfully',
-      });
+      toast.success('Call has been queued successfully');
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to initiate call',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to initiate call');
     },
   });
 }
@@ -310,17 +261,10 @@ export function useRetryQueueItem() {
     mutationFn: (id: string) => retryQueueItem(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['callQueue'] });
-      toast({
-        title: 'Call Queued for Retry',
-        description: 'The call has been queued for retry',
-      });
+      toast.success('The call has been queued for retry');
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to retry call',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to retry call');
     },
   });
 }
@@ -332,17 +276,10 @@ export function useCancelQueueItem() {
     mutationFn: (id: string) => cancelQueueItem(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['callQueue'] });
-      toast({
-        title: 'Call Cancelled',
-        description: 'The queued call has been cancelled',
-      });
+      toast.success('The queued call has been cancelled');
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to cancel call',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to cancel call');
     },
   });
 }
