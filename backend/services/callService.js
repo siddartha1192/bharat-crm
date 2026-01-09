@@ -204,6 +204,12 @@ class CallService {
    */
   async handleRecordingComplete(callSid, recordingData) {
     try {
+      // Validate callSid
+      if (!callSid) {
+        console.error('[CALL SERVICE] Missing callSid in handleRecordingComplete');
+        return null;
+      }
+
       const callLog = await prisma.callLog.findUnique({
         where: { twilioCallSid: callSid }
       });
