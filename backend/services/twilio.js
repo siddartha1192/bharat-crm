@@ -91,44 +91,109 @@ class TwilioService {
    * @param {string} leadId - Lead ID
    * @param {Object} lead - Lead data
    * @param {Object} script - Call script
+   * @param {boolean} enableRecording - Whether to record the call
    * @returns {string} TwiML response
    */
-  generateAICallTwiML(leadId, lead, script) {
+  generateAICallTwiML(leadId, lead, script, enableRecording = true) {
     const response = new VoiceResponse();
-
-    // For AI calls, we'll connect to a WebSocket stream
     const baseUrl = process.env.APP_URL || 'http://localhost:3001';
-    const wsUrl = baseUrl.replace('http://', 'wss://').replace('https://', 'wss://');
-    const streamUrl = `${wsUrl}/api/calls/stream?leadId=${leadId}`;
+
+    // Start recording if enabled
+    if (enableRecording) {
+      response.record({
+        recordingStatusCallback: `${baseUrl}/api/calls/webhook/recording`,
+        recordingStatusCallbackEvent: ['completed'],
+        maxLength: 300, // 5 minutes max
+        playBeep: false
+      });
+    }
 
     // Start with a greeting
-    if (script && script.aiGreeting) {
+    const greeting = script?.aiGreeting || `Hello ${lead?.name || 'there'}, this is a call from our team. How can I help you today?`;
+
+    response.say(
+      {
+        voice: 'alice',
+        language: 'en-IN'
+      },
+      greeting
+    );
+
+    // Use Gather to collect speech input for interactive conversation
+    const gather = response.gather({
+      input: 'speech',
+      timeout: 5, // Wait 5 seconds for user to start speaking
+      speechTimeout: 'auto', // Auto-detect when user stops speaking
+      action: `${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}`,
+      method: 'POST',
+      language: 'en-IN'
+    });
+
+    // If user doesn't say anything after gather timeout
+    response.say(
+      {
+        voice: 'alice',
+        language: 'en-IN'
+      },
+      'I didn\'t catch that. Thank you for your time. Goodbye.'
+    );
+
+    response.hangup();
+
+    return response.toString();
+  }
+
+  /**
+   * Generate TwiML for AI conversation response
+   * @param {string} leadId - Lead ID
+   * @param {string} aiResponse - AI-generated response text
+   * @param {boolean} continueConversation - Whether to continue gathering input
+   * @returns {string} TwiML response
+   */
+  generateAIConversationTwiML(leadId, aiResponse, continueConversation = true) {
+    const response = new VoiceResponse();
+    const baseUrl = process.env.APP_URL || 'http://localhost:3001';
+
+    // Speak the AI response
+    response.say(
+      {
+        voice: 'alice',
+        language: 'en-IN'
+      },
+      aiResponse
+    );
+
+    if (continueConversation) {
+      // Gather next user input to continue conversation
+      const gather = response.gather({
+        input: 'speech',
+        timeout: 5, // Wait 5 seconds for user to start speaking
+        speechTimeout: 'auto', // Auto-detect when user stops speaking
+        action: `${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}`,
+        method: 'POST',
+        language: 'en-IN'
+      });
+
+      // If user doesn't respond
       response.say(
         {
           voice: 'alice',
           language: 'en-IN'
         },
-        script.aiGreeting
+        'Thank you for your time. Goodbye.'
       );
     } else {
+      // End conversation
       response.say(
         {
           voice: 'alice',
           language: 'en-IN'
         },
-        `Hello ${lead?.name || 'there'}, this is a call from our team.`
+        'Thank you for your time. Goodbye.'
       );
     }
 
-    // For now, we'll use Twilio's built-in recording and transcription
-    // In production, you'd connect to OpenAI Realtime API via WebSocket
-    response.record({
-      maxLength: 300, // 5 minutes
-      transcribe: true,
-      transcribeCallback: `${baseUrl}/api/calls/webhook/transcription`,
-      playBeep: false,
-      action: `${baseUrl}/api/calls/webhook/recording-complete`,
-    });
+    response.hangup();
 
     return response.toString();
   }

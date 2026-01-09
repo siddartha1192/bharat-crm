@@ -719,27 +719,32 @@ router.post('/webhook/twiml', async (req, res) => {
     if (callType === 'ai') {
       let lead = null;
       let script = null;
+      let enableRecording = true;
 
       if (leadId) {
         lead = await prisma.lead.findUnique({
           where: { id: leadId }
         });
 
-        // Get default script for tenant
+        // Get default script and settings for tenant
         if (lead) {
           const settings = await prisma.callSettings.findUnique({
             where: { tenantId: lead.tenantId }
           });
 
-          if (settings && settings.defaultCallScriptId) {
-            script = await prisma.callScript.findUnique({
-              where: { id: settings.defaultCallScriptId }
-            });
+          if (settings) {
+            enableRecording = settings.enableRecording !== false;
+
+            if (settings.defaultCallScriptId) {
+              script = await prisma.callScript.findUnique({
+                where: { id: settings.defaultCallScriptId }
+              });
+            }
           }
         }
       }
 
-      const twiml = twilioService.generateAICallTwiML(leadId, lead, script);
+      const twiml = twilioService.generateAICallTwiML(leadId, lead, script, enableRecording);
       res.type('text/xml');
       res.send(twiml);
     } else {
@@ -842,6 +847,137 @@ router.post('/webhook/transcription', async (req, res) => {
   } catch (error) {
     console.error('[WEBHOOK] Error handling transcription:', error);
     res.sendStatus(500);
+  }
+});
+
+/**
+ * POST /api/calls/webhook/ai-conversation
+ * Handle AI conversation during call
+ * Called by Twilio when user speaks during Gather
+ */
+router.post('/webhook/ai-conversation', async (req, res) => {
+  try {
+    const { leadId } = req.query;
+    const { SpeechResult, CallSid, Confidence } = req.body;
+
+    console.log('[WEBHOOK] AI Conversation:', {
+      leadId,
+      CallSid,
+      speech: SpeechResult,
+      confidence: Confidence
+    });
+
+    // Validate speech result
+    if (!SpeechResult || !CallSid) {
+      console.warn('[WEBHOOK] No speech detected or missing CallSid');
+      const twiml = twilioService.generateAIConversationTwiML(
+        leadId,
+        'I didn\'t catch that. Could you please repeat?',
+        true
+      );
+      res.type('text/xml');
+      return res.send(twiml);
+    }
+
+    // Get call log and lead info
+    const callLog = await prisma.callLog.findUnique({
+      where: { twilioCallSid: CallSid },
+      include: {
+        lead: true,
+        callScript: true
+      }
+    });
+
+    if (!callLog) {
+      console.error('[WEBHOOK] Call log not found for CallSid:', CallSid);
+      const twiml = twilioService.generateAIConversationTwiML(
+        leadId,
+        'Thank you for your time. Goodbye.',
+        false
+      );
+      res.type('text/xml');
+      return res.send(twiml);
+    }
+
+    // Get tenant's OpenAI API key
+    const settings = await prisma.callSettings.findUnique({
+      where: { tenantId: callLog.tenantId }
+    });
+
+    if (!settings?.openaiApiKey) {
+      console.error('[WEBHOOK] OpenAI API key not configured for tenant:', callLog.tenantId);
+      const twiml = twilioService.generateAIConversationTwiML(
+        leadId,
+        'Thank you for calling. Someone will follow up with you soon. Goodbye.',
+        false
+      );
+      res.type('text/xml');
+      return res.send(twiml);
+    }
+
+    // Get or initialize conversation history from call metadata
+    let conversationHistory = [];
+    if (callLog.metadata && callLog.metadata.conversationHistory) {
+      conversationHistory = callLog.metadata.conversationHistory;
+    }
+
+    // Add user's speech to history
+    conversationHistory.push({
+      role: 'user',
+      content: SpeechResult
+    });
+
+    // Generate AI response using OpenAI
+    const openaiService = require('../services/openai');
+    const aiResult = await openaiService.generateCallResponse(
+      conversationHistory,
+      SpeechResult,
+      callLog.callScript,
+      callLog.lead,
+      settings.openaiApiKey
+    );
+
+    // Add AI response to history
+    conversationHistory.push({
+      role: 'assistant',
+      content: aiResult.response
+    });
+
+    // Update call log with conversation history and transcript
+    const transcriptEntry = `[${new Date().toISOString()}]\nUser: ${SpeechResult}\nAI: ${aiResult.response}\n\n`;
+    await prisma.callLog.update({
+      where: { id: callLog.id },
+      data: {
+        transcript: (callLog.transcript || '') + transcriptEntry,
+        metadata: {
+          ...callLog.metadata,
+          conversationHistory,
+          totalTokens: (callLog.metadata?.totalTokens || 0) + aiResult.tokensUsed
+        }
+      }
+    });
+
+    // Generate TwiML response with AI's answer
+    const twiml = twilioService.generateAIConversationTwiML(
+      leadId,
+      aiResult.response,
+      aiResult.shouldContinue
+    );
+
+    res.type('text/xml');
+    res.send(twiml);
+  } catch (error) {
+    console.error('[WEBHOOK] Error in AI conversation:', error);
+
+    // Fallback TwiML
+    const twiml = twilioService.generateAIConversationTwiML(
+      req.query.leadId,
+      'I apologize, I\'m having technical difficulties. Thank you for your time. Goodbye.',
+      false
+    );
+
+    res.type('text/xml');
+    res.send(twiml);
   }
 });
 

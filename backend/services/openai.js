@@ -422,6 +422,100 @@ Contact for: Demo/Consultation about Bharat CRM
   }
 
   /**
+   * Generate AI response for phone call conversation
+   * @param {Array} conversationHistory - Previous messages in the call
+   * @param {string} userSpeech - What the user just said
+   * @param {Object} script - Call script with AI instructions
+   * @param {Object} lead - Lead information
+   * @param {string} apiKey - OpenAI API key
+   * @returns {Promise} - AI response
+   */
+  async generateCallResponse(conversationHistory, userSpeech, script, lead, apiKey) {
+    if (!apiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+
+    try {
+      const openai = new OpenAI({ apiKey });
+
+      // Build system prompt from script
+      const systemPrompt = `You are an AI sales representative making a phone call on behalf of a business.
+
+${script?.aiObjective ? `OBJECTIVE: ${script.aiObjective}` : 'OBJECTIVE: Engage the prospect in a friendly conversation and assess their interest.'}
+
+${script?.aiInstructions ? `INSTRUCTIONS:\n${script.aiInstructions}` : ''}
+
+PERSONALITY: ${script?.aiPersonality || 'professional and friendly'}
+
+LEAD INFORMATION:
+- Name: ${lead?.name || 'Unknown'}
+- Company: ${lead?.company || 'Not specified'}
+- Email: ${lead?.email || 'Not specified'}
+- Phone: ${lead?.phone || 'Not specified'}
+
+IMPORTANT GUIDELINES:
+- Keep responses short and natural (1-3 sentences max) - this is a phone conversation
+- Sound conversational, not robotic
+- Listen actively and respond to what the person says
+- If they're not interested, politely end the call
+- If they want to schedule a meeting, ask for their preferred time
+- Don't repeat information unnecessarily
+- Be respectful of their time
+
+Remember: You're on a phone call. Keep it natural, brief, and conversational.`;
+
+      // Prepare conversation history
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...conversationHistory,
+        { role: 'user', content: userSpeech }
+      ];
+
+      // Call OpenAI
+      const completion = await openai.chat.completions.create({
+        model: DEFAULT_OPENAI_MODEL,
+        messages: messages,
+        temperature: 0.8, // Slightly higher for more natural conversation
+        max_tokens: 150, // Keep responses short for phone calls
+      });
+
+      const aiResponse = completion.choices[0].message.content;
+
+      // Detect if conversation should end
+      const shouldEnd = this.detectCallEnding(aiResponse, userSpeech);
+
+      return {
+        response: aiResponse,
+        shouldContinue: !shouldEnd,
+        tokensUsed: completion.usage.total_tokens
+      };
+    } catch (error) {
+      console.error('[OPENAI] Error generating call response:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Detect if call should end based on conversation
+   */
+  detectCallEnding(aiResponse, userSpeech) {
+    const endingPhrases = [
+      'goodbye',
+      'thank you for your time',
+      'have a great day',
+      'talk to you later',
+      'bye',
+      'not interested',
+      'please don\'t call',
+      'remove from list',
+      'stop calling'
+    ];
+
+    const combinedText = (aiResponse + ' ' + userSpeech).toLowerCase();
+    return endingPhrases.some(phrase => combinedText.includes(phrase));
+  }
+
+  /**
    * Generate smart response based on conversation context
    * @param {string} conversationId - WhatsApp conversation ID
    * @param {string} userMessage - User's message
