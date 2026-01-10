@@ -838,7 +838,7 @@ export default function WhatsApp() {
                             {conv.lastMessage || 'No messages yet'}
                           </p>
                           {conv.unreadCount > 0 && (
-                            <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-0.5 rounded-full">
+                            <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-0.5 rounded-full">
                               {conv.unreadCount}
                             </Badge>
                           )}
@@ -924,7 +924,7 @@ export default function WhatsApp() {
                       <div
                         className={`max-w-[75%] rounded-lg p-3 shadow-md relative ${
                           msg.sender === 'user'
-                            ? 'bg-[#dcf8c6] dark:bg-green-700 text-gray-900 dark:text-white rounded-br-none'
+                            ? 'bg-[#dcf8c6] dark:bg-green-200 text-gray-900 dark:text-gray-900 rounded-br-none'
                             : msg.isAiGenerated || msg.sender === 'ai'
                             ? 'bg-blue-500 dark:bg-blue-600 text-white rounded-bl-none'
                             : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
@@ -1102,7 +1102,7 @@ export default function WhatsApp() {
                     onClick={selectedMedia ? sendMedia : sendMessage}
                     disabled={selectedMedia ? uploadingMedia : (!newMessage.trim() || sending)}
                     size="icon"
-                    className="bg-green-600 hover:bg-green-700 text-white rounded-full h-11 w-11 shadow-lg"
+                    className="bg-green-500 hover:bg-green-600 text-white rounded-full h-11 w-11 shadow-lg"
                   >
                     {(sending || uploadingMedia) ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
@@ -1121,7 +1121,7 @@ export default function WhatsApp() {
                 <p className="text-gray-600 dark:text-gray-400 mb-6">Select a conversation to start messaging</p>
                 <Button
                   onClick={() => setShowNewChatDialog(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white shadow-lg px-6 py-3 rounded-full"
+                  className="bg-green-500 hover:bg-green-600 text-white shadow-lg px-6 py-3 rounded-full"
                 >
                   <Plus className="w-5 h-5 mr-2" />
                   Start New Chat
@@ -1292,7 +1292,7 @@ export default function WhatsApp() {
                   <Button
                     onClick={sendTemplate}
                     disabled={!templateName.trim() || sendingTemplate}
-                    className="bg-green-600 hover:bg-green-700 text-white"
+                    className="bg-green-500 hover:bg-green-600 text-white"
                   >
                     {sendingTemplate ? (
                       <>

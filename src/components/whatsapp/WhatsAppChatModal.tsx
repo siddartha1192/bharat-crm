@@ -209,7 +209,7 @@ export function WhatsAppChatModal({ contact, open, onOpenChange }: WhatsAppChatM
               <Button
                 onClick={handleSend}
                 disabled={sending || !message.trim()}
-                className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
+                className="w-full sm:w-auto bg-green-500 hover:bg-green-600"
               >
                 {sending ? (
                   <>
