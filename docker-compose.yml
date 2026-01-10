@@ -32,9 +32,13 @@ services:
       PGADMIN_DEFAULT_PASSWORD: admin123
       PGADMIN_CONFIG_SERVER_MODE: 'True'
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+      # Direct access configuration
+      SCRIPT_NAME: /pgadmin
+    ports:
+      - "5050:80"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
-    # No external port - only accessible via Nginx reverse proxy
+    # Accessible directly at http://localhost:5050/pgadmin
     networks:
       - crm-network
     depends_on:
