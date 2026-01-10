@@ -523,6 +523,7 @@ router.post('/scripts', upload.single('document'), async (req, res) => {
       return res.status(400).json({ error: 'Script name is required' });
     }
 
+    // Convert FormData boolean strings to actual booleans
     const scriptData = {
       name,
       description,
@@ -533,7 +534,7 @@ router.post('/scripts', upload.single('document'), async (req, res) => {
       aiPersonality,
       manualScript,
       isActive: true,
-      isDefault: isDefault === 'true',
+      isDefault: isDefault === 'true' || isDefault === true,
       tenantId,
       userId
     };
@@ -615,10 +616,25 @@ router.put('/scripts/:id', upload.single('document'), async (req, res) => {
       return res.status(404).json({ error: 'Script not found' });
     }
 
-    const updateData = { ...req.body };
-    delete updateData.id;
-    delete updateData.tenantId;
-    delete updateData.userId;
+    // CRITICAL FIX: Convert FormData string values to proper types
+    const updateData = {};
+
+    // String fields (no conversion needed)
+    const stringFields = ['name', 'description', 'scriptType', 'aiGreeting', 'aiObjective',
+                          'aiInstructions', 'aiPersonality', 'manualScript'];
+    stringFields.forEach(field => {
+      if (req.body[field] !== undefined && req.body[field] !== '') {
+        updateData[field] = req.body[field];
+      }
+    });
+
+    // Boolean fields (convert string "true"/"false" to boolean)
+    if (req.body.isDefault !== undefined) {
+      updateData.isDefault = req.body.isDefault === 'true' || req.body.isDefault === true;
+    }
+    if (req.body.isActive !== undefined) {
+      updateData.isActive = req.body.isActive === 'true' || req.body.isActive === true;
+    }
 
     // Handle document upload
     if (req.file) {
@@ -638,7 +654,7 @@ router.put('/scripts/:id', upload.single('document'), async (req, res) => {
     }
 
     // If setting as default, unset other defaults
-    if (updateData.isDefault === true || updateData.isDefault === 'true') {
+    if (updateData.isDefault === true) {
       await prisma.callScript.updateMany({
         where: { tenantId, isDefault: true, id: { not: id } },
         data: { isDefault: false }
@@ -712,9 +728,9 @@ router.delete('/scripts/:id', async (req, res) => {
  */
 router.post('/webhook/twiml', async (req, res) => {
   try {
-    const { leadId, callType = 'ai' } = req.query;
+    const { leadId, callType = 'ai', callSid } = req.query;
 
-    console.log('[WEBHOOK] TwiML requested:', { leadId, callType });
+    console.log('[WEBHOOK] TwiML requested:', { leadId, callType, callSid });
 
     if (callType === 'ai') {
       let lead = null;
@@ -726,7 +742,7 @@ router.post('/webhook/twiml', async (req, res) => {
           where: { id: leadId }
         });
 
-        // Get default script and settings for tenant
+        // Get settings for tenant
         if (lead) {
           const settings = await prisma.callSettings.findUnique({
             where: { tenantId: lead.tenantId }
@@ -734,12 +750,40 @@ router.post('/webhook/twiml', async (req, res) => {
 
           if (settings) {
             enableRecording = settings.enableRecording !== false;
+          }
 
-            if (settings.defaultCallScriptId) {
-              script = await prisma.callScript.findUnique({
-                where: { id: settings.defaultCallScriptId }
-              });
-            }
+          // CRITICAL FIX: Find the CallLog for this specific call to get the bound script
+          // First try to find by CallSid if provided
+          let callLog = null;
+          if (callSid) {
+            callLog = await prisma.callLog.findUnique({
+              where: { twilioCallSid: callSid },
+              include: { callScript: true }
+            });
+          }
+
+          // If not found by CallSid, try to find the most recent call for this lead
+          if (!callLog) {
+            callLog = await prisma.callLog.findFirst({
+              where: {
+                leadId: leadId,
+                callType: 'ai'
+              },
+              include: { callScript: true },
+              orderBy: { createdAt: 'desc' }
+            });
+          }
+
+          // Use the script from the call log (the one selected during call initiation)
+          if (callLog && callLog.callScript) {
+            script = callLog.callScript;
+            console.log('[WEBHOOK] Using script bound to call:', script.name);
+          } else if (settings && settings.defaultCallScriptId) {
+            // Fallback to default script only if no script was bound to the call
+            script = await prisma.callScript.findUnique({
+              where: { id: settings.defaultCallScriptId }
+            });
+            console.log('[WEBHOOK] Using default script:', script?.name);
           }
         }
       }
@@ -879,12 +923,12 @@ router.post('/webhook/ai-conversation', async (req, res) => {
       return res.send(twiml);
     }
 
-    // Get call log and lead info
+    // Get call log with lead and script info (script is already bound to this call)
     const callLog = await prisma.callLog.findUnique({
       where: { twilioCallSid: CallSid },
       include: {
         lead: true,
-        callScript: true
+        callScript: true  // This will get the script that was selected for THIS specific call
       }
     });
 

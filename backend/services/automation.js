@@ -561,7 +561,7 @@ async function executeCallAction(rule, data, user) {
   try {
     console.log('📞 Executing call action for rule:', rule.name);
 
-    // Get call settings to check if auto-calling is enabled
+    // Get call settings for Twilio/OpenAI configuration
     const callSettings = await prisma.callSettings.findUnique({
       where: { tenantId: user.tenantId }
     });
@@ -571,16 +571,10 @@ async function executeCallAction(rule, data, user) {
       return;
     }
 
-    // Check if auto-calling is enabled for this trigger type
-    if (rule.triggerEvent === 'lead.created' && !callSettings.autoCallOnLeadCreate) {
-      console.log('⏭️  Auto-call on lead create is disabled, skipping');
-      return;
-    }
-
-    if (rule.triggerEvent.includes('stage_changed') && !callSettings.autoCallOnStageChange) {
-      console.log('⏭️  Auto-call on stage change is disabled, skipping');
-      return;
-    }
+    // CRITICAL FIX: Removed autoCallOnLeadCreate/autoCallOnStageChange checks
+    // Those settings are for simple auto-call features, NOT automation rules
+    // If a user created an automation rule with "make_call" action, they want it to execute!
+    // The rule being enabled (rule.isEnabled) is the only check needed
 
     // Determine phone number and entity IDs
     let phoneNumber = data.phone || data.whatsapp;
