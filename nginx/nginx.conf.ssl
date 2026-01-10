@@ -146,6 +146,9 @@ http {
 
             # Allow larger uploads for database imports
             client_max_body_size 500M;
+
+            # More permissive CSP for pgAdmin (RequireJS needs unsafe-eval)
+            add_header Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self';" always;
         }
 
         # pgAdmin static files (CSS, JS, images)
@@ -161,6 +164,9 @@ http {
             # Cache static assets
             expires 7d;
             add_header Cache-Control "public, immutable";
+
+            # More permissive CSP for pgAdmin static files
+            add_header Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: blob:; font-src 'self' data:;" always;
         }
 
         # Frontend static files
