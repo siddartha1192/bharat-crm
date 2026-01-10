@@ -1083,4 +1083,68 @@ router.post('/import', async (req, res) => {
   });
 });
 
+/**
+ * GET /api/leads/:id/activity
+ * Get activity logs for a specific lead
+ */
+router.get('/:id/activity', async (req, res) => {
+  try {
+    const leadId = req.params.id;
+    const { limit = 50, offset = 0 } = req.query;
+
+    // Get role-based visibility filter
+    const visibilityFilter = await getVisibilityFilter(req.user);
+
+    // Verify lead is visible to user
+    const lead = await prisma.lead.findFirst({
+      where: { id: leadId, ...visibilityFilter }
+    });
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    // Get activity logs for this lead
+    const activityLogs = await prisma.activityLog.findMany({
+      where: {
+        entityType: 'Lead',
+        entityId: leadId
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: parseInt(limit),
+      skip: parseInt(offset)
+    });
+
+    // Get total count
+    const totalCount = await prisma.activityLog.count({
+      where: {
+        entityType: 'Lead',
+        entityId: leadId
+      }
+    });
+
+    res.json({
+      activityLogs,
+      pagination: {
+        total: totalCount,
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        hasMore: totalCount > parseInt(offset) + parseInt(limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching lead activity logs:', error);
+    res.status(500).json({ error: 'Failed to fetch activity logs', message: error.message });
+  }
+});
+
 module.exports = router;
