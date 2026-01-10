@@ -1483,6 +1483,9 @@ model CallLog {
   // Notes
   notes String? @db.Text
 
+  // Metadata (for storing conversation history and other structured data)
+  metadata Json? // Stores conversation history, custom data, etc.
+
   // System
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Cascade)
