@@ -222,7 +222,7 @@ export default function SalesForecast() {
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">{formatPercent(forecast?.conversionRate || 0)}</div>
             <p className="text-xs text-muted-foreground">
-              {forecast?.wonCount || 0} won / {(forecast?.wonCount || 0) + (forecast?.lostCount || 0)} closed
+              {forecast?.wonCount || 0} won / {forecast?.leadCount || 0} total leads
             </p>
           </CardContent>
         </Card>

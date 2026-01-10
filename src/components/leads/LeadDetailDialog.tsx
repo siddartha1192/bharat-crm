@@ -104,8 +104,21 @@ interface Document {
   };
 }
 
+interface ActivityLog {
+  id: string;
+  action: string;
+  description: string;
+  metadata: any;
+  createdAt: string;
+  user: {
+    name: string;
+    email: string;
+  };
+}
+
 export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogProps) {
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [uploading, setUploading] = useState(false);
   const [creatingDeal, setCreatingDeal] = useState(false);
   const [showCallDialog, setShowCallDialog] = useState(false);
@@ -121,6 +134,7 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
   useEffect(() => {
     if (lead && open) {
       loadDocuments();
+      loadActivityLogs();
     }
   }, [lead, open]);
 
@@ -132,6 +146,17 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
       setDocuments(response.data);
     } catch (error) {
       console.error('Error loading documents:', error);
+    }
+  };
+
+  const loadActivityLogs = async () => {
+    if (!lead) return;
+
+    try {
+      const response = await api.get(`/leads/${lead.id}/activity?limit=20`);
+      setActivityLogs(response.data.activityLogs || []);
+    } catch (error) {
+      console.error('Error loading activity logs:', error);
     }
   };
 
@@ -644,6 +669,52 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Activity Log Card */}
+            <Card className="border-l-4 border-l-cyan-500 shadow-md hover:shadow-lg transition-shadow">
+              <CardContent className="p-6">
+                <h3 className="font-bold text-lg text-foreground flex items-center gap-2 mb-4">
+                  <div className="p-2 bg-cyan-100 rounded-lg">
+                    <Clock className="w-5 h-5 text-cyan-600" />
+                  </div>
+                  Activity Log ({activityLogs.length})
+                </h3>
+                {activityLogs.length === 0 ? (
+                  <div className="text-center py-12 bg-gradient-to-br from-cyan-50/50 to-transparent rounded-xl border-2 border-dashed border-cyan-200">
+                    <div className="p-4 bg-white rounded-full w-fit mx-auto mb-3 shadow-sm">
+                      <Clock className="w-10 h-10 text-cyan-400" />
+                    </div>
+                    <p className="text-sm font-medium text-muted-foreground">No activity recorded yet</p>
+                    <p className="text-xs text-muted-foreground mt-1">Actions on this lead will appear here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {activityLogs.map((log) => (
+                      <div key={log.id} className="p-4 bg-gradient-to-r from-cyan-50/30 to-transparent rounded-xl border border-cyan-100/50 hover:border-cyan-200 hover:shadow-md transition-all">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 bg-white rounded-lg shadow-sm">
+                            <Clock className="w-4 h-4 text-cyan-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="font-semibold text-sm">{log.action}</span>
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-1">{log.description}</p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <User className="w-3 h-3" />
+                              <span>{log.user.name}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
