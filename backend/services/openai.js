@@ -422,6 +422,35 @@ Contact for: Demo/Consultation about Bharat CRM
   }
 
   /**
+   * Read document file content
+   * @param {string} filePath - Path to the document file
+   * @returns {Promise<string>} - Document content as text
+   */
+  async readDocumentContent(filePath) {
+    if (!filePath) return null;
+
+    try {
+      const fs = require('fs').promises;
+      const path = require('path');
+      const fileExt = path.extname(filePath).toLowerCase();
+
+      // For now, only read text files directly
+      // TODO: Add PDF/DOC parsing if needed
+      if (['.txt', '.md'].includes(fileExt)) {
+        const content = await fs.readFile(filePath, 'utf-8');
+        return content;
+      }
+
+      // For other file types, return null (can be extended with PDF/DOC parsers)
+      console.log(`[OPENAI] Document type ${fileExt} not yet supported for content reading`);
+      return null;
+    } catch (error) {
+      console.error('[OPENAI] Error reading document:', error);
+      return null;
+    }
+  }
+
+  /**
    * Generate AI response for phone call conversation
    * @param {Array} conversationHistory - Previous messages in the call
    * @param {string} userSpeech - What the user just said
@@ -437,6 +466,16 @@ Contact for: Demo/Consultation about Bharat CRM
 
     try {
       const openai = new OpenAI({ apiKey });
+
+      // CRITICAL FIX: Read document content if a document is attached to the script
+      let documentContent = null;
+      if (script && script.documentFilePath) {
+        console.log('[OPENAI] Reading document content from:', script.documentFileName);
+        documentContent = await this.readDocumentContent(script.documentFilePath);
+        if (documentContent) {
+          console.log('[OPENAI] Successfully loaded document content (' + documentContent.length + ' characters)');
+        }
+      }
 
       // Build system prompt from script (fully customizable)
       const companyName = script?.companyName || 'our company';
@@ -496,6 +535,8 @@ LEAD INFORMATION:
 ${featuresText}
 
 ${benefitsText}
+
+${documentContent ? `REFERENCE DOCUMENT (Use this information to answer customer questions):\n${documentContent}\n` : ''}
 
 CONVERSATION FLOW:
 1. If they say YES/interested: Briefly highlight 2-3 key features relevant to their business
