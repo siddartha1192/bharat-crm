@@ -30,7 +30,7 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@bharatcrm.com
       PGADMIN_DEFAULT_PASSWORD: admin123
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_SERVER_MODE: 'True'
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
       # Reverse proxy configuration
       SCRIPT_NAME: /pgadmin
