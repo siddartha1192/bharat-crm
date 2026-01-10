@@ -137,6 +137,15 @@ async function calculateForecast(userId, tenantId, period, startDate, endDate) {
     const lostDeals = deals.filter(d => lostStageIds.includes(d.stageId));
     const activeDeals = deals.filter(d => !wonStageIds.includes(d.stageId) && !lostStageIds.includes(d.stageId));
 
+    // CRITICAL FIX: Count WON LEADS (not won deals!)
+    // Conversion rate should be: (won leads / total leads) * 100
+    const wonLeads = leads.filter(lead => {
+      // A lead is "won" if:
+      // 1. Its status is 'won', OR
+      // 2. Its stageId is in the wonStageIds list
+      return lead.status === 'won' || (lead.stageId && wonStageIds.includes(lead.stageId));
+    });
+
     // Won revenue = actual closed revenue in this period
     const wonRevenue = wonDeals.reduce((sum, deal) => sum + deal.value, 0);
 
@@ -146,9 +155,9 @@ async function calculateForecast(userId, tenantId, period, startDate, endDate) {
     // Weighted value = expected revenue from active deals (probability-adjusted)
     const weightedValue = activeDeals.reduce((sum, deal) => sum + (deal.value * deal.probability / 100), 0);
 
-    // Conversion rate = won deals / total leads (if no won deals or no leads, show 0)
-    const conversionRate = (leads.length > 0 && wonDeals.length > 0)
-      ? (wonDeals.length / leads.length) * 100
+    // Conversion rate = won LEADS / total LEADS (FIXED: was using wonDeals instead of wonLeads!)
+    const conversionRate = leads.length > 0
+      ? (wonLeads.length / leads.length) * 100
       : 0;
 
     // Calculate stage breakdown
@@ -262,7 +271,7 @@ async function calculateForecast(userId, tenantId, period, startDate, endDate) {
       leadCount: leads.length,
       dealCount: deals.length,
       activeDeals: activeDeals.length,         // NEW: Count of active deals
-      wonCount: wonDeals.length,
+      wonCount: wonLeads.length,               // FIXED: Count of won LEADS (not deals)
       lostCount: lostDeals.length,
       conversionRate,
       stageBreakdown,
