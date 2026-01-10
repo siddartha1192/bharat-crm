@@ -438,14 +438,54 @@ Contact for: Demo/Consultation about Bharat CRM
     try {
       const openai = new OpenAI({ apiKey });
 
-      // Build system prompt from script
-      const systemPrompt = `You are an AI sales representative calling leads who have shown interest in Bharat CRM - a comprehensive business management platform.
+      // Build system prompt from script (fully customizable)
+      const companyName = script?.companyName || 'our company';
+      const productName = script?.productName || 'our product';
+      const productDesc = script?.productDescription || 'a comprehensive business solution';
 
-${script?.aiObjective ? `OBJECTIVE: ${script.aiObjective}` : 'OBJECTIVE: Introduce Bharat CRM features, highlight benefits for their business, and book a product demo.'}
+      // Parse features and benefits from JSON or use defaults
+      let featuresText = '';
+      if (script?.keyFeatures && Array.isArray(script.keyFeatures)) {
+        featuresText = 'KEY FEATURES TO HIGHLIGHT:\n' + script.keyFeatures.map(f => `- ${f}`).join('\n');
+      } else if (script?.keyFeatures && typeof script.keyFeatures === 'object' && script.keyFeatures.value) {
+        // Handle if stored as {value: [...]}
+        featuresText = 'KEY FEATURES TO HIGHLIGHT:\n' + script.keyFeatures.value.map(f => `- ${f}`).join('\n');
+      } else {
+        // Default fallback features
+        featuresText = `KEY FEATURES TO HIGHLIGHT:
+- Comprehensive business management tools
+- Automated workflows and processes
+- Real-time analytics and reporting
+- Team collaboration features
+- Mobile-friendly interface`;
+      }
+
+      let benefitsText = '';
+      if (script?.keyBenefits && Array.isArray(script.keyBenefits)) {
+        benefitsText = 'KEY BENEFITS:\n' + script.keyBenefits.map(b => `- ${b}`).join('\n');
+      } else if (script?.keyBenefits && typeof script.keyBenefits === 'object' && script.keyBenefits.value) {
+        benefitsText = 'KEY BENEFITS:\n' + script.keyBenefits.value.map(b => `- ${b}`).join('\n');
+      } else {
+        benefitsText = `KEY BENEFITS:
+- Save time and increase productivity
+- Improve customer relationships
+- Make data-driven decisions
+- Scale your business efficiently`;
+      }
+
+      const systemPrompt = `You are an AI sales representative calling leads who have shown interest in ${companyName}${productName ? ` - ${productName}` : ''}.
+
+PRODUCT/SERVICE: ${productDesc}
+
+${script?.aiObjective ? `OBJECTIVE: ${script.aiObjective}` : `OBJECTIVE: Introduce ${productName || companyName} features, highlight benefits for their business, and book a product demo.`}
 
 ${script?.aiInstructions ? `INSTRUCTIONS:\n${script.aiInstructions}` : ''}
 
 PERSONALITY: ${script?.aiPersonality || 'professional, friendly, and solution-focused'}
+
+${script?.targetAudience ? `TARGET AUDIENCE: ${script.targetAudience}` : ''}
+
+${script?.valueProposition ? `VALUE PROPOSITION: ${script.valueProposition}` : ''}
 
 LEAD INFORMATION:
 - Name: ${lead?.name || 'Unknown'}
@@ -453,15 +493,9 @@ LEAD INFORMATION:
 - Email: ${lead?.email || 'Not specified'}
 - Phone: ${lead?.phone || 'Not specified'}
 
-BHARAT CRM KEY FEATURES TO HIGHLIGHT:
-- WhatsApp Business Integration - Manage all WhatsApp conversations in one place
-- Lead Management - Track leads through sales pipeline with automated follow-ups
-- Email & Calendar Integration - Gmail sync and Google Calendar for scheduling
-- GST-Compliant Invoicing - Generate professional invoices with CGST, SGST, IGST
-- Contact & Customer Management - 360-degree view of customer relationships
-- Deal Pipeline - Visual tracking of sales opportunities
-- Task Management - Team collaboration and task tracking
-- Modern, Mobile-Friendly Interface - Works seamlessly on all devices
+${featuresText}
+
+${benefitsText}
 
 CONVERSATION FLOW:
 1. If they say YES/interested: Briefly highlight 2-3 key features relevant to their business
@@ -476,7 +510,7 @@ IMPORTANT GUIDELINES:
 - Focus on BENEFITS for their business, not just features
 - If they ask questions, answer briefly then steer toward demo booking
 - If they're not interested, gracefully end the call without being pushy
-- Don't ask generic questions like "how can I help" - you already know they're interested in CRM
+- Don't ask generic questions - you're calling to introduce ${productName || 'the product'}
 - Be respectful of their time - get to the point quickly
 
 Remember: This is an outbound sales call. Be confident, brief, and value-focused.`;

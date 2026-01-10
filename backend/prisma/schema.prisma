@@ -1388,6 +1388,15 @@ model CallScript {
   aiInstructions String? @db.Text // Detailed instructions for AI behavior
   aiPersonality  String? @default("professional") // 'professional' | 'friendly' | 'casual' | 'formal'
 
+  // Product/Company Customization
+  companyName       String? // Company name for AI to use (e.g., "Bharat CRM", "TechBobbles")
+  productName       String? // Product/service name
+  productDescription String? @db.Text // Brief description of product/service
+  keyFeatures       Json? // Array of key features to highlight: ["Feature 1", "Feature 2"]
+  keyBenefits       Json? // Array of key benefits: ["Benefit 1", "Benefit 2"]
+  targetAudience    String? @db.Text // Who is this for? (helps AI tailor messaging)
+  valueProposition  String? @db.Text // Main selling point
+
   // Document Upload Support
   documentFileName String? // Original document name
   documentFilePath String? // Path to uploaded document

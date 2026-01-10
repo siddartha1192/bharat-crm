@@ -102,7 +102,14 @@ class TwilioService {
     // This allows interactive Gather to work properly
 
     // Start with a greeting that introduces the product and purpose
-    const greeting = script?.aiGreeting || `Hello ${lead?.name || 'there'}, this is a call from Bharat CRM. We're reaching out because you showed interest in CRM solutions for your business. I'd love to give you a quick overview of how our platform can help streamline your sales and customer management. Do you have a couple of minutes?`;
+    // Use customizable company/product name from script
+    const companyName = script?.companyName || 'our company';
+    const productName = script?.productName || 'our solution';
+    const productDesc = script?.productDescription || 'business solutions';
+
+    const defaultGreeting = `Hello ${lead?.name || 'there'}, this is a call from ${companyName}. We're reaching out because you showed interest in ${productDesc}. I'd love to give you a quick overview of how ${productName} can help your business. Do you have a couple of minutes?`;
+
+    const greeting = script?.aiGreeting || defaultGreeting;
 
     // Create gather for speech input - the greeting will be said before listening
     const gather = response.gather({
