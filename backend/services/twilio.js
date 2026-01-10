@@ -101,8 +101,15 @@ class TwilioService {
     // Recording is handled via Twilio API call parameters, not TwiML Record verb
     // This allows interactive Gather to work properly
 
-    // Start with a greeting, then gather speech input
-    const greeting = script?.aiGreeting || `Hello ${lead?.name || 'there'}, this is a call from our team. How can I help you today?`;
+    // Start with a greeting that introduces the product and purpose
+    // Use customizable company/product name from script
+    const companyName = script?.companyName || 'our company';
+    const productName = script?.productName || 'our solution';
+    const productDesc = script?.productDescription || 'business solutions';
+
+    const defaultGreeting = `Hello ${lead?.name || 'there'}, this is a call from ${companyName}. We're reaching out because you showed interest in ${productDesc}. I'd love to give you a quick overview of how ${productName} can help your business. Do you have a couple of minutes?`;
+
+    const greeting = script?.aiGreeting || defaultGreeting;
 
     // Create gather for speech input - the greeting will be said before listening
     const gather = response.gather({
@@ -112,7 +119,7 @@ class TwilioService {
       action: `${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}`,
       method: 'POST',
       language: 'en-IN',
-      hints: 'product, price, demo, meeting, interested, yes, no, hello' // Help Twilio recognize common words
+      hints: 'product, price, demo, meeting, interested, yes, no, hello, okay, sure, features, benefits' // Help Twilio recognize common words
     });
 
     // Say the greeting INSIDE the gather - this plays before waiting for speech

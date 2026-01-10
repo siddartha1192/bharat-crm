@@ -438,14 +438,54 @@ Contact for: Demo/Consultation about Bharat CRM
     try {
       const openai = new OpenAI({ apiKey });
 
-      // Build system prompt from script
-      const systemPrompt = `You are an AI sales representative making a phone call on behalf of a business.
+      // Build system prompt from script (fully customizable)
+      const companyName = script?.companyName || 'our company';
+      const productName = script?.productName || 'our product';
+      const productDesc = script?.productDescription || 'a comprehensive business solution';
 
-${script?.aiObjective ? `OBJECTIVE: ${script.aiObjective}` : 'OBJECTIVE: Engage the prospect in a friendly conversation and assess their interest.'}
+      // Parse features and benefits from JSON or use defaults
+      let featuresText = '';
+      if (script?.keyFeatures && Array.isArray(script.keyFeatures)) {
+        featuresText = 'KEY FEATURES TO HIGHLIGHT:\n' + script.keyFeatures.map(f => `- ${f}`).join('\n');
+      } else if (script?.keyFeatures && typeof script.keyFeatures === 'object' && script.keyFeatures.value) {
+        // Handle if stored as {value: [...]}
+        featuresText = 'KEY FEATURES TO HIGHLIGHT:\n' + script.keyFeatures.value.map(f => `- ${f}`).join('\n');
+      } else {
+        // Default fallback features
+        featuresText = `KEY FEATURES TO HIGHLIGHT:
+- Comprehensive business management tools
+- Automated workflows and processes
+- Real-time analytics and reporting
+- Team collaboration features
+- Mobile-friendly interface`;
+      }
+
+      let benefitsText = '';
+      if (script?.keyBenefits && Array.isArray(script.keyBenefits)) {
+        benefitsText = 'KEY BENEFITS:\n' + script.keyBenefits.map(b => `- ${b}`).join('\n');
+      } else if (script?.keyBenefits && typeof script.keyBenefits === 'object' && script.keyBenefits.value) {
+        benefitsText = 'KEY BENEFITS:\n' + script.keyBenefits.value.map(b => `- ${b}`).join('\n');
+      } else {
+        benefitsText = `KEY BENEFITS:
+- Save time and increase productivity
+- Improve customer relationships
+- Make data-driven decisions
+- Scale your business efficiently`;
+      }
+
+      const systemPrompt = `You are an AI sales representative calling leads who have shown interest in ${companyName}${productName ? ` - ${productName}` : ''}.
+
+PRODUCT/SERVICE: ${productDesc}
+
+${script?.aiObjective ? `OBJECTIVE: ${script.aiObjective}` : `OBJECTIVE: Introduce ${productName || companyName} features, highlight benefits for their business, and book a product demo.`}
 
 ${script?.aiInstructions ? `INSTRUCTIONS:\n${script.aiInstructions}` : ''}
 
-PERSONALITY: ${script?.aiPersonality || 'professional and friendly'}
+PERSONALITY: ${script?.aiPersonality || 'professional, friendly, and solution-focused'}
+
+${script?.targetAudience ? `TARGET AUDIENCE: ${script.targetAudience}` : ''}
+
+${script?.valueProposition ? `VALUE PROPOSITION: ${script.valueProposition}` : ''}
 
 LEAD INFORMATION:
 - Name: ${lead?.name || 'Unknown'}
@@ -453,16 +493,27 @@ LEAD INFORMATION:
 - Email: ${lead?.email || 'Not specified'}
 - Phone: ${lead?.phone || 'Not specified'}
 
-IMPORTANT GUIDELINES:
-- Keep responses short and natural (1-3 sentences max) - this is a phone conversation
-- Sound conversational, not robotic
-- Listen actively and respond to what the person says
-- If they're not interested, politely end the call
-- If they want to schedule a meeting, ask for their preferred time
-- Don't repeat information unnecessarily
-- Be respectful of their time
+${featuresText}
 
-Remember: You're on a phone call. Keep it natural, brief, and conversational.`;
+${benefitsText}
+
+CONVERSATION FLOW:
+1. If they say YES/interested: Briefly highlight 2-3 key features relevant to their business
+2. After introducing features: Ask if they'd like to see it in action via a demo
+3. If they want a demo: Ask for their preferred date/time
+4. If they're busy: Offer to schedule a callback or send information via email
+5. If they're not interested: Politely thank them and end the call
+
+IMPORTANT GUIDELINES:
+- Keep responses very short (1-2 sentences max) - this is a phone conversation
+- Be proactive - introduce features, don't wait for them to ask
+- Focus on BENEFITS for their business, not just features
+- If they ask questions, answer briefly then steer toward demo booking
+- If they're not interested, gracefully end the call without being pushy
+- Don't ask generic questions - you're calling to introduce ${productName || 'the product'}
+- Be respectful of their time - get to the point quickly
+
+Remember: This is an outbound sales call. Be confident, brief, and value-focused.`;
 
       // Prepare conversation history
       const messages = [
