@@ -274,6 +274,30 @@ router.post('/', validateAssignment, async (req, res) => {
 
     console.log(`Lead created: ${lead.id} - Use /api/leads/${lead.id}/create-deal to manually convert to deal`);
 
+    // CRITICAL FIX: Create activity log for lead creation
+    try {
+      await prisma.activityLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'CREATE',
+          entityType: 'Lead',
+          entityId: lead.id,
+          description: `Created lead "${lead.name}" from ${lead.source || 'unknown source'}`,
+          metadata: {
+            leadName: lead.name,
+            leadEmail: lead.email,
+            leadPhone: lead.phone,
+            leadCompany: lead.company,
+            leadStatus: lead.status,
+            assignedTo: lead.assignedTo
+          }
+        }
+      });
+    } catch (logError) {
+      console.error('Error creating activity log for lead creation:', logError);
+      // Don't fail the request if logging fails
+    }
+
     // Log round-robin assignment if applicable
     if (assignmentReason && assignmentReason !== 'manual') {
       try {
@@ -619,6 +643,44 @@ router.put('/:id', async (req, res) => {
       }
     }
 
+    // CRITICAL FIX: Create activity log for lead update
+    try {
+      // Build description of what changed
+      const changes = [];
+      if (updateData.name && updateData.name !== existingLead.name) changes.push(`name to "${updateData.name}"`);
+      if (updateData.status && updateData.status !== existingLead.status) changes.push(`status to "${updateData.status}"`);
+      if (updateData.stageId && updateData.stageId !== existingLead.stageId) changes.push('stage');
+      if (updateData.assignedTo && updateData.assignedTo !== existingLead.assignedTo) changes.push(`assignment to "${updateData.assignedTo}"`);
+      if (updateData.estimatedValue !== undefined && updateData.estimatedValue !== existingLead.estimatedValue) changes.push('estimated value');
+      if (updateData.company && updateData.company !== existingLead.company) changes.push(`company to "${updateData.company}"`);
+      if (updateData.email && updateData.email !== existingLead.email) changes.push('email');
+      if (updateData.phone && updateData.phone !== existingLead.phone) changes.push('phone');
+
+      if (changes.length > 0) {
+        await prisma.activityLog.create({
+          data: {
+            userId: req.user.id,
+            action: 'UPDATE',
+            entityType: 'Lead',
+            entityId: result.id,
+            description: `Updated ${changes.join(', ')} for lead "${result.name}"`,
+            metadata: {
+              changes: updateData,
+              previousValues: {
+                name: existingLead.name,
+                status: existingLead.status,
+                assignedTo: existingLead.assignedTo,
+                estimatedValue: existingLead.estimatedValue
+              }
+            }
+          }
+        });
+      }
+    } catch (logError) {
+      console.error('Error creating activity log for lead update:', logError);
+      // Don't fail the request if logging fails
+    }
+
     res.json(result);
   } catch (error) {
     console.error('Error updating lead:', error);
@@ -653,6 +715,29 @@ router.delete('/:id', async (req, res) => {
     }
 
     console.log('🗑️ Deleting lead:', req.params.id);
+
+    // CRITICAL FIX: Create activity log for lead deletion BEFORE deleting
+    try {
+      await prisma.activityLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'DELETE',
+          entityType: 'Lead',
+          entityId: existingLead.id,
+          description: `Deleted lead "${existingLead.name}" (${existingLead.company || 'no company'})`,
+          metadata: {
+            leadName: existingLead.name,
+            leadEmail: existingLead.email,
+            leadPhone: existingLead.phone,
+            leadCompany: existingLead.company,
+            hadLinkedDeal: !!existingLead.dealId
+          }
+        }
+      });
+    } catch (logError) {
+      console.error('Error creating activity log for lead deletion:', logError);
+      // Don't fail the request if logging fails
+    }
 
     // Use transaction to delete both lead and linked deal
     await prisma.$transaction(async (tx) => {
