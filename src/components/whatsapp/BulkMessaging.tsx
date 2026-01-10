@@ -593,10 +593,10 @@ export default function BulkMessaging() {
         <CardContent className="flex-1 flex flex-col gap-3 p-3 min-h-0">
           {/* Message Type Tabs */}
           <Tabs value={messageType} onValueChange={(v) => setMessageType(v as any)} className="flex-1 flex flex-col min-h-0">
-            <TabsList className="grid w-full grid-cols-3 bg-green-50 dark:bg-gray-800 h-9">
-              <TabsTrigger value="text" className="data-[state=active]:bg-green-600 data-[state=active]:text-white text-xs">Text</TabsTrigger>
-              <TabsTrigger value="media" className="data-[state=active]:bg-green-600 data-[state=active]:text-white text-xs">Media</TabsTrigger>
-              <TabsTrigger value="template" className="data-[state=active]:bg-green-600 data-[state=active]:text-white text-xs">Template</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 bg-green-50 dark:bg-gray-800 h-10">
+              <TabsTrigger value="text" className="data-[state=active]:bg-green-600 data-[state=active]:text-white text-sm font-medium">Text</TabsTrigger>
+              <TabsTrigger value="media" className="data-[state=active]:bg-green-600 data-[state=active]:text-white text-sm font-medium">Media</TabsTrigger>
+              <TabsTrigger value="template" className="data-[state=active]:bg-green-600 data-[state=active]:text-white text-sm font-medium">Template</TabsTrigger>
             </TabsList>
 
             {/* Text Message */}
