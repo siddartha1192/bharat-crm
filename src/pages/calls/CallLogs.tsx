@@ -150,9 +150,8 @@ export default function CallLogsPage() {
                 <SelectValue placeholder="Call Type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="all">All Calls</SelectItem>
                 <SelectItem value="ai">AI Calls</SelectItem>
-                <SelectItem value="manual">Manual Calls</SelectItem>
               </SelectContent>
             </Select>
 
@@ -222,8 +221,8 @@ export default function CallLogsPage() {
                       {call.phoneNumber}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={call.callType === 'ai' ? 'default' : 'secondary'}>
-                        {call.callType === 'ai' ? 'AI' : 'Manual'}
+                      <Badge variant="default">
+                        AI
                       </Badge>
                     </TableCell>
                     <TableCell>{getStatusBadge(call.twilioStatus)}</TableCell>
@@ -330,8 +329,8 @@ export default function CallLogsPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Type</p>
-                  <Badge variant={selectedCall.callType === 'ai' ? 'default' : 'secondary'}>
-                    {selectedCall.callType === 'ai' ? 'AI Call' : 'Manual Call'}
+                  <Badge variant="default">
+                    AI Call
                   </Badge>
                 </div>
                 <div>

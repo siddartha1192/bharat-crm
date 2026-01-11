@@ -109,7 +109,7 @@ export default function CallScriptsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Call Scripts</h2>
-          <p className="text-gray-600">Manage AI and manual call scripts</p>
+          <p className="text-gray-600">Manage AI call scripts for programmatic calling</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -120,41 +120,23 @@ export default function CallScriptsPage() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingScript ? 'Edit Script' : 'Create New Script'}</DialogTitle>
+              <DialogTitle>{editingScript ? 'Edit Script' : 'Create New AI Script'}</DialogTitle>
               <DialogDescription>
-                Create scripts for AI or manual calls with custom instructions
+                Create AI call scripts with custom instructions and personality
               </DialogDescription>
             </DialogHeader>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Basic Info */}
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Script Name *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="scriptType">Type</Label>
-                    <Select
-                      value={formData.scriptType}
-                      onValueChange={(value) => setFormData({ ...formData, scriptType: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ai">AI Call</SelectItem>
-                        <SelectItem value="manual">Manual Call</SelectItem>
-                        <SelectItem value="hybrid">Hybrid</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Script Name *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -169,8 +151,7 @@ export default function CallScriptsPage() {
               </div>
 
               {/* AI Script Settings */}
-              {(formData.scriptType === 'ai' || formData.scriptType === 'hybrid') && (
-                <div className="space-y-4 border-t pt-4">
+              <div className="space-y-4 border-t pt-4">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-yellow-500" />
                     <h3 className="font-semibold">AI Configuration</h3>
@@ -252,21 +233,7 @@ export default function CallScriptsPage() {
                       Upload product info, FAQs, or other reference material for AI to use
                     </p>
                   </div>
-                </div>
-              )}
-
-              {/* Manual Script */}
-              {(formData.scriptType === 'manual' || formData.scriptType === 'hybrid') && (
-                <div className="space-y-4 border-t pt-4">
-                  <h3 className="font-semibold">Manual Call Script</h3>
-                  <Textarea
-                    value={formData.manualScript}
-                    onChange={(e) => setFormData({ ...formData, manualScript: e.target.value })}
-                    placeholder="Enter the script for manual calls..."
-                    rows={6}
-                  />
-                </div>
-              )}
+              </div>
 
               {/* Settings */}
               <div className="flex items-center justify-between border-t pt-4">
@@ -331,8 +298,8 @@ export default function CallScriptsPage() {
                       <CardDescription className="mt-1">{script.description}</CardDescription>
                     )}
                   </div>
-                  <Badge variant={script.scriptType === 'ai' ? 'default' : 'secondary'}>
-                    {script.scriptType}
+                  <Badge variant="default">
+                    AI
                   </Badge>
                 </div>
               </CardHeader>

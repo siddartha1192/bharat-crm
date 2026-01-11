@@ -28,7 +28,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { api } from '@/lib/api';
 import { useInitiateCall, useCallScripts, useCallSettings } from '@/hooks/useCalls';
 import {
@@ -122,7 +121,6 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
   const [uploading, setUploading] = useState(false);
   const [creatingDeal, setCreatingDeal] = useState(false);
   const [showCallDialog, setShowCallDialog] = useState(false);
-  const [callType, setCallType] = useState<'ai' | 'manual'>('ai');
   const [selectedScript, setSelectedScript] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -288,7 +286,7 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
       await initiateCall.mutateAsync({
         leadId: lead.id,
         phoneNumber: lead.phone,
-        callType,
+        callType: 'ai',
         callScriptId: selectedScript || undefined,
       });
 
@@ -766,43 +764,22 @@ export function LeadDetailDialog({ lead, open, onOpenChange }: LeadDetailDialogP
               </div>
             </div>
 
-            {/* Call Type */}
+            {/* Call Type Info */}
             <div className="space-y-2">
               <Label>Call Type</Label>
-              <RadioGroup value={callType} onValueChange={(value: any) => setCallType(value)}>
-                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                  <RadioGroupItem value="ai" id="ai" />
-                  <Label htmlFor="ai" className="flex-1 cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-blue-600" />
-                      <div>
-                        <div className="font-medium">AI Call</div>
-                        <div className="text-xs text-gray-500">
-                          Automated call with AI assistant
-                        </div>
-                      </div>
-                    </div>
-                  </Label>
+              <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <Sparkles className="w-4 h-4 text-blue-600" />
+                <div>
+                  <div className="font-medium text-blue-900">AI Programmatic Call</div>
+                  <div className="text-xs text-blue-700">
+                    Automated call with AI assistant
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                  <RadioGroupItem value="manual" id="manual" />
-                  <Label htmlFor="manual" className="flex-1 cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-green-600" />
-                      <div>
-                        <div className="font-medium">Manual Call</div>
-                        <div className="text-xs text-gray-500">
-                          Direct call without AI assistance
-                        </div>
-                      </div>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
+              </div>
             </div>
 
-            {/* Script Selection (for AI calls) */}
-            {callType === 'ai' && scripts && Array.isArray(scripts) && scripts.length > 0 && (
+            {/* Script Selection */}
+            {scripts && Array.isArray(scripts) && scripts.length > 0 && (
               <div className="space-y-2">
                 <Label>Call Script (Optional)</Label>
                 <Select value={selectedScript || undefined} onValueChange={setSelectedScript}>
