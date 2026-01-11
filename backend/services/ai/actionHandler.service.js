@@ -161,12 +161,22 @@ Notes: ${data.notes || 'None'}
           tenantId: true,
           calendarAccessToken: true,
           calendarRefreshToken: true,
+          calendarTokenExpiry: true,
         },
       });
 
       if (!ownerUser) {
         return { success: false, error: 'User not found' };
       }
+
+      // Get tenant for OAuth client configuration
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: ownerUser.tenantId },
+        select: {
+          id: true,
+          settings: true,
+        },
+      });
 
       let googleEventId = null;
 
@@ -175,8 +185,8 @@ Notes: ${data.notes || 'None'}
         try {
           console.log('   🔄 Syncing to Google Calendar...');
           const auth = await googleCalendarService.getAuthenticatedClient(
-            ownerUser.calendarAccessToken,
-            ownerUser.calendarRefreshToken
+            ownerUser,
+            tenant
           );
 
           const googleEvent = await googleCalendarService.createEvent(auth, {
