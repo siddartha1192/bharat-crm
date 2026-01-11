@@ -13,6 +13,8 @@ import { useState, useRef } from 'react';
 import axios from 'axios';
 import { PhoneInput } from '@/components/shared/PhoneInput';
 import { Label } from '@/components/ui/label';
+import { PromoNav } from '@/components/promo/PromoNav';
+import { PromoFooter } from '@/components/promo/PromoFooter';
 
 export default function PromoLanding() {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
@@ -187,35 +189,7 @@ export default function PromoLanding() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
-      {/* Navigation */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <div className="w-14 h-14 flex items-center justify-center">
-            <img
-              src="/logo_with_white_background.png"
-              alt="CLiM Logo"
-              className="w-full h-full object-contain"
-            />
-          </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                CLiM CRM
-              </span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link to="/login">
-                <Button variant="ghost">Login</Button>
-              </Link>
-              <Link to="/signup">
-                <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
-                  Start Free Trial
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <PromoNav />
 
       {/* Hero Section */}
       <section className="relative overflow-hidden pt-20 pb-32">
@@ -332,7 +306,7 @@ export default function PromoLanding() {
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
               Why Businesses
-              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent"> Love CLiM CRM</span>
+              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent"> Love NeuraGG CRM</span>
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Real results that impact your bottom line from day one.
@@ -520,7 +494,7 @@ export default function PromoLanding() {
                   Ready to Transform Your Sales?
                 </h2>
                 <p className="text-xl text-gray-600">
-                  Request a personalized demo and see CLiM CRM in action
+                  Request a personalized demo and see NeuraGG CRM in action
                 </p>
               </div>
 
@@ -661,7 +635,7 @@ export default function PromoLanding() {
             Start your free trial today. No credit card required.
           </p>
           <p className="text-xl mb-10 text-gray-400">
-            Join hundreds of Indian businesses already using CLiM CRM
+            Join hundreds of Indian businesses already using NeuraGG CRM
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-12">
@@ -748,49 +722,7 @@ export default function PromoLanding() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <Sparkles className="w-8 h-8 text-purple-400" />
-                <span className="text-xl font-bold">CLiM CRM</span>
-              </div>
-              <p className="text-gray-400 text-sm">
-                AI-powered CRM built for Indian businesses. Unlimited users, zero per-seat fees.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-bold mb-4">Product</h4>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><Link to="/login" className="hover:text-white">Features</Link></li>
-                <li><Link to="/login" className="hover:text-white">Pricing</Link></li>
-                <li><Link to="/login" className="hover:text-white">API</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold mb-4">Company</h4>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><Link to="/login" className="hover:text-white">About</Link></li>
-                <li><Link to="/login" className="hover:text-white">Blog</Link></li>
-                <li><Link to="/login" className="hover:text-white">Careers</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold mb-4">Support</h4>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><Link to="/login" className="hover:text-white">Help Center</Link></li>
-                <li><Link to="/login" className="hover:text-white">Contact</Link></li>
-                <li><Link to="/login" className="hover:text-white">Status</Link></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-gray-800 pt-8 text-center text-sm text-gray-400">
-            <p>&copy; 2026 CLiM CRM. All rights reserved. Built with ❤️ for Indian businesses.</p>
-          </div>
-        </div>
-      </footer>
+      <PromoFooter />
 
       <style>{`
         @keyframes blob {
