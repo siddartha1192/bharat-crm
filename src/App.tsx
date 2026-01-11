@@ -37,6 +37,16 @@ import Forms from "./pages/Forms";
 import PromoLanding from "./pages/PromoLanding";
 import PublicForm from "./pages/PublicForm";
 import Calls from "./pages/Calls";
+import ProductPage from "./pages/ProductPage";
+import FeaturesPage from "./pages/FeaturesPage";
+import PricingPage from "./pages/PricingPage";
+import APIPage from "./pages/APIPage";
+import AboutPage from "./pages/AboutPage";
+import BlogPage from "./pages/BlogPage";
+import CareersPage from "./pages/CareersPage";
+import HelpCenterPage from "./pages/HelpCenterPage";
+import ContactPage from "./pages/ContactPage";
+import StatusPage from "./pages/StatusPage";
 
 const queryClient = new QueryClient();
 
@@ -71,6 +81,16 @@ const App = () => (
               <Routes>
               {/* Public routes */}
               <Route path="/" element={<PromoLanding />} />
+              <Route path="/product" element={<ProductPage />} />
+              <Route path="/features" element={<FeaturesPage />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/api" element={<APIPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/blog" element={<BlogPage />} />
+              <Route path="/careers" element={<CareersPage />} />
+              <Route path="/help" element={<HelpCenterPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/status" element={<StatusPage />} />
               <Route path="/f/:slug" element={<PublicForm />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
