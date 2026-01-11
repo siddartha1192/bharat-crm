@@ -87,6 +87,36 @@ class TwilioService {
   }
 
   /**
+   * Replace placeholders in text with actual lead data
+   * @param {string} text - Text with placeholders
+   * @param {Object} lead - Lead data
+   * @param {Object} script - Call script
+   * @returns {string} Text with replaced placeholders
+   */
+  replacePlaceholders(text, lead, script) {
+    if (!text) return text;
+
+    let result = text;
+
+    // Replace lead-specific placeholders
+    if (lead) {
+      result = result.replace(/\{name\}/gi, lead.name || 'there');
+      result = result.replace(/\{company\}/gi, lead.company || 'your company');
+      result = result.replace(/\{email\}/gi, lead.email || '');
+      result = result.replace(/\{phone\}/gi, lead.phone || '');
+    }
+
+    // Replace script-specific placeholders
+    if (script) {
+      result = result.replace(/\{companyName\}/gi, script.companyName || 'our company');
+      result = result.replace(/\{productName\}/gi, script.productName || 'our solution');
+      result = result.replace(/\{productDescription\}/gi, script.productDescription || 'business solutions');
+    }
+
+    return result;
+  }
+
+  /**
    * Generate TwiML for AI call
    * @param {string} leadId - Lead ID
    * @param {Object} lead - Lead data
@@ -109,7 +139,9 @@ class TwilioService {
 
     const defaultGreeting = `Hello ${lead?.name || 'there'}, this is a call from ${companyName}. We're reaching out because you showed interest in ${productDesc}. I'd love to give you a quick overview of how ${productName} can help your business. Do you have a couple of minutes?`;
 
-    const greeting = script?.aiGreeting || defaultGreeting;
+    // Get greeting from script and replace placeholders
+    let greeting = script?.aiGreeting || defaultGreeting;
+    greeting = this.replacePlaceholders(greeting, lead, script);
 
     // Create gather for speech input - the greeting will be said before listening
     const gather = response.gather({

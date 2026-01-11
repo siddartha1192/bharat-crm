@@ -319,14 +319,23 @@ router.post('/logs/:id/preview-summary', async (req, res) => {
       });
     }
 
-    console.log(`[PREVIEW SUMMARY] Model: ${settings.openaiModel || 'gpt-4o-mini'}, Transcript: ${callLog.transcript.length} chars`);
+    // 4. Determine which model to use
+    // Realtime models (gpt-4o-realtime-*) are for voice/streaming, not chat completions
+    // Fallback to gpt-4o-mini for chat completions
+    let modelToUse = settings.openaiModel || 'gpt-4o-mini';
+    if (modelToUse.includes('realtime')) {
+      console.log(`[PREVIEW SUMMARY] Detected realtime model (${modelToUse}), falling back to gpt-4o-mini for chat completion`);
+      modelToUse = 'gpt-4o-mini';
+    }
 
-    // 4. Generate summary with OpenAI
+    console.log(`[PREVIEW SUMMARY] Model: ${modelToUse}, Transcript: ${callLog.transcript.length} chars`);
+
+    // 5. Generate summary with OpenAI
     const OpenAI = require('openai');
     const openai = new OpenAI({ apiKey: settings.openaiApiKey });
 
     const completion = await openai.chat.completions.create({
-      model: settings.openaiModel || 'gpt-4o-mini',
+      model: modelToUse,
       messages: [
         {
           role: 'system',
@@ -355,18 +364,18 @@ Keep it concise, actionable, and professional.`
 
     const summary = completion.choices[0].message.content;
     const tokensUsed = completion.usage.total_tokens;
-    const cost = callService.calculateOpenAICost(completion.usage, settings.openaiModel || 'gpt-4o-mini');
+    const cost = callService.calculateOpenAICost(completion.usage, modelToUse);
 
     console.log(`[PREVIEW SUMMARY] ✅ Generated - Tokens: ${tokensUsed}, Cost: $${cost.toFixed(6)}`);
 
-    // 5. Return summary WITHOUT saving to database
+    // 6. Return summary WITHOUT saving to database
     res.json({
       success: true,
       summary,
       metadata: {
         tokensUsed,
         estimatedCost: cost,
-        model: settings.openaiModel || 'gpt-4o-mini',
+        model: modelToUse,
         transcriptLength: callLog.transcript.length
       }
     });

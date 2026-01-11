@@ -315,8 +315,16 @@ class CallService {
       const OpenAI = require('openai');
       const openai = new OpenAI({ apiKey: settings.openaiApiKey });
 
+      // Realtime models (gpt-4o-realtime-*) are for voice/streaming, not chat completions
+      // Fallback to gpt-4o-mini for chat completions
+      let modelToUse = settings.openaiModel || 'gpt-4o-mini';
+      if (modelToUse.includes('realtime')) {
+        console.log(`[CALL SERVICE] Detected realtime model (${modelToUse}), falling back to gpt-4o-mini for chat completion`);
+        modelToUse = 'gpt-4o-mini';
+      }
+
       const completion = await openai.chat.completions.create({
-        model: settings.openaiModel || 'gpt-4o-mini',
+        model: modelToUse,
         messages: [
           {
             role: 'system',
@@ -339,7 +347,7 @@ class CallService {
         data: {
           summary,
           aiTokensUsed: completion.usage.total_tokens,
-          aiCost: this.calculateOpenAICost(completion.usage, settings.openaiModel)
+          aiCost: this.calculateOpenAICost(completion.usage, modelToUse)
         }
       });
 
