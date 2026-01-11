@@ -344,27 +344,45 @@ router.put('/events/:eventId', async (req, res) => {
     });
 
     let syncError = null;
+    let newGoogleEventId = existingEvent.googleEventId;
 
-    // AUTO-SYNC: Update in Google Calendar if connected and event has googleEventId
-    const shouldSync = syncWithGoogle !== false && existingEvent.googleEventId && googleCalendarService.isCalendarConnected(user);
+    // AUTO-SYNC: Sync to Google Calendar if user wants sync and Google Calendar is connected
+    const shouldSync = syncWithGoogle !== false && googleCalendarService.isCalendarConnected(user);
 
     if (shouldSync) {
       try {
-        console.log(`[Calendar Update] Syncing event ${eventId} to Google Calendar`);
         const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
 
-        await googleCalendarService.updateEvent(auth, existingEvent.googleEventId, {
-          title: title !== undefined ? title : existingEvent.title,
-          description: description !== undefined ? description : existingEvent.description,
-          startTime: startTime !== undefined ? startTime : existingEvent.startTime.toISOString(),
-          endTime: endTime !== undefined ? endTime : existingEvent.endTime.toISOString(),
-          location: location !== undefined ? location : existingEvent.location,
-          attendees: attendees !== undefined ? attendees : existingEvent.attendees,
-          isAllDay: isAllDay !== undefined ? isAllDay : existingEvent.isAllDay,
-          reminders: reminders !== undefined ? reminders : existingEvent.reminders
-        });
-
-        console.log(`[Calendar Update] Successfully synced to Google Calendar`);
+        // If event doesn't have googleEventId yet, create it in Google Calendar
+        if (!existingEvent.googleEventId) {
+          console.log(`[Calendar Update] Event has no googleEventId, creating in Google Calendar`);
+          const googleEvent = await googleCalendarService.createEvent(auth, {
+            title: title !== undefined ? title : existingEvent.title,
+            description: description !== undefined ? description : existingEvent.description,
+            startTime: startTime !== undefined ? startTime : existingEvent.startTime.toISOString(),
+            endTime: endTime !== undefined ? endTime : existingEvent.endTime.toISOString(),
+            location: location !== undefined ? location : existingEvent.location,
+            attendees: attendees !== undefined ? attendees : existingEvent.attendees,
+            isAllDay: isAllDay !== undefined ? isAllDay : existingEvent.isAllDay,
+            reminders: reminders !== undefined ? reminders : existingEvent.reminders
+          });
+          newGoogleEventId = googleEvent.id;
+          console.log(`[Calendar Update] Created in Google Calendar with ID: ${newGoogleEventId}`);
+        } else {
+          // Update existing Google Calendar event
+          console.log(`[Calendar Update] Updating event ${eventId} in Google Calendar`);
+          await googleCalendarService.updateEvent(auth, existingEvent.googleEventId, {
+            title: title !== undefined ? title : existingEvent.title,
+            description: description !== undefined ? description : existingEvent.description,
+            startTime: startTime !== undefined ? startTime : existingEvent.startTime.toISOString(),
+            endTime: endTime !== undefined ? endTime : existingEvent.endTime.toISOString(),
+            location: location !== undefined ? location : existingEvent.location,
+            attendees: attendees !== undefined ? attendees : existingEvent.attendees,
+            isAllDay: isAllDay !== undefined ? isAllDay : existingEvent.isAllDay,
+            reminders: reminders !== undefined ? reminders : existingEvent.reminders
+          });
+          console.log(`[Calendar Update] Successfully synced to Google Calendar`);
+        }
       } catch (error) {
         console.error('[Calendar Update] Error syncing to Google Calendar:', error);
         syncError = error.message;
@@ -386,6 +404,11 @@ router.put('/events/:eventId', async (req, res) => {
     if (isAllDay !== undefined) updateData.isAllDay = isAllDay;
     if (color !== undefined) updateData.color = color;
     if (reminders !== undefined) updateData.reminders = reminders;
+
+    // Update googleEventId if we created it
+    if (newGoogleEventId && newGoogleEventId !== existingEvent.googleEventId) {
+      updateData.googleEventId = newGoogleEventId;
+    }
 
     // Update sync status
     if (syncError) {
@@ -582,8 +605,88 @@ router.post('/webhook/google', express.json(), async (req, res) => {
 
             if (user && googleCalendarService.isCalendarConnected(user)) {
               console.log(`[Calendar Webhook] Syncing calendar for user ${userId}`);
-              // Implement sync logic here
-              // This would be similar to the /sync endpoint logic
+
+              // Get tenant for auth
+              const tenant = await prisma.tenant.findUnique({
+                where: { id: user.tenantId }
+              });
+
+              const auth = await googleCalendarService.getAuthenticatedClient(user, tenant);
+              const googleEvents = await googleCalendarService.listEvents(auth);
+
+              let created = 0;
+              let updated = 0;
+              let deleted = 0;
+
+              // Get all local events with googleEventId
+              const localEvents = await prisma.calendarEvent.findMany({
+                where: {
+                  userId,
+                  tenantId: user.tenantId,
+                  googleEventId: { not: null }
+                }
+              });
+
+              const localEventMap = new Map(localEvents.map(e => [e.googleEventId, e]));
+              const googleEventIds = new Set(googleEvents.map(e => e.id));
+
+              // Sync Google events to local database
+              for (const gEvent of googleEvents) {
+                const existingEvent = localEventMap.get(gEvent.id);
+
+                if (!existingEvent) {
+                  // Create new event in database
+                  await prisma.calendarEvent.create({
+                    data: {
+                      userId,
+                      tenantId: user.tenantId,
+                      title: gEvent.summary || 'Untitled Event',
+                      description: gEvent.description || '',
+                      startTime: new Date(gEvent.start?.dateTime || gEvent.start?.date),
+                      endTime: new Date(gEvent.end?.dateTime || gEvent.end?.date),
+                      location: gEvent.location || '',
+                      attendees: (gEvent.attendees || []).map(a => a.email),
+                      googleEventId: gEvent.id,
+                      isAllDay: !!gEvent.start?.date,
+                      syncStatus: 'synced'
+                    }
+                  });
+                  created++;
+                } else {
+                  // Update existing event if modified
+                  const googleUpdated = new Date(gEvent.updated);
+                  const localUpdated = existingEvent.updatedAt;
+
+                  if (googleUpdated > localUpdated) {
+                    await prisma.calendarEvent.update({
+                      where: { id: existingEvent.id },
+                      data: {
+                        title: gEvent.summary || 'Untitled Event',
+                        description: gEvent.description || '',
+                        startTime: new Date(gEvent.start?.dateTime || gEvent.start?.date),
+                        endTime: new Date(gEvent.end?.dateTime || gEvent.end?.date),
+                        location: gEvent.location || '',
+                        attendees: (gEvent.attendees || []).map(a => a.email),
+                        isAllDay: !!gEvent.start?.date,
+                        syncStatus: 'synced'
+                      }
+                    });
+                    updated++;
+                  }
+                }
+              }
+
+              // Delete local events that no longer exist in Google Calendar
+              for (const localEvent of localEvents) {
+                if (!googleEventIds.has(localEvent.googleEventId)) {
+                  await prisma.calendarEvent.delete({
+                    where: { id: localEvent.id }
+                  });
+                  deleted++;
+                }
+              }
+
+              console.log(`[Calendar Webhook] Sync complete: ${created} created, ${updated} updated, ${deleted} deleted`);
             }
           } catch (error) {
             console.error('[Calendar Webhook] Error in background sync:', error);
