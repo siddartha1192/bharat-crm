@@ -279,6 +279,120 @@ router.post('/logs/:id/generate-summary', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/calls/logs/:id/preview-summary
+ * Generate AI summary preview WITHOUT saving to database
+ * Perfect for showing in dialog immediately
+ */
+router.post('/logs/:id/preview-summary', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user.tenantId;
+
+    console.log(`[PREVIEW SUMMARY] Starting for call:`, id);
+
+    // 1. Verify ownership
+    const callLog = await prisma.callLog.findFirst({
+      where: { id, tenantId },
+      include: { lead: true, contact: true }
+    });
+
+    if (!callLog) {
+      return res.status(404).json({ error: 'Call log not found' });
+    }
+
+    // 2. Validate transcript exists
+    if (!callLog.transcript || callLog.transcript.trim() === '') {
+      return res.status(400).json({
+        error: 'No transcript available. Call must be completed and transcribed first.'
+      });
+    }
+
+    // 3. Get OpenAI settings
+    const settings = await prisma.callSettings.findUnique({
+      where: { tenantId }
+    });
+
+    if (!settings?.openaiApiKey) {
+      return res.status(400).json({
+        error: 'OpenAI API key not configured. Configure it in Call Settings.'
+      });
+    }
+
+    console.log(`[PREVIEW SUMMARY] Model: ${settings.openaiModel || 'gpt-4o-mini'}, Transcript: ${callLog.transcript.length} chars`);
+
+    // 4. Generate summary with OpenAI
+    const OpenAI = require('openai');
+    const openai = new OpenAI({ apiKey: settings.openaiApiKey });
+
+    const completion = await openai.chat.completions.create({
+      model: settings.openaiModel || 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert sales call analyzer. Summarize the call transcript in this structured format:
+
+**📋 Main Topics:** [List 2-3 main topics discussed]
+
+**💡 Customer Needs/Concerns:** [Specific needs or concerns mentioned]
+
+**⭐ Key Points:** [Important highlights from the conversation]
+
+**✅ Next Steps:** [Recommended action items and follow-ups]
+
+**😊 Sentiment:** [Positive/Neutral/Negative] - [Brief explanation why]
+
+Keep it concise, actionable, and professional.`
+        },
+        {
+          role: 'user',
+          content: `Analyze and summarize this sales call transcript:\n\n${callLog.transcript}`
+        }
+      ],
+      temperature: 0.5,
+      max_tokens: 400
+    });
+
+    const summary = completion.choices[0].message.content;
+    const tokensUsed = completion.usage.total_tokens;
+    const cost = callService.calculateOpenAICost(completion.usage, settings.openaiModel || 'gpt-4o-mini');
+
+    console.log(`[PREVIEW SUMMARY] ✅ Generated - Tokens: ${tokensUsed}, Cost: $${cost.toFixed(6)}`);
+
+    // 5. Return summary WITHOUT saving to database
+    res.json({
+      success: true,
+      summary,
+      metadata: {
+        tokensUsed,
+        estimatedCost: cost,
+        model: settings.openaiModel || 'gpt-4o-mini',
+        transcriptLength: callLog.transcript.length
+      }
+    });
+
+  } catch (error) {
+    console.error('[PREVIEW SUMMARY] ❌ Error:', error);
+
+    // User-friendly error messages
+    if (error.code === 'insufficient_quota') {
+      return res.status(400).json({
+        error: 'OpenAI API quota exceeded. Please check your OpenAI account billing.'
+      });
+    }
+
+    if (error.code === 'invalid_api_key') {
+      return res.status(400).json({
+        error: 'Invalid OpenAI API key. Please update it in Call Settings.'
+      });
+    }
+
+    res.status(500).json({
+      error: error.message || 'Failed to generate summary. Please try again.'
+    });
+  }
+});
+
 // ==========================================
 // CALL QUEUE
 // ==========================================

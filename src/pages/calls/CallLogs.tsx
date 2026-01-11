@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import { useCallLogs, useCancelCall, useGenerateCallSummary } from '@/hooks/useCalls';
+import { useCallLogs, useCancelCall, useGenerateCallSummary, usePreviewCallSummary } from '@/hooks/useCalls';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -44,8 +44,10 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  X,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 export default function CallLogsPage() {
   const [page, setPage] = useState(1);
@@ -53,6 +55,7 @@ export default function CallLogsPage() {
   const [callOutcome, setCallOutcome] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCall, setSelectedCall] = useState<any>(null);
+  const [previewSummary, setPreviewSummary] = useState<string | null>(null);
 
   const { data, isLoading } = useCallLogs({
     callType: callType !== 'all' ? callType : undefined,
@@ -63,6 +66,20 @@ export default function CallLogsPage() {
 
   const cancelCall = useCancelCall();
   const generateSummary = useGenerateCallSummary();
+  const previewSummaryMutation = usePreviewCallSummary();
+
+  // Handler to generate preview summary
+  const handleGenerateSummary = async () => {
+    if (!selectedCall) return;
+
+    try {
+      const result = await previewSummaryMutation.mutateAsync(selectedCall.id);
+      setPreviewSummary(result.summary);
+      toast.success(`Summary generated! Used ${result.metadata.tokensUsed} tokens (~$${result.metadata.estimatedCost.toFixed(6)})`);
+    } catch (error) {
+      // Error already handled by mutation
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -133,9 +150,8 @@ export default function CallLogsPage() {
                 <SelectValue placeholder="Call Type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="all">All Calls</SelectItem>
                 <SelectItem value="ai">AI Calls</SelectItem>
-                <SelectItem value="manual">Manual Calls</SelectItem>
               </SelectContent>
             </Select>
 
@@ -205,8 +221,8 @@ export default function CallLogsPage() {
                       {call.phoneNumber}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={call.callType === 'ai' ? 'default' : 'secondary'}>
-                        {call.callType === 'ai' ? 'AI' : 'Manual'}
+                      <Badge variant="default">
+                        AI
                       </Badge>
                     </TableCell>
                     <TableCell>{getStatusBadge(call.twilioStatus)}</TableCell>
@@ -284,7 +300,12 @@ export default function CallLogsPage() {
 
       {/* Call Details Dialog */}
       {selectedCall && (
-        <Dialog open={!!selectedCall} onOpenChange={() => setSelectedCall(null)}>
+        <Dialog open={!!selectedCall} onOpenChange={(open) => {
+          if (!open) {
+            setSelectedCall(null);
+            setPreviewSummary(null);
+          }
+        }}>
           <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Call Details</DialogTitle>
@@ -308,8 +329,8 @@ export default function CallLogsPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Type</p>
-                  <Badge variant={selectedCall.callType === 'ai' ? 'default' : 'secondary'}>
-                    {selectedCall.callType === 'ai' ? 'AI Call' : 'Manual Call'}
+                  <Badge variant="default">
+                    AI Call
                   </Badge>
                 </div>
                 <div>
@@ -346,30 +367,69 @@ export default function CallLogsPage() {
                 </div>
               )}
 
-              {/* Summary */}
-              {selectedCall.summary ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-yellow-500" />
-                    AI Summary
-                  </p>
-                  <div className="bg-blue-50 p-4 rounded-lg text-sm">
-                    {selectedCall.summary}
+              {/* Summary Section */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-yellow-500" />
+                  AI Summary
+                </p>
+
+                {/* Show existing saved summary */}
+                {selectedCall.summary && !previewSummary && (
+                  <div className="bg-blue-50 p-4 rounded-lg text-sm border border-blue-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-blue-600 font-medium">Saved Summary</span>
+                    </div>
+                    <div className="whitespace-pre-wrap">{selectedCall.summary}</div>
                   </div>
-                </div>
-              ) : selectedCall.transcript && (
-                <Button
-                  onClick={() => generateSummary.mutate(selectedCall.id)}
-                  disabled={generateSummary.isPending}
-                  variant="outline"
-                >
-                  {generateSummary.isPending ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
-                  ) : (
-                    <><Sparkles className="w-4 h-4 mr-2" /> Generate AI Summary</>
-                  )}
-                </Button>
-              )}
+                )}
+
+                {/* Show preview summary */}
+                {previewSummary && (
+                  <div className="bg-green-50 p-4 rounded-lg text-sm border border-green-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-green-600 font-medium">AI Generated Summary (Preview)</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setPreviewSummary(null)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <div className="whitespace-pre-wrap">{previewSummary}</div>
+                  </div>
+                )}
+
+                {/* Generate button - show only if transcript exists and no preview yet */}
+                {selectedCall.transcript && !previewSummary && (
+                  <Button
+                    onClick={handleGenerateSummary}
+                    disabled={previewSummaryMutation.isPending}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {previewSummaryMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Generating AI Summary...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate AI Summary
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                {/* No transcript available */}
+                {!selectedCall.transcript && !selectedCall.summary && (
+                  <p className="text-sm text-gray-500 italic">
+                    No transcript available. Transcription occurs after call completion.
+                  </p>
+                )}
+              </div>
 
               {/* Sentiment */}
               {selectedCall.sentiment && (

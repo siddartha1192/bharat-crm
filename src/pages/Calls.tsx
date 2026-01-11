@@ -24,7 +24,7 @@ export default function CallsPage() {
           AI Calls
         </h1>
         <p className="mt-2 text-gray-600">
-          Manage AI-powered and manual calls to your leads and contacts
+          Manage AI-powered programmatic calls to your leads and contacts
         </p>
       </div>
 

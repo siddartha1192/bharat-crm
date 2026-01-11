@@ -15,6 +15,7 @@ import {
   getCallLog,
   cancelCall,
   generateCallSummary,
+  previewCallSummary,
   initiateCall,
   getCallQueue,
   retryQueueItem,
@@ -205,6 +206,20 @@ export function useGenerateCallSummary() {
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to generate summary');
     },
+  });
+}
+
+/**
+ * Preview call summary without saving to database
+ * Perfect for showing in dialog
+ */
+export function usePreviewCallSummary() {
+  return useMutation({
+    mutationFn: (id: string) => previewCallSummary(id),
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to generate summary');
+    },
+    // Don't invalidate queries since we're not saving to DB
   });
 }
 
