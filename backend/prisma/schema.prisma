@@ -128,11 +128,14 @@ model User {
   gmailScopes       Json? // Array of granted scopes
 
   // Google Calendar Integration (Service-Specific Tokens)
-  calendarAccessToken  String?
-  calendarRefreshToken String?
-  calendarTokenExpiry  DateTime?
-  calendarConnectedAt  DateTime?
-  calendarScopes       Json? // Array of granted scopes
+  calendarAccessToken        String?
+  calendarRefreshToken       String?
+  calendarTokenExpiry        DateTime?
+  calendarConnectedAt        DateTime?
+  calendarScopes             Json? // Array of granted scopes
+  calendarWebhookChannelId   String? // Google Calendar watch channel ID
+  calendarWebhookResourceId  String? // Google Calendar watch resource ID
+  calendarWebhookExpiration  DateTime? // When the calendar watch expires
 
   // Password Reset
   passwordResetToken   String?
@@ -616,6 +619,8 @@ model CalendarEvent {
   isAllDay      Boolean  @default(false)
   color         String   @default("blue") // Event color for UI
   reminders     Json? // Reminder settings
+  syncStatus    String   @default("local_only") // Sync status: local_only, synced, error
+  lastSyncError String?  @db.Text // Last error message if sync failed
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -630,6 +635,7 @@ model CalendarEvent {
   @@index([startTime])
   @@index([googleEventId])
   @@index([tenantId])
+  @@index([syncStatus])
 }
 
 model EmailLog {

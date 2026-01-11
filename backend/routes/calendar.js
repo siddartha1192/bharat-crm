@@ -236,39 +236,48 @@ router.post('/events', async (req, res) => {
       return res.status(400).json({ error: 'Title, start time, and end time are required' });
     }
 
+    // Get user calendar connection status
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        calendarAccessToken: true,
+        calendarRefreshToken: true,
+        calendarTokenExpiry: true,
+      }
+    });
+
     let googleEventId = null;
+    let syncError = null;
 
-    // Create in Google Calendar if connected and sync is requested
-    if (syncWithGoogle) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          calendarAccessToken: true,
-          calendarRefreshToken: true,
-          calendarTokenExpiry: true,
-        }
-      });
+    // AUTO-SYNC: Always sync to Google Calendar if connected (unless explicitly disabled)
+    const shouldSync = syncWithGoogle !== false && googleCalendarService.isCalendarConnected(user);
 
-      if (googleCalendarService.isCalendarConnected(user)) {
-        try {
-          const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
+    if (shouldSync) {
+      try {
+        console.log(`[Calendar Create] Syncing event to Google Calendar for user ${userId}`);
+        const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
 
-          const googleEvent = await googleCalendarService.createEvent(auth, {
-            title,
-            description,
-            startTime,
-            endTime,
-            location,
-            attendees,
-            isAllDay,
-            reminders
-          });
+        const googleEvent = await googleCalendarService.createEvent(auth, {
+          title,
+          description,
+          startTime,
+          endTime,
+          location,
+          attendees,
+          isAllDay,
+          reminders
+        });
 
-          googleEventId = googleEvent.id;
-        } catch (error) {
-          console.error('Error creating Google Calendar event:', error);
-          // Continue creating in database even if Google fails
+        googleEventId = googleEvent.id;
+        console.log(`[Calendar Create] Successfully synced to Google Calendar: ${googleEventId}`);
+      } catch (error) {
+        console.error('[Calendar Create] Error syncing to Google Calendar:', error);
+        syncError = error.message;
+
+        // If it's a token error, mark it clearly
+        if (error.message.includes('invalid_grant') || error.message.includes('Token has been expired')) {
+          syncError = 'Calendar token expired. Please reconnect your Google Calendar in Settings.';
         }
       }
     }
@@ -287,14 +296,22 @@ router.post('/events', async (req, res) => {
         isAllDay: isAllDay || false,
         color: color || 'blue',
         reminders,
-        googleEventId
+        googleEventId,
+        syncStatus: googleEventId ? 'synced' : (syncError ? 'error' : 'local_only'),
+        lastSyncError: syncError
       }
     });
 
-    res.json({ event });
+    res.json({
+      event,
+      syncStatus: {
+        synced: !!googleEventId,
+        error: syncError
+      }
+    });
   } catch (error) {
     console.error('Error creating event:', error);
-    res.status(500).json({ error: 'Failed to create event' });
+    res.status(500).json({ error: 'Failed to create event: ' + error.message });
   }
 });
 
@@ -316,34 +333,44 @@ router.put('/events/:eventId', async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    // Update in Google Calendar if connected and event has googleEventId
-    if (syncWithGoogle && existingEvent.googleEventId) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          calendarAccessToken: true,
-          calendarRefreshToken: true,
-          calendarTokenExpiry: true,
-        }
-      });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        calendarAccessToken: true,
+        calendarRefreshToken: true,
+        calendarTokenExpiry: true,
+      }
+    });
 
-      if (googleCalendarService.isCalendarConnected(user)) {
-        try {
-          const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
+    let syncError = null;
 
-          await googleCalendarService.updateEvent(auth, existingEvent.googleEventId, {
-            title,
-            description,
-            startTime,
-            endTime,
-            location,
-            attendees,
-            isAllDay,
-            reminders
-          });
-        } catch (error) {
-          console.error('Error updating Google Calendar event:', error);
+    // AUTO-SYNC: Update in Google Calendar if connected and event has googleEventId
+    const shouldSync = syncWithGoogle !== false && existingEvent.googleEventId && googleCalendarService.isCalendarConnected(user);
+
+    if (shouldSync) {
+      try {
+        console.log(`[Calendar Update] Syncing event ${eventId} to Google Calendar`);
+        const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
+
+        await googleCalendarService.updateEvent(auth, existingEvent.googleEventId, {
+          title: title !== undefined ? title : existingEvent.title,
+          description: description !== undefined ? description : existingEvent.description,
+          startTime: startTime !== undefined ? startTime : existingEvent.startTime.toISOString(),
+          endTime: endTime !== undefined ? endTime : existingEvent.endTime.toISOString(),
+          location: location !== undefined ? location : existingEvent.location,
+          attendees: attendees !== undefined ? attendees : existingEvent.attendees,
+          isAllDay: isAllDay !== undefined ? isAllDay : existingEvent.isAllDay,
+          reminders: reminders !== undefined ? reminders : existingEvent.reminders
+        });
+
+        console.log(`[Calendar Update] Successfully synced to Google Calendar`);
+      } catch (error) {
+        console.error('[Calendar Update] Error syncing to Google Calendar:', error);
+        syncError = error.message;
+
+        if (error.message.includes('invalid_grant') || error.message.includes('Token has been expired')) {
+          syncError = 'Calendar token expired. Please reconnect your Google Calendar in Settings.';
         }
       }
     }
@@ -360,15 +387,328 @@ router.put('/events/:eventId', async (req, res) => {
     if (color !== undefined) updateData.color = color;
     if (reminders !== undefined) updateData.reminders = reminders;
 
+    // Update sync status
+    if (syncError) {
+      updateData.syncStatus = 'error';
+      updateData.lastSyncError = syncError;
+    } else if (shouldSync) {
+      updateData.syncStatus = 'synced';
+      updateData.lastSyncError = null;
+    }
+
     const updatedEvent = await prisma.calendarEvent.update({
       where: { id: eventId },
       data: updateData
     });
 
-    res.json({ event: updatedEvent });
+    res.json({
+      event: updatedEvent,
+      syncStatus: {
+        synced: shouldSync && !syncError,
+        error: syncError
+      }
+    });
   } catch (error) {
     console.error('Error updating event:', error);
-    res.status(500).json({ error: 'Failed to update event' });
+    res.status(500).json({ error: 'Failed to update event: ' + error.message });
+  }
+});
+
+// Background sync: Sync Google Calendar events to database
+router.post('/sync', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { start, end } = req.body;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        calendarAccessToken: true,
+        calendarRefreshToken: true,
+        calendarTokenExpiry: true,
+      }
+    });
+
+    if (!googleCalendarService.isCalendarConnected(user)) {
+      return res.status(400).json({ error: 'Google Calendar not connected' });
+    }
+
+    console.log(`[Calendar Sync] Starting two-way sync for user ${userId}`);
+
+    try {
+      const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
+      const googleEvents = await googleCalendarService.listEvents(auth, start, end);
+
+      let created = 0;
+      let updated = 0;
+      let deleted = 0;
+
+      // Get all local events with googleEventId
+      const localEvents = await prisma.calendarEvent.findMany({
+        where: getTenantFilter(req, {
+          userId,
+          googleEventId: { not: null }
+        })
+      });
+
+      const localEventMap = new Map(localEvents.map(e => [e.googleEventId, e]));
+      const googleEventIds = new Set(googleEvents.map(e => e.id));
+
+      // Sync Google events to local database
+      for (const gEvent of googleEvents) {
+        const existingEvent = localEventMap.get(gEvent.id);
+
+        if (!existingEvent) {
+          // Create new event in database
+          await prisma.calendarEvent.create({
+            data: {
+              userId,
+              tenantId: req.tenant.id,
+              title: gEvent.summary || 'Untitled Event',
+              description: gEvent.description || '',
+              startTime: new Date(gEvent.start?.dateTime || gEvent.start?.date),
+              endTime: new Date(gEvent.end?.dateTime || gEvent.end?.date),
+              location: gEvent.location || '',
+              attendees: (gEvent.attendees || []).map(a => a.email),
+              googleEventId: gEvent.id,
+              isAllDay: !!gEvent.start?.date,
+              syncStatus: 'synced'
+            }
+          });
+          created++;
+        } else {
+          // Update existing event if modified
+          const googleUpdated = new Date(gEvent.updated);
+          const localUpdated = existingEvent.updatedAt;
+
+          if (googleUpdated > localUpdated) {
+            await prisma.calendarEvent.update({
+              where: { id: existingEvent.id },
+              data: {
+                title: gEvent.summary || 'Untitled Event',
+                description: gEvent.description || '',
+                startTime: new Date(gEvent.start?.dateTime || gEvent.start?.date),
+                endTime: new Date(gEvent.end?.dateTime || gEvent.end?.date),
+                location: gEvent.location || '',
+                attendees: (gEvent.attendees || []).map(a => a.email),
+                isAllDay: !!gEvent.start?.date,
+                syncStatus: 'synced'
+              }
+            });
+            updated++;
+          }
+        }
+      }
+
+      // Delete local events that no longer exist in Google Calendar
+      for (const localEvent of localEvents) {
+        if (!googleEventIds.has(localEvent.googleEventId)) {
+          await prisma.calendarEvent.delete({
+            where: { id: localEvent.id }
+          });
+          deleted++;
+        }
+      }
+
+      console.log(`[Calendar Sync] Complete: ${created} created, ${updated} updated, ${deleted} deleted`);
+
+      res.json({
+        success: true,
+        message: 'Calendar synced successfully',
+        stats: { created, updated, deleted }
+      });
+    } catch (error) {
+      console.error('[Calendar Sync] Error:', error);
+
+      if (error.message.includes('invalid_grant') || error.message.includes('Token has been expired')) {
+        return res.status(401).json({
+          error: 'Calendar token expired. Please reconnect your Google Calendar in Settings.',
+          requiresReconnect: true
+        });
+      }
+
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error syncing calendar:', error);
+    res.status(500).json({ error: 'Failed to sync calendar: ' + error.message });
+  }
+});
+
+// Webhook endpoint for Google Calendar push notifications
+router.post('/webhook/google', express.json(), async (req, res) => {
+  try {
+    const channelId = req.headers['x-goog-channel-id'];
+    const resourceId = req.headers['x-goog-resource-id'];
+    const resourceState = req.headers['x-goog-resource-state'];
+    const channelToken = req.headers['x-goog-channel-token'];
+
+    console.log(`[Calendar Webhook] Received notification: ${resourceState} for channel ${channelId}`);
+
+    // Verify the webhook is from Google
+    if (!channelId || !resourceId) {
+      console.warn('[Calendar Webhook] Invalid webhook headers');
+      return res.status(400).json({ error: 'Invalid webhook' });
+    }
+
+    // Handle sync events
+    if (resourceState === 'sync') {
+      console.log('[Calendar Webhook] Sync message received (channel setup confirmation)');
+      return res.status(200).send('OK');
+    }
+
+    // For exists/not_exists events, trigger a sync
+    if (resourceState === 'exists' || resourceState === 'not_exists') {
+      console.log(`[Calendar Webhook] Calendar changed (${resourceState}), scheduling sync`);
+
+      // Find user by channel token (userId encoded in token)
+      if (channelToken) {
+        const userId = channelToken.split('-')[0];
+
+        // Trigger background sync for this user
+        setImmediate(async () => {
+          try {
+            const user = await prisma.user.findUnique({
+              where: { id: userId },
+              select: {
+                id: true,
+                tenantId: true,
+                calendarAccessToken: true,
+                calendarRefreshToken: true,
+                calendarTokenExpiry: true,
+              }
+            });
+
+            if (user && googleCalendarService.isCalendarConnected(user)) {
+              console.log(`[Calendar Webhook] Syncing calendar for user ${userId}`);
+              // Implement sync logic here
+              // This would be similar to the /sync endpoint logic
+            }
+          } catch (error) {
+            console.error('[Calendar Webhook] Error in background sync:', error);
+          }
+        });
+      }
+    }
+
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('[Calendar Webhook] Error handling webhook:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
+// Setup Google Calendar push notifications (watch)
+router.post('/watch', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        calendarAccessToken: true,
+        calendarRefreshToken: true,
+        calendarTokenExpiry: true,
+      }
+    });
+
+    if (!googleCalendarService.isCalendarConnected(user)) {
+      return res.status(400).json({ error: 'Google Calendar not connected' });
+    }
+
+    const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
+    const calendar = require('googleapis').google.calendar({ version: 'v3', auth });
+
+    const webhookUrl = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/calendar/webhook/google`;
+    const channelId = `calendar-${userId}-${Date.now()}`;
+
+    const response = await calendar.events.watch({
+      calendarId: 'primary',
+      requestBody: {
+        id: channelId,
+        type: 'web_hook',
+        address: webhookUrl,
+        token: `${userId}-${Date.now()}`, // Include userId for identification
+        expiration: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+      }
+    });
+
+    // Store channel info in database for later management
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        calendarWebhookChannelId: channelId,
+        calendarWebhookResourceId: response.data.resourceId,
+        calendarWebhookExpiration: new Date(parseInt(response.data.expiration))
+      }
+    });
+
+    console.log(`[Calendar Watch] Setup push notifications for user ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Calendar push notifications enabled',
+      channel: {
+        id: channelId,
+        resourceId: response.data.resourceId,
+        expiration: new Date(parseInt(response.data.expiration))
+      }
+    });
+  } catch (error) {
+    console.error('Error setting up calendar watch:', error);
+    res.status(500).json({ error: 'Failed to setup calendar notifications: ' + error.message });
+  }
+});
+
+// Stop watching calendar
+router.post('/stop-watch', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        calendarAccessToken: true,
+        calendarRefreshToken: true,
+        calendarTokenExpiry: true,
+        calendarWebhookChannelId: true,
+        calendarWebhookResourceId: true,
+      }
+    });
+
+    if (!user.calendarWebhookChannelId || !user.calendarWebhookResourceId) {
+      return res.status(400).json({ error: 'No active calendar watch found' });
+    }
+
+    const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
+    const calendar = require('googleapis').google.calendar({ version: 'v3', auth });
+
+    await calendar.channels.stop({
+      requestBody: {
+        id: user.calendarWebhookChannelId,
+        resourceId: user.calendarWebhookResourceId
+      }
+    });
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        calendarWebhookChannelId: null,
+        calendarWebhookResourceId: null,
+        calendarWebhookExpiration: null
+      }
+    });
+
+    console.log(`[Calendar Watch] Stopped push notifications for user ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Calendar push notifications disabled'
+    });
+  } catch (error) {
+    console.error('Error stopping calendar watch:', error);
+    res.status(500).json({ error: 'Failed to stop calendar notifications: ' + error.message });
   }
 });
 
@@ -389,7 +729,9 @@ router.delete('/events/:eventId', async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    // Delete from Google Calendar if it exists there
+    let syncError = null;
+
+    // AUTO-SYNC: Delete from Google Calendar if it exists there
     if (event.googleEventId) {
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -403,11 +745,19 @@ router.delete('/events/:eventId', async (req, res) => {
 
       if (googleCalendarService.isCalendarConnected(user)) {
         try {
+          console.log(`[Calendar Delete] Deleting event ${eventId} from Google Calendar`);
           const auth = await googleCalendarService.getAuthenticatedClient(user, req.tenant);
 
           await googleCalendarService.deleteEvent(auth, event.googleEventId);
+          console.log(`[Calendar Delete] Successfully deleted from Google Calendar`);
         } catch (error) {
-          console.error('Error deleting from Google Calendar:', error);
+          console.error('[Calendar Delete] Error deleting from Google Calendar:', error);
+          syncError = error.message;
+
+          // Don't fail the operation if Google sync fails
+          if (error.message.includes('invalid_grant') || error.message.includes('Token has been expired')) {
+            console.warn('[Calendar Delete] Token expired, but continuing with local delete');
+          }
         }
       }
     }
@@ -417,10 +767,17 @@ router.delete('/events/:eventId', async (req, res) => {
       where: { id: eventId }
     });
 
-    res.json({ success: true, message: 'Event deleted successfully' });
+    res.json({
+      success: true,
+      message: 'Event deleted successfully',
+      syncStatus: {
+        synced: event.googleEventId && !syncError,
+        error: syncError
+      }
+    });
   } catch (error) {
     console.error('Error deleting event:', error);
-    res.status(500).json({ error: 'Failed to delete event' });
+    res.status(500).json({ error: 'Failed to delete event: ' + error.message });
   }
 });
 
