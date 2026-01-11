@@ -274,6 +274,25 @@ export async function generateCallSummary(id: string): Promise<{ success: boolea
   });
 }
 
+/**
+ * Generate call summary preview (doesn't save to database)
+ * Returns summary for immediate display in dialog
+ */
+export async function previewCallSummary(id: string): Promise<{
+  success: boolean;
+  summary: string;
+  metadata: {
+    tokensUsed: number;
+    estimatedCost: number;
+    model: string;
+    transcriptLength: number;
+  };
+}> {
+  return fetchAPI(`/calls/logs/${id}/preview-summary`, {
+    method: 'POST',
+  });
+}
+
 // ==========================================
 // CALL INITIATION
 // ==========================================
