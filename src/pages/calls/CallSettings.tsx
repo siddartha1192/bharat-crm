@@ -34,10 +34,10 @@ export default function CallSettingsPage() {
     autoCallOnLeadCreate: false,
     autoCallOnStageChange: false,
     autoCallDelaySeconds: 60,
-    autoCallLeadCreateScriptId: '',
-    autoCallStageChangeScriptId: '',
-    autoCallStageChangeFromStage: '',
-    autoCallStageChangeToStage: '',
+    autoCallLeadCreateScriptId: undefined as string | undefined,
+    autoCallStageChangeScriptId: undefined as string | undefined,
+    autoCallStageChangeFromStage: undefined as string | undefined,
+    autoCallStageChangeToStage: undefined as string | undefined,
     enableBusinessHours: true,
     businessHoursStart: '09:00',
     businessHoursEnd: '17:00',
@@ -70,10 +70,10 @@ export default function CallSettingsPage() {
         autoCallOnLeadCreate: settings.autoCallOnLeadCreate,
         autoCallOnStageChange: settings.autoCallOnStageChange,
         autoCallDelaySeconds: settings.autoCallDelaySeconds,
-        autoCallLeadCreateScriptId: settings.autoCallLeadCreateScriptId || '',
-        autoCallStageChangeScriptId: settings.autoCallStageChangeScriptId || '',
-        autoCallStageChangeFromStage: settings.autoCallStageChangeFromStage || '',
-        autoCallStageChangeToStage: settings.autoCallStageChangeToStage || '',
+        autoCallLeadCreateScriptId: settings.autoCallLeadCreateScriptId || undefined,
+        autoCallStageChangeScriptId: settings.autoCallStageChangeScriptId || undefined,
+        autoCallStageChangeFromStage: settings.autoCallStageChangeFromStage || undefined,
+        autoCallStageChangeToStage: settings.autoCallStageChangeToStage || undefined,
         enableBusinessHours: settings.enableBusinessHours,
         businessHoursStart: settings.businessHoursStart || '09:00',
         businessHoursEnd: settings.businessHoursEnd || '17:00',
@@ -298,16 +298,16 @@ export default function CallSettingsPage() {
               <div className="space-y-2 pl-4 border-l-2 border-blue-200">
                 <Label htmlFor="autoCallLeadCreateScriptId">Call Script</Label>
                 <Select
-                  value={formData.autoCallLeadCreateScriptId}
+                  value={formData.autoCallLeadCreateScriptId || 'none'}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, autoCallLeadCreateScriptId: value })
+                    setFormData({ ...formData, autoCallLeadCreateScriptId: value === 'none' ? undefined : value })
                   }
                 >
                   <SelectTrigger id="autoCallLeadCreateScriptId">
                     <SelectValue placeholder="Select a script (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None (use default)</SelectItem>
+                    <SelectItem value="none">None (use default)</SelectItem>
                     {scripts?.map((script: any) => (
                       <SelectItem key={script.id} value={script.id}>
                         {script.name}
@@ -341,16 +341,16 @@ export default function CallSettingsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="autoCallStageChangeScriptId">Call Script</Label>
                   <Select
-                    value={formData.autoCallStageChangeScriptId}
+                    value={formData.autoCallStageChangeScriptId || 'none'}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, autoCallStageChangeScriptId: value })
+                      setFormData({ ...formData, autoCallStageChangeScriptId: value === 'none' ? undefined : value })
                     }
                   >
                     <SelectTrigger id="autoCallStageChangeScriptId">
                       <SelectValue placeholder="Select a script (optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None (use default)</SelectItem>
+                      <SelectItem value="none">None (use default)</SelectItem>
                       {scripts?.map((script: any) => (
                         <SelectItem key={script.id} value={script.id}>
                           {script.name}
@@ -367,16 +367,16 @@ export default function CallSettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="autoCallStageChangeFromStage">From Stage (optional)</Label>
                     <Select
-                      value={formData.autoCallStageChangeFromStage}
+                      value={formData.autoCallStageChangeFromStage || 'any'}
                       onValueChange={(value) =>
-                        setFormData({ ...formData, autoCallStageChangeFromStage: value })
+                        setFormData({ ...formData, autoCallStageChangeFromStage: value === 'any' ? undefined : value })
                       }
                     >
                       <SelectTrigger id="autoCallStageChangeFromStage">
                         <SelectValue placeholder="Any stage" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Any stage</SelectItem>
+                        <SelectItem value="any">Any stage</SelectItem>
                         {stages?.map((stage: any) => (
                           <SelectItem key={stage.id} value={stage.slug}>
                             {stage.name}
@@ -390,16 +390,16 @@ export default function CallSettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="autoCallStageChangeToStage">To Stage (optional)</Label>
                     <Select
-                      value={formData.autoCallStageChangeToStage}
+                      value={formData.autoCallStageChangeToStage || 'any'}
                       onValueChange={(value) =>
-                        setFormData({ ...formData, autoCallStageChangeToStage: value })
+                        setFormData({ ...formData, autoCallStageChangeToStage: value === 'any' ? undefined : value })
                       }
                     >
                       <SelectTrigger id="autoCallStageChangeToStage">
                         <SelectValue placeholder="Any stage" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Any stage</SelectItem>
+                        <SelectItem value="any">Any stage</SelectItem>
                         {stages?.map((stage: any) => (
                           <SelectItem key={stage.id} value={stage.slug}>
                             {stage.name}
