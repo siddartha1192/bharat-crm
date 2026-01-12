@@ -3,8 +3,9 @@
  * Configure Twilio, OpenAI, and call automation settings
  */
 
-import { useState } from 'react';
-import { useCallSettings, useUpdateCallSettings } from '@/hooks/useCalls';
+import { useState, useEffect } from 'react';
+import { useCallSettings, useUpdateCallSettings, useCallScripts } from '@/hooks/useCalls';
+import { pipelineStagesAPI } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +18,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 export default function CallSettingsPage() {
   const { data: settings, isLoading } = useCallSettings();
   const updateSettings = useUpdateCallSettings();
+  const { data: scripts } = useCallScripts({ scriptType: 'ai', isActive: true });
+  const [stages, setStages] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     twilioAccountSid: '',
@@ -31,6 +34,10 @@ export default function CallSettingsPage() {
     autoCallOnLeadCreate: false,
     autoCallOnStageChange: false,
     autoCallDelaySeconds: 60,
+    autoCallLeadCreateScriptId: '',
+    autoCallStageChangeScriptId: '',
+    autoCallStageChangeFromStage: '',
+    autoCallStageChangeToStage: '',
     enableBusinessHours: true,
     businessHoursStart: '09:00',
     businessHoursEnd: '17:00',
@@ -38,8 +45,17 @@ export default function CallSettingsPage() {
     timezone: 'Asia/Kolkata',
   });
 
+  // Fetch pipeline stages
+  useEffect(() => {
+    pipelineStagesAPI.getAll().then(data => {
+      setStages(data.filter((s: any) => s.stageType === 'LEAD' || s.stageType === 'BOTH'));
+    }).catch(err => {
+      console.error('Failed to fetch pipeline stages:', err);
+    });
+  }, []);
+
   // Update form when settings load
-  useState(() => {
+  useEffect(() => {
     if (settings) {
       setFormData({
         twilioAccountSid: settings.twilioAccountSid || '',
@@ -54,6 +70,10 @@ export default function CallSettingsPage() {
         autoCallOnLeadCreate: settings.autoCallOnLeadCreate,
         autoCallOnStageChange: settings.autoCallOnStageChange,
         autoCallDelaySeconds: settings.autoCallDelaySeconds,
+        autoCallLeadCreateScriptId: settings.autoCallLeadCreateScriptId || '',
+        autoCallStageChangeScriptId: settings.autoCallStageChangeScriptId || '',
+        autoCallStageChangeFromStage: settings.autoCallStageChangeFromStage || '',
+        autoCallStageChangeToStage: settings.autoCallStageChangeToStage || '',
         enableBusinessHours: settings.enableBusinessHours,
         businessHoursStart: settings.businessHoursStart || '09:00',
         businessHoursEnd: settings.businessHoursEnd || '17:00',
@@ -61,7 +81,7 @@ export default function CallSettingsPage() {
         timezone: settings.timezone,
       });
     }
-  });
+  }, [settings]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -260,30 +280,138 @@ export default function CallSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Auto-call on Lead Create</Label>
-              <p className="text-sm text-gray-500">Automatically call new leads</p>
+          <div className="space-y-4 p-4 border rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Auto-call on Lead Create</Label>
+                <p className="text-sm text-gray-500">Automatically call new leads</p>
+              </div>
+              <Switch
+                checked={formData.autoCallOnLeadCreate}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, autoCallOnLeadCreate: checked })
+                }
+              />
             </div>
-            <Switch
-              checked={formData.autoCallOnLeadCreate}
-              onCheckedChange={(checked) =>
-                setFormData({ ...formData, autoCallOnLeadCreate: checked })
-              }
-            />
+
+            {formData.autoCallOnLeadCreate && (
+              <div className="space-y-2 pl-4 border-l-2 border-blue-200">
+                <Label htmlFor="autoCallLeadCreateScriptId">Call Script</Label>
+                <Select
+                  value={formData.autoCallLeadCreateScriptId}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, autoCallLeadCreateScriptId: value })
+                  }
+                >
+                  <SelectTrigger id="autoCallLeadCreateScriptId">
+                    <SelectValue placeholder="Select a script (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None (use default)</SelectItem>
+                    {scripts?.map((script: any) => (
+                      <SelectItem key={script.id} value={script.id}>
+                        {script.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-gray-500">
+                  Which script to use for calling new leads
+                </p>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Auto-call on Stage Change</Label>
-              <p className="text-sm text-gray-500">Call leads when stage changes</p>
+          <div className="space-y-4 p-4 border rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Auto-call on Stage Change</Label>
+                <p className="text-sm text-gray-500">Call leads when stage changes</p>
+              </div>
+              <Switch
+                checked={formData.autoCallOnStageChange}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, autoCallOnStageChange: checked })
+                }
+              />
             </div>
-            <Switch
-              checked={formData.autoCallOnStageChange}
-              onCheckedChange={(checked) =>
-                setFormData({ ...formData, autoCallOnStageChange: checked })
-              }
-            />
+
+            {formData.autoCallOnStageChange && (
+              <div className="space-y-4 pl-4 border-l-2 border-blue-200">
+                <div className="space-y-2">
+                  <Label htmlFor="autoCallStageChangeScriptId">Call Script</Label>
+                  <Select
+                    value={formData.autoCallStageChangeScriptId}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, autoCallStageChangeScriptId: value })
+                    }
+                  >
+                    <SelectTrigger id="autoCallStageChangeScriptId">
+                      <SelectValue placeholder="Select a script (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None (use default)</SelectItem>
+                      {scripts?.map((script: any) => (
+                        <SelectItem key={script.id} value={script.id}>
+                          {script.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-gray-500">
+                    Which script to use for calling on stage change
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="autoCallStageChangeFromStage">From Stage (optional)</Label>
+                    <Select
+                      value={formData.autoCallStageChangeFromStage}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, autoCallStageChangeFromStage: value })
+                      }
+                    >
+                      <SelectTrigger id="autoCallStageChangeFromStage">
+                        <SelectValue placeholder="Any stage" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Any stage</SelectItem>
+                        {stages?.map((stage: any) => (
+                          <SelectItem key={stage.id} value={stage.slug}>
+                            {stage.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-sm text-gray-500">Only trigger from this stage</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="autoCallStageChangeToStage">To Stage (optional)</Label>
+                    <Select
+                      value={formData.autoCallStageChangeToStage}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, autoCallStageChangeToStage: value })
+                      }
+                    >
+                      <SelectTrigger id="autoCallStageChangeToStage">
+                        <SelectValue placeholder="Any stage" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Any stage</SelectItem>
+                        {stages?.map((stage: any) => (
+                          <SelectItem key={stage.id} value={stage.slug}>
+                            {stage.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-sm text-gray-500">Only trigger to this stage</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
