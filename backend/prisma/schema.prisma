@@ -1363,6 +1363,12 @@ model CallSettings {
   autoCallOnStageChange Boolean @default(false)
   autoCallDelaySeconds Int     @default(60) // Delay before auto-calling
 
+  // Auto-call Configuration
+  autoCallLeadCreateScriptId String? // Script to use for lead create auto-calls
+  autoCallStageChangeScriptId String? // Script to use for stage change auto-calls
+  autoCallStageChangeFromStage String? // Only trigger on this source stage (null = any)
+  autoCallStageChangeToStage String? // Only trigger on this destination stage (null = any)
+
   // Business Hours
   enableBusinessHours Boolean @default(true)
   businessHoursStart  String? // "09:00"
