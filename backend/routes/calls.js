@@ -563,6 +563,11 @@ router.put('/settings', async (req, res) => {
     delete updateData.createdAt;
     delete updateData.updatedAt;
 
+    // Get existing settings to check if auto-call toggles changed
+    const existingSettings = await prisma.callSettings.findUnique({
+      where: { tenantId }
+    });
+
     const settings = await prisma.callSettings.upsert({
       where: { tenantId },
       update: updateData,
@@ -571,6 +576,120 @@ router.put('/settings', async (req, res) => {
         tenantId
       }
     });
+
+    // Manage automation rules for auto-call toggles
+    // This creates/updates/disables automation rules when toggles change
+    const autoCallOnLeadCreateChanged = existingSettings?.autoCallOnLeadCreate !== updateData.autoCallOnLeadCreate;
+    const autoCallOnStageChangeChanged = existingSettings?.autoCallOnStageChange !== updateData.autoCallOnStageChange;
+
+    if (autoCallOnLeadCreateChanged || autoCallOnStageChangeChanged) {
+      console.log('[CALL SETTINGS] Auto-call toggles changed, managing automation rules...');
+
+      // Find or create auto-call automation rules
+      if (autoCallOnLeadCreateChanged) {
+        const leadCreateRuleName = '_system_auto_call_lead_create';
+        let existingRule = await prisma.automationRule.findFirst({
+          where: {
+            tenantId,
+            name: leadCreateRuleName
+          }
+        });
+
+        if (updateData.autoCallOnLeadCreate) {
+          // Enable: Create or enable the rule
+          if (existingRule) {
+            await prisma.automationRule.update({
+              where: { id: existingRule.id },
+              data: { isEnabled: true }
+            });
+            console.log('[CALL SETTINGS] ✅ Enabled auto-call on lead create rule');
+          } else {
+            await prisma.automationRule.create({
+              data: {
+                name: leadCreateRuleName,
+                type: 'lead_created',
+                isEnabled: true,
+                triggerEvent: 'lead.created',
+                actionType: 'make_call',
+                actionConfig: {
+                  callType: 'ai',
+                  callScriptId: settings.defaultCallScriptId,
+                  delaySeconds: settings.autoCallDelaySeconds || 60,
+                  priority: 7,
+                  maxAttempts: 3
+                },
+                entityType: 'lead',
+                userId: req.user.id,
+                tenantId
+              }
+            });
+            console.log('[CALL SETTINGS] ✅ Created auto-call on lead create rule');
+          }
+        } else {
+          // Disable: Disable the rule if it exists
+          if (existingRule) {
+            await prisma.automationRule.update({
+              where: { id: existingRule.id },
+              data: { isEnabled: false }
+            });
+            console.log('[CALL SETTINGS] ❌ Disabled auto-call on lead create rule');
+          }
+        }
+      }
+
+      if (autoCallOnStageChangeChanged) {
+        const stageChangeRuleName = '_system_auto_call_stage_change';
+        let existingRule = await prisma.automationRule.findFirst({
+          where: {
+            tenantId,
+            name: stageChangeRuleName
+          }
+        });
+
+        if (updateData.autoCallOnStageChange) {
+          // Enable: Create or enable the rule
+          if (existingRule) {
+            await prisma.automationRule.update({
+              where: { id: existingRule.id },
+              data: { isEnabled: true }
+            });
+            console.log('[CALL SETTINGS] ✅ Enabled auto-call on stage change rule');
+          } else {
+            await prisma.automationRule.create({
+              data: {
+                name: stageChangeRuleName,
+                type: 'stage_change',
+                isEnabled: true,
+                triggerEvent: 'lead.stage_changed',
+                actionType: 'make_call',
+                actionConfig: {
+                  callType: 'ai',
+                  callScriptId: settings.defaultCallScriptId,
+                  delaySeconds: settings.autoCallDelaySeconds || 60,
+                  priority: 6,
+                  maxAttempts: 3
+                },
+                fromStage: null, // null means any stage
+                toStage: null, // null means any stage
+                entityType: 'lead',
+                userId: req.user.id,
+                tenantId
+              }
+            });
+            console.log('[CALL SETTINGS] ✅ Created auto-call on stage change rule');
+          }
+        } else {
+          // Disable: Disable the rule if it exists
+          if (existingRule) {
+            await prisma.automationRule.update({
+              where: { id: existingRule.id },
+              data: { isEnabled: false }
+            });
+            console.log('[CALL SETTINGS] ❌ Disabled auto-call on stage change rule');
+          }
+        }
+      }
+    }
 
     res.json({
       success: true,
