@@ -3,6 +3,8 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { tenantAdminAuth } = require('../middleware/tenantAdmin');
 const path = require('path');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 const prisma = new PrismaClient();
 
@@ -355,7 +357,6 @@ router.post('/api/tenants', async (req, res) => {
     }
 
     // Generate slug from name with random suffix for uniqueness
-    const crypto = require('crypto');
     const randomSuffix = crypto.randomBytes(3).toString('hex');
     const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${randomSuffix}`;
 
@@ -389,7 +390,6 @@ router.post('/api/tenants', async (req, res) => {
       });
 
       // Hash admin password
-      const bcrypt = require('bcrypt');
       const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
       // Create admin user
