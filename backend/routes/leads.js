@@ -435,6 +435,8 @@ router.post('/:id/create-deal', validateAssignment, async (req, res) => {
           contactName: lead.name,
           email: lead.email,
           phone: lead.phone || '',
+          phoneCountryCode: lead.phoneCountryCode || '+91',
+          phoneNormalized: lead.phoneNormalized || null,
           value: lead.estimatedValue || 0,
           stage: dealStageSlug, // Use pipeline stage slug instead of old status mapping
           stageId: dealStageId,
@@ -569,6 +571,8 @@ router.put('/:id', async (req, res) => {
         if (updateData.name) dealUpdateData.contactName = updateData.name;
         if (updateData.email) dealUpdateData.email = updateData.email;
         if (updateData.phone !== undefined) dealUpdateData.phone = updateData.phone;
+        if (updateData.phoneCountryCode !== undefined) dealUpdateData.phoneCountryCode = updateData.phoneCountryCode;
+        if (updateData.phoneNormalized !== undefined) dealUpdateData.phoneNormalized = updateData.phoneNormalized;
         if (updateData.company) dealUpdateData.company = updateData.company;
         if (updateData.estimatedValue !== undefined) dealUpdateData.value = updateData.estimatedValue;
         if (updateData.notes) dealUpdateData.notes = updateData.notes;

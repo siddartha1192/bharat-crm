@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { leadsAPI, contactsAPI, invoicesAPI, tasksAPI } from '@/lib/api';
+import { leadsAPI, contactsAPI, invoicesAPI, tasksAPI, dealsAPI, pipelineStagesAPI } from '@/lib/api';
 import { Task } from '@/types/task';
+import { Deal } from '@/types/pipeline';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import {
   CheckCircle2,
   Clock,
-  TrendingUp,
   AlertCircle,
   ArrowRight,
   Users,
@@ -20,11 +20,26 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 
+interface PipelineStage {
+  id: string;
+  name: string;
+  slug: string;
+  color: string;
+  order: number;
+  stageType: 'LEAD' | 'DEAL' | 'BOTH';
+  isActive: boolean;
+  isWonStage?: boolean;
+  isLostStage?: boolean;
+}
+
 export default function Dashboard() {
   const [leadStats, setLeadStats] = useState({ total: 0, new: 0, qualified: 0, totalValue: 0 });
   const [contactStats, setContactStats] = useState({ total: 0, customers: 0, vendors: 0, totalLifetimeValue: 0 });
   const [invoiceStats, setInvoiceStats] = useState({ totalInvoices: 0, paidAmount: 0, pendingAmount: 0, overdueAmount: 0 });
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [pipelineStages, setPipelineStages] = useState<PipelineStage[]>([]);
+  const [conversionRate, setConversionRate] = useState<string>('0.0');
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -36,7 +51,7 @@ export default function Dashboard() {
   const fetchAllStats = async () => {
     try {
       setLoading(true);
-      const [leads, contacts, invoices, upcomingTasksResponse] = await Promise.all([
+      const [leads, contacts, invoices, upcomingTasksResponse, dealsResponse, stagesData] = await Promise.all([
         leadsAPI.getStats(),
         contactsAPI.getStats(),
         invoicesAPI.getStats(),
@@ -45,7 +60,9 @@ export default function Dashboard() {
           limit: 50,
           sortBy: 'dueDate',
           sortOrder: 'asc'
-        })
+        }),
+        dealsAPI.getAll({ limit: 10000 }),
+        pipelineStagesAPI.getAll()
       ]);
       setLeadStats(leads);
       setContactStats(contacts);
@@ -56,6 +73,32 @@ export default function Dashboard() {
       // Filter completed tasks on client side for dashboard
       const incompleteTasks = allTasks.filter(t => t.status !== 'completed');
       setTasks(incompleteTasks);
+
+      // Handle deals and pipeline stages for conversion rate calculation
+      const dealsData = dealsResponse.data || dealsResponse;
+      setDeals(dealsData);
+      const activeStages = stagesData.filter((s: PipelineStage) => s.isActive);
+      setPipelineStages(activeStages);
+
+      // Calculate conversion rate using the same logic as Reports page
+      // Get won stage IDs - first try explicit flags, then fall back to slug-based detection
+      let wonStageIds = activeStages.filter((s: PipelineStage) => s.isWonStage).map((s: PipelineStage) => s.id);
+
+      // FALLBACK: If no stages are explicitly marked, detect by slug pattern
+      if (wonStageIds.length === 0) {
+        wonStageIds = activeStages.filter((s: PipelineStage) => s.slug?.includes('won')).map((s: PipelineStage) => s.id);
+      }
+
+      // Count won deals
+      const wonDealsCount = dealsData.filter((d: Deal) => wonStageIds.includes(d.stageId)).length;
+
+      // Conversion Rate = Won Deals / Total Leads (same logic as Reports page)
+      const calculatedRate = (leads.total > 0 && wonDealsCount > 0)
+        ? ((wonDealsCount / leads.total) * 100).toFixed(1)
+        : '0.0';
+
+      setConversionRate(calculatedRate);
+
     } catch (error) {
       toast({
         title: "Error fetching stats",
@@ -131,19 +174,7 @@ export default function Dashboard() {
             />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">New Leads</p>
-                  <p className="text-2xl font-bold text-foreground">{leadStats.new}</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
-                  <TrendingUp className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </Card>
-
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -218,13 +249,13 @@ export default function Dashboard() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-muted-foreground">Lead Conversion Rate</span>
                 <span className="text-sm font-bold text-foreground">
-                  {leadStats.total > 0 ? Math.round((leadStats.qualified / leadStats.total) * 100) : 0}%
+                  {conversionRate}%
                 </span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-success to-success/80 transition-all"
-                  style={{ width: `${leadStats.total > 0 ? (leadStats.qualified / leadStats.total) * 100 : 0}%` }}
+                  style={{ width: `${conversionRate}%` }}
                 />
               </div>
             </div>
