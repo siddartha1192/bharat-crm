@@ -287,6 +287,8 @@ router.put('/:id', async (req, res) => {
         if (updateData.contactName) leadUpdateData.name = updateData.contactName;
         if (updateData.email) leadUpdateData.email = updateData.email;
         if (updateData.phone !== undefined) leadUpdateData.phone = updateData.phone;
+        if (updateData.phoneCountryCode !== undefined) leadUpdateData.phoneCountryCode = updateData.phoneCountryCode;
+        if (updateData.phoneNormalized !== undefined) leadUpdateData.phoneNormalized = updateData.phoneNormalized;
         if (updateData.company) leadUpdateData.company = updateData.company;
         if (updateData.value !== undefined) leadUpdateData.estimatedValue = updateData.value;
         if (updateData.notes) leadUpdateData.notes = updateData.notes;
@@ -314,6 +316,10 @@ router.put('/:id', async (req, res) => {
           leadUpdateData.email = updateData.email;
         if (updateData.phone !== undefined && updateData.phone !== linkedLead.phone)
           leadUpdateData.phone = updateData.phone;
+        if (updateData.phoneCountryCode !== undefined && updateData.phoneCountryCode !== linkedLead.phoneCountryCode)
+          leadUpdateData.phoneCountryCode = updateData.phoneCountryCode;
+        if (updateData.phoneNormalized !== undefined && updateData.phoneNormalized !== linkedLead.phoneNormalized)
+          leadUpdateData.phoneNormalized = updateData.phoneNormalized;
         if (updateData.company && updateData.company !== linkedLead.company)
           leadUpdateData.company = updateData.company;
         if (updateData.value !== undefined && updateData.value !== linkedLead.estimatedValue)

@@ -20,6 +20,9 @@ export interface Deal {
   company: string;
   contactName: string;
   email: string; // Synced with lead email
+  phone: string; // Synced with lead phone
+  phoneCountryCode?: string; // Synced with lead phoneCountryCode
+  phoneNormalized?: string; // E.164 format, synced with lead
   contactId?: string; // Link to Contact
   stage: string; // References PipelineStageConfig.slug
   stageId?: string; // Direct reference to PipelineStageConfig.id

@@ -477,6 +477,8 @@ model Deal {
   contactName       String
   email             String // Synced with lead email
   phone             String   @default("") // Synced with lead phone
+  phoneCountryCode  String   @default("+91") // Synced with lead phoneCountryCode
+  phoneNormalized   String? // E.164 format for deduplication, synced with lead
   contactId         String? // Optional link to Contact
   value             Float
   stage             String // DEPRECATED: Use stageId instead (kept for backward compatibility)
@@ -513,6 +515,7 @@ model Deal {
   @@index([contactId])
   @@index([createdBy])
   @@index([tenantId])
+  @@index([phoneNormalized])
 }
 
 model Task {
