@@ -50,9 +50,9 @@ export function PromoNav() {
               <Link to="/login">
                 <Button variant="ghost">Login</Button>
               </Link>
-              <Link to="/signup">
+              <Link to="/contact">
                 <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
-                  Start Free Trial
+                  Request Demo
                 </Button>
               </Link>
             </div>
@@ -121,9 +121,9 @@ export function PromoNav() {
                 <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
                   <Button variant="ghost" className="w-full">Login</Button>
                 </Link>
-                <Link to="/signup" onClick={() => setMobileMenuOpen(false)}>
+                <Link to="/contact" onClick={() => setMobileMenuOpen(false)}>
                   <Button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
-                    Start Free Trial
+                    Request Demo
                   </Button>
                 </Link>
               </div>

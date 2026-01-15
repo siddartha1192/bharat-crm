@@ -219,9 +219,9 @@ export default function PromoLanding() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-            <Link to="/signup">
+            <Link to="/contact">
               <Button size="lg" className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-lg px-8 py-6 rounded-full shadow-xl hover:shadow-2xl transition-all">
-                Start Free Trial <ArrowRight className="ml-2 w-5 h-5" />
+                Request Demo <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </Link>
             <Button
@@ -639,9 +639,9 @@ export default function PromoLanding() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-12">
-            <Link to="/signup">
+            <Link to="/contact">
               <Button size="lg" className="bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-500 hover:to-emerald-600 text-white text-xl px-10 py-7 rounded-full shadow-2xl hover:shadow-3xl transition-all">
-                Start Free Trial <ArrowRight className="ml-2 w-6 h-6" />
+                Request Demo <ArrowRight className="ml-2 w-6 h-6" />
               </Button>
             </Link>
             <Button

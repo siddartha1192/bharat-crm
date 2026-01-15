@@ -135,9 +135,9 @@ export default function ProductPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-            <Link to="/signup">
+            <Link to="/contact">
               <Button size="lg" className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-lg px-8 py-6 rounded-full shadow-xl">
-                Start Free Trial <ArrowRight className="ml-2 w-5 h-5" />
+                Request Demo <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </Link>
             <Link to="/pricing">
@@ -194,9 +194,9 @@ export default function ProductPage() {
             Join hundreds of businesses already using NeuraGG CRM
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-            <Link to="/signup">
+            <Link to="/contact">
               <Button size="lg" className="bg-white text-purple-600 hover:bg-gray-100 text-xl px-10 py-7 rounded-full shadow-2xl">
-                Start Free Trial <ArrowRight className="ml-2 w-6 h-6" />
+                Request Demo <ArrowRight className="ml-2 w-6 h-6" />
               </Button>
             </Link>
             <Link to="/contact">
