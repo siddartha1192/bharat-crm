@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Invoice } from "@/types/invoice";
-import { invoicesAPI } from "@/lib/api";
+import { invoicesAPI, invoiceTemplatesAPI } from "@/lib/api";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
 import { InvoiceDialog } from "@/components/invoice/InvoiceDialog";
 import { StatsCard } from "@/components/dashboard/StatsCard";
@@ -18,6 +18,7 @@ import { Plus, Search, FileText, DollarSign, AlertCircle, CheckCircle, Loader2, 
 import { useToast } from "@/hooks/use-toast";
 import { exportInvoicesToCSV } from "@/lib/csvUtils";
 import { ProtectedFeature } from "@/components/auth/ProtectedFeature";
+import { toast as sonnerToast } from "sonner";
 
 const Invoices = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -107,307 +108,107 @@ const Invoices = () => {
     overdueAmount: invoices.filter(inv => inv.status === 'overdue').reduce((sum, inv) => sum + inv.total, 0),
   };
 
-  const handleDownloadPDF = (invoice: Invoice) => {
-    // Create a formatted invoice HTML
-    const isInterState = invoice.companyState !== invoice.customerState;
+  const handleDownloadPDF = async (invoice: Invoice) => {
+    try {
+      sonnerToast.loading('Generating invoice PDF...');
 
-    const invoiceHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Invoice ${invoice.invoiceNumber}</title>
-  <style>
-    @page {
-      size: A4;
-      margin: 10mm;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: Arial, sans-serif;
-      font-size: 11px;
-      line-height: 1.4;
-      color: #000;
-    }
-
-    .invoice-container {
-      border: 2px solid #000;
-      padding: 15px;
-      max-width: 210mm;
-      margin: 0 auto;
-      background: white;
-    }
-
-    .header {
-      text-align: center;
-      border-bottom: 3px solid #FF9933;
-      padding-bottom: 10px;
-      margin-bottom: 15px;
-    }
-
-    .company-name {
-      font-size: 18px;
-      font-weight: bold;
-      color: #000080;
-      margin-bottom: 3px;
-    }
-
-    .invoice-title {
-      font-size: 16px;
-      font-weight: bold;
-      color: #138808;
-      margin-top: 8px;
-    }
-
-    .info-section {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 15px;
-      gap: 20px;
-    }
-
-    .info-block {
-      flex: 1;
-      font-size: 10px;
-    }
-
-    .info-block h3 {
-      font-size: 11px;
-      color: #333;
-      margin-bottom: 5px;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 3px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 10px 0;
-      font-size: 10px;
-    }
-
-    th {
-      background: #f5f5f5;
-      padding: 6px 4px;
-      text-align: left;
-      border: 1px solid #999;
-      font-weight: bold;
-      font-size: 10px;
-    }
-
-    td {
-      padding: 5px 4px;
-      border: 1px solid #ccc;
-    }
-
-    .text-right {
-      text-align: right;
-    }
-
-    .totals {
-      margin-top: 10px;
-      float: right;
-      width: 280px;
-    }
-
-    .totals table {
-      margin: 0;
-    }
-
-    .grand-total {
-      font-weight: bold;
-      font-size: 12px;
-      background: #f0f0f0;
-    }
-
-    .notes {
-      margin-top: 15px;
-      padding: 8px;
-      background: #f9f9f9;
-      border-left: 3px solid #FF9933;
-      font-size: 9px;
-      clear: both;
-    }
-
-    .footer {
-      margin-top: 15px;
-      text-align: center;
-      color: #666;
-      font-size: 9px;
-      border-top: 1px solid #ddd;
-      padding-top: 8px;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 3px;
-      font-size: 10px;
-      font-weight: bold;
-    }
-
-    .badge-paid { background: #d4edda; color: #155724; }
-    .badge-sent { background: #cce5ff; color: #004085; }
-    .badge-overdue { background: #f8d7da; color: #721c24; }
-    .badge-draft { background: #e2e3e5; color: #383d41; }
-    .badge-cancelled { background: #f8d7da; color: #721c24; }
-
-    .gst-type {
-      font-weight: bold;
-      color: ${isInterState ? '#004085' : '#155724'};
-      font-size: 10px;
-    }
-
-    .header-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-    }
-
-    @media print {
-      body { margin: 0; }
-      .invoice-container { border: 2px solid #000; }
-    }
-  </style>
-</head>
-<body>
-  <div class="invoice-container">
-    <div class="header">
-      <div class="company-name">${invoice.companyName || 'Bharat CRM Solutions Pvt Ltd'}</div>
-      <div style="font-size: 10px;">${invoice.companyAddress || '456, MG Road, Bangalore'}, ${invoice.companyState} - ${invoice.companyPincode || '560001'}</div>
-      <div style="font-size: 10px;">GSTIN: ${invoice.companyGSTIN || '29XYZAB5678C1D2'}</div>
-      <div class="invoice-title">TAX INVOICE</div>
-    </div>
-
-    <div class="header-row">
-      <div><strong>Invoice #:</strong> ${invoice.invoiceNumber}</div>
-      <span class="badge badge-${invoice.status}">${invoice.status.toUpperCase()}</span>
-    </div>
-
-    <div class="info-section">
-      <div class="info-block">
-        <h3>Bill To:</h3>
-        <strong>${invoice.customerName}</strong><br>
-        ${invoice.customerAddress}<br>
-        ${invoice.customerState} - ${invoice.customerPincode || ''}<br>
-        ${invoice.customerGSTIN ? `GSTIN: ${invoice.customerGSTIN}<br>` : ''}
-        Email: ${invoice.customerEmail}
-      </div>
-      <div class="info-block">
-        <h3>Invoice Details:</h3>
-        <strong>Issue Date:</strong> ${new Date(invoice.issueDate).toLocaleDateString('en-IN')}<br>
-        <strong>Due Date:</strong> ${new Date(invoice.dueDate).toLocaleDateString('en-IN')}<br>
-        ${invoice.paymentDate ? `<strong>Paid On:</strong> ${new Date(invoice.paymentDate).toLocaleDateString('en-IN')}<br>` : ''}
-        ${invoice.paymentMethod ? `<strong>Payment Method:</strong> ${invoice.paymentMethod.toUpperCase()}<br>` : ''}
-        <div class="gst-type" style="margin-top: 5px;">${isInterState ? 'INTER-STATE (IGST)' : 'INTRA-STATE (CGST+SGST)'}</div>
-      </div>
-    </div>
-
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 35%;">Description</th>
-          <th style="width: 12%;">HSN/SAC</th>
-          <th style="width: 10%;">Qty</th>
-          <th style="width: 13%;">Rate</th>
-          <th style="width: 10%;">Disc%</th>
-          <th class="text-right" style="width: 20%;">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${invoice.lineItems.map(item => `
-          <tr>
-            <td>${item.description}</td>
-            <td>${item.hsnSac || '-'}</td>
-            <td>${item.quantity} ${item.unit || ''}</td>
-            <td>₹${item.rate.toLocaleString('en-IN')}</td>
-            <td>${item.discount || 0}%</td>
-            <td class="text-right">₹${(item.quantity * item.rate * (1 - (item.discount || 0) / 100)).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-
-    <div class="totals">
-      <table>
-        <tr>
-          <td><strong>Subtotal:</strong></td>
-          <td class="text-right">₹${invoice.subtotal.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-        </tr>
-        ${(invoice.totalDiscount && invoice.totalDiscount > 0) ? `
-          <tr style="color: #dc3545;">
-            <td><strong>Discount:</strong></td>
-            <td class="text-right">-₹${invoice.totalDiscount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-          </tr>
-        ` : ''}
-        <tr>
-          <td><strong>Taxable Amount:</strong></td>
-          <td class="text-right">₹${(invoice.subtotal - (invoice.totalDiscount || 0)).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-        </tr>
-        ${isInterState ? `
-          <tr>
-            <td><strong>IGST:</strong></td>
-            <td class="text-right">₹${invoice.igst.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-          </tr>
-        ` : `
-          <tr>
-            <td><strong>CGST:</strong></td>
-            <td class="text-right">₹${invoice.cgst.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-          </tr>
-          <tr>
-            <td><strong>SGST:</strong></td>
-            <td class="text-right">₹${invoice.sgst.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-          </tr>
-        `}
-        ${(invoice.roundOff && invoice.roundOff !== 0) ? `
-          <tr>
-            <td><strong>Round Off:</strong></td>
-            <td class="text-right">${invoice.roundOff > 0 ? '+' : ''}₹${invoice.roundOff.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-          </tr>
-        ` : ''}
-        <tr class="grand-total">
-          <td><strong>GRAND TOTAL:</strong></td>
-          <td class="text-right"><strong>₹${invoice.total.toLocaleString('en-IN', {minimumFractionDigits: 2})}</strong></td>
-        </tr>
-      </table>
-    </div>
-
-    <div style="clear: both;"></div>
-
-    ${invoice.notes || invoice.termsAndConditions ? `
-      <div class="notes">
-        ${invoice.notes ? `<div><strong>Notes:</strong> ${invoice.notes}</div>` : ''}
-        ${invoice.termsAndConditions ? `<div style="margin-top: 5px;"><strong>Terms & Conditions:</strong> ${invoice.termsAndConditions}</div>` : ''}
-      </div>
-    ` : ''}
-
-    <div class="footer">
-      <div>This is a computer generated invoice and does not require a signature.</div>
-      <div style="margin-top: 5px;"><strong>Bharat CRM</strong> - GST-Compliant Invoicing System</div>
-    </div>
-  </div>
-</body>
-</html>
-    `;
-
-    // Create a new window and print
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(invoiceHTML);
-      printWindow.document.close();
-
-      // Wait for content to load then trigger print dialog
-      printWindow.onload = () => {
-        printWindow.focus();
-        printWindow.print();
+      // Helper functions to format data
+      const formatDate = (date: any) => {
+        if (!date) return '';
+        return new Date(date).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        });
       };
+
+      const formatNumber = (num: number) => {
+        return Number(num || 0).toLocaleString('en-IN', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      };
+
+      // Determine status class for CSS
+      const statusMap: Record<string, string> = {
+        'Draft': 'draft',
+        'Sent': 'sent',
+        'Paid': 'paid',
+        'Overdue': 'overdue',
+        'Cancelled': 'cancelled'
+      };
+
+      // Format line items as HTML table rows
+      const lineItemsHTML = invoice.lineItems.map((item, index) => `
+        <tr>
+          <td class="text-center">${index + 1}</td>
+          <td>${item.description || ''}</td>
+          <td>${item.hsnSac || ''}</td>
+          <td class="text-center">${item.quantity || 0} ${item.unit || ''}</td>
+          <td class="text-right">₹${formatNumber(item.rate || 0)}</td>
+          <td class="text-right">${item.taxRate || 0}%</td>
+          <td class="text-right">₹${formatNumber(item.discount || 0)}</td>
+          <td class="text-right">₹${formatNumber(item.amount || 0)}</td>
+        </tr>
+      `).join('');
+
+      // Prepare invoice data for template
+      const invoiceData = {
+        invoiceNumber: invoice.invoiceNumber || '',
+        invoiceDate: formatDate(invoice.issueDate || new Date()),
+        dueDate: formatDate(invoice.dueDate),
+        status: invoice.status || 'Draft',
+        statusClass: statusMap[invoice.status] || 'draft',
+
+        companyName: invoice.companyName || 'Your Company',
+        companyAddress: `${invoice.companyAddress || ''}, ${invoice.companyCity || ''}, ${invoice.companyState || ''} - ${invoice.companyPincode || ''}`,
+        companyGSTIN: invoice.companyGST || '',
+        companyPAN: invoice.companyPAN || '',
+
+        customerName: invoice.customerName || '',
+        customerAddress: `${invoice.customerAddress || ''}, ${invoice.customerCity || ''}, ${invoice.customerState || ''} - ${invoice.customerPincode || ''}`,
+        customerEmail: invoice.customerEmail || '',
+        customerPhone: invoice.customerPhone || '',
+        customerGSTIN: invoice.customerGST || '',
+
+        lineItems: lineItemsHTML,
+
+        subtotal: formatNumber(invoice.subtotal),
+        totalDiscount: invoice.totalDiscount > 0 ? formatNumber(invoice.totalDiscount) : null,
+        cgst: invoice.cgst > 0 ? formatNumber(invoice.cgst) : null,
+        sgst: invoice.sgst > 0 ? formatNumber(invoice.sgst) : null,
+        igst: invoice.igst > 0 ? formatNumber(invoice.igst) : null,
+        totalTax: formatNumber(invoice.totalTax),
+        roundOff: invoice.roundOff ? formatNumber(invoice.roundOff) : null,
+        total: formatNumber(invoice.total),
+
+        paymentMethod: invoice.paymentMethod || null,
+        paymentDate: invoice.paymentDate ? formatDate(invoice.paymentDate) : null,
+        notes: invoice.notes || null
+      };
+
+      // Get rendered HTML from backend template service
+      const result = await invoiceTemplatesAPI.preview('', invoiceData);
+
+      sonnerToast.dismiss();
+      sonnerToast.success('Invoice PDF generated');
+
+      // Open in new window for printing
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(result.html);
+        printWindow.document.close();
+
+        // Wait for content to load then trigger print dialog
+        printWindow.onload = () => {
+          printWindow.focus();
+          printWindow.print();
+        };
+      }
+    } catch (error) {
+      console.error('Error generating invoice PDF:', error);
+      sonnerToast.dismiss();
+      sonnerToast.error('Failed to generate invoice PDF');
     }
   };
 
