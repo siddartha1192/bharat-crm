@@ -109,81 +109,61 @@ class AuthService {
   }
 
   /**
-   * Register new user with email/password (tenant-aware)
-   * If tenantId is not provided, auto-creates a new tenant for the user
+   * Register new user with email/password (invitation-based only)
+   * SECURITY: Users can only register with a valid invitation token
+   * Auto-tenant creation is disabled to prevent unauthorized access
    */
   async register(data) {
-    const { email, password, name, company, role = 'AGENT', tenantId } = data;
+    const { email, password, name, company, role = 'AGENT', tenantId, invitationToken } = data;
 
-    let finalTenantId = tenantId;
-    let finalRole = role;
-    let finalCompany = company;
-
-    // If no tenantId provided, auto-create a new tenant
-    if (!tenantId) {
-      // Check if user with this email already exists in any tenant
-      const existingUser = await prisma.user.findFirst({
-        where: { email }
-      });
-
-      if (existingUser) {
-        throw new Error('User with this email already exists. Please login or use a different email.');
-      }
-
-      // Auto-create tenant for new signup
-      const tenantSlug = `${email.split('@')[0]}-${crypto.randomBytes(3).toString('hex')}`;
-      const newTenant = await prisma.tenant.create({
-        data: {
-          name: company || `${name}'s Organization`,
-          slug: tenantSlug,
-          contactEmail: email,
-          status: 'TRIAL',
-          plan: 'FREE',
-          maxUsers: 5,
-          subscriptionStart: new Date(),
-          subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
-          settings: {
-            branding: {
-              primaryColor: '#3b82f6',
-              logoUrl: null
-            },
-            features: {
-              whatsapp: true,
-              email: true,
-              ai: true,
-              calendar: true
-            }
-          }
-        }
-      });
-
-      finalTenantId = newTenant.id;
-      finalRole = 'ADMIN'; // First user is admin of their tenant
-      finalCompany = newTenant.name;
-    } else {
-      // Verify tenant exists
-      const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId }
-      });
-
-      if (!tenant) {
-        throw new Error('Invalid tenant');
-      }
-
-      // Check if user exists in this tenant
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          email,
-          tenantId
-        },
-      });
-
-      if (existingUser) {
-        throw new Error('User with this email already exists in this organization');
-      }
-
-      finalCompany = company || tenant.name;
+    // SECURITY: Registration now requires a valid invitation token
+    if (!invitationToken) {
+      throw new Error('Registration requires a valid invitation. Please contact your administrator for access.');
     }
+
+    // Verify invitation token
+    const invitation = await prisma.tenantInvitation.findUnique({
+      where: { token: invitationToken },
+      include: { tenant: true }
+    });
+
+    if (!invitation) {
+      throw new Error('Invalid invitation token.');
+    }
+
+    if (!invitation.isActive) {
+      throw new Error('This invitation is no longer active.');
+    }
+
+    if (invitation.acceptedAt) {
+      throw new Error('This invitation has already been used.');
+    }
+
+    if (new Date() > invitation.expiresAt) {
+      throw new Error('This invitation has expired.');
+    }
+
+    if (invitation.email.toLowerCase() !== email.toLowerCase()) {
+      throw new Error('Email does not match the invitation.');
+    }
+
+    // Check if user with this email already exists in this tenant
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email,
+        tenantId: invitation.tenantId
+      }
+    });
+
+    if (existingUser) {
+      throw new Error('User with this email already exists in this organization.');
+    }
+
+    const finalTenantId = invitation.tenantId;
+    const finalRole = invitation.role || role;
+    const finalCompany = invitation.tenant.name;
+
+    // DISABLED: Auto-tenant creation is no longer allowed for security
 
     // Hash password
     const hashedPassword = await this.hashPassword(password);
@@ -210,8 +190,17 @@ class AuthService {
       },
     });
 
+    // Mark invitation as accepted
+    await prisma.tenantInvitation.update({
+      where: { id: invitation.id },
+      data: {
+        acceptedAt: new Date(),
+        isActive: false
+      }
+    });
+
     // Log activity
-    await this.logActivity(user.id, 'REGISTER', 'User', user.id, `User registered: ${email}`);
+    await this.logActivity(user.id, 'REGISTER', 'User', user.id, `User registered via invitation: ${email}`);
 
     return user;
   }
@@ -444,10 +433,12 @@ class AuthService {
         // Log activity
         await this.logActivity(user.id, 'LOGIN', 'User', user.id, 'User logged in with Google', { ipAddress });
       } else {
-        // Create new user with auto-tenant creation
-        // For Google OAuth, we auto-create a personal tenant for the user
-        const tenantSlug = `${email.split('@')[0]}-${crypto.randomBytes(3).toString('hex')}`;
+        // SECURITY: Auto-creation of users/tenants is disabled
+        // Users must be invited by their organization admin
+        throw new Error('No account found for this email. Please contact your administrator to request an invitation.');
 
+        /* DISABLED: Auto-tenant creation for security
+        const tenantSlug = `${email.split('@')[0]}-${crypto.randomBytes(3).toString('hex')}`;
         user = await prisma.user.create({
           data: {
             email,
@@ -455,7 +446,7 @@ class AuthService {
             googleId,
             googleEmail: email,
             googleProfilePic: picture,
-            role: 'ADMIN', // First user in their tenant is admin
+            role: 'ADMIN',
             isActive: true,
             tenant: {
               create: {
@@ -466,29 +457,14 @@ class AuthService {
                 plan: 'FREE',
                 maxUsers: 2,
                 subscriptionStart: new Date(),
-                subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
-                settings: {
-                  branding: {
-                    primaryColor: '#3b82f6',
-                    logoUrl: picture
-                  },
-                  features: {
-                    whatsapp: true,
-                    email: true,
-                    ai: true,
-                    calendar: true
-                  }
-                }
+                subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                settings: { ... }
               }
             }
           },
-          include: {
-            tenant: true
-          }
+          include: { tenant: true }
         });
-
-        // Log activity
-        await this.logActivity(user.id, 'REGISTER', 'User', user.id, 'User registered with Google', { ipAddress });
+        */
       }
 
       if (!user.isActive) {

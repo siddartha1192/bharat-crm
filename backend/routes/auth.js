@@ -7,24 +7,32 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 /**
- * Register new user with email/password
+ * Register new user with email/password (invitation-based only)
  * POST /api/auth/register
+ * Requires a valid invitation token
  */
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, company, role } = req.body;
+    const { email, password, name, company, role, invitationToken } = req.body;
 
     // Validate input
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'Email, password, and name are required' });
     }
 
+    if (!invitationToken) {
+      return res.status(400).json({
+        error: 'Invitation token is required. Please use the invitation link sent to your email.',
+        code: 'INVITATION_REQUIRED'
+      });
+    }
+
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    // Register user
-    const user = await authService.register({ email, password, name, company, role });
+    // Register user (now requires valid invitation)
+    const user = await authService.register({ email, password, name, company, role, invitationToken });
 
     // Create session
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
