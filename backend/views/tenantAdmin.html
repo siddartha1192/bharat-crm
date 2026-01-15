@@ -537,6 +537,23 @@
             <label>Max Users</label>
             <input type="number" id="newTenantMaxUsers" min="1" value="10" required>
           </div>
+
+          <hr style="margin: 30px 0; border: none; border-top: 2px solid #e2e8f0;">
+          <h3 style="margin-bottom: 15px; color: #2d3748; font-size: 18px;">Admin User Details</h3>
+          <p style="margin-bottom: 20px; color: #718096; font-size: 14px;">Create the first admin user for this tenant</p>
+
+          <div class="form-group">
+            <label>Admin Name *</label>
+            <input type="text" id="newAdminName" required placeholder="e.g., John Doe">
+          </div>
+          <div class="form-group">
+            <label>Admin Email *</label>
+            <input type="email" id="newAdminEmail" required placeholder="e.g., john@acme.com">
+          </div>
+          <div class="form-group">
+            <label>Admin Password *</label>
+            <input type="password" id="newAdminPassword" required placeholder="Minimum 6 characters" minlength="6">
+          </div>
         </form>
       </div>
       <div class="modal-footer">
@@ -944,6 +961,9 @@
         contactEmail: document.getElementById('newTenantContactEmail').value,
         plan: document.getElementById('newTenantPlan').value,
         maxUsers: parseInt(document.getElementById('newTenantMaxUsers').value),
+        adminName: document.getElementById('newAdminName').value,
+        adminEmail: document.getElementById('newAdminEmail').value,
+        adminPassword: document.getElementById('newAdminPassword').value,
       };
 
       if (!data.name) {
@@ -953,6 +973,16 @@
 
       if (!data.contactEmail) {
         alert('Contact email is required');
+        return;
+      }
+
+      if (!data.adminName || !data.adminEmail || !data.adminPassword) {
+        alert('Admin user details (name, email, password) are required');
+        return;
+      }
+
+      if (data.adminPassword.length < 6) {
+        alert('Admin password must be at least 6 characters');
         return;
       }
 
