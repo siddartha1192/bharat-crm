@@ -87,6 +87,7 @@ const gmailIntegrationRoutes = require('./routes/integrations/gmail');
 const debugRoutes = require('./routes/debug-gmail');
 const promoRoutes = require('./routes/promo');
 const emailTemplatesRoutes = require('./routes/emailTemplates');
+const invoiceTemplatesRoutes = require('./routes/invoiceTemplates');
 const callsRoutes = require('./routes/calls');
 
 // Use routes
@@ -123,6 +124,7 @@ app.use('/api/integrations/gmail', gmailIntegrationRoutes);
 app.use('/api/debug', debugRoutes);
 app.use('/api/promo', promoRoutes);
 app.use('/api/email-templates', emailTemplatesRoutes);
+app.use('/api/invoice-templates', invoiceTemplatesRoutes);
 app.use('/api/calls', callsRoutes);
 
 // Error handling middleware

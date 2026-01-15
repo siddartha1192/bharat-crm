@@ -165,14 +165,17 @@ model User {
   vectorDataUploads     VectorDataUpload[]
   aiConversations       AIConversation[]
   campaigns             Campaign[]
-  forms                 Form[]
-  landingPages          LandingPage[]
-  createdEmailTemplates EmailTemplate[]        @relation("CreatedEmailTemplates")
-  editedEmailTemplates  EmailTemplate[]        @relation("EditedEmailTemplates")
-  emailTemplateVersions EmailTemplateVersion[]
-  callLogs              CallLog[]
-  callScripts           CallScript[]
-  callQueue             CallQueue[]
+  forms                   Form[]
+  landingPages            LandingPage[]
+  createdEmailTemplates   EmailTemplate[]          @relation("CreatedEmailTemplates")
+  editedEmailTemplates    EmailTemplate[]          @relation("EditedEmailTemplates")
+  emailTemplateVersions   EmailTemplateVersion[]
+  createdInvoiceTemplates InvoiceTemplate[]        @relation("CreatedInvoiceTemplates")
+  editedInvoiceTemplates  InvoiceTemplate[]        @relation("EditedInvoiceTemplates")
+  invoiceTemplateVersions InvoiceTemplateVersion[]
+  callLogs                CallLog[]
+  callScripts             CallScript[]
+  callQueue               CallQueue[]
 
   @@unique([email, tenantId])
   @@index([email])
@@ -1319,6 +1322,88 @@ model EmailTemplateVersion {
   // Snapshot of template at this version
   subject  String @db.Text
   htmlBody String @db.Text
+
+  // Who made the change
+  changedBy     String
+  changedByUser User   @relation(fields: [changedBy], references: [id], onDelete: Cascade)
+
+  // When
+  createdAt DateTime @default(now())
+
+  // Multi-tenant relationship
+  tenantId String
+
+  @@index([templateId])
+  @@index([version])
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+// ==========================================
+// INVOICE TEMPLATES
+// ==========================================
+
+model InvoiceTemplate {
+  id          String  @id @default(uuid())
+  name        String // e.g., "Default Invoice", "Professional Invoice", "GST Invoice"
+  description String? @db.Text // Description of template style/purpose
+
+  // Template HTML content
+  htmlTemplate String @db.Text // Full HTML template with {{variables}}
+
+  // Variable definitions and documentation
+  // Example: [{"name": "customerName", "description": "Customer's full name", "example": "ABC Corp", "required": true}]
+  variables Json? // Array of available variables for this template
+
+  // Template status
+  isActive  Boolean @default(true) // Can be used in production
+  isDefault Boolean @default(false) // System default template (cannot be deleted)
+
+  // Version tracking
+  version Int @default(1)
+
+  // Usage statistics
+  usageCount   Int       @default(0) // How many times this template was used
+  lastUsedAt   DateTime? // Last time this template was used
+  lastPreviewAt DateTime? // Last time a preview was generated
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Multi-tenant relationship
+  tenantId String
+
+  // Created by / Last edited by
+  createdBy     String
+  createdByUser User   @relation("CreatedInvoiceTemplates", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  lastEditedBy     String?
+  lastEditedByUser User?   @relation("EditedInvoiceTemplates", fields: [lastEditedBy], references: [id], onDelete: SetNull)
+
+  // Version history
+  versions InvoiceTemplateVersion[]
+
+  @@unique([tenantId, isDefault]) // Only one default template per tenant
+  @@index([tenantId])
+  @@index([isActive])
+  @@index([isDefault])
+  @@index([createdBy])
+}
+
+model InvoiceTemplateVersion {
+  id String @id @default(uuid())
+
+  // Link to parent template
+  templateId String
+  template   InvoiceTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  // Version information
+  version     Int
+  changeNotes String? @db.Text // What changed in this version
+
+  // Snapshot of template at this version
+  htmlTemplate String @db.Text
 
   // Who made the change
   changedBy     String
