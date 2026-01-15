@@ -464,6 +464,58 @@ export const pipelineConfigAPI = {
   },
 };
 
+// ============ INVOICE TEMPLATES API ============
+export const invoiceTemplatesAPI = {
+  getAll: async (): Promise<any[]> => {
+    return fetchAPI('/invoice-templates');
+  },
+
+  getById: async (id: string): Promise<any> => {
+    return fetchAPI(`/invoice-templates/${id}`);
+  },
+
+  create: async (data: any): Promise<any> => {
+    return fetchAPI('/invoice-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  update: async (id: string, data: any): Promise<any> => {
+    return fetchAPI(`/invoice-templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  delete: async (id: string): Promise<void> => {
+    return fetchAPI(`/invoice-templates/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  preview: async (htmlTemplate: string, sampleData?: any): Promise<{ html: string }> => {
+    return fetchAPI('/invoice-templates/preview', {
+      method: 'POST',
+      body: JSON.stringify({ htmlTemplate, sampleData }),
+    });
+  },
+
+  duplicate: async (id: string): Promise<any> => {
+    return fetchAPI(`/invoice-templates/${id}/duplicate`, {
+      method: 'POST',
+    });
+  },
+
+  getVersions: async (id: string): Promise<any[]> => {
+    return fetchAPI(`/invoice-templates/${id}/versions`);
+  },
+
+  getVariables: async (): Promise<{ variables: any[] }> => {
+    return fetchAPI('/invoice-templates/meta/variables');
+  },
+};
+
 // ============ GENERIC API CLIENT ============
 // Generic API client for custom endpoints
 export const api = {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Zap, Database, Send, Settings as SettingsIcon, Bell, Plug, Mail } from 'lucide-react';
+import { Users, Zap, Database, Send, Settings as SettingsIcon, Bell, Plug, Mail, FileText } from 'lucide-react';
 import { UserManagement } from '@/components/settings/UserManagement';
 import AutomationSettings from '@/components/settings/AutomationSettings';
 import VectorDataUpload from '@/components/settings/VectorDataUpload';
@@ -10,6 +10,7 @@ import APISettings from '@/components/settings/APISettings';
 import ReminderSettings from '@/components/settings/ReminderSettings';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import EmailTemplatesSettings from '@/components/settings/EmailTemplatesSettings';
+import { InvoiceTemplatesSettings } from '@/components/settings/InvoiceTemplatesSettings';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -70,6 +71,13 @@ export default function Settings() {
           </ProtectedFeature>
 
           <ProtectedFeature permission="users:read">
+            <TabsTrigger value="invoice-templates">
+              <FileText className="w-4 h-4 mr-2" />
+              Invoice Templates
+            </TabsTrigger>
+          </ProtectedFeature>
+
+          <ProtectedFeature permission="users:read">
             <TabsTrigger value="reminders">
               <Bell className="w-4 h-4 mr-2" />
               Reminders
@@ -117,6 +125,13 @@ export default function Settings() {
         <ProtectedFeature permission="users:read">
           <TabsContent value="email-templates" className="space-y-4">
             <EmailTemplatesSettings />
+          </TabsContent>
+        </ProtectedFeature>
+
+        {/* Invoice Templates (Admin Only) */}
+        <ProtectedFeature permission="users:read">
+          <TabsContent value="invoice-templates" className="space-y-4">
+            <InvoiceTemplatesSettings />
           </TabsContent>
         </ProtectedFeature>
 
