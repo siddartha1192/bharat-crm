@@ -303,13 +303,24 @@ router.delete('/api/users/:userId', async (req, res) => {
 });
 
 /**
- * Create new tenant
+ * Create new tenant with admin user
  * POST /tenant-admin/api/tenants
+ * Body: { name, domain, plan, maxUsers, contactEmail, adminName, adminEmail, adminPassword }
  */
 router.post('/api/tenants', async (req, res) => {
   try {
-    const { name, domain, plan, maxUsers, contactEmail } = req.body;
+    const {
+      name,
+      domain,
+      plan,
+      maxUsers,
+      contactEmail,
+      adminName,
+      adminEmail,
+      adminPassword
+    } = req.body;
 
+    // Validate required fields
     if (!name) {
       return res.status(400).json({
         success: false,
@@ -324,25 +335,91 @@ router.post('/api/tenants', async (req, res) => {
       });
     }
 
-    // Generate slug from name
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    if (!adminName || !adminEmail || !adminPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Admin user details (name, email, password) are required to create a tenant'
+      });
+    }
 
-    const tenant = await prisma.tenant.create({
-      data: {
-        name,
-        slug,
-        domain: domain || null,
-        plan: plan || 'FREE',
-        status: 'ACTIVE',
-        maxUsers: maxUsers || 10,
-        contactEmail,
-        settings: {}
-      }
+    // Check if user with admin email already exists
+    const existingUser = await prisma.user.findFirst({
+      where: { email: adminEmail }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: `A user with email ${adminEmail} already exists in another organization`
+      });
+    }
+
+    // Generate slug from name with random suffix for uniqueness
+    const crypto = require('crypto');
+    const randomSuffix = crypto.randomBytes(3).toString('hex');
+    const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${randomSuffix}`;
+
+    // Create tenant and admin user in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create tenant
+      const tenant = await tx.tenant.create({
+        data: {
+          name,
+          slug,
+          domain: domain || null,
+          plan: plan || 'FREE',
+          status: 'ACTIVE',
+          maxUsers: maxUsers || 10,
+          contactEmail,
+          subscriptionStart: new Date(),
+          subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+          settings: {
+            branding: {
+              primaryColor: '#3b82f6',
+              logoUrl: null
+            },
+            features: {
+              whatsapp: true,
+              email: true,
+              ai: true,
+              calendar: true
+            }
+          }
+        }
+      });
+
+      // Hash admin password
+      const bcrypt = require('bcrypt');
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
+      // Create admin user
+      const adminUser = await tx.user.create({
+        data: {
+          email: adminEmail,
+          password: hashedPassword,
+          name: adminName,
+          company: tenant.name,
+          role: 'ADMIN',
+          tenantId: tenant.id,
+          isActive: true
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          isActive: true
+        }
+      });
+
+      return { tenant, adminUser };
     });
 
     res.json({
       success: true,
-      tenant
+      tenant: result.tenant,
+      adminUser: result.adminUser,
+      message: `Tenant "${name}" created successfully with admin user "${adminEmail}"`
     });
   } catch (error) {
     console.error('Error creating tenant:', error);

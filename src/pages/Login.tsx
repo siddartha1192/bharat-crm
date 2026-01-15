@@ -16,44 +16,36 @@ interface Tenant {
 }
 
 export default function Login() {
-  const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
-    name: '',
-    company: ''
+    password: ''
   });
   const [showTenantSelection, setShowTenantSelection] = useState(false);
   const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login, register, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      if (isLogin) {
-        // Use AuthContext login function
-        const result = await login(formData.email, formData.password);
+      // Use AuthContext login function
+      const result = await login(formData.email, formData.password);
 
-        // Check if tenant selection is required
-        if (result.requiresTenantSelection && result.tenants) {
-          setAvailableTenants(result.tenants);
-          setShowTenantSelection(true);
-          setLoading(false);
-          return;
-        }
-      } else {
-        // Use AuthContext register function
-        await register(formData.email, formData.password, formData.name, formData.company);
+      // Check if tenant selection is required
+      if (result.requiresTenantSelection && result.tenants) {
+        setAvailableTenants(result.tenants);
+        setShowTenantSelection(true);
+        setLoading(false);
+        return;
       }
 
       toast({
-        title: isLogin ? 'Welcome back!' : 'Account created!',
-        description: isLogin ? 'You have successfully logged in.' : 'Your account has been created successfully.',
+        title: 'Welcome back!',
+        description: 'You have successfully logged in.',
       });
 
       // Navigate to dashboard
@@ -165,49 +157,12 @@ export default function Login() {
           </div>
           <h1 className="text-3xl font-bold text-foreground">CLiM</h1>
           <p className="text-muted-foreground">
-            {isLogin ? 'Welcome back! Please login to continue.' : 'Create your account to get started.'}
+            Welcome back! Please login to continue.
           </p>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="name"
-                    name="name"
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="company">Company Name</Label>
-                <div className="relative">
-                  <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="company"
-                    name="company"
-                    type="text"
-                    placeholder="Enter your company name"
-                    value={formData.company}
-                    onChange={handleChange}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <div className="relative">
@@ -228,11 +183,9 @@ export default function Login() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="password">Password</Label>
-              {isLogin && (
-                <Link to="/forgot-password" className="text-xs text-primary hover:underline">
-                  Forgot password?
-                </Link>
-              )}
+              <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+                Forgot password?
+              </Link>
             </div>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -257,10 +210,10 @@ export default function Login() {
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {isLogin ? 'Logging in...' : 'Creating account...'}
+                Logging in...
               </>
             ) : (
-              isLogin ? 'Login' : 'Create Account'
+              'Login'
             )}
           </Button>
         </form>
@@ -313,21 +266,14 @@ export default function Login() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          {isLogin ? 'Sign in with Google' : 'Sign up with Google'}
+          Sign in with Google
         </Button>
 
-        {/* Toggle between login and register */}
+        {/* Account access notice */}
         <div className="text-center text-sm">
-          <button
-            type="button"
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setFormData({ email: '', password: '', name: '', company: '' });
-            }}
-            className="text-primary hover:underline"
-          >
-            {isLogin ? "Don't have an account? Register" : 'Already have an account? Login'}
-          </button>
+          <p className="text-muted-foreground">
+            Need access? <Link to="/contact" className="text-primary hover:underline">Contact your administrator</Link>
+          </p>
         </div>
 
         {/* Indian CRM Notice */}

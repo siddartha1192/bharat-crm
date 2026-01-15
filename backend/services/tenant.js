@@ -36,6 +36,20 @@ function generateSlug(name) {
  */
 async function createTenant(tenantData) {
   try {
+    // Check if tenant with same name already exists
+    const existingTenant = await prisma.tenant.findFirst({
+      where: {
+        name: {
+          equals: tenantData.name,
+          mode: 'insensitive' // Case-insensitive comparison
+        }
+      }
+    });
+
+    if (existingTenant) {
+      throw new Error('A tenant with this name already exists. Please choose a different name.');
+    }
+
     const slug = generateSlug(tenantData.name);
 
     // Create tenant

@@ -170,7 +170,7 @@ export default function PricingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link to={plan.name === "Enterprise" ? "/contact" : "/signup"} className="block">
+                <Link to="/contact" className="block">
                   <Button
                     size="lg"
                     className={`w-full ${
@@ -218,9 +218,9 @@ export default function PricingPage() {
           <p className="text-2xl mb-10 text-purple-100">
             No credit card required. Full access to all features for 14 days.
           </p>
-          <Link to="/signup">
+          <Link to="/contact">
             <Button size="lg" className="bg-white text-purple-600 hover:bg-gray-100 text-xl px-10 py-7 rounded-full shadow-2xl">
-              Get Started Free <ArrowRight className="ml-2 w-6 h-6" />
+              Request Demo <ArrowRight className="ml-2 w-6 h-6" />
             </Button>
           </Link>
         </div>

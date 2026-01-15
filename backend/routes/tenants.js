@@ -7,39 +7,14 @@ const { tenantContext } = require('../middleware/tenant');
 /**
  * Create a new tenant (organization signup)
  * POST /api/tenants
- * Public endpoint - no authentication required
+ * DISABLED FOR SECURITY - Only super admins can create tenants via admin portal
+ * Public signup is not allowed to prevent tenant sprawl
  */
 router.post('/', async (req, res) => {
-  try {
-    const { name, contactEmail, contactPhone, domain, plan } = req.body;
-
-    // Validate input
-    if (!name || !contactEmail) {
-      return res.status(400).json({ error: 'Organization name and contact email are required' });
-    }
-
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(contactEmail)) {
-      return res.status(400).json({ error: 'Invalid email address' });
-    }
-
-    const tenant = await tenantService.createTenant({
-      name,
-      contactEmail,
-      contactPhone,
-      domain,
-      plan
-    });
-
-    res.status(201).json({
-      tenant,
-      message: 'Organization created successfully'
-    });
-  } catch (error) {
-    console.error('Create tenant error:', error);
-    res.status(400).json({ error: error.message || 'Failed to create organization' });
-  }
+  return res.status(403).json({
+    error: 'Public tenant creation is disabled. Please contact your administrator for access.',
+    code: 'TENANT_CREATION_DISABLED'
+  });
 });
 
 /**
