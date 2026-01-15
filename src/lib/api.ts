@@ -194,7 +194,10 @@ export const contactsAPI = {
       return [];
     }
     const params = new URLSearchParams({ search: query.trim() });
-    return fetchAPI<Contact[]>(`/contacts?${params.toString()}`);
+    const response = await fetchAPI<any>(`/contacts?${params.toString()}`);
+    // Backend returns paginated response: { data: Contact[], pagination: {...} }
+    // Extract the data array
+    return Array.isArray(response) ? response : (response.data || []);
   },
 };
 
