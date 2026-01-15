@@ -49,6 +49,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
     company: '',
     contactName: '',
     email: '',
+    phone: '',
     contactId: undefined,
     stage: initialStage,
     value: 0,
@@ -136,6 +137,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
         company: deal.company || '',
         contactName: deal.contactName || '',
         email: deal.email || '',
+        phone: deal.phone || '',
         contactId: deal.contactId,
         stage: stageSlug,
         stageId: deal.stageId,
@@ -153,6 +155,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
         company: '',
         contactName: '',
         email: '',
+        phone: '',
         contactId: undefined,
         stage: initialStage,
         value: 0,
@@ -185,6 +188,7 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
         contactId: contact.id,
         contactName: contact.name,
         email: contact.email || prev.email || '',
+        phone: contact.phone || prev.phone || '',
         company: prev.company || contact.company || '',
       }));
       setContactOpen(false);
@@ -359,6 +363,21 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
                 />
                 <p className="text-xs text-muted-foreground">
                   Synced with lead email
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="text-sm font-semibold">Phone</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => updateField('phone', e.target.value)}
+                  placeholder="+91 98765 43210"
+                  className="border-2 focus:border-blue-500 rounded-lg"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Synced with lead phone (normalized for deduplication)
                 </p>
               </div>
             </div>
