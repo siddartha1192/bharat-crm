@@ -2,11 +2,14 @@ import { useState, useEffect } from "react";
 import { Invoice } from "@/types/invoice";
 import { invoicesAPI, invoiceTemplatesAPI } from "@/lib/api";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
+import { InvoiceListView } from "@/components/invoice/InvoiceListView";
 import { InvoiceDialog } from "@/components/invoice/InvoiceDialog";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Pagination } from "@/components/ui/pagination";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Select,
   SelectContent,
@@ -14,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, FileText, DollarSign, AlertCircle, CheckCircle, Loader2, Download } from "lucide-react";
+import { Plus, Search, FileText, DollarSign, AlertCircle, CheckCircle, Loader2, Download, LayoutGrid, List } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { exportInvoicesToCSV } from "@/lib/csvUtils";
 import { ProtectedFeature } from "@/components/auth/ProtectedFeature";
@@ -27,20 +30,50 @@ const Invoices = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
   const { toast } = useToast();
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Fetch invoices from API
   useEffect(() => {
     fetchInvoices();
-  }, [statusFilter]);
+  }, [currentPage, itemsPerPage, statusFilter]);
 
   const fetchInvoices = async () => {
     try {
       setLoading(true);
-      const data = await invoicesAPI.getAll({
-        status: statusFilter !== 'all' ? statusFilter : undefined
-      });
-      setInvoices(data);
+      const filters: Record<string, any> = {
+        page: currentPage,
+        limit: itemsPerPage,
+        sortBy: 'createdAt',
+        sortOrder: 'desc'
+      };
+
+      if (statusFilter !== 'all') {
+        filters.status = statusFilter;
+      }
+
+      const data = await invoicesAPI.getAll(filters);
+
+      // Handle paginated response
+      if (data.data && Array.isArray(data.data)) {
+        setInvoices(data.data);
+        setTotalItems(data.total || data.data.length);
+        setTotalPages(data.totalPages || Math.ceil((data.total || data.data.length) / itemsPerPage));
+      } else {
+        // Handle non-paginated response (backward compatibility)
+        const invoiceArray = Array.isArray(data) ? data : [];
+        setInvoices(invoiceArray);
+        setTotalItems(invoiceArray.length);
+        setTotalPages(Math.ceil(invoiceArray.length / itemsPerPage));
+      }
     } catch (error) {
       toast({
         title: "Error fetching invoices",
@@ -52,14 +85,6 @@ const Invoices = () => {
       setLoading(false);
     }
   };
-
-  const filteredInvoices = invoices.filter((invoice) => {
-    const matchesSearch =
-      invoice.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || invoice.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
 
   const handleCreateInvoice = () => {
     setSelectedInvoice(undefined);
@@ -97,6 +122,33 @@ const Invoices = () => {
         variant: "destructive",
       });
       console.error('Error saving invoice:', error);
+    }
+  };
+
+  const handleDeleteInvoice = (invoice: Invoice) => {
+    setInvoiceToDelete(invoice);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!invoiceToDelete) return;
+
+    try {
+      await invoicesAPI.delete(invoiceToDelete.id);
+      toast({
+        title: "Invoice deleted",
+        description: "Invoice has been deleted successfully.",
+      });
+      fetchInvoices();
+      setDeleteConfirmOpen(false);
+      setInvoiceToDelete(null);
+    } catch (error) {
+      toast({
+        title: "Error deleting invoice",
+        description: "Failed to delete invoice. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Error deleting invoice:', error);
     }
   };
 
@@ -214,6 +266,12 @@ const Invoices = () => {
 
   const handleExportCSV = () => {
     try {
+      const filteredInvoices = invoices.filter((invoice) => {
+        const matchesSearch =
+          invoice.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesSearch;
+      });
       console.log('Exporting invoices:', filteredInvoices.length);
       exportInvoicesToCSV(filteredInvoices, `invoices-${new Date().toISOString().split('T')[0]}.csv`);
       toast({
@@ -311,6 +369,24 @@ const Invoices = () => {
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex gap-2">
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            size="icon"
+            onClick={() => setViewMode('list')}
+            title="List View"
+          >
+            <List className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewMode === 'card' ? 'default' : 'outline'}
+            size="icon"
+            onClick={() => setViewMode('card')}
+            title="Card View"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -323,18 +399,37 @@ const Invoices = () => {
         </Card>
       ) : (
         <>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredInvoices.map((invoice) => (
-              <InvoiceCard
-                key={invoice.id}
-                invoice={invoice}
-                onEdit={handleEditInvoice}
-                onDownload={handleDownloadPDF}
-              />
-            ))}
-          </div>
+          {viewMode === 'card' ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {invoices.filter((invoice) => {
+                const matchesSearch =
+                  invoice.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase());
+                return matchesSearch;
+              }).map((invoice) => (
+                <InvoiceCard
+                  key={invoice.id}
+                  invoice={invoice}
+                  onEdit={handleEditInvoice}
+                  onDownload={handleDownloadPDF}
+                />
+              ))}
+            </div>
+          ) : (
+            <InvoiceListView
+              invoices={invoices.filter((invoice) => {
+                const matchesSearch =
+                  invoice.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase());
+                return matchesSearch;
+              })}
+              onEdit={handleEditInvoice}
+              onDelete={handleDeleteInvoice}
+              onDownload={handleDownloadPDF}
+            />
+          )}
 
-          {filteredInvoices.length === 0 && (
+          {invoices.length === 0 && (
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-foreground mb-2">
@@ -353,6 +448,22 @@ const Invoices = () => {
           )}
         </div>
       )}
+
+        {!loading && totalPages > 1 && (
+          <Card>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={(newLimit) => {
+                setItemsPerPage(newLimit);
+                setCurrentPage(1);
+              }}
+            />
+          </Card>
+        )}
         </>
       )}
 
@@ -361,6 +472,16 @@ const Invoices = () => {
           open={dialogOpen}
           onOpenChange={setDialogOpen}
           onSave={handleSaveInvoice}
+        />
+
+        <ConfirmDialog
+          open={deleteConfirmOpen}
+          onOpenChange={setDeleteConfirmOpen}
+          onConfirm={confirmDelete}
+          title="Delete Invoice"
+          description={`Are you sure you want to delete invoice ${invoiceToDelete?.invoiceNumber}? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
         />
       </div>
     </div>
