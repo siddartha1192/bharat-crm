@@ -604,11 +604,25 @@ class AuthService {
     // Send password reset email
     try {
       await emailService.sendPasswordResetEmail(email, resetToken, user.id);
-      return { message: 'Password reset email sent successfully' };
+      return { message: 'Password reset email sent successfully. Please check your email.' };
     } catch (error) {
       console.error('Error sending password reset email:', error);
-      // Still return the token for development/testing purposes
-      return { resetToken, message: 'Password reset token generated (email sending failed)', error: error.message };
+
+      // Check if error is related to email not being configured
+      if (error.message && error.message.includes('Gmail not connected')) {
+        return {
+          message: 'Email is not configured in the tenant. Please contact your administrator to set up email integration in Settings > Integrations.',
+          resetToken, // Return token for development/testing
+          emailConfigured: false
+        };
+      }
+
+      // For other errors
+      return {
+        resetToken,
+        message: 'Failed to send password reset email. Please contact your administrator.',
+        error: error.message
+      };
     }
   }
 

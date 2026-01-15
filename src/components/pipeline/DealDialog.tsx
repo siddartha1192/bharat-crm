@@ -277,7 +277,15 @@ export function DealDialog({ open, onOpenChange, onSave, initialStage = 'lead', 
                         <CommandList className="max-h-[300px] overflow-y-auto">
                           {loadingContacts ? (
                             <CommandEmpty>Searching...</CommandEmpty>
-                          ) : contacts.length === 0 && contactSearch.length >= 2 ? (
+                          ) : contactSearch.length < 2 ? (
+                            <CommandEmpty>
+                              <div className="text-center py-4">
+                                <p className="text-sm text-muted-foreground">
+                                  Type at least 2 characters to search contacts
+                                </p>
+                              </div>
+                            </CommandEmpty>
+                          ) : contacts.length === 0 ? (
                             <CommandEmpty>
                               <div className="text-center py-2">
                                 <p className="text-sm text-muted-foreground mb-2">No contacts found</p>
