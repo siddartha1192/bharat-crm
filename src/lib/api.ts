@@ -501,6 +501,13 @@ export const invoiceTemplatesAPI = {
     });
   },
 
+  render: async (invoiceData: any): Promise<{ html: string; templateId: string; templateName: string }> => {
+    return fetchAPI('/invoice-templates/render', {
+      method: 'POST',
+      body: JSON.stringify({ invoiceData }),
+    });
+  },
+
   duplicate: async (id: string): Promise<any> => {
     return fetchAPI(`/invoice-templates/${id}/duplicate`, {
       method: 'POST',

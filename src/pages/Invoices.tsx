@@ -187,11 +187,11 @@ const Invoices = () => {
         notes: invoice.notes || null
       };
 
-      // Get rendered HTML from backend template service
-      const result = await invoiceTemplatesAPI.preview('', invoiceData);
+      // Get rendered HTML from backend template service using default template
+      const result = await invoiceTemplatesAPI.render(invoiceData);
 
       sonnerToast.dismiss();
-      sonnerToast.success('Invoice PDF generated');
+      sonnerToast.success(`Invoice PDF generated using "${result.templateName}"`);
 
       // Open in new window for printing
       const printWindow = window.open('', '_blank');
