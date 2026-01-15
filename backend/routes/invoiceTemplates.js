@@ -239,6 +239,44 @@ router.delete('/:id', authorize('ADMIN'), async (req, res) => {
 });
 
 /**
+ * POST /invoice-templates/render
+ * Render invoice using default template with tenant isolation
+ */
+router.post('/render', async (req, res) => {
+  try {
+    const { invoiceData } = req.body;
+
+    if (!invoiceData) {
+      return res.status(400).json({ error: 'Invoice data is required' });
+    }
+
+    // Fetch default template for this tenant
+    const template = await invoiceTemplateService.getTemplateByTenant(req.tenant.id);
+
+    if (!template) {
+      return res.status(404).json({ error: 'No active invoice template found. Please create a template in Settings > Invoice Templates.' });
+    }
+
+    // Render the template with invoice data
+    const rendered = await invoiceTemplateService.previewTemplate(template.htmlTemplate, invoiceData);
+
+    // Update usage count
+    await prisma.invoiceTemplate.update({
+      where: { id: template.id },
+      data: {
+        usageCount: { increment: 1 },
+        lastUsedAt: new Date()
+      }
+    });
+
+    res.json({ html: rendered, templateId: template.id, templateName: template.name });
+  } catch (error) {
+    console.error('Error rendering invoice:', error);
+    res.status(500).json({ error: 'Failed to render invoice', message: error.message });
+  }
+});
+
+/**
  * POST /invoice-templates/preview
  * Preview template with sample data
  */
