@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { authenticate } = require('../middleware/auth');
-const { authorize } = require('../middleware/rbac');
+const { authenticate, authorize } = require('../middleware/auth');
+const { tenantContext } = require('../middleware/tenant');
 const invoiceTemplateService = require('../services/invoiceTemplate');
 
-// Apply authentication to all routes
+// Apply authentication and tenant context to all routes
 router.use(authenticate);
+router.use(tenantContext);
 
 /**
  * GET /invoice-templates
