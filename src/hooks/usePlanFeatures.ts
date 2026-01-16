@@ -19,6 +19,10 @@ export function usePlanFeatures(): PlanFeatures {
   const { user } = useAuth();
   const plan = user?.tenant?.plan || 'FREE';
 
+  // Debug logging
+  console.log('[usePlanFeatures] User tenant plan:', user?.tenant?.plan);
+  console.log('[usePlanFeatures] Using plan:', plan);
+
   // Define feature availability per plan
   const features: Record<string, PlanFeatures> = {
     FREE: {

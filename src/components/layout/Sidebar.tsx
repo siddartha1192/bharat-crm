@@ -51,16 +51,22 @@ interface SidebarProps {
 
 // Shared sidebar content component
 const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
-  const { hasAIFeatures } = usePlanFeatures();
+  const { hasAIFeatures, planName } = usePlanFeatures();
+
+  // Debug logging
+  console.log('[Sidebar Debug] Plan:', planName, '| Has AI Features:', hasAIFeatures);
 
   // Filter navigation items based on plan features
   const availableNavigation = navigation.filter((item) => {
     // If item requires AI and plan doesn't have AI features, hide it
     if (item.requiresAI && !hasAIFeatures) {
+      console.log('[Sidebar Debug] Hiding AI item:', item.name);
       return false;
     }
     return true;
   });
+
+  console.log('[Sidebar Debug] Available navigation items:', availableNavigation.length, 'of', navigation.length);
 
   return (
     <>

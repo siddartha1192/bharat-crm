@@ -44,6 +44,7 @@ import PricingPage from "./pages/PricingPage";
 import APIPage from "./pages/APIPage";
 import AboutPage from "./pages/AboutPage";
 import BlogPage from "./pages/BlogPage";
+import BlogDetailPage from "./pages/BlogDetailPage";
 import CareersPage from "./pages/CareersPage";
 import HelpCenterPage from "./pages/HelpCenterPage";
 import ContactPage from "./pages/ContactPage";
@@ -87,6 +88,7 @@ const App = () => (
               <Route path="/pricing" element={<PricingPage />} />
               <Route path="/api" element={<APIPage />} />
               <Route path="/about" element={<AboutPage />} />
+              <Route path="/blog/:slug" element={<BlogDetailPage />} />
               <Route path="/blog" element={<BlogPage />} />
               <Route path="/careers" element={<CareersPage />} />
               <Route path="/help" element={<HelpCenterPage />} />
