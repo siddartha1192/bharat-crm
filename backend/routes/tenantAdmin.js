@@ -377,7 +377,7 @@ router.post('/api/tenants', async (req, res) => {
           maxUsers: maxUsers || 10,
           contactEmail,
           subscriptionStart: new Date(),
-          subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+          subscriptionEnd: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000), // 25 days trial
           settings: {
             branding: {
               primaryColor: '#3b82f6',

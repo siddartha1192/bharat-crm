@@ -457,7 +457,7 @@ class AuthService {
                 plan: 'FREE',
                 maxUsers: 2,
                 subscriptionStart: new Date(),
-                subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                subscriptionEnd: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000), // 25 days trial
                 settings: { ... }
               }
             }
