@@ -49,6 +49,7 @@ import CareersPage from "./pages/CareersPage";
 import HelpCenterPage from "./pages/HelpCenterPage";
 import ContactPage from "./pages/ContactPage";
 import StatusPage from "./pages/StatusPage";
+import SubscriptionDebugPage from "./pages/SubscriptionDebugPage";
 
 const queryClient = new QueryClient();
 
@@ -128,6 +129,10 @@ const App = () => (
               <Route
                 path="/forms"
                 element={<ProtectedLayout><Forms /></ProtectedLayout>}
+              />
+              <Route
+                path="/debug/subscription"
+                element={<ProtectedLayout><SubscriptionDebugPage /></ProtectedLayout>}
               />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
