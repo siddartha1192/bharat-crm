@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SocketProvider } from "@/contexts/SocketContext";
 import { WhatsAppNotificationProvider } from "@/contexts/WhatsAppNotificationContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ProtectedAIRoute } from "@/components/ProtectedAIRoute";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import Login from "./pages/Login";
@@ -106,14 +107,14 @@ const App = () => (
               <Route path="/tasks" element={<ProtectedLayout><Tasks /></ProtectedLayout>} />
               <Route path="/whatsapp" element={<ProtectedLayout><WhatsApp /></ProtectedLayout>} />
               <Route path="/emails" element={<ProtectedLayout><Emails /></ProtectedLayout>} />
-              <Route path="/calls" element={<ProtectedLayout><Calls /></ProtectedLayout>} />
+              <Route path="/calls" element={<ProtectedLayout><ProtectedAIRoute><Calls /></ProtectedAIRoute></ProtectedLayout>} />
               <Route path="/invoices" element={<ProtectedLayout><Invoices /></ProtectedLayout>} />
               <Route path="/reports" element={<ProtectedLayout><Reports /></ProtectedLayout>} />
               <Route path="/forecast" element={<ProtectedLayout><SalesForecast /></ProtectedLayout>} />
               <Route path="/calendar" element={<ProtectedLayout><Calendar /></ProtectedLayout>} />
               <Route path="/calendar/callback" element={<ProtectedRoute><CalendarCallback /></ProtectedRoute>} />
               <Route path="/integrations/gmail/callback" element={<ProtectedRoute><GmailCallback /></ProtectedRoute>} />
-              <Route path="/ai-assistant" element={<ProtectedLayout><AIAssistant /></ProtectedLayout>} />
+              <Route path="/ai-assistant" element={<ProtectedLayout><ProtectedAIRoute><AIAssistant /></ProtectedAIRoute></ProtectedLayout>} />
               <Route
                 path="/settings"
                 element={<ProtectedLayout><Settings /></ProtectedLayout>}
