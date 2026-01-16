@@ -57,6 +57,8 @@ router.get('/api/tenants', async (req, res) => {
         plan: tenant.plan,
         status: tenant.status,
         maxUsers: tenant.maxUsers,
+        subscriptionStart: tenant.subscriptionStart,
+        subscriptionEnd: tenant.subscriptionEnd,
         settings: tenant.settings,
         createdAt: tenant.createdAt,
         updatedAt: tenant.updatedAt,
@@ -142,29 +144,31 @@ router.get('/api/tenants/:id', async (req, res) => {
 router.put('/api/tenants/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, domain, plan, status, maxUsers, settings } = req.body;
+    const { name, domain, plan, status, maxUsers, settings, subscriptionStart, subscriptionEnd } = req.body;
 
     // Determine maxUsers based on plan if plan is being updated and maxUsers not explicitly set
     let finalMaxUsers = maxUsers;
     if (plan && maxUsers === undefined) {
       const planLimits = {
-        'FREE': 2,
-        'STARTER': 10,
-        'PROFESSIONAL': 50,
-        'ENTERPRISE': 999
+        'FREE': 5,
+        'STANDARD': 25,
+        'PROFESSIONAL': 100,
+        'ENTERPRISE': 500
       };
-      finalMaxUsers = planLimits[plan] || 2;
+      finalMaxUsers = planLimits[plan] || 5;
     }
 
     const tenant = await prisma.tenant.update({
       where: { id },
       data: {
         ...(name && { name }),
-        ...(domain && { domain }),
+        ...(domain !== undefined && { domain }),
         ...(plan && { plan }),
         ...(status && { status }),
         ...(finalMaxUsers !== undefined && { maxUsers: finalMaxUsers }),
         ...(settings && { settings }),
+        ...(subscriptionStart && { subscriptionStart: new Date(subscriptionStart) }),
+        ...(subscriptionEnd && { subscriptionEnd: new Date(subscriptionEnd) }),
       }
     });
 
@@ -427,6 +431,77 @@ router.post('/api/tenants', async (req, res) => {
       success: false,
       error: 'Failed to create tenant',
       message: error.message
+    });
+  }
+});
+
+/**
+ * Get all newsletter subscribers
+ * GET /tenant-admin/api/subscribers
+ */
+router.get('/api/subscribers', async (req, res) => {
+  try {
+    const subscribers = await prisma.newsletterSubscription.findMany({
+      orderBy: { subscribedAt: 'desc' }
+    });
+
+    res.json({
+      success: true,
+      subscribers: subscribers.map(sub => ({
+        id: sub.id,
+        email: sub.email,
+        name: sub.name,
+        isActive: sub.isActive,
+        subscribedAt: sub.subscribedAt,
+        unsubscribedAt: sub.unsubscribedAt,
+        source: sub.source
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching subscribers:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch subscribers'
+    });
+  }
+});
+
+/**
+ * Get all users across all tenants
+ * GET /tenant-admin/api/users
+ */
+router.get('/api/users', async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      include: {
+        tenant: {
+          select: {
+            name: true,
+            plan: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({
+      success: true,
+      users: users.map(user => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+        tenantName: user.tenant.name,
+        tenantPlan: user.tenant.plan
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch users'
     });
   }
 });
