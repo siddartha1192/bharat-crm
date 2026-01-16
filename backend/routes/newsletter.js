@@ -15,13 +15,13 @@ router.post('/subscribe', async (req, res) => {
     const { email, name, source } = req.body;
 
     if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
+      return res.status(400).json({ success: false, error: 'Email is required' });
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: 'Invalid email format' });
+      return res.status(400).json({ success: false, error: 'Invalid email format' });
     }
 
     // Check if already subscribed
@@ -31,7 +31,7 @@ router.post('/subscribe', async (req, res) => {
 
     if (existing) {
       if (existing.isActive) {
-        return res.status(400).json({ error: 'Email is already subscribed' });
+        return res.status(400).json({ success: false, error: 'Email is already subscribed' });
       }
 
       // Reactivate subscription
@@ -49,6 +49,7 @@ router.post('/subscribe', async (req, res) => {
       });
 
       return res.json({
+        success: true,
         message: 'Successfully resubscribed to newsletter',
         subscription: {
           id: updated.id,
@@ -74,6 +75,7 @@ router.post('/subscribe', async (req, res) => {
     // TODO: Notify first admin (vicidas2021@gmail.com)
 
     res.json({
+      success: true,
       message: 'Successfully subscribed to newsletter',
       subscription: {
         id: subscription.id,
@@ -83,7 +85,7 @@ router.post('/subscribe', async (req, res) => {
     });
   } catch (error) {
     console.error('Newsletter subscription error:', error);
-    res.status(500).json({ error: 'Failed to subscribe to newsletter' });
+    res.status(500).json({ success: false, error: 'Failed to subscribe to newsletter' });
   }
 });
 
@@ -97,7 +99,7 @@ router.post('/unsubscribe', async (req, res) => {
     const { token, email } = req.body;
 
     if (!token && !email) {
-      return res.status(400).json({ error: 'Token or email is required' });
+      return res.status(400).json({ success: false, error: 'Token or email is required' });
     }
 
     let subscription;
@@ -113,11 +115,11 @@ router.post('/unsubscribe', async (req, res) => {
     }
 
     if (!subscription) {
-      return res.status(404).json({ error: 'Subscription not found' });
+      return res.status(404).json({ success: false, error: 'Subscription not found' });
     }
 
     if (!subscription.isActive) {
-      return res.status(400).json({ error: 'Already unsubscribed' });
+      return res.status(400).json({ success: false, error: 'Already unsubscribed' });
     }
 
     // Unsubscribe
@@ -129,10 +131,10 @@ router.post('/unsubscribe', async (req, res) => {
       },
     });
 
-    res.json({ message: 'Successfully unsubscribed from newsletter' });
+    res.json({ success: true, message: 'Successfully unsubscribed from newsletter' });
   } catch (error) {
     console.error('Newsletter unsubscribe error:', error);
-    res.status(500).json({ error: 'Failed to unsubscribe from newsletter' });
+    res.status(500).json({ success: false, error: 'Failed to unsubscribe from newsletter' });
   }
 });
 
@@ -169,6 +171,7 @@ router.get('/subscribers', authenticate, authorize('ADMIN'), async (req, res) =>
     ]);
 
     res.json({
+      success: true,
       subscribers,
       pagination: {
         total,
@@ -179,7 +182,7 @@ router.get('/subscribers', authenticate, authorize('ADMIN'), async (req, res) =>
     });
   } catch (error) {
     console.error('Get subscribers error:', error);
-    res.status(500).json({ error: 'Failed to get subscribers' });
+    res.status(500).json({ success: false, error: 'Failed to get subscribers' });
   }
 });
 
@@ -196,13 +199,14 @@ router.get('/count', authenticate, authorize('ADMIN'), async (req, res) => {
     ]);
 
     res.json({
+      success: true,
       active,
       inactive,
       total,
     });
   } catch (error) {
     console.error('Get subscriber count error:', error);
-    res.status(500).json({ error: 'Failed to get subscriber count' });
+    res.status(500).json({ success: false, error: 'Failed to get subscriber count' });
   }
 });
 
