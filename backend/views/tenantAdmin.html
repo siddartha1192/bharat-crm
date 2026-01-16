@@ -408,6 +408,7 @@
       <div class="tabs">
         <button class="tab active" data-tab="tenants">Tenants</button>
         <button class="tab" data-tab="users">All Users</button>
+        <button class="tab" data-tab="subscribers">Newsletter Subscribers</button>
       </div>
 
       <!-- Tenants Tab -->
@@ -435,6 +436,21 @@
           <div class="loading">
             <div class="spinner"></div>
             <p>Loading users...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Newsletter Subscribers Tab -->
+      <div id="subscribers" class="tab-content">
+        <div class="search-bar">
+          <input type="text" id="subscriberSearch" placeholder="Search subscribers...">
+          <button class="btn btn-secondary" onclick="loadSubscribers()">🔄 Refresh</button>
+          <button class="btn btn-primary" onclick="exportSubscribers()">📥 Export CSV</button>
+        </div>
+        <div id="subscribersTable">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading subscribers...</p>
           </div>
         </div>
       </div>
@@ -476,10 +492,10 @@
           <div class="form-group">
             <label>Subscription Plan</label>
             <select id="editTenantPlan">
-              <option value="FREE">Free</option>
-              <option value="BASIC">Basic</option>
-              <option value="PROFESSIONAL">Professional</option>
-              <option value="ENTERPRISE">Enterprise</option>
+              <option value="FREE">FREE (25 days trial)</option>
+              <option value="STANDARD">STANDARD (₹999/month)</option>
+              <option value="PROFESSIONAL">PROFESSIONAL (₹1,300/month)</option>
+              <option value="ENTERPRISE">ENTERPRISE (Custom)</option>
             </select>
           </div>
           <div class="form-group">
@@ -494,6 +510,14 @@
           <div class="form-group">
             <label>Max Users</label>
             <input type="number" id="editTenantMaxUsers" min="1" required>
+          </div>
+          <div class="form-group">
+            <label>Subscription Start Date</label>
+            <input type="date" id="editSubscriptionStart">
+          </div>
+          <div class="form-group">
+            <label>Subscription End Date</label>
+            <input type="date" id="editSubscriptionEnd">
           </div>
         </form>
       </div>
@@ -608,6 +632,7 @@
     // Global state
     let tenants = [];
     let allUsers = [];
+    let subscribers = [];
     let stats = {};
 
     // Initialize
@@ -638,6 +663,9 @@
           if (targetTab === 'users' && allUsers.length === 0) {
             loadAllUsers();
           }
+          if (targetTab === 'subscribers' && subscribers.length === 0) {
+            loadSubscribers();
+          }
         });
       });
     }
@@ -650,6 +678,10 @@
 
       document.getElementById('userSearch').addEventListener('input', (e) => {
         filterUsers(e.target.value);
+      });
+
+      document.getElementById('subscriberSearch').addEventListener('input', (e) => {
+        filterSubscribers(e.target.value);
       });
     }
 
@@ -900,6 +932,14 @@
       document.getElementById('editTenantStatus').value = tenant.status;
       document.getElementById('editTenantMaxUsers').value = tenant.maxUsers;
 
+      // Set subscription dates
+      if (tenant.subscriptionStart) {
+        document.getElementById('editSubscriptionStart').value = tenant.subscriptionStart.split('T')[0];
+      }
+      if (tenant.subscriptionEnd) {
+        document.getElementById('editSubscriptionEnd').value = tenant.subscriptionEnd.split('T')[0];
+      }
+
       document.getElementById('editTenantModal').classList.add('active');
     }
 
@@ -911,6 +951,9 @@
     // Save tenant
     async function saveTenant() {
       const id = document.getElementById('editTenantId').value;
+      const subscriptionStart = document.getElementById('editSubscriptionStart').value;
+      const subscriptionEnd = document.getElementById('editSubscriptionEnd').value;
+
       const data = {
         name: document.getElementById('editTenantName').value,
         domain: document.getElementById('editTenantDomain').value || null,
@@ -918,6 +961,14 @@
         status: document.getElementById('editTenantStatus').value,
         maxUsers: parseInt(document.getElementById('editTenantMaxUsers').value),
       };
+
+      // Add subscription dates if provided
+      if (subscriptionStart) {
+        data.subscriptionStart = new Date(subscriptionStart).toISOString();
+      }
+      if (subscriptionEnd) {
+        data.subscriptionEnd = new Date(subscriptionEnd).toISOString();
+      }
 
       try {
         const response = await fetch(`/tenant-admin/api/tenants/${id}`, {
@@ -1148,6 +1199,123 @@
         user.tenantName.toLowerCase().includes(searchTerm.toLowerCase())
       );
       renderAllUsers(filtered);
+    }
+
+    // Load newsletter subscribers
+    async function loadSubscribers() {
+      try {
+        document.getElementById('subscribersTable').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading subscribers...</p></div>';
+
+        console.log('Loading subscribers...');
+        const response = await fetch('/tenant-admin/api/subscribers');
+        console.log('Subscribers response status:', response.status);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Subscribers data:', data);
+
+        if (data.success) {
+          subscribers = data.subscribers;
+          renderSubscribers(subscribers);
+        } else {
+          throw new Error(data.error || 'Failed to load subscribers');
+        }
+      } catch (error) {
+        console.error('Error loading subscribers:', error);
+        document.getElementById('subscribersTable').innerHTML = `<div style="color: #f56565; padding: 20px;">Failed to load subscribers: ${error.message}</div>`;
+      }
+    }
+
+    // Render subscribers table
+    function renderSubscribers(subscribersToRender) {
+      if (subscribersToRender.length === 0) {
+        document.getElementById('subscribersTable').innerHTML = '<div class="empty-state"><p>No subscribers found</p></div>';
+        return;
+      }
+
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Source</th>
+              <th>Subscribed</th>
+              <th>Unsubscribed</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${subscribersToRender.map(subscriber => `
+              <tr>
+                <td>${subscriber.email}</td>
+                <td>${subscriber.name || '-'}</td>
+                <td><span class="badge badge-${subscriber.isActive ? 'success' : 'danger'}">${subscriber.isActive ? 'Active' : 'Unsubscribed'}</span></td>
+                <td>${subscriber.source || 'Unknown'}</td>
+                <td>${new Date(subscriber.subscribedAt).toLocaleDateString()}</td>
+                <td>${subscriber.unsubscribedAt ? new Date(subscriber.unsubscribedAt).toLocaleDateString() : '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div style="margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 8px;">
+          <strong>Total Subscribers:</strong> ${subscribersToRender.length}
+          <span style="margin-left: 20px;">
+            <strong>Active:</strong> ${subscribersToRender.filter(s => s.isActive).length}
+          </span>
+          <span style="margin-left: 20px;">
+            <strong>Unsubscribed:</strong> ${subscribersToRender.filter(s => !s.isActive).length}
+          </span>
+        </div>
+      `;
+      document.getElementById('subscribersTable').innerHTML = html;
+    }
+
+    // Filter subscribers
+    function filterSubscribers(searchTerm) {
+      const filtered = subscribers.filter(subscriber =>
+        subscriber.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (subscriber.name && subscriber.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+      renderSubscribers(filtered);
+    }
+
+    // Export subscribers to CSV
+    function exportSubscribers() {
+      if (subscribers.length === 0) {
+        alert('No subscribers to export');
+        return;
+      }
+
+      // Create CSV content
+      const headers = ['Email', 'Name', 'Status', 'Source', 'Subscribed At', 'Unsubscribed At'];
+      const csvRows = [headers.join(',')];
+
+      subscribers.forEach(subscriber => {
+        const row = [
+          subscriber.email,
+          subscriber.name || '',
+          subscriber.isActive ? 'Active' : 'Unsubscribed',
+          subscriber.source || 'Unknown',
+          new Date(subscriber.subscribedAt).toISOString(),
+          subscriber.unsubscribedAt ? new Date(subscriber.unsubscribedAt).toISOString() : ''
+        ];
+        csvRows.push(row.join(','));
+      });
+
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `newsletter-subscribers-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+
+      alert(`Exported ${subscribers.length} subscribers to CSV`);
     }
 
     // Close modals on background click

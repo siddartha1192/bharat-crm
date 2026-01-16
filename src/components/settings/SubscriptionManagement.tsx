@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Check, Clock, CreditCard, Users, Zap, Crown, Building2 } from 'lucide-react';
+import { Check, Clock, CreditCard, Users, Zap, Crown, Building2, Info } from 'lucide-react';
 import { format } from 'date-fns';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -88,8 +87,6 @@ export function SubscriptionManagement() {
   const { toast } = useToast();
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<string>('');
 
   useEffect(() => {
     fetchTenantInfo();
@@ -108,7 +105,6 @@ export function SubscriptionManagement() {
       const data = await response.json();
       if (data.tenant) {
         setTenant(data.tenant);
-        setSelectedPlan(data.tenant.plan);
       }
     } catch (error) {
       console.error('Error fetching tenant info:', error);
@@ -119,60 +115,6 @@ export function SubscriptionManagement() {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleUpdatePlan = async () => {
-    if (!tenant || !selectedPlan || selectedPlan === tenant.plan) return;
-
-    setUpdating(true);
-    try {
-      const response = await fetch(`${API_URL}/tenants/${tenant.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          plan: selectedPlan,
-          status: selectedPlan === 'FREE' ? 'TRIAL' : 'ACTIVE',
-          subscriptionStart: new Date().toISOString(),
-          subscriptionEnd:
-            selectedPlan === 'FREE'
-              ? new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString()
-              : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year for paid plans
-          maxUsers:
-            selectedPlan === 'FREE'
-              ? 5
-              : selectedPlan === 'STANDARD'
-              ? 25
-              : selectedPlan === 'PROFESSIONAL'
-              ? 100
-              : 500,
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to update plan');
-
-      toast({
-        title: 'Success',
-        description: 'Subscription plan updated successfully',
-      });
-
-      // Refresh tenant info
-      await fetchTenantInfo();
-
-      // Refresh user data to update UI
-      window.location.reload();
-    } catch (error) {
-      console.error('Error updating plan:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to update subscription plan',
-      });
-    } finally {
-      setUpdating(false);
     }
   };
 
@@ -202,6 +144,14 @@ export function SubscriptionManagement() {
 
   return (
     <div className="space-y-6">
+      {/* Admin Notice */}
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          Subscription changes can only be made by system administrators. Contact your organization admin to upgrade or modify your plan.
+        </AlertDescription>
+      </Alert>
+
       {/* Current Subscription Card */}
       <Card>
         <CardHeader>
@@ -209,140 +159,63 @@ export function SubscriptionManagement() {
             <Crown className="w-5 h-5 text-yellow-600" />
             Current Subscription
           </CardTitle>
-          <CardDescription>Manage your organization's subscription plan</CardDescription>
+          <CardDescription>View your organization's subscription plan details</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Current Plan Info */}
-            <div className={`p-6 rounded-lg border-2 ${currentPlanDetails.bgColor}`}>
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Icon className={`w-5 h-5 ${currentPlanDetails.color}`} />
-                    <h3 className="text-lg font-semibold">{currentPlanDetails.name}</h3>
-                  </div>
-                  <p className="text-2xl font-bold">
-                    {currentPlanDetails.price}
-                    <span className="text-sm font-normal text-muted-foreground ml-2">
-                      {currentPlanDetails.duration}
-                    </span>
-                  </p>
+          {/* Current Plan Info */}
+          <div className={`p-6 rounded-lg border-2 ${currentPlanDetails.bgColor}`}>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon className={`w-5 h-5 ${currentPlanDetails.color}`} />
+                  <h3 className="text-lg font-semibold">{currentPlanDetails.name}</h3>
                 </div>
-                <Badge
-                  variant={tenant.status === 'ACTIVE' ? 'default' : 'secondary'}
-                  className="capitalize"
-                >
-                  {tenant.status.toLowerCase()}
-                </Badge>
+                <p className="text-2xl font-bold">
+                  {currentPlanDetails.price}
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    {currentPlanDetails.duration}
+                  </span>
+                </p>
               </div>
-
-              <div className="space-y-2 mb-4">
-                {currentPlanDetails.features.map((feature, index) => (
-                  <div key={index} className="flex items-center gap-2 text-sm">
-                    <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
-                    <span>{feature}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-4 border-t space-y-2 text-sm text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Max Users:</span>
-                  <span className="font-medium">{tenant.maxUsers}</span>
-                </div>
-                {tenant.subscriptionStart && (
-                  <div className="flex justify-between">
-                    <span>Started:</span>
-                    <span className="font-medium">
-                      {format(new Date(tenant.subscriptionStart), 'MMM dd, yyyy')}
-                    </span>
-                  </div>
-                )}
-                {tenant.subscriptionEnd && (
-                  <div className="flex justify-between">
-                    <span>
-                      {tenant.plan === 'FREE' ? 'Trial Ends:' : 'Renews:'}
-                    </span>
-                    <span className="font-medium">
-                      {format(new Date(tenant.subscriptionEnd), 'MMM dd, yyyy')}
-                    </span>
-                  </div>
-                )}
-              </div>
+              <Badge
+                variant={tenant.status === 'ACTIVE' ? 'default' : 'secondary'}
+                className="capitalize"
+              >
+                {tenant.status.toLowerCase()}
+              </Badge>
             </div>
 
-            {/* Change Plan Section */}
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Change Plan</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Select a new plan for your organization
-                </p>
+            <div className="space-y-2 mb-4">
+              {currentPlanDetails.features.map((feature, index) => (
+                <div key={index} className="flex items-center gap-2 text-sm">
+                  <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+                  <span>{feature}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-4 border-t space-y-2 text-sm text-muted-foreground">
+              <div className="flex justify-between">
+                <span>Max Users:</span>
+                <span className="font-medium">{tenant.maxUsers}</span>
               </div>
-
-              <Select value={selectedPlan} onValueChange={setSelectedPlan}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FREE">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      <span>Free Trial (25 days)</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="STANDARD">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-4 h-4" />
-                      <span>Standard (₹999/month)</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="PROFESSIONAL">
-                    <div className="flex items-center gap-2">
-                      <Zap className="w-4 h-4" />
-                      <span>Professional (₹1,300/month)</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="ENTERPRISE">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4" />
-                      <span>Enterprise (Custom)</span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-
-              {selectedPlan && selectedPlan !== tenant.plan && (
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="font-medium text-sm mb-2">
-                    Switching to {planDetails[selectedPlan as keyof typeof planDetails].name}
-                  </h4>
-                  <ul className="text-sm space-y-1 text-muted-foreground">
-                    {planDetails[selectedPlan as keyof typeof planDetails].features.map(
-                      (feature, index) => (
-                        <li key={index} className="flex items-center gap-2">
-                          <Check className="w-3 h-3 text-green-600" />
-                          {feature}
-                        </li>
-                      )
-                    )}
-                  </ul>
+              {tenant.subscriptionStart && (
+                <div className="flex justify-between">
+                  <span>Started:</span>
+                  <span className="font-medium">
+                    {format(new Date(tenant.subscriptionStart), 'MMM dd, yyyy')}
+                  </span>
                 </div>
               )}
-
-              <Button
-                onClick={handleUpdatePlan}
-                disabled={updating || selectedPlan === tenant.plan}
-                className="w-full"
-                size="lg"
-              >
-                {updating ? 'Updating...' : 'Update Subscription Plan'}
-              </Button>
-
-              {selectedPlan === tenant.plan && (
-                <p className="text-sm text-muted-foreground text-center">
-                  This is your current plan
-                </p>
+              {tenant.subscriptionEnd && (
+                <div className="flex justify-between">
+                  <span>
+                    {tenant.plan === 'FREE' ? 'Trial Ends:' : 'Renews:'}
+                  </span>
+                  <span className="font-medium">
+                    {format(new Date(tenant.subscriptionEnd), 'MMM dd, yyyy')}
+                  </span>
+                </div>
               )}
             </div>
           </div>
