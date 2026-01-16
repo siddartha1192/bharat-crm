@@ -213,6 +213,30 @@ callScheduler.initialize(io);
 callScheduler.start();
 callScheduler.startCleanup();
 
+// Initialize trial expiration checker
+const cron = require('node-cron');
+const { checkExpiredTrials } = require('./services/trialExpiration');
+
+// Run trial expiration check every hour
+cron.schedule('0 * * * *', async () => {
+  console.log('[Cron] Running trial expiration check...');
+  try {
+    const result = await checkExpiredTrials();
+    console.log('[Cron] Trial expiration check completed:', result);
+  } catch (error) {
+    console.error('[Cron] Trial expiration check failed:', error);
+  }
+});
+
+// Run trial expiration check on server startup
+checkExpiredTrials()
+  .then(result => {
+    console.log('✅ Initial trial expiration check completed:', result);
+  })
+  .catch(error => {
+    console.error('❌ Initial trial expiration check failed:', error);
+  });
+
 // Start server (HTTP + WebSocket on same port)
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server is running on http://localhost:${PORT}`);

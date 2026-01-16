@@ -61,6 +61,7 @@ router.get('/posts', async (req, res) => {
     ]);
 
     res.json({
+      success: true,
       posts,
       pagination: {
         total,
@@ -71,7 +72,7 @@ router.get('/posts', async (req, res) => {
     });
   } catch (error) {
     console.error('Get blog posts error:', error);
-    res.status(500).json({ error: 'Failed to get blog posts' });
+    res.status(500).json({ success: false, error: 'Failed to get blog posts' });
   }
 });
 
@@ -121,15 +122,13 @@ router.get('/categories', async (req, res) => {
       _count: { id: true },
     });
 
-    res.json(
-      categories.map((c) => ({
-        name: c.category,
-        count: c._count.id,
-      }))
-    );
+    res.json({
+      success: true,
+      categories: categories.map((c) => c.category)
+    });
   } catch (error) {
     console.error('Get categories error:', error);
-    res.status(500).json({ error: 'Failed to get categories' });
+    res.status(500).json({ success: false, error: 'Failed to get categories' });
   }
 });
 
