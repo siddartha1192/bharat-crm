@@ -62,9 +62,9 @@ async function createTenant(tenantData) {
         contactPhone: tenantData.contactPhone || null,
         plan: tenantData.plan || 'FREE',
         status: 'TRIAL',
-        maxUsers: tenantData.plan === 'FREE' ? 5 : tenantData.plan === 'BASIC' ? 25 : tenantData.plan === 'PROFESSIONAL' ? 100 : 500,
+        maxUsers: tenantData.plan === 'FREE' ? 5 : tenantData.plan === 'STANDARD' ? 25 : tenantData.plan === 'PROFESSIONAL' ? 100 : 500,
         subscriptionStart: new Date(),
-        subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+        subscriptionEnd: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000), // 25 days trial
         settings: tenantData.settings || {
           branding: {
             primaryColor: '#3b82f6',

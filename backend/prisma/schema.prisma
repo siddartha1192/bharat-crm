@@ -26,7 +26,7 @@ enum TenantStatus {
 
 enum SubscriptionPlan {
   FREE
-  BASIC
+  STANDARD
   PROFESSIONAL
   ENTERPRISE
 }
@@ -1675,4 +1675,96 @@ model CallQueue {
   @@index([leadId])
   @@index([contactId])
   @@index([createdAt])
+}
+
+// ==========================================
+// NEWSLETTER SUBSCRIPTION
+// ==========================================
+
+// Newsletter Subscription - For blog updates and announcements
+model NewsletterSubscription {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  isActive      Boolean   @default(true)
+  subscribedAt  DateTime  @default(now())
+  unsubscribedAt DateTime?
+
+  // Unsubscribe token for one-click unsubscribe
+  unsubscribeToken String @unique @default(uuid())
+
+  // Source tracking
+  source       String? // 'blog' | 'footer' | 'popup' | 'landing-page'
+  ipAddress    String?
+  userAgent    String?
+  referrer     String?
+
+  // Preferences
+  preferences  Json? // Email preferences (frequency, topics, etc.)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([email])
+  @@index([isActive])
+  @@index([subscribedAt])
+}
+
+// ==========================================
+// BLOG SYSTEM
+// ==========================================
+
+// Blog Post - CRM feature blogs
+model BlogPost {
+  id          String   @id @default(uuid())
+  slug        String   @unique // URL-friendly identifier
+
+  // Content
+  title       String
+  excerpt     String   @db.Text // Short description for listing
+  content     String   @db.Text // Full blog content (Markdown or HTML)
+
+  // Featured image
+  featuredImage     String? // Image URL or path
+  featuredImageAlt  String? // Alt text for accessibility
+
+  // SEO
+  metaTitle       String?
+  metaDescription String?  @db.Text
+  keywords        String[] @default([])
+
+  // Organization
+  category    String // 'features' | 'tips' | 'case-studies' | 'updates' | 'integrations'
+  tags        String[] @default([])
+
+  // Publishing
+  status       String   @default("draft") // 'draft' | 'published' | 'scheduled' | 'archived'
+  publishedAt  DateTime?
+  scheduledFor DateTime?
+
+  // Author information
+  author      String   @default("Bharat CRM Team")
+  authorEmail String?
+  authorBio   String?  @db.Text
+  authorImage String?
+
+  // Engagement metrics
+  viewCount   Int      @default(0)
+  readTime    Int?     // Estimated read time in minutes
+
+  // Related feature (for feature-specific blogs)
+  relatedFeature String? // 'ai-chat' | 'whatsapp' | 'automation' | 'analytics' | etc.
+
+  // Email notification
+  emailSentToSubscribers Boolean  @default(false)
+  emailSentAt            DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([category])
+  @@index([relatedFeature])
 }

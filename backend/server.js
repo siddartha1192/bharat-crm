@@ -89,6 +89,8 @@ const promoRoutes = require('./routes/promo');
 const emailTemplatesRoutes = require('./routes/emailTemplates');
 const invoiceTemplatesRoutes = require('./routes/invoiceTemplates');
 const callsRoutes = require('./routes/calls');
+const newsletterRoutes = require('./routes/newsletter');
+const blogRoutes = require('./routes/blog');
 
 // Use routes
 app.use('/tenant-admin', tenantAdminRoutes);
@@ -126,6 +128,8 @@ app.use('/api/promo', promoRoutes);
 app.use('/api/email-templates', emailTemplatesRoutes);
 app.use('/api/invoice-templates', invoiceTemplatesRoutes);
 app.use('/api/calls', callsRoutes);
+app.use('/api/newsletter', newsletterRoutes);
+app.use('/api/blog', blogRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
