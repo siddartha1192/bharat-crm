@@ -229,6 +229,7 @@ router.get('/me', authenticate, async (req, res) => {
         role: true,
         isActive: true,
         googleProfilePic: true,
+        tenantId: true,
         department: {
           select: {
             id: true,
@@ -239,6 +240,18 @@ router.get('/me', authenticate, async (req, res) => {
           select: {
             id: true,
             name: true,
+          },
+        },
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            plan: true,
+            status: true,
+            subscriptionStart: true,
+            subscriptionEnd: true,
+            settings: true,
           },
         },
         createdAt: true,

@@ -25,6 +25,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { usePlanFeatures } from '@/hooks/usePlanFeatures';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -34,13 +35,13 @@ const navigation = [
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
   { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
   { name: 'Emails', href: '/emails', icon: Mail },
-  { name: 'AI Calls', href: '/calls', icon: Phone, badge: 'New' },
+  { name: 'AI Calls', href: '/calls', icon: Phone, badge: 'New', requiresAI: true },
   { name: 'Forms', href: '/forms', icon: FormInput, badge: 'New' },
   { name: 'Invoices', href: '/invoices', icon: FileText },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'Sales Forecast', href: '/forecast', icon: TrendingUp, badge: 'New' },
   { name: 'Calendar', href: '/calendar', icon: Calendar },
-  { name: 'AI Assistant', href: '/ai-assistant', icon: Bot, badge: 'New' },
+  { name: 'AI Assistant', href: '/ai-assistant', icon: Bot, badge: 'New', requiresAI: true },
 ];
 
 interface SidebarProps {
@@ -49,35 +50,47 @@ interface SidebarProps {
 }
 
 // Shared sidebar content component
-const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => (
-  <>
-    {/* Logo Header */}
-    <div className="p-4 border-b border-blue-500/30">
-      <div className="flex items-center gap-4 px-5 py-4 bg-white rounded-2xl border border-blue-100 shadow-sm">
-        {/* Logo */}
-        <div className="w-14 h-14 flex items-center justify-center">
-          <img
-            src="/logo_with_white_background.png"
-            alt="CLiM Logo"
-            className="w-full h-full object-contain"
-          />
-        </div>
+const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
+  const { hasAIFeatures } = usePlanFeatures();
 
-        {/* Brand Text */}
-        <div className="flex flex-col leading-tight">
-          <span className="text-lg font-semibold text-blue-900">
-            CLiM
-          </span>
-          <span className="text-xs text-blue-600">
-            Business Management
-          </span>
+  // Filter navigation items based on plan features
+  const availableNavigation = navigation.filter((item) => {
+    // If item requires AI and plan doesn't have AI features, hide it
+    if (item.requiresAI && !hasAIFeatures) {
+      return false;
+    }
+    return true;
+  });
+
+  return (
+    <>
+      {/* Logo Header */}
+      <div className="p-4 border-b border-blue-500/30">
+        <div className="flex items-center gap-4 px-5 py-4 bg-white rounded-2xl border border-blue-100 shadow-sm">
+          {/* Logo */}
+          <div className="w-14 h-14 flex items-center justify-center">
+            <img
+              src="/logo_with_white_background.png"
+              alt="CLiM Logo"
+              className="w-full h-full object-contain"
+            />
+          </div>
+
+          {/* Brand Text */}
+          <div className="flex flex-col leading-tight">
+            <span className="text-lg font-semibold text-blue-900">
+              CLiM
+            </span>
+            <span className="text-xs text-blue-600">
+              Business Management
+            </span>
+          </div>
         </div>
       </div>
-    </div>
 
-    {/* Navigation */}
-    <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500/30 scrollbar-track-transparent">
-      {navigation.map((item) => (
+      {/* Navigation */}
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500/30 scrollbar-track-transparent">
+        {availableNavigation.map((item) => (
         <NavLink
           key={item.name}
           to={item.href}
@@ -126,8 +139,9 @@ const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => (
         <span className="relative z-10">Settings</span>
       </NavLink>
     </div>
-  </>
-);
+    </>
+  );
+};
 
 export function Sidebar({ mobileMenuOpen = false, setMobileMenuOpen }: SidebarProps) {
   return (

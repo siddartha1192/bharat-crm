@@ -21,6 +21,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useWhatsAppNotifications } from '@/contexts/WhatsAppNotificationContext';
 import { GlobalSearch } from '@/components/GlobalSearch';
+import { TrialCountdown } from '@/components/TrialCountdown';
 import { formatDistanceToNow } from 'date-fns';
 
 interface HeaderProps {
@@ -88,6 +89,14 @@ export function Header({ onMenuClick }: HeaderProps) {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Trial Countdown for FREE plan users */}
+            {user?.tenant?.plan === 'FREE' && user?.tenant?.subscriptionEnd && (
+              <TrialCountdown
+                subscriptionEnd={user.tenant.subscriptionEnd}
+                plan={user.tenant.plan}
+              />
+            )}
+
             {notificationPermission !== 'granted' ? (
               <Button
                 variant="ghost"

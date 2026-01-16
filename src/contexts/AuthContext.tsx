@@ -10,6 +10,17 @@ interface User {
   company: string;
   role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'VIEWER';
   profilePic?: string;
+  tenantId?: string;
+  tenant?: {
+    id: string;
+    name: string;
+    slug: string;
+    plan: 'FREE' | 'STANDARD' | 'PROFESSIONAL' | 'ENTERPRISE';
+    status: 'ACTIVE' | 'SUSPENDED' | 'TRIAL' | 'CANCELLED';
+    subscriptionStart: string | null;
+    subscriptionEnd: string | null;
+    settings: any;
+  };
 }
 
 interface Tenant {
