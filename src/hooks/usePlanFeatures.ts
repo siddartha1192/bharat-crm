@@ -20,8 +20,11 @@ export function usePlanFeatures(): PlanFeatures {
   const plan = user?.tenant?.plan || 'FREE';
 
   // Debug logging
+  console.log('[usePlanFeatures] Full tenant object:', user?.tenant);
   console.log('[usePlanFeatures] User tenant plan:', user?.tenant?.plan);
   console.log('[usePlanFeatures] Using plan:', plan);
+  console.log('[usePlanFeatures] User loaded:', !!user);
+  console.log('[usePlanFeatures] Tenant loaded:', !!user?.tenant);
 
   // Define feature availability per plan
   const features: Record<string, PlanFeatures> = {
@@ -71,5 +74,22 @@ export function usePlanFeatures(): PlanFeatures {
     },
   };
 
-  return features[plan] || features.FREE;
+  // Get features for the plan, with detailed logging if plan not found
+  const planFeatures = features[plan];
+
+  if (!planFeatures) {
+    console.warn('[usePlanFeatures] ⚠️ Unknown plan detected:', plan);
+    console.warn('[usePlanFeatures] ⚠️ Available plans:', Object.keys(features));
+    console.warn('[usePlanFeatures] ⚠️ Defaulting to FREE plan features');
+    return features.FREE;
+  }
+
+  console.log('[usePlanFeatures] ✅ Plan features loaded:', {
+    plan,
+    hasAIFeatures: planFeatures.hasAIFeatures,
+    hasAPIAccess: planFeatures.hasAPIAccess,
+    maxUsers: planFeatures.maxUsers,
+  });
+
+  return planFeatures;
 }
