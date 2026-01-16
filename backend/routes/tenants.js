@@ -38,13 +38,46 @@ router.get('/current', authenticate, tenantContext, async (req, res) => {
 });
 
 /**
- * Update current tenant
- * PUT /api/tenants/current
+ * Get tenant by ID
+ * GET /api/tenants/:id
  * Requires authentication and ADMIN role
  */
-router.put('/current', authenticate, tenantContext, authorize(['ADMIN']), async (req, res) => {
+router.get('/:id', authenticate, authorize(['ADMIN']), async (req, res) => {
   try {
-    const { name, contactEmail, contactPhone, domain, settings } = req.body;
+    const { id } = req.params;
+    const tenant = await tenantService.getTenantById(id);
+
+    if (!tenant) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    res.json({ tenant });
+  } catch (error) {
+    console.error('Get tenant error:', error);
+    res.status(500).json({ error: 'Failed to fetch organization' });
+  }
+});
+
+/**
+ * Update tenant by ID
+ * PUT /api/tenants/:id
+ * Requires authentication and ADMIN role
+ */
+router.put('/:id', authenticate, authorize(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      contactEmail,
+      contactPhone,
+      domain,
+      settings,
+      plan,
+      status,
+      subscriptionStart,
+      subscriptionEnd,
+      maxUsers
+    } = req.body;
 
     const updates = {};
     if (name) updates.name = name;
@@ -52,6 +85,59 @@ router.put('/current', authenticate, tenantContext, authorize(['ADMIN']), async 
     if (contactPhone !== undefined) updates.contactPhone = contactPhone;
     if (domain !== undefined) updates.domain = domain;
     if (settings) updates.settings = settings;
+
+    // Subscription management fields (admin can update these)
+    if (plan) updates.plan = plan;
+    if (status) updates.status = status;
+    if (subscriptionStart) updates.subscriptionStart = new Date(subscriptionStart);
+    if (subscriptionEnd) updates.subscriptionEnd = new Date(subscriptionEnd);
+    if (maxUsers !== undefined) updates.maxUsers = maxUsers;
+
+    const tenant = await tenantService.updateTenant(id, updates);
+
+    res.json({
+      tenant,
+      message: 'Organization updated successfully'
+    });
+  } catch (error) {
+    console.error('Update tenant error:', error);
+    res.status(400).json({ error: error.message || 'Failed to update organization' });
+  }
+});
+
+/**
+ * Update current tenant
+ * PUT /api/tenants/current
+ * Requires authentication and ADMIN role
+ */
+router.put('/current', authenticate, tenantContext, authorize(['ADMIN']), async (req, res) => {
+  try {
+    const {
+      name,
+      contactEmail,
+      contactPhone,
+      domain,
+      settings,
+      plan,
+      status,
+      subscriptionStart,
+      subscriptionEnd,
+      maxUsers
+    } = req.body;
+
+    const updates = {};
+    if (name) updates.name = name;
+    if (contactEmail) updates.contactEmail = contactEmail;
+    if (contactPhone !== undefined) updates.contactPhone = contactPhone;
+    if (domain !== undefined) updates.domain = domain;
+    if (settings) updates.settings = settings;
+
+    // Subscription management fields (admin can update these)
+    if (plan) updates.plan = plan;
+    if (status) updates.status = status;
+    if (subscriptionStart) updates.subscriptionStart = new Date(subscriptionStart);
+    if (subscriptionEnd) updates.subscriptionEnd = new Date(subscriptionEnd);
+    if (maxUsers !== undefined) updates.maxUsers = maxUsers;
 
     const tenant = await tenantService.updateTenant(req.tenant.id, updates);
 

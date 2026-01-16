@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Zap, Database, Send, Settings as SettingsIcon, Bell, Plug, Mail, FileText } from 'lucide-react';
+import { Users, Zap, Database, Send, Settings as SettingsIcon, Bell, Plug, Mail, FileText, CreditCard, UserCheck } from 'lucide-react';
 import { UserManagement } from '@/components/settings/UserManagement';
 import AutomationSettings from '@/components/settings/AutomationSettings';
 import VectorDataUpload from '@/components/settings/VectorDataUpload';
@@ -11,6 +11,8 @@ import ReminderSettings from '@/components/settings/ReminderSettings';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import EmailTemplatesSettings from '@/components/settings/EmailTemplatesSettings';
 import { InvoiceTemplatesSettings } from '@/components/settings/InvoiceTemplatesSettings';
+import { SubscriptionManagement } from '@/components/settings/SubscriptionManagement';
+import { NewsletterSubscribers } from '@/components/settings/NewsletterSubscribers';
 import { ProtectedFeature } from '@/components/auth/ProtectedFeature';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -40,7 +42,7 @@ export default function Settings() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-8 lg:w-[1600px]">
+        <TabsList className="grid w-full grid-cols-10 lg:w-[1800px]">
           <ProtectedFeature permission="users:read">
             <TabsTrigger value="users">
               <Users className="w-4 h-4 mr-2" />
@@ -95,6 +97,20 @@ export default function Settings() {
             <TabsTrigger value="vector-data">
               <Database className="w-4 h-4 mr-2" />
               Vector DB
+            </TabsTrigger>
+          </ProtectedFeature>
+
+          <ProtectedFeature permission="users:read">
+            <TabsTrigger value="subscription">
+              <CreditCard className="w-4 h-4 mr-2" />
+              Subscription
+            </TabsTrigger>
+          </ProtectedFeature>
+
+          <ProtectedFeature permission="users:read">
+            <TabsTrigger value="subscribers">
+              <UserCheck className="w-4 h-4 mr-2" />
+              Subscribers
             </TabsTrigger>
           </ProtectedFeature>
         </TabsList>
@@ -153,6 +169,20 @@ export default function Settings() {
         <ProtectedFeature permission="users:read">
           <TabsContent value="vector-data" className="space-y-4">
             <VectorDataUpload />
+          </TabsContent>
+        </ProtectedFeature>
+
+        {/* Subscription Management (Admin Only) */}
+        <ProtectedFeature permission="users:read">
+          <TabsContent value="subscription" className="space-y-4">
+            <SubscriptionManagement />
+          </TabsContent>
+        </ProtectedFeature>
+
+        {/* Newsletter Subscribers (Admin Only) */}
+        <ProtectedFeature permission="users:read">
+          <TabsContent value="subscribers" className="space-y-4">
+            <NewsletterSubscribers />
           </TabsContent>
         </ProtectedFeature>
       </Tabs>
