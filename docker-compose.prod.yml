@@ -12,7 +12,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backups:/backups
+      - postgres_backups:/backups
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
@@ -118,7 +118,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    command: sh -c "npx prisma db push --skip-generate && node server.js"
+    # Using docker-entrypoint.sh (defined in Dockerfile) for proper migration handling
 
   # Frontend (React + Nginx)
   frontend:
@@ -177,6 +177,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  postgres_backups:
     driver: local
   pgadmin_data:
     driver: local
