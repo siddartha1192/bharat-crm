@@ -1,5 +1,5 @@
 const OpenAI = require('openai');
-const logger = require('../logger');
+// Using console for logging
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -32,7 +32,7 @@ class DemoSchedulingAIService {
       const apiKey = settings?.openaiApiKey || process.env.OPENAI_API_KEY;
 
       if (!apiKey) {
-        logger.warn('OpenAI API key not configured for demo scheduling');
+        console.warn('OpenAI API key not configured for demo scheduling');
         return false;
       }
 
@@ -40,10 +40,10 @@ class DemoSchedulingAIService {
       this.model = settings?.aiModel || 'gpt-4o-mini';
       this.initialized = true;
 
-      logger.info('Demo Scheduling AI Service initialized successfully');
+      console.info('Demo Scheduling AI Service initialized successfully');
       return true;
     } catch (error) {
-      logger.error('Failed to initialize Demo Scheduling AI Service:', error);
+      console.error('Failed to initialize Demo Scheduling AI Service:', error);
       return false;
     }
   }
@@ -62,7 +62,7 @@ class DemoSchedulingAIService {
       }
 
       if (!transcript || transcript.trim().length === 0) {
-        logger.warn('Empty transcript provided for meeting extraction');
+        console.warn('Empty transcript provided for meeting extraction');
         return {
           hasMeetingRequest: false,
           agreed: false,
@@ -72,7 +72,7 @@ class DemoSchedulingAIService {
 
       const prompt = this.buildExtractionPrompt(transcript, callContext);
 
-      logger.info('Extracting meeting info from transcript using GPT-4o-mini');
+      console.info('Extracting meeting info from transcript using GPT-4o-mini');
 
       const completion = await this.openai.chat.completions.create({
         model: this.model,
@@ -106,7 +106,7 @@ Return structured JSON data ONLY. Be conservative - only mark as agreed if there
       result.tokensUsed = completion.usage?.total_tokens || 0;
       result.model = this.model;
 
-      logger.info('Meeting extraction completed', {
+      console.info('Meeting extraction completed', {
         hasMeeting: result.hasMeetingRequest,
         agreed: result.agreed,
         tokensUsed: result.tokensUsed,
@@ -114,7 +114,7 @@ Return structured JSON data ONLY. Be conservative - only mark as agreed if there
 
       return result;
     } catch (error) {
-      logger.error('Error extracting meeting from transcript:', error);
+      console.error('Error extracting meeting from transcript:', error);
       throw error;
     }
   }
@@ -229,7 +229,7 @@ Return ONLY valid JSON, no additional text.`;
         },
       };
     } catch (error) {
-      logger.error('Error formatting calendar event:', error);
+      console.error('Error formatting calendar event:', error);
       throw error;
     }
   }
@@ -343,7 +343,7 @@ Return ONLY valid JSON, no additional text.`;
 
       return { hasAccess: true, plan: tenant.plan };
     } catch (error) {
-      logger.error('Error validating feature access:', error);
+      console.error('Error validating feature access:', error);
       return { hasAccess: false, reason: 'Error checking subscription' };
     }
   }
