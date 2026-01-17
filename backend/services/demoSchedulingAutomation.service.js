@@ -1,4 +1,4 @@
-const logger = require('./logger');
+// Using console for logging
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const demoSchedulingAI = require('./ai/demoSchedulingAI.service');
@@ -21,12 +21,12 @@ class DemoSchedulingAutomationService {
    */
   async processCallForDemoScheduling(callLogId, userId, tenantId) {
     try {
-      logger.info(`Processing call ${callLogId} for demo scheduling`);
+      console.info(`Processing call ${callLogId} for demo scheduling`);
 
       // 1. Check if feature is enabled and user has access
       const accessCheck = await this.checkFeatureAccess(tenantId);
       if (!accessCheck.enabled) {
-        logger.info(`Demo scheduling not enabled for tenant ${tenantId}: ${accessCheck.reason}`);
+        console.info(`Demo scheduling not enabled for tenant ${tenantId}: ${accessCheck.reason}`);
         return {
           success: false,
           skipped: true,
@@ -43,7 +43,7 @@ class DemoSchedulingAutomationService {
       // 3. Validate call is suitable for processing
       const validation = await this.validateCallForProcessing(callLog);
       if (!validation.valid) {
-        logger.info(`Call ${callLogId} not suitable for demo scheduling: ${validation.reason}`);
+        console.info(`Call ${callLogId} not suitable for demo scheduling: ${validation.reason}`);
         return {
           success: false,
           skipped: true,
@@ -65,7 +65,7 @@ class DemoSchedulingAutomationService {
         }
       );
 
-      logger.info(`Meeting extraction completed`, {
+      console.info(`Meeting extraction completed`, {
         callLogId,
         hasMeeting: meetingInfo.hasMeetingRequest,
         agreed: meetingInfo.agreed,
@@ -84,7 +84,7 @@ class DemoSchedulingAutomationService {
 
       let calendarEvent = null;
       if (shouldAutoBook) {
-        logger.info(`Auto-booking calendar event for call ${callLogId}`);
+        console.info(`Auto-booking calendar event for call ${callLogId}`);
         calendarEvent = await this.createCalendarEvent(
           meetingInfo,
           callLog,
@@ -93,7 +93,7 @@ class DemoSchedulingAutomationService {
           callSettings
         );
       } else {
-        logger.info(`Not auto-booking: agreed=${meetingInfo.agreed}, confidence=${meetingInfo.confidence}, threshold=${callSettings.demoSchedulingMinConfidence}`);
+        console.info(`Not auto-booking: agreed=${meetingInfo.agreed}, confidence=${meetingInfo.confidence}, threshold=${callSettings.demoSchedulingMinConfidence}`);
       }
 
       // 8. Send notifications if configured
@@ -108,7 +108,7 @@ class DemoSchedulingAutomationService {
         autoBooked: !!calendarEvent,
       };
     } catch (error) {
-      logger.error(`Error processing call ${callLogId} for demo scheduling:`, error);
+      console.error(`Error processing call ${callLogId} for demo scheduling:`, error);
       throw error;
     }
   }
@@ -145,7 +145,7 @@ class DemoSchedulingAutomationService {
         plan: planAccess.plan,
       };
     } catch (error) {
-      logger.error('Error checking feature access:', error);
+      console.error('Error checking feature access:', error);
       return {
         enabled: false,
         reason: 'Error checking feature access',
@@ -273,9 +273,9 @@ class DemoSchedulingAutomationService {
         data: updateData,
       });
 
-      logger.info(`Saved meeting extraction results to call log ${callLogId}`);
+      console.info(`Saved meeting extraction results to call log ${callLogId}`);
     } catch (error) {
-      logger.error('Error saving meeting extraction to call log:', error);
+      console.error('Error saving meeting extraction to call log:', error);
       throw error;
     }
   }
@@ -288,7 +288,7 @@ class DemoSchedulingAutomationService {
       // Get user's calendar credentials
       const user = callLog.createdBy;
       if (!user.calendarAccessToken) {
-        logger.warn(`User ${userId} does not have calendar connected`);
+        console.warn(`User ${userId} does not have calendar connected`);
         return null;
       }
 
@@ -309,7 +309,7 @@ class DemoSchedulingAutomationService {
       );
 
       // Create event in Google Calendar
-      logger.info(`Creating Google Calendar event for meeting`);
+      console.info(`Creating Google Calendar event for meeting`);
 
       const calendarEvent = await googleCalendarService.createEvent(
         userId,
@@ -340,14 +340,14 @@ class DemoSchedulingAutomationService {
         data: { meetingCalendarEventId: calendarEvent.id },
       });
 
-      logger.info(`Calendar event created successfully`, {
+      console.info(`Calendar event created successfully`, {
         eventId: calendarEvent.id,
         callLogId: callLog.id,
       });
 
       return calendarEvent;
     } catch (error) {
-      logger.error('Error creating calendar event:', error);
+      console.error('Error creating calendar event:', error);
       // Don't throw - log error but continue
       return null;
     }
@@ -365,7 +365,7 @@ class DemoSchedulingAutomationService {
       // 3. WhatsApp notification to user
       // 4. Task creation for follow-up
 
-      logger.info(`Notifications would be sent here`, {
+      console.info(`Notifications would be sent here`, {
         callLogId: callLog.id,
         userId,
         meetingType: meetingInfo.meetingType,
@@ -374,7 +374,7 @@ class DemoSchedulingAutomationService {
       // For now, just log
       // Future: Integrate with notification service
     } catch (error) {
-      logger.error('Error sending notifications:', error);
+      console.error('Error sending notifications:', error);
       // Don't throw - notifications are not critical
     }
   }
@@ -394,7 +394,7 @@ class DemoSchedulingAutomationService {
       // Then process normally
       return await this.processCallForDemoScheduling(callLogId, userId, tenantId);
     } catch (error) {
-      logger.error('Error in manual meeting extraction:', error);
+      console.error('Error in manual meeting extraction:', error);
       throw error;
     }
   }
@@ -440,7 +440,7 @@ class DemoSchedulingAutomationService {
         totalCost: totalCost._sum.meetingExtractionCost || 0,
       };
     } catch (error) {
-      logger.error('Error getting demo scheduling statistics:', error);
+      console.error('Error getting demo scheduling statistics:', error);
       throw error;
     }
   }
