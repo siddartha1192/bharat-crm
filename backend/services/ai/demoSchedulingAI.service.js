@@ -25,7 +25,6 @@ class DemoSchedulingAIService {
         where: { tenantId },
         select: {
           openaiApiKey: true,
-          openaiModel: true,
         },
       });
 
@@ -37,7 +36,8 @@ class DemoSchedulingAIService {
       }
 
       this.openai = new OpenAI({ apiKey });
-      this.model = settings?.openaiModel || 'gpt-4o-mini';
+      // Use chat model for transcript analysis (NOT the realtime model used for voice calls)
+      this.model = process.env.DEMO_SCHEDULING_MODEL || 'gpt-4o-mini';
       this.initialized = true;
 
       console.info('Demo Scheduling AI Service initialized successfully');
