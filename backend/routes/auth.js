@@ -39,8 +39,26 @@ router.post('/register', async (req, res) => {
     const userAgent = req.headers['user-agent'];
     const { token, refreshToken } = await authService.createSession(user.id, ipAddress, userAgent);
 
+    // Fetch full tenant details to include plan information
+    const fullTenant = await prisma.tenant.findUnique({
+      where: { id: user.tenantId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        plan: true,
+        status: true,
+        subscriptionStart: true,
+        subscriptionEnd: true,
+        settings: true,
+      },
+    });
+
     res.status(201).json({
-      user,
+      user: {
+        ...user,
+        tenant: fullTenant,  // Include full tenant object with plan
+      },
       token,
       refreshToken,
       message: 'Registration successful',
