@@ -271,6 +271,21 @@ class AuthService {
     // Log activity
     await this.logActivity(user.id, 'LOGIN', 'User', user.id, 'User logged in', { ipAddress });
 
+    // Fetch full tenant details to include plan information
+    const fullTenant = await prisma.tenant.findUnique({
+      where: { id: user.tenantId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        plan: true,
+        status: true,
+        subscriptionStart: true,
+        subscriptionEnd: true,
+        settings: true,
+      },
+    });
+
     return {
       user: {
         id: user.id,
@@ -279,7 +294,7 @@ class AuthService {
         company: user.company,
         role: user.role,
         tenantId: user.tenantId,
-        tenantName: user.tenant.name,
+        tenant: fullTenant,  // Return full tenant object with plan
       },
       token,
       refreshToken,
@@ -474,6 +489,21 @@ class AuthService {
       // Create session
       const { token, refreshToken } = await this.createSession(user.id, ipAddress, userAgent);
 
+      // Fetch full tenant details to include plan information
+      const fullTenant = await prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          plan: true,
+          status: true,
+          subscriptionStart: true,
+          subscriptionEnd: true,
+          settings: true,
+        },
+      });
+
       return {
         user: {
           id: user.id,
@@ -483,6 +513,7 @@ class AuthService {
           role: user.role,
           tenantId: user.tenantId,
           profilePic: user.googleProfilePic,
+          tenant: fullTenant,  // Return full tenant object with plan
         },
         token,
         refreshToken,
