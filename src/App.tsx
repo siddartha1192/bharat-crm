@@ -4,10 +4,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SocketProvider } from "@/contexts/SocketContext";
 import { WhatsAppNotificationProvider } from "@/contexts/WhatsAppNotificationContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { FloatingChatWidget } from "@/components/chat/FloatingChatWidget";
 import { ProtectedAIRoute } from "@/components/ProtectedAIRoute";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
@@ -72,6 +73,18 @@ const ProtectedLayout = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+// Chat widget wrapper - only shows for non-logged-in users
+const ChatWidgetWrapper = () => {
+  const { user } = useAuth();
+
+  // Only show chat widget if user is NOT logged in
+  if (user) {
+    return null;
+  }
+
+  return <FloatingChatWidget />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -81,6 +94,7 @@ const App = () => (
         <AuthProvider>
           <SocketProvider>
             <WhatsAppNotificationProvider>
+              <ChatWidgetWrapper />
               <Routes>
               {/* Public routes */}
               <Route path="/" element={<PromoLanding />} />

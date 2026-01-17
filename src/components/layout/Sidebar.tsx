@@ -90,7 +90,7 @@ const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
           <div className="w-14 h-14 flex items-center justify-center">
             <img
               src="/logo_with_white_background.png"
-              alt="CLiM Logo"
+              alt="Neuragg Logo"
               className="w-full h-full object-contain"
             />
           </div>
@@ -98,7 +98,7 @@ const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
           {/* Brand Text */}
           <div className="flex flex-col leading-tight">
             <span className="text-lg font-semibold text-blue-900">
-              CLiM
+              Neuragg CRM
             </span>
             <span className="text-xs text-blue-600">
               Business Management
