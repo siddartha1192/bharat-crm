@@ -43,6 +43,13 @@ export default function CallSettingsPage() {
     businessHoursEnd: '17:00',
     businessDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
     timezone: 'Asia/Kolkata',
+    // Demo Scheduling (PROFESSIONAL/ENTERPRISE feature)
+    enableDemoScheduling: false,
+    demoSchedulingAutoBook: true,
+    demoSchedulingMinConfidence: 70,
+    demoSchedulingCalendarId: undefined as string | undefined,
+    demoSchedulingNotifyUser: true,
+    demoSchedulingNotifyLead: true,
   });
 
   // Fetch pipeline stages
@@ -79,6 +86,13 @@ export default function CallSettingsPage() {
         businessHoursEnd: settings.businessHoursEnd || '17:00',
         businessDays: settings.businessDays || ['mon', 'tue', 'wed', 'thu', 'fri'],
         timezone: settings.timezone,
+        // Demo Scheduling
+        enableDemoScheduling: settings.enableDemoScheduling || false,
+        demoSchedulingAutoBook: settings.demoSchedulingAutoBook !== undefined ? settings.demoSchedulingAutoBook : true,
+        demoSchedulingMinConfidence: settings.demoSchedulingMinConfidence || 70,
+        demoSchedulingCalendarId: settings.demoSchedulingCalendarId || undefined,
+        demoSchedulingNotifyUser: settings.demoSchedulingNotifyUser !== undefined ? settings.demoSchedulingNotifyUser : true,
+        demoSchedulingNotifyLead: settings.demoSchedulingNotifyLead !== undefined ? settings.demoSchedulingNotifyLead : true,
       });
     }
   }, [settings]);
@@ -524,6 +538,132 @@ export default function CallSettingsPage() {
                 </Select>
               </div>
             </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Demo Scheduling Automation (PROFESSIONAL/ENTERPRISE) */}
+      <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-white">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                AI Demo Scheduling Automation
+                <span className="text-xs font-normal px-2 py-1 bg-purple-600 text-white rounded-full">
+                  PRO
+                </span>
+              </CardTitle>
+              <CardDescription>
+                Automatically extract demo requests from call transcripts and book calendar events
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert className="bg-blue-50 border-blue-200">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>How it works:</strong> When a call ends, our AI analyzes the transcript to detect if the lead agreed to a demo or meeting.
+              If found, it extracts the date/time and automatically creates a calendar event with the lead's details.
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Enable Demo Scheduling</Label>
+              <p className="text-sm text-gray-500">
+                Automatically detect and extract demo scheduling from calls
+              </p>
+            </div>
+            <Switch
+              checked={formData.enableDemoScheduling}
+              onCheckedChange={(checked) =>
+                setFormData({ ...formData, enableDemoScheduling: checked })
+              }
+            />
+          </div>
+
+          {formData.enableDemoScheduling && (
+            <div className="space-y-4 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Auto-Book Calendar Events</Label>
+                  <p className="text-sm text-gray-500">
+                    Automatically create calendar events when demo is agreed
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.demoSchedulingAutoBook}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, demoSchedulingAutoBook: checked })
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="demoSchedulingMinConfidence">
+                  Minimum Confidence Score
+                </Label>
+                <div className="flex items-center gap-4">
+                  <Input
+                    id="demoSchedulingMinConfidence"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={formData.demoSchedulingMinConfidence}
+                    onChange={(e) =>
+                      setFormData({ ...formData, demoSchedulingMinConfidence: parseInt(e.target.value) })
+                    }
+                    className="flex-1"
+                  />
+                  <span className="text-sm font-medium w-12 text-right">
+                    {formData.demoSchedulingMinConfidence}%
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500">
+                  Only auto-book when AI is at least {formData.demoSchedulingMinConfidence}% confident (recommended: 70%)
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Notify User</Label>
+                  <p className="text-sm text-gray-500">
+                    Send notification when demo is scheduled
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.demoSchedulingNotifyUser}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, demoSchedulingNotifyUser: checked })
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Send Calendar Invite to Lead</Label>
+                  <p className="text-sm text-gray-500">
+                    Automatically send Google Calendar invite to the lead
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.demoSchedulingNotifyLead}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, demoSchedulingNotifyLead: checked })
+                  }
+                />
+              </div>
+
+              <Alert className="bg-green-50 border-green-200">
+                <AlertCircle className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800">
+                  <strong>Tip:</strong> Make sure you have connected your Google Calendar in the Calendar settings page.
+                  Events will be created in your primary calendar.
+                </AlertDescription>
+              </Alert>
+            </div>
           )}
         </CardContent>
       </Card>
