@@ -175,8 +175,7 @@ class DemoSchedulingAutomationService {
         contact: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
+            name: true,
             email: true,
             phone: true,
             company: true,
@@ -294,7 +293,7 @@ class DemoSchedulingAutomationService {
       // Prepare lead data
       const leadData = callLog.lead || {
         id: callLog.contactId,
-        name: callLog.contact ? `${callLog.contact.firstName} ${callLog.contact.lastName}` : 'Unknown',
+        name: callLog.contact?.name || 'Unknown',
         email: callLog.contact?.email,
         phone: callLog.contact?.phone,
         company: callLog.contact?.company,
