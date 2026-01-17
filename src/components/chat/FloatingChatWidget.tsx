@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Minimize2, Sparkles } from 'lucide-react';
+import { MessageCircle, X, Send, Minimize2, Sparkles, User, Mail, Phone, Building } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Message {
@@ -7,6 +7,14 @@ interface Message {
   text: string;
   sender: 'user' | 'bot';
   timestamp: Date;
+}
+
+interface DemoFormData {
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  message: string;
 }
 
 export function FloatingChatWidget() {
@@ -22,6 +30,15 @@ export function FloatingChatWidget() {
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showDemoForm, setShowDemoForm] = useState(false);
+  const [demoFormData, setDemoFormData] = useState<DemoFormData>({
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    message: '',
+  });
+  const [isSubmittingDemo, setIsSubmittingDemo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -31,13 +48,13 @@ export function FloatingChatWidget() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, showDemoForm]);
 
   useEffect(() => {
-    if (isOpen && !isMinimized && inputRef.current) {
+    if (isOpen && !isMinimized && !showDemoForm && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [isOpen, isMinimized]);
+  }, [isOpen, isMinimized, showDemoForm]);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
@@ -82,6 +99,20 @@ export function FloatingChatWidget() {
       };
 
       setMessages((prev) => [...prev, botMessage]);
+
+      // If AI detected a demo request, show the form after a brief delay
+      if (data.isDemoRequest) {
+        setTimeout(() => {
+          setShowDemoForm(true);
+          const formPromptMessage: Message = {
+            id: (Date.now() + 2).toString(),
+            text: "Great! I'd love to help you schedule a demo. Please fill out the form below with your details, and our team will reach out to you within 24 hours.",
+            sender: 'bot',
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, formPromptMessage]);
+        }, 800);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
@@ -93,6 +124,64 @@ export function FloatingChatWidget() {
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSubmitDemoRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!demoFormData.name || !demoFormData.email || !demoFormData.phone) {
+      return;
+    }
+
+    setIsSubmittingDemo(true);
+
+    try {
+      const response = await fetch('/api/public/chat/demo-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(demoFormData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit demo request');
+      }
+
+      const data = await response.json();
+
+      // Hide form
+      setShowDemoForm(false);
+
+      // Add success message
+      const successMessage: Message = {
+        id: (Date.now() + 3).toString(),
+        text: `✅ ${data.message}\n\nYour contact details have been saved:\n• Name: ${demoFormData.name}\n• Email: ${demoFormData.email}\n• Phone: ${demoFormData.phone}\n\nIs there anything else I can help you with?`,
+        sender: 'bot',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, successMessage]);
+
+      // Reset form
+      setDemoFormData({
+        name: '',
+        email: '',
+        phone: '',
+        company: '',
+        message: '',
+      });
+    } catch (error) {
+      console.error('Error submitting demo request:', error);
+      const errorMessage: Message = {
+        id: (Date.now() + 3).toString(),
+        text: "I'm sorry, there was an error submitting your demo request. Please try again or email us directly at sales@neuragg.com",
+        sender: 'bot',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsSubmittingDemo(false);
     }
   };
 
@@ -230,11 +319,103 @@ export function FloatingChatWidget() {
               </div>
             )}
 
+            {/* Demo Request Form */}
+            {showDemoForm && (
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-5 border-2 border-blue-200 shadow-lg">
+                <h4 className="text-base font-semibold text-blue-900 mb-4 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-blue-600" />
+                  Schedule Your Demo
+                </h4>
+                <form onSubmit={handleSubmitDemoRequest} className="space-y-3">
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-medium text-gray-700 mb-1">
+                      <User className="w-3.5 h-3.5 text-blue-600" />
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={demoFormData.name}
+                      onChange={(e) => setDemoFormData({ ...demoFormData, name: e.target.value })}
+                      placeholder="John Doe"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      disabled={isSubmittingDemo}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-medium text-gray-700 mb-1">
+                      <Mail className="w-3.5 h-3.5 text-blue-600" />
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={demoFormData.email}
+                      onChange={(e) => setDemoFormData({ ...demoFormData, email: e.target.value })}
+                      placeholder="john@company.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      disabled={isSubmittingDemo}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-medium text-gray-700 mb-1">
+                      <Phone className="w-3.5 h-3.5 text-blue-600" />
+                      Phone Number *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={demoFormData.phone}
+                      onChange={(e) => setDemoFormData({ ...demoFormData, phone: e.target.value })}
+                      placeholder="+1 (555) 000-0000"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      disabled={isSubmittingDemo}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-medium text-gray-700 mb-1">
+                      <Building className="w-3.5 h-3.5 text-blue-600" />
+                      Company (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={demoFormData.company}
+                      onChange={(e) => setDemoFormData({ ...demoFormData, company: e.target.value })}
+                      placeholder="Your Company Inc."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      disabled={isSubmittingDemo}
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowDemoForm(false)}
+                      className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      disabled={isSubmittingDemo}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isSubmittingDemo}
+                    >
+                      {isSubmittingDemo ? 'Submitting...' : 'Submit Request'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Questions (only show when conversation is fresh) */}
-          {messages.length <= 1 && (
+          {/* Quick Questions (only show when conversation is fresh and form not showing) */}
+          {messages.length <= 1 && !showDemoForm && (
             <div className="px-4 py-3 bg-white border-t border-gray-200">
               <p className="text-xs text-gray-500 mb-2">Quick questions:</p>
               <div className="flex flex-wrap gap-2">
@@ -251,32 +432,34 @@ export function FloatingChatWidget() {
             </div>
           )}
 
-          {/* Input */}
-          <div className="p-4 bg-white border-t border-gray-200 rounded-b-2xl">
-            <div className="flex items-center gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Type your message..."
-                className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                disabled={isLoading}
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isLoading}
-                className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
-                aria-label="Send message"
-              >
-                <Send className="w-5 h-5" />
-              </button>
+          {/* Input (hide when showing demo form) */}
+          {!showDemoForm && (
+            <div className="p-4 bg-white border-t border-gray-200 rounded-b-2xl">
+              <div className="flex items-center gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Type your message..."
+                  className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  disabled={isLoading}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!inputValue.trim() || isLoading}
+                  className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+                  aria-label="Send message"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-2 text-center">
+                Powered by Neuragg AI
+              </p>
             </div>
-            <p className="text-xs text-gray-400 mt-2 text-center">
-              Powered by Neuragg AI
-            </p>
-          </div>
+          )}
         </>
       )}
     </div>
