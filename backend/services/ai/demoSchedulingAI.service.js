@@ -21,11 +21,11 @@ class DemoSchedulingAIService {
       if (this.initialized) return true;
 
       // Get tenant settings for API key
-      const settings = await prisma.settings.findFirst({
+      const settings = await prisma.callSettings.findUnique({
         where: { tenantId },
         select: {
           openaiApiKey: true,
-          aiModel: true,
+          openaiModel: true,
         },
       });
 
@@ -37,7 +37,7 @@ class DemoSchedulingAIService {
       }
 
       this.openai = new OpenAI({ apiKey });
-      this.model = settings?.aiModel || 'gpt-4o-mini';
+      this.model = settings?.openaiModel || 'gpt-4o-mini';
       this.initialized = true;
 
       console.info('Demo Scheduling AI Service initialized successfully');
