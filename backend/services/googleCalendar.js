@@ -443,14 +443,8 @@ class GoogleCalendarService {
         throw new Error('Calendar not connected for this user');
       }
 
-      // Get tenant for OAuth config
-      const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId },
-        include: { settings: true },
-      });
-
-      // Get authenticated client
-      const auth = await this.getAuthenticatedClient(user, tenant);
+      // Get authenticated client (user's personal calendar, not tenant-specific)
+      const auth = await this.getAuthenticatedClient(user, null);
 
       // Create the calendar event
       const calendar = google.calendar({ version: 'v3', auth });
