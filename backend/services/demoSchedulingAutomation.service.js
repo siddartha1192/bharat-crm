@@ -70,6 +70,8 @@ class DemoSchedulingAutomationService {
         hasMeeting: meetingInfo.hasMeetingRequest,
         agreed: meetingInfo.agreed,
         confidence: meetingInfo.confidence,
+        proposedDateTime: meetingInfo.proposedDateTime,
+        meetingType: meetingInfo.meetingType,
       });
 
       // 6. Save extraction results to call log
@@ -82,9 +84,18 @@ class DemoSchedulingAutomationService {
                            meetingInfo.confidence >= callSettings.demoSchedulingMinConfidence &&
                            callSettings.demoSchedulingAutoBook;
 
+      console.info(`Calendar booking decision for call ${callLogId}:`, {
+        agreed: meetingInfo.agreed,
+        hasMeetingRequest: meetingInfo.hasMeetingRequest,
+        confidence: meetingInfo.confidence,
+        minConfidence: callSettings.demoSchedulingMinConfidence,
+        autoBookEnabled: callSettings.demoSchedulingAutoBook,
+        willAutoBook: shouldAutoBook,
+      });
+
       let calendarEvent = null;
       if (shouldAutoBook) {
-        console.info(`Auto-booking calendar event for call ${callLogId}`);
+        console.info(`✅ Auto-booking calendar event for call ${callLogId}`);
         calendarEvent = await this.createCalendarEvent(
           meetingInfo,
           callLog,
@@ -93,7 +104,13 @@ class DemoSchedulingAutomationService {
           callSettings
         );
       } else {
-        console.info(`Not auto-booking: agreed=${meetingInfo.agreed}, confidence=${meetingInfo.confidence}, threshold=${callSettings.demoSchedulingMinConfidence}`);
+        const reasons = [];
+        if (!meetingInfo.agreed) reasons.push('meeting not agreed');
+        if (!meetingInfo.hasMeetingRequest) reasons.push('no meeting request');
+        if (meetingInfo.confidence < callSettings.demoSchedulingMinConfidence) reasons.push(`confidence too low (${meetingInfo.confidence} < ${callSettings.demoSchedulingMinConfidence})`);
+        if (!callSettings.demoSchedulingAutoBook) reasons.push('auto-book disabled');
+
+        console.info(`⏸️  Not auto-booking for call ${callLogId}: ${reasons.join(', ')}`);
       }
 
       // 8. Send notifications if configured
@@ -307,9 +324,14 @@ class DemoSchedulingAutomationService {
       );
 
       // Create event in Google Calendar
-      console.info(`Creating Google Calendar event for meeting`);
+      console.info(`Creating Google Calendar event for meeting`, {
+        summary: eventData.summary,
+        startDateTime: eventData.startDateTime,
+        endDateTime: eventData.endDateTime,
+        hasAttendees: eventData.attendees?.length > 0,
+      });
 
-      const calendarEvent = await googleCalendarService.createEvent(
+      const calendarEvent = await googleCalendarService.createEventForUser(
         userId,
         tenantId,
         {
@@ -338,14 +360,27 @@ class DemoSchedulingAutomationService {
         data: { meetingCalendarEventId: calendarEvent.id },
       });
 
-      console.info(`Calendar event created successfully`, {
+      console.info(`✅ Calendar event created successfully`, {
         eventId: calendarEvent.id,
+        eventLink: calendarEvent.htmlLink,
         callLogId: callLog.id,
+        summary: eventData.summary,
+        startTime: eventData.startDateTime,
       });
 
       return calendarEvent;
     } catch (error) {
-      console.error('Error creating calendar event:', error);
+      console.error('❌ Error creating calendar event:', error.message);
+
+      // Log specific error reasons
+      if (error.message.includes('Calendar not connected')) {
+        console.error(`💡 User ${userId} needs to connect their Google Calendar first`);
+      } else if (error.message.includes('insufficient authentication scopes')) {
+        console.error(`💡 User ${userId} needs to reconnect calendar with proper permissions`);
+      } else if (error.message.includes('Invalid attendee')) {
+        console.error(`💡 Check attendee email addresses are valid`);
+      }
+
       // Don't throw - log error but continue
       return null;
     }

@@ -413,6 +413,78 @@ class GoogleCalendarService {
     return response.data;
   }
 
+  /**
+   * Create calendar event for a user (wrapper method for AI automation)
+   * @param {string} userId - User ID
+   * @param {string} tenantId - Tenant ID
+   * @param {Object} eventData - Event data with summary, description, start, end, etc.
+   * @param {string} calendarId - Calendar ID (null for primary)
+   * @returns {Promise<Object>} - Created event object
+   */
+  async createEventForUser(userId, tenantId, eventData, calendarId = 'primary') {
+    try {
+      // Get user with calendar tokens
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          calendarAccessToken: true,
+          calendarRefreshToken: true,
+          calendarTokenExpiry: true,
+        },
+      });
+
+      if (!user) {
+        throw new Error(`User ${userId} not found`);
+      }
+
+      if (!user.calendarAccessToken || !user.calendarRefreshToken) {
+        throw new Error('Calendar not connected for this user');
+      }
+
+      // Get tenant for OAuth config
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        include: { settings: true },
+      });
+
+      // Get authenticated client
+      const auth = await this.getAuthenticatedClient(user, tenant);
+
+      // Create the calendar event
+      const calendar = google.calendar({ version: 'v3', auth });
+
+      const event = {
+        summary: eventData.summary,
+        description: eventData.description || '',
+        location: eventData.location || '',
+        start: eventData.start,
+        end: eventData.end,
+        attendees: eventData.attendees || [],
+        reminders: eventData.reminders || {
+          useDefault: false,
+          overrides: [
+            { method: 'email', minutes: 24 * 60 },
+            { method: 'popup', minutes: 30 },
+          ],
+        },
+      };
+
+      const response = await calendar.events.insert({
+        calendarId: calendarId || 'primary',
+        resource: event,
+        sendUpdates: eventData.sendUpdates || 'none',
+      });
+
+      console.log(`[Calendar] Event created successfully: ${response.data.id}`);
+      return response.data;
+    } catch (error) {
+      console.error('[Calendar] Error creating event:', error);
+      throw error;
+    }
+  }
+
   // Check if user has connected Google Calendar
   isConfigured() {
     return !!(this.clientId && this.clientSecret);
