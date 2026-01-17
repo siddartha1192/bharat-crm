@@ -15,6 +15,7 @@ const { tenantContext } = require('../middleware/tenant');
 const callQueueService = require('../services/callQueueService');
 const callService = require('../services/callService');
 const twilioService = require('../services/twilio');
+const demoSchedulingAutomation = require('../services/demoSchedulingAutomation.service');
 
 const prisma = new PrismaClient();
 
@@ -1256,6 +1257,24 @@ router.post('/webhook/status', async (req, res) => {
           duration: statusData.CallDuration
         });
       }
+
+      // Trigger demo scheduling automation if call completed
+      // Run in background to avoid blocking webhook response
+      if (statusData.CallStatus === 'completed' && callLog.transcript) {
+        console.log('[WEBHOOK] Triggering demo scheduling automation for call:', callLog.id);
+        setImmediate(async () => {
+          try {
+            await demoSchedulingAutomation.processCallForDemoScheduling(
+              callLog.id,
+              callLog.createdById,
+              callLog.tenantId
+            );
+          } catch (error) {
+            console.error('[WEBHOOK] Error in demo scheduling automation:', error);
+            // Don't throw - this is background processing
+          }
+        });
+      }
     }
 
     res.sendStatus(200);
@@ -1300,6 +1319,35 @@ router.post('/webhook/transcription', async (req, res) => {
 
     if (TranscriptionText) {
       await callService.handleTranscription(CallSid, TranscriptionText);
+
+      // Trigger demo scheduling automation after transcript is saved
+      // Run in background to avoid blocking webhook response
+      const callLog = await prisma.callLog.findUnique({
+        where: { twilioCallSid: CallSid },
+        select: {
+          id: true,
+          createdById: true,
+          tenantId: true,
+          twilioStatus: true,
+          callOutcome: true,
+        },
+      });
+
+      if (callLog && (callLog.callOutcome === 'completed' || callLog.callOutcome === 'answered')) {
+        console.log('[WEBHOOK] Triggering demo scheduling automation for transcribed call:', callLog.id);
+        setImmediate(async () => {
+          try {
+            await demoSchedulingAutomation.processCallForDemoScheduling(
+              callLog.id,
+              callLog.createdById,
+              callLog.tenantId
+            );
+          } catch (error) {
+            console.error('[WEBHOOK] Error in demo scheduling automation:', error);
+            // Don't throw - this is background processing
+          }
+        });
+      }
     }
 
     res.sendStatus(200);
@@ -1691,6 +1739,86 @@ router.get('/stats', async (req, res) => {
     });
   } catch (error) {
     console.error('[CALLS API] Error fetching stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/calls/logs/:id/extract-meeting
+ * Manually trigger demo/meeting extraction for a specific call
+ * PROFESSIONAL/ENTERPRISE feature
+ */
+router.post('/logs/:id/extract-meeting', authenticate, tenantContext, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, tenantId } = req.user;
+
+    // Check feature access
+    const accessCheck = await demoSchedulingAutomation.checkFeatureAccess(tenantId);
+    if (!accessCheck.enabled) {
+      return res.status(403).json({
+        error: 'Demo scheduling feature not available',
+        reason: accessCheck.reason,
+      });
+    }
+
+    // Verify call belongs to tenant
+    const callLog = await prisma.callLog.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!callLog) {
+      return res.status(404).json({ error: 'Call log not found' });
+    }
+
+    // Trigger extraction
+    const result = await demoSchedulingAutomation.manualExtractMeeting(id, userId, tenantId);
+
+    res.json({
+      success: true,
+      result,
+    });
+  } catch (error) {
+    console.error('[CALLS API] Error extracting meeting:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/calls/demo-scheduling/stats
+ * Get demo scheduling automation statistics
+ * PROFESSIONAL/ENTERPRISE feature
+ */
+router.get('/demo-scheduling/stats', authenticate, tenantContext, async (req, res) => {
+  try {
+    const { tenantId } = req.user;
+    const { startDate, endDate } = req.query;
+
+    // Check feature access
+    const accessCheck = await demoSchedulingAutomation.checkFeatureAccess(tenantId);
+    if (!accessCheck.enabled) {
+      return res.status(403).json({
+        error: 'Demo scheduling feature not available',
+        reason: accessCheck.reason,
+      });
+    }
+
+    // Default to last 30 days
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date();
+
+    const stats = await demoSchedulingAutomation.getStatistics(tenantId, start, end);
+
+    res.json({
+      success: true,
+      stats,
+      dateRange: {
+        start: start.toISOString(),
+        end: end.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('[CALLS API] Error fetching demo scheduling stats:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -45,6 +45,9 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  CalendarCheck,
+  CheckCircle2,
+  XCircleIcon,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -447,6 +450,136 @@ export default function CallLogsPage() {
                   >
                     {selectedCall.sentiment}
                   </Badge>
+                </div>
+              )}
+
+              {/* Demo/Meeting Scheduling (PRO Feature) */}
+              {selectedCall.meetingExtracted && (
+                <div className="space-y-3 border-t pt-4">
+                  <div className="flex items-center gap-2">
+                    <CalendarCheck className="w-4 h-4 text-purple-600" />
+                    <p className="text-sm font-medium">
+                      Demo Scheduling
+                      <span className="ml-2 text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
+                        AI EXTRACTED
+                      </span>
+                    </p>
+                  </div>
+
+                  {selectedCall.hasMeetingRequest ? (
+                    <div className="bg-gradient-to-br from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200 space-y-3">
+                      {/* Meeting Agreement Status */}
+                      <div className="flex items-center gap-2">
+                        {selectedCall.meetingAgreed ? (
+                          <>
+                            <CheckCircle2 className="w-5 h-5 text-green-600" />
+                            <span className="font-medium text-green-700">Lead Agreed to Demo</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircleIcon className="w-5 h-5 text-red-600" />
+                            <span className="font-medium text-red-700">Demo Not Agreed</span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Meeting Details */}
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        {selectedCall.meetingType && (
+                          <div>
+                            <p className="text-gray-500">Type</p>
+                            <Badge variant="outline" className="capitalize">
+                              {selectedCall.meetingType}
+                            </Badge>
+                          </div>
+                        )}
+
+                        {selectedCall.meetingConfidence && (
+                          <div>
+                            <p className="text-gray-500">AI Confidence</p>
+                            <p className="font-medium">{selectedCall.meetingConfidence}%</p>
+                          </div>
+                        )}
+
+                        {selectedCall.meetingProposedDate && (
+                          <div>
+                            <p className="text-gray-500">Proposed Date</p>
+                            <p className="font-medium">
+                              {format(new Date(selectedCall.meetingProposedDate), 'MMM dd, yyyy')}
+                            </p>
+                          </div>
+                        )}
+
+                        {selectedCall.meetingProposedTime && (
+                          <div>
+                            <p className="text-gray-500">Proposed Time</p>
+                            <p className="font-medium">{selectedCall.meetingProposedTime}</p>
+                          </div>
+                        )}
+
+                        {selectedCall.meetingDuration && (
+                          <div>
+                            <p className="text-gray-500">Duration</p>
+                            <p className="font-medium">{selectedCall.meetingDuration} minutes</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Original Text from Transcript */}
+                      {selectedCall.meetingDateTimeText && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">From Transcript:</p>
+                          <p className="text-sm italic bg-white/50 p-2 rounded">
+                            "{selectedCall.meetingDateTimeText}"
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Meeting Notes */}
+                      {selectedCall.meetingNotes && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Notes:</p>
+                          <p className="text-sm bg-white/50 p-2 rounded">
+                            {selectedCall.meetingNotes}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Lead Preferences */}
+                      {selectedCall.meetingPreferences && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Preferences:</p>
+                          <p className="text-sm bg-white/50 p-2 rounded">
+                            {selectedCall.meetingPreferences}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Calendar Event Link */}
+                      {selectedCall.meetingCalendarEventId && (
+                        <div className="pt-2 border-t border-purple-200">
+                          <Badge variant="default" className="bg-green-600">
+                            <CalendarCheck className="w-3 h-3 mr-1" />
+                            Calendar Event Created
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Reason for Decline */}
+                      {!selectedCall.meetingAgreed && selectedCall.meetingReasonDeclined && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Reason for Decline:</p>
+                          <p className="text-sm bg-red-50 p-2 rounded text-red-800">
+                            {selectedCall.meetingReasonDeclined}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 p-3 rounded-lg text-sm text-gray-600">
+                      No demo or meeting request detected in this call.
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -1464,6 +1464,14 @@ model CallSettings {
   businessDays        Json? // ["mon", "tue", "wed", "thu", "fri"]
   timezone            String  @default("Asia/Kolkata")
 
+  // Demo Scheduling Automation (PROFESSIONAL/ENTERPRISE Feature)
+  enableDemoScheduling       Boolean @default(false) // Auto-extract and schedule demos from call transcripts
+  demoSchedulingAutoBook     Boolean @default(true) // Automatically book calendar events
+  demoSchedulingMinConfidence Int    @default(70) // Minimum confidence score (0-100) to auto-book
+  demoSchedulingCalendarId   String? // Which calendar to use (null = primary)
+  demoSchedulingNotifyUser   Boolean @default(true) // Notify user when demo is scheduled
+  demoSchedulingNotifyLead   Boolean @default(true) // Send calendar invite to lead
+
   // Default Call Script (if no specific script selected)
   defaultCallScriptId String?
 
@@ -1570,6 +1578,22 @@ model CallLog {
   aiModelUsed     String? // 'gpt-4o-realtime'
   aiTokensUsed    Int?
   aiCost          Float? // Cost in USD
+
+  // Demo/Meeting Scheduling (Enterprise Feature)
+  meetingExtracted       Boolean? @default(false) // Was meeting extraction performed?
+  hasMeetingRequest      Boolean? @default(false) // Was a meeting/demo requested in the call?
+  meetingAgreed          Boolean? @default(false) // Did lead agree to the meeting?
+  meetingType            String? // 'demo' | 'meeting' | 'call' | 'appointment'
+  meetingProposedDate    DateTime? // Extracted meeting date
+  meetingProposedTime    String? // Extracted time (HH:MM format)
+  meetingDateTimeText    String? // Original text from transcript
+  meetingDuration        Int? // Duration in minutes
+  meetingPreferences     String? @db.Text // Lead preferences about timing
+  meetingNotes           String? @db.Text // Additional notes about the meeting
+  meetingConfidence      Int? // Confidence score 0-100
+  meetingReasonDeclined  String? @db.Text // Reason if declined
+  meetingCalendarEventId String? // Google Calendar event ID if created
+  meetingExtractionCost  Float? // Cost of AI extraction
 
   // Call Script Used
   callScriptId String?
