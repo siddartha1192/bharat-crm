@@ -91,7 +91,7 @@ services:
       - "3001:3001"
     networks:
       - crm-network
-    command: sh -c "npx prisma db push --accept-data-loss --skip-generate && node server.js"
+    # Using docker-entrypoint.sh (defined in Dockerfile) for proper migration handling
 
   # Frontend (React + Nginx)
   frontend:
