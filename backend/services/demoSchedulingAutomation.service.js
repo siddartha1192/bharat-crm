@@ -170,7 +170,6 @@ class DemoSchedulingAutomationService {
             email: true,
             phone: true,
             company: true,
-            stage: true,
           },
         },
         contact: {
