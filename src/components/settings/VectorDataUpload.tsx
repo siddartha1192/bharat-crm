@@ -364,12 +364,13 @@ export default function VectorDataUpload() {
             <div className="flex gap-2">
               <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm">
-                <p className="font-semibold text-blue-900 mb-1">Important Notes:</p>
+                <p className="font-semibold text-blue-900 mb-1">How It Works:</p>
                 <ul className="list-disc list-inside text-blue-800 space-y-1">
-                  <li>Files are saved to the <code className="bg-blue-100 px-1 rounded">knowledge_base</code> folder</li>
-                  <li>After uploading, click "Run Ingest Script" to process files into vector database</li>
-                  <li>The AI assistant will use this data to provide better responses</li>
-                  <li>Maximum file size is 50MB per upload</li>
+                  <li>✅ <strong>Automatic Processing:</strong> Files are automatically processed into the AI knowledge base upon upload</li>
+                  <li>✅ <strong>Instant Availability:</strong> No manual steps needed - AI can use your data immediately after processing completes</li>
+                  <li>✅ <strong>Multi-Format Support:</strong> Upload Excel, Word, PDF, CSV, or text files</li>
+                  <li>✅ <strong>Tenant Isolation:</strong> Your data is securely isolated and only accessible to your organization</li>
+                  <li>📝 Maximum file size is 50MB per upload</li>
                 </ul>
               </div>
             </div>
@@ -466,16 +467,17 @@ export default function VectorDataUpload() {
             <div className="border rounded-lg p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Database className="h-5 w-5 text-primary" />
-                <h3 className="font-semibold">Process Knowledge Base</h3>
+                <h3 className="font-semibold">Batch Process Knowledge Base Folder</h3>
               </div>
               <p className="text-sm text-muted-foreground">
-                Run the ingest script to process all files in the knowledge_base folder and update the vector database.
+                Use this only if you have manually placed files in the <code className="bg-gray-100 px-1 rounded">backend/knowledge_base</code> folder on the server.
+                For normal usage, simply use the Upload button above - files are automatically processed.
               </p>
               <Button
                 onClick={handleRunIngest}
                 disabled={ingesting}
                 className="w-full"
-                variant="default"
+                variant="secondary"
               >
                 {ingesting ? (
                   <>
@@ -485,7 +487,7 @@ export default function VectorDataUpload() {
                 ) : (
                   <>
                     <Database className="h-4 w-4 mr-2" />
-                    Run Ingest Script
+                    Run Ingest Script (Advanced)
                   </>
                 )}
               </Button>
@@ -495,9 +497,14 @@ export default function VectorDataUpload() {
               <div className="flex gap-2">
                 <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
-                  <p className="font-semibold text-amber-900 mb-1">Note:</p>
-                  <p className="text-amber-800">
-                    The ingest script processes files from the knowledge_base folder and may take a few minutes to complete. Status will update automatically when processing finishes.
+                  <p className="font-semibold text-amber-900 mb-1">When to use Ingest Script:</p>
+                  <ul className="list-disc list-inside text-amber-800 space-y-1">
+                    <li><strong>Bulk Import:</strong> When you have many files to process at once from the server</li>
+                    <li><strong>Initial Setup:</strong> When setting up the CRM with existing documentation</li>
+                    <li><strong>Server-Side Files:</strong> When files are placed directly in knowledge_base folder</li>
+                  </ul>
+                  <p className="text-amber-800 mt-2">
+                    <strong>For regular use:</strong> Just upload files using the button above - they're automatically processed!
                   </p>
                 </div>
               </div>
