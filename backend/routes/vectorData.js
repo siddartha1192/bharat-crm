@@ -8,6 +8,8 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { PDFParse } = require('pdf-parse');
+const xlsx = require('xlsx'); // For Excel files
+const mammoth = require('mammoth'); // For Word .docx files
 
 const prisma = new PrismaClient();
 
@@ -69,8 +71,87 @@ async function processVectorData(filePath, fileName, tenantId) {
       // Split text into chunks (by paragraphs or pages)
       const chunks = content.split('\n\n').filter(chunk => chunk.trim());
       documents = chunks.map(chunk => ({ content: chunk, metadata: { fileName } }));
+    } else if (ext === '.xlsx' || ext === '.xls') {
+      // Process Excel files
+      const workbook = xlsx.readFile(filePath);
+
+      // Process each sheet
+      workbook.SheetNames.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName];
+
+        // Convert sheet to JSON
+        const jsonData = xlsx.utils.sheet_to_json(worksheet, { defval: '' });
+
+        // Each row becomes a document
+        jsonData.forEach((row, index) => {
+          documents.push({
+            content: JSON.stringify(row),
+            metadata: {
+              fileName,
+              fileType: 'excel',
+              sheetName,
+              rowNumber: index + 1
+            }
+          });
+        });
+
+        // Also store the sheet as a single text representation for broader context
+        const textData = xlsx.utils.sheet_to_csv(worksheet);
+        if (textData && textData.trim()) {
+          documents.push({
+            content: `Sheet: ${sheetName}\n\n${textData}`,
+            metadata: {
+              fileName,
+              fileType: 'excel',
+              sheetName,
+              isFullSheet: true
+            }
+          });
+        }
+      });
+    } else if (ext === '.docx') {
+      // Process Word .docx files
+      const result = await mammoth.extractRawText({ path: filePath });
+      const content = result.value;
+
+      // Split text into paragraphs
+      const paragraphs = content.split('\n').filter(para => para.trim());
+
+      // Group paragraphs into reasonable chunks (max 5 paragraphs per chunk)
+      for (let i = 0; i < paragraphs.length; i += 5) {
+        const chunk = paragraphs.slice(i, i + 5).join('\n');
+        if (chunk.trim()) {
+          documents.push({
+            content: chunk,
+            metadata: {
+              fileName,
+              fileType: 'docx',
+              chunkNumber: Math.floor(i / 5) + 1
+            }
+          });
+        }
+      }
+    } else if (ext === '.doc') {
+      // For older .doc files, try to read as text (best effort)
+      // Note: Full .doc parsing requires more complex libraries
+      // This is a fallback that may not work perfectly
+      try {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const chunks = content.split('\n\n').filter(chunk => chunk.trim());
+        documents = chunks.map((chunk, index) => ({
+          content: chunk,
+          metadata: {
+            fileName,
+            fileType: 'doc',
+            chunkNumber: index + 1
+          }
+        }));
+      } catch (error) {
+        console.warn('Warning: .doc file format not fully supported. Please convert to .docx for best results.');
+        throw new Error('Older .doc format detected. Please convert to .docx format for better processing.');
+      }
     } else {
-      // Read file content as text
+      // Read file content as text for other formats
       const content = fs.readFileSync(filePath, 'utf-8');
 
       if (ext === '.txt' || ext === '.md') {
@@ -78,18 +159,20 @@ async function processVectorData(filePath, fileName, tenantId) {
         const chunks = content.split('\n\n').filter(chunk => chunk.trim());
         documents = chunks.map(chunk => ({ content: chunk, metadata: { fileName } }));
       } else if (ext === '.csv') {
-        // Parse CSV
-        const lines = content.split('\n').filter(line => line.trim());
-        const headers = lines[0].split(',');
+        // Parse CSV using xlsx for better handling
+        const workbook = xlsx.readFile(filePath);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = xlsx.utils.sheet_to_json(worksheet, { defval: '' });
 
-        documents = lines.slice(1).map(line => {
-          const values = line.split(',');
-          const obj = {};
-          headers.forEach((header, index) => {
-            obj[header.trim()] = values[index]?.trim() || '';
-          });
-          return { content: JSON.stringify(obj), metadata: { fileName, fileType: 'csv' } };
-        });
+        documents = jsonData.map((row, index) => ({
+          content: JSON.stringify(row),
+          metadata: {
+            fileName,
+            fileType: 'csv',
+            rowNumber: index + 1
+          }
+        }));
       } else if (ext === '.json') {
         // Parse JSON
         const data = JSON.parse(content);

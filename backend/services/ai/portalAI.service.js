@@ -103,6 +103,7 @@ You have FULL DATABASE ACCESS through function calling tools:
 6. ✅ query_calendar_events - Query calendar events
 7. ✅ query_whatsapp_conversations - Query WhatsApp conversations for marketing insights
 8. ✅ get_analytics - Get aggregated metrics (conversion rates, revenue, pipeline value, etc.)
+9. ✅ web_search - Search the web using DuckDuckGo for external information and current events
 
 **CURRENT USER:**
 User ID: ${userId}
