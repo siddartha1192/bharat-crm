@@ -13,9 +13,11 @@ const path = require('path');
 const vectorDBService = require('../services/ai/vectorDB.service');
 const aiConfig = require('../config/ai.config');
 const { PDFParse } = require('pdf-parse');
+const xlsx = require('xlsx'); // For Excel files
+const mammoth = require('mammoth'); // For Word .docx files
 
 // Supported file types
-const SUPPORTED_EXTENSIONS = ['.txt', '.md', '.json', '.pdf'];
+const SUPPORTED_EXTENSIONS = ['.txt', '.md', '.json', '.pdf', '.csv', '.xlsx', '.xls', '.docx', '.doc'];
 
 /**
  * Read all files from knowledge base directory
@@ -36,8 +38,8 @@ async function readKnowledgeBase(dir) {
 
         if (SUPPORTED_EXTENSIONS.includes(ext)) {
           try {
-            let content;
             const relativePath = path.relative(aiConfig.knowledgeBase.path, fullPath);
+            let processedDocs = [];
 
             if (ext === '.pdf') {
               // Read PDF file as buffer and extract text
@@ -48,27 +50,144 @@ async function readKnowledgeBase(dir) {
 
               // Extract text content
               const result = await parser.getText();
-              content = result.text;
+              const content = result.text;
 
               // Clean up parser resources
               await parser.destroy();
+
+              processedDocs.push({
+                content,
+                metadata: {
+                  filename: entry.name,
+                  path: relativePath,
+                  type: ext.slice(1),
+                  category: path.dirname(relativePath),
+                  timestamp: new Date().toISOString(),
+                },
+              });
+            } else if (ext === '.csv') {
+              // Parse CSV using xlsx for better handling
+              const workbook = xlsx.readFile(fullPath);
+              const sheetName = workbook.SheetNames[0];
+              const worksheet = workbook.Sheets[sheetName];
+              const jsonData = xlsx.utils.sheet_to_json(worksheet, { defval: '' });
+
+              jsonData.forEach((row, index) => {
+                processedDocs.push({
+                  content: JSON.stringify(row),
+                  metadata: {
+                    filename: entry.name,
+                    path: relativePath,
+                    type: 'csv',
+                    category: path.dirname(relativePath),
+                    rowNumber: index + 1,
+                    timestamp: new Date().toISOString(),
+                  },
+                });
+              });
+            } else if (ext === '.xlsx' || ext === '.xls') {
+              // Parse Excel files
+              const workbook = xlsx.readFile(fullPath);
+
+              workbook.SheetNames.forEach(sheetName => {
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonData = xlsx.utils.sheet_to_json(worksheet, { defval: '' });
+
+                // Add each row as a separate document
+                jsonData.forEach((row, index) => {
+                  processedDocs.push({
+                    content: JSON.stringify(row),
+                    metadata: {
+                      filename: entry.name,
+                      path: relativePath,
+                      type: 'excel',
+                      fileType: ext.slice(1),
+                      sheetName,
+                      category: path.dirname(relativePath),
+                      rowNumber: index + 1,
+                      timestamp: new Date().toISOString(),
+                    },
+                  });
+                });
+
+                // Also add the full sheet as CSV text for better searchability
+                const csvText = xlsx.utils.sheet_to_csv(worksheet);
+                processedDocs.push({
+                  content: csvText,
+                  metadata: {
+                    filename: entry.name,
+                    path: relativePath,
+                    type: 'excel',
+                    fileType: ext.slice(1),
+                    sheetName,
+                    category: path.dirname(relativePath),
+                    contentType: 'full_sheet_csv',
+                    timestamp: new Date().toISOString(),
+                  },
+                });
+              });
+            } else if (ext === '.docx') {
+              // Parse Word .docx files
+              const result = await mammoth.extractRawText({ path: fullPath });
+              const content = result.value;
+
+              // Split into paragraphs and chunk (5 paragraphs per chunk)
+              const paragraphs = content.split('\n').filter(para => para.trim());
+
+              for (let i = 0; i < paragraphs.length; i += 5) {
+                const chunk = paragraphs.slice(i, i + 5).join('\n');
+                processedDocs.push({
+                  content: chunk,
+                  metadata: {
+                    filename: entry.name,
+                    path: relativePath,
+                    type: 'docx',
+                    category: path.dirname(relativePath),
+                    chunkNumber: Math.floor(i / 5) + 1,
+                    timestamp: new Date().toISOString(),
+                  },
+                });
+              }
+            } else if (ext === '.doc') {
+              // Older .doc format - warn user
+              console.warn(`⚠️ Warning: .doc file "${entry.name}" found. For best results, convert to .docx format.`);
+              console.warn(`   Attempting to read as plain text...`);
+
+              // Try to read as text (won't work well for binary .doc)
+              try {
+                const content = await fs.readFile(fullPath, 'utf-8');
+                processedDocs.push({
+                  content,
+                  metadata: {
+                    filename: entry.name,
+                    path: relativePath,
+                    type: 'doc',
+                    category: path.dirname(relativePath),
+                    warning: 'Converted from .doc - may have formatting issues',
+                    timestamp: new Date().toISOString(),
+                  },
+                });
+              } catch (readError) {
+                console.error(`❌ Cannot read .doc file: ${entry.name}. Please convert to .docx format.`);
+              }
             } else {
-              // Read text-based files as UTF-8
-              content = await fs.readFile(fullPath, 'utf-8');
+              // Read text-based files as UTF-8 (.txt, .md, .json)
+              const content = await fs.readFile(fullPath, 'utf-8');
+              processedDocs.push({
+                content,
+                metadata: {
+                  filename: entry.name,
+                  path: relativePath,
+                  type: ext.slice(1),
+                  category: path.dirname(relativePath),
+                  timestamp: new Date().toISOString(),
+                },
+              });
             }
 
-            documents.push({
-              content,
-              metadata: {
-                filename: entry.name,
-                path: relativePath,
-                type: ext.slice(1),
-                category: path.dirname(relativePath),
-                timestamp: new Date().toISOString(),
-              },
-            });
-
-            console.log(`✅ Read: ${relativePath}`);
+            // Add all processed documents to main array
+            documents.push(...processedDocs);
+            console.log(`✅ Read: ${relativePath} (${processedDocs.length} document${processedDocs.length > 1 ? 's' : ''})`);
           } catch (error) {
             console.error(`❌ Error reading ${fullPath}:`, error.message);
           }
@@ -380,7 +499,8 @@ async function main() {
 
     if (documents.length === 0) {
       console.log('\n⚠️ No documents found!');
-      console.log(`Place your documents (.txt, .md, .json, .pdf) in: ${knowledgeBasePath}`);
+      console.log(`Place your documents in: ${knowledgeBasePath}`);
+      console.log(`Supported formats: .txt, .md, .json, .pdf, .csv, .xlsx, .xls, .docx, .doc`);
       return;
     }
 
