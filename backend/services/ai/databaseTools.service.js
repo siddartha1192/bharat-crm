@@ -4,6 +4,7 @@
  */
 
 const { PrismaClient } = require('@prisma/client');
+const webSearchService = require('./webSearch.service');
 const prisma = new PrismaClient();
 
 class DatabaseToolsService {
@@ -438,6 +439,27 @@ class DatabaseToolsService {
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'web_search',
+          description: 'Search the web using DuckDuckGo for current information, facts, news, or topics not in the CRM database. Use this when users ask about external information, current events, general knowledge, or topics outside the CRM system.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'The search query to look up',
+              },
+              maxResults: {
+                type: 'number',
+                description: 'Maximum number of results to return (default 5)',
+              },
+            },
+            required: ['query'],
+          },
+        },
+      },
     ];
   }
 
@@ -466,6 +488,8 @@ class DatabaseToolsService {
           return await this.queryCalendarEvents(args, userId);
         case 'query_whatsapp_conversations':
           return await this.queryWhatsAppConversations(args, userId);
+        case 'web_search':
+          return await this.webSearch(args);
         default:
           return { error: `Unknown tool: ${toolName}` };
       }
@@ -1077,6 +1101,28 @@ class DatabaseToolsService {
       conversations,
       filters: args,
     };
+  }
+
+  /**
+   * Search the web using DuckDuckGo
+   */
+  async webSearch(args) {
+    try {
+      const results = await webSearchService.searchDuckDuckGo(
+        args.query,
+        args.maxResults || 5
+      );
+
+      return {
+        query: args.query,
+        resultsCount: results.length,
+        results: results,
+        formattedResults: webSearchService.formatResults(results),
+      };
+    } catch (error) {
+      console.error('Error performing web search:', error);
+      return { error: error.message };
+    }
   }
 }
 
