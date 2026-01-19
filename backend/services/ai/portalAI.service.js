@@ -176,6 +176,103 @@ Remember: Use your functions! You have direct database access - use it to provid
   }
 
   /**
+   * Get minimal system prompt (with limited database query capabilities)
+   * @param {string} userId - User ID
+   * @param {Object} dbStats - Database statistics
+   * @param {Array} pipelineStages - Pipeline stages
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration
+   */
+  getMinimalSystemPrompt(userId, dbStats = {}, pipelineStages = [], tenantConfig = null) {
+    const now = new Date();
+    const currentDate = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const currentDateTime = now.toISOString();
+
+    const companyName = tenantConfig?.companyName || aiConfig.company.name;
+
+    // Format pipeline stages for the prompt
+    const stagesDescription = pipelineStages.length > 0
+      ? `\n**AVAILABLE PIPELINE STAGES:**\nThe user has the following pipeline stages configured:\n${pipelineStages.map(s => `- ${s.name} (slug: "${s.slug}")${s.isDefault ? ' [DEFAULT]' : ' [CUSTOM]'}`).join('\n')}\n\nWhen querying deals by stage, use the exact slug values listed above.`
+      : '';
+
+    return `You are an AI assistant for ${companyName} CRM Portal in **Minimal Mode** (optimized for fewer AI credits).
+
+**CURRENT DATE AND TIME:**
+Today is ${currentDate}
+Current ISO DateTime: ${currentDateTime}
+IMPORTANT: Use this date for all "today", "this month", "this week" queries!
+
+**YOUR CAPABILITIES (MINIMAL MODE):**
+In this mode, you have CRM database query access with optimized credit usage:
+- ✅ Query leads, contacts, deals, and tasks from the database
+- ✅ Get analytics (conversion rates, pipeline value)
+- ✅ Query calendar events and invoices
+- ✅ Query WhatsApp conversations
+- ✅ Answer questions using the knowledge base documentation
+- ✅ Provide general guidance and explanations about CRM features
+- ❌ Web search disabled (use Full AI mode for external information)
+
+**AVAILABLE TOOLS:**
+1. ✅ query_leads - Query and filter leads
+2. ✅ query_contacts - Query and filter contacts
+3. ✅ query_deals - Query and filter deals/opportunities
+4. ✅ query_tasks - Query and filter tasks
+5. ✅ query_invoices - Query and filter invoices
+6. ✅ query_calendar_events - Query calendar events
+7. ✅ query_whatsapp_conversations - Query WhatsApp conversations
+8. ✅ get_analytics - Get aggregated metrics (conversion rates, revenue, pipeline value)
+
+**CURRENT USER:**
+User ID: ${userId}
+Access Level: Full (Internal User)
+
+**DATABASE STATISTICS:**
+${JSON.stringify(dbStats, null, 2)}
+${stagesDescription}
+
+**HOW TO USE FUNCTIONS:**
+When users ask about CRM data, you MUST use the appropriate function to query the database.
+
+Examples:
+❓ "Show me top 5 leads from last week"
+✅ Call query_leads with: { dateFrom: "7 days ago", sortBy: "estimatedValue", sortOrder: "desc", limit: 5 }
+
+❓ "What's the conversion rate this month?"
+✅ Call get_analytics with: { metric: "conversion_rate", dateFrom: "start of month" }
+
+❓ "List all pending tasks"
+✅ Call query_tasks with: { status: "todo", limit: 50 }
+
+❓ "Show deals worth over $10,000"
+✅ Call query_deals with: { minValue: 10000 }
+
+**RESPONSE GUIDELINES:**
+1. ALWAYS use functions to fetch data - don't make up data
+2. **CRITICAL: Format all data as markdown tables for better visual appeal**
+3. After tables, provide insights and context about the data
+4. If data is empty, explain possible reasons
+5. For analytics, present metrics in a summary format
+6. When asked about "today" or current date, use the date provided above
+
+**KNOWLEDGE BASE:**
+- If **RELEVANT DOCUMENTATION** section appears below, it contains information from uploaded knowledge base files
+- **PRIORITIZE** information from RELEVANT DOCUMENTATION when answering questions about products, features, or company information
+- Always cite sources when using documentation
+
+**MINIMAL MODE OPTIMIZATIONS:**
+- Limited to fewer iterations for faster responses
+- No web search (reduces credit usage)
+- Focuses on CRM data and knowledge base queries
+- For current events or external info, suggest Full AI mode
+
+Remember: Use your functions to query the CRM database for accurate, real-time data!`;
+  }
+
+  /**
    * Get database statistics for context
    */
   async getDatabaseStats() {
@@ -426,9 +523,10 @@ Summary:`;
    * @param {string} tenantId - Tenant ID
    * @param {Object} tenantConfig - Tenant-specific OpenAI configuration (REQUIRED)
    * @param {Array} conversationHistory - Deprecated: Previous messages (now loaded from DB)
+   * @param {string} aiMode - AI mode: 'full' (with function calling) or 'minimal' (single pass, fewer credits)
    * @returns {Object} AI response with optional data
    */
-  async processMessage(userMessage, userId, tenantId, tenantConfig = null, conversationHistory = []) {
+  async processMessage(userMessage, userId, tenantId, tenantConfig = null, conversationHistory = [], aiMode = 'full') {
     // Initialize Vector DB (one-time)
     await this.initializeVectorDB();
 
@@ -439,6 +537,7 @@ Summary:`;
       console.log('\n🚀 Portal AI Processing...');
       console.log(`User: ${userId}`);
       console.log(`Query: "${userMessage}"`);
+      console.log(`🎚️  AI Mode: ${aiMode.toUpperCase()} ${aiMode === 'minimal' ? '(Optimized - database queries enabled, no web search)' : '(Full capabilities - all tools enabled)'}`);
 
       // Get or create conversation with persistent memory
       const conversation = await this.getOrCreateConversation(userId, tenantId);
@@ -464,9 +563,16 @@ Summary:`;
         ? `\n\n**RELEVANT DOCUMENTATION:**\n${relevantDocs.map((doc, i) => `${i + 1}. ${doc.content.substring(0, 500)}...`).join('\n\n')}`
         : '';
 
-      // Build messages array
+      // Build messages array with appropriate system prompt based on AI mode
+      let systemPrompt = this.getSystemPrompt(userId, dbStats, pipelineStages, tenantConfig);
+
+      // Modify system prompt for minimal mode
+      if (aiMode === 'minimal') {
+        systemPrompt = this.getMinimalSystemPrompt(userId, dbStats, pipelineStages, tenantConfig);
+      }
+
       const messages = [
-        new SystemMessage(this.getSystemPrompt(userId, dbStats, pipelineStages, tenantConfig) + docContext),
+        new SystemMessage(systemPrompt + docContext),
       ];
 
       // Add conversation history from database (includes summary if available)
@@ -484,11 +590,25 @@ Summary:`;
       // Add current user message
       messages.push(new HumanMessage(userMessage));
 
-      // Get available tools
-      const tools = databaseTools.getTools();
+      // Get available tools based on AI mode
+      let tools = databaseTools.getTools();
+      let maxIterations = 3;
 
-      // Call OpenAI with function calling (up to 3 iterations)
-      const maxIterations = 3;
+      // MINIMAL MODE: Limited function calling (database queries only, no web search)
+      if (aiMode === 'minimal') {
+        console.log('⚡ Using MINIMAL mode - database queries enabled, web search disabled, 2 iterations max');
+
+        // Filter out web_search tool to save credits
+        tools = tools.filter(tool => tool.function.name !== 'web_search');
+        maxIterations = 2; // Limit to 2 iterations instead of 3
+
+        console.log(`   Available tools: ${tools.map(t => t.function.name).join(', ')}`);
+      } else {
+        // FULL MODE: All tools enabled (up to 3 iterations)
+        console.log('🚀 Using FULL mode - all tools enabled (up to 3 iterations)');
+      }
+
+      // Call OpenAI with function calling (iterations based on mode)
       let iteration = 0;
       let finalResponse = null;
       let functionCallResults = [];
