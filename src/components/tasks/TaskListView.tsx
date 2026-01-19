@@ -1,12 +1,15 @@
 import { Task } from '@/types/task';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Calendar,
   User,
   Edit,
   Trash2,
   CheckCircle2,
+  Clock,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 
@@ -31,6 +34,107 @@ const priorityColors = {
 };
 
 export function TaskListView({ tasks, onClick, onDelete }: TaskListViewProps) {
+  const isMobile = useIsMobile();
+
+  // Mobile Card View
+  if (isMobile) {
+    return (
+      <div className="space-y-3">
+        {tasks.map((task) => (
+          <Card
+            key={task.id}
+            className="p-4 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => onClick?.(task)}
+          >
+            <div className="space-y-3">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-base truncate">{task.title}</h3>
+                  {task.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                      {task.description}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  {onClick && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onClick(task);
+                      }}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {onDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(task);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Status and Priority Badges */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={`${statusColors[task.status]} border text-xs`}>
+                  {task.status === 'in-progress' ? 'In Progress' : task.status}
+                </Badge>
+                <Badge className={`${priorityColors[task.priority]} border text-xs`}>
+                  {task.priority}
+                </Badge>
+                {task.tags?.slice(0, 2).map((tag, i) => (
+                  <Badge key={i} variant="outline" className="text-xs">
+                    {tag}
+                  </Badge>
+                ))}
+                {task.tags && task.tags.length > 2 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{task.tags.length - 2}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Assignment and Due Date */}
+              <div className="space-y-1.5 text-sm">
+                <div className="flex items-center gap-2">
+                  <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <span className="text-muted-foreground">{task.assignedTo || 'Unassigned'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <span className="font-medium">{format(task.dueDate, 'MMM dd, yyyy')}</span>
+                  <span className="text-xs text-muted-foreground">
+                    ({formatDistanceToNow(task.dueDate, { addSuffix: true })})
+                  </span>
+                </div>
+              </div>
+
+              {/* Created Date */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Clock className="w-3 h-3" />
+                <span>Created {formatDistanceToNow(task.createdAt, { addSuffix: true })}</span>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  // Desktop Table View
   return (
     <div className="bg-card rounded-lg border">
       <div className="overflow-x-auto">

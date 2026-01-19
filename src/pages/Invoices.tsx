@@ -291,14 +291,14 @@ const Invoices = () => {
   return (
     <div className="min-h-screen bg-background">
 
-      <div className="relative p-8 space-y-8 animate-fade-in">
+      <div className="relative p-3 sm:p-8 space-y-4 sm:space-y-8 animate-fade-in">
         <div className="relative">
           {/* Tricolor accent bar */}
-          <div className="absolute -left-8 top-0 bottom-0 w-1 bg-primary rounded-r" />
-          <div className="flex justify-between items-center">
+          <div className="absolute -left-3 sm:-left-8 top-0 bottom-0 w-1 bg-primary rounded-r" />
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
-              <h1 className="text-4xl font-bold text-foreground mb-2">GST Invoices</h1>
-              <p className="text-muted-foreground">
+              <h1 className="text-2xl sm:text-4xl font-bold text-foreground mb-2">GST Invoices</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">
                 GST-compliant invoicing with automatic tax calculations
               </p>
             </div>

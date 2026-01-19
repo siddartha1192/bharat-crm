@@ -1,6 +1,8 @@
 import { Invoice } from '@/types/invoice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Building2,
   Mail,
@@ -10,6 +12,8 @@ import {
   Trash2,
   Download,
   FileText,
+  Clock,
+  Phone,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -29,6 +33,131 @@ const statusColors = {
 };
 
 export function InvoiceListView({ invoices, onEdit, onDelete, onDownload }: InvoiceListViewProps) {
+  const isMobile = useIsMobile();
+
+  const getCreatedDate = (date: any) => {
+    try {
+      return formatDistanceToNow(new Date(date), { addSuffix: true });
+    } catch {
+      return 'Recently';
+    }
+  };
+
+  const formatDate = (date: any) => {
+    try {
+      return new Date(date).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch {
+      return '-';
+    }
+  };
+
+  // Mobile Card View
+  if (isMobile) {
+    return (
+      <div className="space-y-3">
+        {invoices.map((invoice) => (
+          <Card key={invoice.id} className="p-4">
+            <div className="space-y-3">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <h3 className="font-semibold text-base">{invoice.invoiceNumber}</h3>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                    <Building2 className="w-3 h-3" />
+                    <span className="truncate">{invoice.customerName}</span>
+                  </div>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  {onDownload && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onDownload(invoice)}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {onEdit && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onEdit(invoice)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {onDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      onClick={() => onDelete(invoice)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Amount and Status */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1 text-lg font-bold">
+                  <IndianRupee className="w-5 h-5" />
+                  {(invoice.totalAmount / 100000).toFixed(2)}L
+                </div>
+                <Badge className={`${statusColors[invoice.status]} border text-xs`}>
+                  {invoice.status}
+                </Badge>
+              </div>
+
+              {/* Contact Info */}
+              <div className="space-y-1 text-sm">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                  <span className="truncate">{invoice.customerEmail}</span>
+                </div>
+                {invoice.customerPhone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                    <span>{invoice.customerPhone}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-muted-foreground">Issue Date:</span>
+                  <div className="font-medium mt-0.5">{formatDate(invoice.issueDate)}</div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Due Date:</span>
+                  <div className="font-medium mt-0.5">{formatDate(invoice.dueDate)}</div>
+                </div>
+              </div>
+
+              {/* Created Date */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
+                <Clock className="w-3 h-3" />
+                <span>Created {getCreatedDate(invoice.createdAt)}</span>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  // Desktop Table View
   return (
     <div className="bg-card rounded-lg border">
       <div className="overflow-x-auto">
