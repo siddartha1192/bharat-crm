@@ -340,14 +340,14 @@ export default function Leads() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
         <div className="relative">
-          <div className="absolute -left-6 top-0 bottom-0 w-1 bg-primary rounded-r" />
-          <div className="flex items-center justify-between">
+          <div className="absolute -left-3 sm:-left-6 top-0 bottom-0 w-1 bg-primary rounded-r" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Lead Management</h1>
-              <p className="text-muted-foreground">
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Lead Management</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">
                 Capture and manage leads from multiple sources
               </p>
             </div>

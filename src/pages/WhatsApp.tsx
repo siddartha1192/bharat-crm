@@ -32,6 +32,7 @@ import {
   Video,
   Music,
   X,
+  ArrowLeft,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
@@ -753,22 +754,23 @@ export default function WhatsApp() {
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-900 dark:to-gray-800 p-4">
+    <div className="h-[calc(100vh-4rem)] bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-900 dark:to-gray-800 p-2 sm:p-4">
       <Tabs defaultValue="chat" className="h-full flex flex-col overflow-hidden">
-        <TabsList className="mb-4 bg-white dark:bg-gray-800 shadow-sm flex-shrink-0">
-          <TabsTrigger value="chat" className="flex items-center gap-2 data-[state=active]:bg-green-500 data-[state=active]:text-white">
-            <MessageCircle className="w-4 h-4" />
-            Chat
+        <TabsList className="mb-2 sm:mb-4 bg-white dark:bg-gray-800 shadow-sm flex-shrink-0">
+          <TabsTrigger value="chat" className="flex items-center gap-2 data-[state=active]:bg-green-500 data-[state=active]:text-white text-xs sm:text-sm">
+            <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Chat</span>
           </TabsTrigger>
-          <TabsTrigger value="bulk" className="flex items-center gap-2 data-[state=active]:bg-green-500 data-[state=active]:text-white">
-            <Users className="w-4 h-4" />
-            Bulk Messaging
+          <TabsTrigger value="bulk" className="flex items-center gap-2 data-[state=active]:bg-green-500 data-[state=active]:text-white text-xs sm:text-sm">
+            <Users className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Bulk Messaging</span>
+            <span className="sm:hidden">Bulk</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="chat" className="flex-1 flex gap-0 mt-0 overflow-hidden rounded-xl data-[state=inactive]:hidden">
           {/* Conversations List - WhatsApp Style Sidebar */}
-          <div className="w-[400px] flex flex-col bg-white dark:bg-gray-900 border-r border-green-200 dark:border-gray-700 shadow-xl rounded-l-xl">
+          <div className={`${selectedConversation ? 'hidden md:flex' : 'flex'} w-full md:w-[400px] flex-col bg-white dark:bg-gray-900 border-r border-green-200 dark:border-gray-700 shadow-xl md:rounded-l-xl`}>
             {/* Header with Search */}
             <div className="flex-shrink-0 p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-tl-xl">
               <div className="flex items-center justify-between mb-3">
@@ -853,21 +855,30 @@ export default function WhatsApp() {
 
           {/* Chat Area - WhatsApp Style Main Panel */}
           {selectedConversation ? (
-            <div className="flex-1 flex flex-col bg-[#e5ddd5] dark:bg-gray-800 overflow-hidden rounded-r-xl">
+            <div className={`${selectedConversation ? 'flex' : 'hidden md:flex'} flex-1 flex-col bg-[#e5ddd5] dark:bg-gray-800 overflow-hidden md:rounded-r-xl w-full`}>
               {/* Chat Header */}
-              <div className="flex-shrink-0 p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md flex items-center justify-between rounded-tr-xl">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-11 w-11 border-2 border-white/50">
-                    <AvatarFallback className="bg-gradient-to-br from-green-400 to-emerald-500 text-white font-semibold">
+              <div className="flex-shrink-0 p-3 sm:p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md flex items-center justify-between md:rounded-tr-xl">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                  {/* Back button for mobile */}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="md:hidden p-1 h-auto hover:bg-white/20 text-white flex-shrink-0"
+                    onClick={() => setSelectedConversation(null)}
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </Button>
+                  <Avatar className="h-9 w-9 sm:h-11 sm:w-11 border-2 border-white/50 flex-shrink-0">
+                    <AvatarFallback className="bg-gradient-to-br from-green-400 to-emerald-500 text-white font-semibold text-sm sm:text-base">
                       {getInitials(selectedConversation.contactName)}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <h3 className="font-semibold text-lg">{selectedConversation.contactName}</h3>
-                    <p className="text-sm text-white/80">{selectedConversation.contactPhone}</p>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-sm sm:text-lg truncate">{selectedConversation.contactName}</h3>
+                    <p className="text-xs sm:text-sm text-white/80 truncate">{selectedConversation.contactPhone}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                   {aiFeatureAvailable && (
                     <Button
                       size="sm"

@@ -1,6 +1,8 @@
 import { Lead } from '@/types/lead';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Building2,
   Mail,
@@ -9,6 +11,7 @@ import {
   Edit,
   Trash2,
   Eye,
+  User,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -37,6 +40,117 @@ const priorityColors = {
 };
 
 export function LeadListView({ leads, onViewDetails, onEdit, onDelete }: LeadListViewProps) {
+  const isMobile = useIsMobile();
+
+  // Mobile Card View
+  if (isMobile) {
+    return (
+      <div className="space-y-3">
+        {leads.map((lead) => {
+          const getCreatedDate = () => {
+            try {
+              return formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true });
+            } catch {
+              return 'Recently';
+            }
+          };
+
+          return (
+            <Card key={lead.id} className="p-4">
+              <div className="space-y-3">
+                {/* Header */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-base truncate">{lead.name || 'Unknown'}</h3>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                      <User className="w-3 h-3" />
+                      <span>{lead.assignedTo || 'Unassigned'}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    {onViewDetails && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => onViewDetails(lead)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {onEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => onEdit(lead)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {onDelete && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => onDelete(lead)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Company and Value */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm min-w-0 flex-1">
+                    <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <span className="truncate">{lead.company || 'No Company'}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-sm font-semibold flex-shrink-0">
+                    <IndianRupee className="w-4 h-4" />
+                    {((lead.estimatedValue || 0) / 100000).toFixed(1)}L
+                  </div>
+                </div>
+
+                {/* Contact Info */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Mail className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                    <span className="truncate">{lead.email || 'No Email'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Phone className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                    <span>{lead.phone || 'No Phone'}</span>
+                  </div>
+                </div>
+
+                {/* Badges and Meta */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <Badge className={`${statusColors[lead.status] || statusColors.new} border text-xs`}>
+                    {lead.status || 'new'}
+                  </Badge>
+                  <Badge className={`${priorityColors[lead.priority] || priorityColors.medium} border text-xs`}>
+                    {lead.priority || 'medium'}
+                  </Badge>
+                  <span className="text-muted-foreground capitalize ml-auto">
+                    {(lead.source || 'unknown').replace('-', ' ')}
+                  </span>
+                </div>
+
+                {/* Created Date */}
+                <div className="text-xs text-muted-foreground">
+                  {getCreatedDate()}
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Desktop Table View
   return (
     <div className="bg-card rounded-lg border">
       <div className="overflow-x-auto">
