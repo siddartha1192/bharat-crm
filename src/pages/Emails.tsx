@@ -234,6 +234,11 @@ export default function Emails() {
     }
   };
 
+  const handleDeleteClick = (email: EmailLog) => {
+    setEmailToDelete(email);
+    setDeleteConfirmOpen(true);
+  };
+
   const handleDeleteEmail = async () => {
     if (!emailToDelete) return;
 
@@ -363,12 +368,12 @@ export default function Emails() {
   });
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Emails</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Emails</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Send and track emails for leads, contacts, and more
           </p>
         </div>
@@ -479,10 +484,69 @@ export default function Emails() {
             filteredEmails.map((email) => (
               <div
                 key={email.id}
-                className="px-4 py-2 hover:bg-accent/50 cursor-pointer transition-colors border-b border-border"
+                className="px-3 sm:px-4 py-3 sm:py-2 hover:bg-accent/50 cursor-pointer transition-colors border-b border-border"
                 onClick={() => handleViewEmail(email)}
               >
-                <div className="flex items-center justify-between gap-4">
+                {/* Mobile Layout */}
+                <div className="flex sm:hidden flex-col gap-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <div className="shrink-0 mt-0.5">{getStatusIcon(email.status)}</div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold truncate text-sm">{email.subject}</h3>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          To: {email.to[0]}{email.to.length > 1 && ` +${email.to.length - 1}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewEmail(email);
+                        }}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(email);
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {getStatusBadge(email.status)}
+                    {email.entityType && (
+                      <Badge variant="outline" className="text-xs">
+                        {email.entityType}
+                      </Badge>
+                    )}
+                    {email.replyCount && email.replyCount > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        <MessageSquare className="w-3 h-3 mr-1" />
+                        {email.replyCount}
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {email.sentAt
+                        ? new Date(email.sentAt).toLocaleDateString()
+                        : new Date(email.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Desktop Layout */}
+                <div className="hidden sm:flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="shrink-0">{getStatusIcon(email.status)}</div>
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -527,14 +591,13 @@ export default function Emails() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 w-7 p-0"
+                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setEmailToDelete(email);
-                          setDeleteConfirmOpen(true);
+                          handleDeleteClick(email);
                         }}
                       >
-                        <Trash2 className="w-3.5 h-3.5 text-red-600 hover:text-red-700" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                   </div>

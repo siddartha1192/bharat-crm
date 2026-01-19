@@ -10,6 +10,39 @@ import { Send, Bot, User, Loader2, Database, BookOpen, TrendingUp, Zap, Sparkles
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+// Custom CSS for markdown tables in AI responses
+const markdownStyles = `
+  .ai-message-content {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  .ai-message-content table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    font-size: 0.75rem;
+  }
+  .ai-message-content pre {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ai-message-content code {
+    word-break: break-all;
+  }
+  @media (max-width: 640px) {
+    .ai-message-content table {
+      font-size: 0.7rem;
+    }
+    .ai-message-content th,
+    .ai-message-content td {
+      padding: 0.25rem 0.5rem;
+      white-space: nowrap;
+    }
+  }
+`;
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 interface Message {
@@ -340,17 +373,19 @@ Try the quick action buttons below or ask me anything!`,
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] p-2 sm:p-4">
-      {/* Header */}
-      <div className="mb-4 sm:mb-6 px-1 sm:px-2">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          <div className="flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold">AI Assistant</h1>
+    <>
+      <style>{markdownStyles}</style>
+      <div className="flex flex-col h-[calc(100vh-8rem)] p-2 sm:p-4 overflow-hidden">
+        {/* Header */}
+        <div className="mb-4 sm:mb-6 px-1 sm:px-2 min-w-0">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 min-w-0">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold truncate">AI Assistant</h1>
             <p className="text-muted-foreground mt-1 text-sm sm:text-base hidden sm:block">
               Ask anything about your CRM data, features, or documentation
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
             {/* AI Quality Toggle */}
             <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 rounded-lg border bg-card shadow-sm w-full sm:w-auto justify-between sm:justify-start">
               <div className="flex items-center gap-2">
@@ -390,9 +425,9 @@ Try the quick action buttons below or ask me anything!`,
       </div>
 
       {/* Chat Container */}
-      <Card className="flex-1 flex flex-col rounded-2xl shadow-xl border-border overflow-hidden">
+      <Card className="flex-1 flex flex-col rounded-2xl shadow-xl border-border overflow-hidden min-w-0">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6 bg-gradient-to-b from-background to-muted/10">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 space-y-4 sm:space-y-6 bg-gradient-to-b from-background to-muted/10">
           {loadingHistory && messages.length === 0 && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-3">
@@ -405,32 +440,32 @@ Try the quick action buttons below or ask me anything!`,
           {messages.map((message, index) => (
             <div
               key={index}
-              className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : ''}`}
+              className={`flex gap-2 sm:gap-4 ${message.role === 'user' ? 'justify-end' : ''}`}
             >
               {message.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md">
-                  <Bot className="w-5 h-5 text-white" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md">
+                  <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
               )}
 
               <div
-                className={`flex-1 max-w-[90%] sm:max-w-[80%] ${
+                className={`flex-1 min-w-0 max-w-[85%] sm:max-w-[80%] ${
                   message.role === 'user' ? 'text-right' : ''
                 }`}
               >
                 <div
-                  className={`inline-block rounded-2xl px-3 py-2 sm:px-4 sm:py-3 shadow-md ${
+                  className={`inline-block rounded-2xl px-3 py-2 sm:px-4 sm:py-3 shadow-md max-w-full ${
                     message.role === 'user'
                       ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-br-md'
                       : 'bg-muted rounded-bl-md'
                   }`}
                 >
                   {message.role === 'user' ? (
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                       {message.content}
                     </div>
                   ) : (
-                    <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted-foreground/10 prose-pre:text-foreground">
+                    <div className="ai-message-content prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted-foreground/10 prose-pre:text-foreground overflow-hidden">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {message.content}
                       </ReactMarkdown>
@@ -476,12 +511,12 @@ Try the quick action buttons below or ask me anything!`,
           ))}
 
           {loading && (
-            <div className="flex gap-4">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md">
-                <Bot className="w-5 h-5 text-white" />
+            <div className="flex gap-2 sm:gap-4">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md">
+                <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
-              <div className="flex-1">
-                <div className="inline-block rounded-2xl rounded-bl-md px-5 py-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800 shadow-md max-w-[85%]">
+              <div className="flex-1 min-w-0">
+                <div className="inline-block rounded-2xl rounded-bl-md px-4 py-3 sm:px-5 sm:py-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800 shadow-md max-w-[85%] sm:max-w-[80%]">
                   <div className="flex items-start gap-3">
                     <Loader2 className="w-5 h-5 animate-spin text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                     <div className="space-y-2">
@@ -552,6 +587,7 @@ Try the quick action buttons below or ask me anything!`,
           </p>
         </div>
       </Card>
-    </div>
+      </div>
+    </>
   );
 }
