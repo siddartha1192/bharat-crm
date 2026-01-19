@@ -176,6 +176,77 @@ Remember: Use your functions! You have direct database access - use it to provid
   }
 
   /**
+   * Get minimal system prompt (no function calling, uses only vector DB context)
+   * @param {string} userId - User ID
+   * @param {Object} dbStats - Database statistics
+   * @param {Object} tenantConfig - Tenant-specific OpenAI configuration
+   */
+  getMinimalSystemPrompt(userId, dbStats = {}, tenantConfig = null) {
+    const now = new Date();
+    const currentDate = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const currentDateTime = now.toISOString();
+
+    const companyName = tenantConfig?.companyName || aiConfig.company.name;
+
+    return `You are an AI assistant for ${companyName} CRM Portal in **Minimal Mode** (optimized for fewer AI credits).
+
+**CURRENT DATE AND TIME:**
+Today is ${currentDate}
+Current ISO DateTime: ${currentDateTime}
+
+**YOUR CAPABILITIES (MINIMAL MODE):**
+In this mode, you operate with reduced functionality to minimize AI credit usage:
+- ✅ Answer questions using the knowledge base documentation provided
+- ✅ Provide general guidance and explanations about CRM features
+- ✅ Use information from uploaded documents (in RELEVANT DOCUMENTATION section below)
+- ✅ Give advice based on best practices
+- ❌ Cannot query the database directly
+- ❌ Cannot fetch real-time data from the CRM
+- ❌ Cannot access specific leads, contacts, or deals
+
+**DATABASE OVERVIEW:**
+${JSON.stringify(dbStats, null, 2)}
+
+**IMPORTANT GUIDELINES:**
+1. **Use RELEVANT DOCUMENTATION**: If documentation is provided below, prioritize that information
+2. **Be helpful but honest**: If the user asks for real-time data (like "show me my leads"), politely explain you're in Minimal Mode and suggest they:
+   - Switch to Full AI mode for database access
+   - Or manually check the relevant section in the CRM
+3. **Provide value**: Even without database access, you can:
+   - Explain features and how to use them
+   - Provide best practices and advice
+   - Answer questions about CRM concepts
+   - Guide users on where to find information in the system
+4. **Format responses clearly**: Use markdown for better readability
+5. **Cite sources**: When using documentation, reference it in your response
+
+**EXAMPLE RESPONSES:**
+❓ User: "Show me my top leads"
+✅ You: "I'm currently in Minimal Mode (optimized for fewer AI credits), which means I can't query the database directly. To see your top leads, you can:
+1. Switch to Full AI mode using the toggle at the top
+2. Or go to the Leads section in the CRM and sort by value
+
+Would you like me to explain how to use the Leads filtering features?"
+
+❓ User: "How do I create a new contact?"
+✅ You: "To create a new contact in the CRM:
+1. Navigate to the Contacts section
+2. Click the 'Add Contact' button
+3. Fill in the required fields (name, email, phone)
+4. Optionally add notes and assign to a company
+5. Click Save
+
+Would you like more details about any specific step?"
+
+Remember: You're optimized for efficiency and knowledge-based questions. For real-time data queries, users should enable Full AI mode.`;
+  }
+
+  /**
    * Get database statistics for context
    */
   async getDatabaseStats() {
@@ -426,9 +497,10 @@ Summary:`;
    * @param {string} tenantId - Tenant ID
    * @param {Object} tenantConfig - Tenant-specific OpenAI configuration (REQUIRED)
    * @param {Array} conversationHistory - Deprecated: Previous messages (now loaded from DB)
+   * @param {string} aiMode - AI mode: 'full' (with function calling) or 'minimal' (single pass, fewer credits)
    * @returns {Object} AI response with optional data
    */
-  async processMessage(userMessage, userId, tenantId, tenantConfig = null, conversationHistory = []) {
+  async processMessage(userMessage, userId, tenantId, tenantConfig = null, conversationHistory = [], aiMode = 'full') {
     // Initialize Vector DB (one-time)
     await this.initializeVectorDB();
 
@@ -439,6 +511,7 @@ Summary:`;
       console.log('\n🚀 Portal AI Processing...');
       console.log(`User: ${userId}`);
       console.log(`Query: "${userMessage}"`);
+      console.log(`🎚️  AI Mode: ${aiMode.toUpperCase()} ${aiMode === 'minimal' ? '(Fewer credits - vector DB only)' : '(Full capabilities - function calling enabled)'}`);
 
       // Get or create conversation with persistent memory
       const conversation = await this.getOrCreateConversation(userId, tenantId);
@@ -464,9 +537,16 @@ Summary:`;
         ? `\n\n**RELEVANT DOCUMENTATION:**\n${relevantDocs.map((doc, i) => `${i + 1}. ${doc.content.substring(0, 500)}...`).join('\n\n')}`
         : '';
 
-      // Build messages array
+      // Build messages array with appropriate system prompt based on AI mode
+      let systemPrompt = this.getSystemPrompt(userId, dbStats, pipelineStages, tenantConfig);
+
+      // Modify system prompt for minimal mode
+      if (aiMode === 'minimal') {
+        systemPrompt = this.getMinimalSystemPrompt(userId, dbStats, tenantConfig);
+      }
+
       const messages = [
-        new SystemMessage(this.getSystemPrompt(userId, dbStats, pipelineStages, tenantConfig) + docContext),
+        new SystemMessage(systemPrompt + docContext),
       ];
 
       // Add conversation history from database (includes summary if available)
@@ -483,6 +563,46 @@ Summary:`;
 
       // Add current user message
       messages.push(new HumanMessage(userMessage));
+
+      // MINIMAL MODE: Single-pass AI with only vector DB context (fewer credits)
+      if (aiMode === 'minimal') {
+        console.log('⚡ Using MINIMAL mode - single AI call with vector DB context only');
+
+        // Make a single AI call without function calling
+        const response = await llm.invoke(messages);
+        const finalResponse = response.content;
+
+        console.log('✅ Portal AI Response generated (Minimal Mode)');
+
+        // Save user message and assistant response to database
+        await this.saveMessage(conversation.id, 'user', userMessage, tenantId);
+        await this.saveMessage(
+          conversation.id,
+          'assistant',
+          finalResponse,
+          tenantId,
+          null // No function calls in minimal mode
+        );
+
+        // Check if we need to summarize conversation
+        const currentMessageCount = conversation.messageCount + 2;
+        if (currentMessageCount > MEMORY_CONFIG.SUMMARIZE_THRESHOLD) {
+          console.log(`📊 Message count (${currentMessageCount}) exceeds threshold, triggering summarization...`);
+          this.summarizeConversation(conversation.id, userId, tenantConfig).catch(err =>
+            console.error('Summarization failed:', err)
+          );
+        }
+
+        return {
+          message: finalResponse,
+          data: [],
+          sources: relevantDocs.map(doc => doc.metadata),
+          stats: dbStats,
+        };
+      }
+
+      // FULL MODE: Function calling enabled (up to 3 iterations, more credits)
+      console.log('🚀 Using FULL mode - function calling enabled (up to 3 iterations)');
 
       // Get available tools
       const tools = databaseTools.getTools();

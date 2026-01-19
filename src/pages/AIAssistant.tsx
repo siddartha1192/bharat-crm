@@ -3,8 +3,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Send, Bot, User, Loader2, Database, BookOpen, TrendingUp } from 'lucide-react';
+import { Send, Bot, User, Loader2, Database, BookOpen, TrendingUp, Zap, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -59,6 +61,11 @@ export default function AIAssistant() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [currentThinkingMessage, setCurrentThinkingMessage] = useState(0);
   const [aiStatus, setAiStatus] = useState<AIStatus | null>(null);
+  const [aiMode, setAiMode] = useState<'full' | 'minimal'>(() => {
+    // Load preference from localStorage
+    const saved = localStorage.getItem('aiMode');
+    return (saved === 'minimal' ? 'minimal' : 'full') as 'full' | 'minimal';
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -260,6 +267,7 @@ Try the quick action buttons below or ask me anything!`,
             role: m.role,
             content: m.content,
           })),
+          aiMode: aiMode, // Pass the AI mode to backend
         }),
       });
 
@@ -308,6 +316,20 @@ Try the quick action buttons below or ask me anything!`,
     }
   };
 
+  const handleAiModeChange = (checked: boolean) => {
+    const newMode = checked ? 'full' : 'minimal';
+    setAiMode(newMode);
+    localStorage.setItem('aiMode', newMode);
+
+    toast({
+      title: `AI Mode: ${checked ? 'Full' : 'Minimal'}`,
+      description: checked
+        ? 'Using full AI capabilities with function calling (more credits)'
+        : 'Using minimal AI mode with vector DB only (fewer credits)',
+      variant: 'default',
+    });
+  };
+
   const quickActions = [
     { label: 'Show top leads', query: 'Show me the top 5 leads from last week sorted by value' },
     { label: 'Conversion rate', query: 'What is our lead to deal conversion rate this month?' },
@@ -328,20 +350,39 @@ Try the quick action buttons below or ask me anything!`,
               Ask anything about your CRM data, features, or documentation
             </p>
           </div>
-          {aiStatus && (
-            <div className="flex gap-2">
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <Bot className="w-3 h-3" />
-                {aiStatus.portal.model}
-              </Badge>
-              {aiStatus.vectorDatabase && (
-                <Badge variant="outline" className="flex items-center gap-1">
-                  <Database className="w-3 h-3" />
-                  {aiStatus.vectorDatabase.pointsCount} docs
-                </Badge>
-              )}
+          <div className="flex items-center gap-4">
+            {/* AI Quality Toggle */}
+            <div className="flex items-center gap-3 px-4 py-2 rounded-lg border bg-card shadow-sm">
+              <div className="flex items-center gap-2">
+                <Sparkles className={`w-4 h-4 ${aiMode === 'minimal' ? 'text-muted-foreground' : 'text-yellow-600'}`} />
+                <Label htmlFor="ai-mode" className="text-sm font-medium cursor-pointer">
+                  {aiMode === 'full' ? 'Full AI' : 'Minimal AI'}
+                </Label>
+              </div>
+              <Switch
+                id="ai-mode"
+                checked={aiMode === 'full'}
+                onCheckedChange={handleAiModeChange}
+              />
+              <Zap className={`w-4 h-4 ${aiMode === 'full' ? 'text-blue-600' : 'text-muted-foreground'}`} />
             </div>
-          )}
+
+            {/* AI Status Badges */}
+            {aiStatus && (
+              <div className="flex gap-2">
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Bot className="w-3 h-3" />
+                  {aiStatus.portal.model}
+                </Badge>
+                {aiStatus.vectorDatabase && (
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <Database className="w-3 h-3" />
+                    {aiStatus.vectorDatabase.pointsCount} docs
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

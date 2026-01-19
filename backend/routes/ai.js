@@ -19,13 +19,14 @@ router.use(tenantContext);
 router.post('/chat', async (req, res) => {
   try {
     const userId = req.user.id;
-    const { message, conversationHistory } = req.body;
+    const { message, conversationHistory, aiMode } = req.body;
 
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
     console.log(`\n🚀 Portal AI Query from user ${userId}: "${message}"`);
+    console.log(`   AI Mode: ${aiMode || 'full'} (${aiMode === 'minimal' ? 'fewer credits' : 'more capabilities'})`);
 
     // Get tenant settings for OpenAI configuration
     const tenant = await prisma.tenant.findUnique({
@@ -53,7 +54,8 @@ router.post('/chat', async (req, res) => {
       userId,
       req.user.tenantId,
       openaiConfig,
-      conversationHistory || []
+      conversationHistory || [],
+      aiMode || 'full' // Pass AI mode, default to 'full'
     );
 
     res.json({
