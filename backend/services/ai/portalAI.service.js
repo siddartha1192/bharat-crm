@@ -176,12 +176,13 @@ Remember: Use your functions! You have direct database access - use it to provid
   }
 
   /**
-   * Get minimal system prompt (no function calling, uses only vector DB context)
+   * Get minimal system prompt (with limited database query capabilities)
    * @param {string} userId - User ID
    * @param {Object} dbStats - Database statistics
+   * @param {Array} pipelineStages - Pipeline stages
    * @param {Object} tenantConfig - Tenant-specific OpenAI configuration
    */
-  getMinimalSystemPrompt(userId, dbStats = {}, tenantConfig = null) {
+  getMinimalSystemPrompt(userId, dbStats = {}, pipelineStages = [], tenantConfig = null) {
     const now = new Date();
     const currentDate = now.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -193,57 +194,82 @@ Remember: Use your functions! You have direct database access - use it to provid
 
     const companyName = tenantConfig?.companyName || aiConfig.company.name;
 
+    // Format pipeline stages for the prompt
+    const stagesDescription = pipelineStages.length > 0
+      ? `\n**AVAILABLE PIPELINE STAGES:**\nThe user has the following pipeline stages configured:\n${pipelineStages.map(s => `- ${s.name} (slug: "${s.slug}")${s.isDefault ? ' [DEFAULT]' : ' [CUSTOM]'}`).join('\n')}\n\nWhen querying deals by stage, use the exact slug values listed above.`
+      : '';
+
     return `You are an AI assistant for ${companyName} CRM Portal in **Minimal Mode** (optimized for fewer AI credits).
 
 **CURRENT DATE AND TIME:**
 Today is ${currentDate}
 Current ISO DateTime: ${currentDateTime}
+IMPORTANT: Use this date for all "today", "this month", "this week" queries!
 
 **YOUR CAPABILITIES (MINIMAL MODE):**
-In this mode, you operate with reduced functionality to minimize AI credit usage:
-- ✅ Answer questions using the knowledge base documentation provided
+In this mode, you have CRM database query access with optimized credit usage:
+- ✅ Query leads, contacts, deals, and tasks from the database
+- ✅ Get analytics (conversion rates, pipeline value)
+- ✅ Query calendar events and invoices
+- ✅ Query WhatsApp conversations
+- ✅ Answer questions using the knowledge base documentation
 - ✅ Provide general guidance and explanations about CRM features
-- ✅ Use information from uploaded documents (in RELEVANT DOCUMENTATION section below)
-- ✅ Give advice based on best practices
-- ❌ Cannot query the database directly
-- ❌ Cannot fetch real-time data from the CRM
-- ❌ Cannot access specific leads, contacts, or deals
+- ❌ Web search disabled (use Full AI mode for external information)
 
-**DATABASE OVERVIEW:**
+**AVAILABLE TOOLS:**
+1. ✅ query_leads - Query and filter leads
+2. ✅ query_contacts - Query and filter contacts
+3. ✅ query_deals - Query and filter deals/opportunities
+4. ✅ query_tasks - Query and filter tasks
+5. ✅ query_invoices - Query and filter invoices
+6. ✅ query_calendar_events - Query calendar events
+7. ✅ query_whatsapp_conversations - Query WhatsApp conversations
+8. ✅ get_analytics - Get aggregated metrics (conversion rates, revenue, pipeline value)
+
+**CURRENT USER:**
+User ID: ${userId}
+Access Level: Full (Internal User)
+
+**DATABASE STATISTICS:**
 ${JSON.stringify(dbStats, null, 2)}
+${stagesDescription}
 
-**IMPORTANT GUIDELINES:**
-1. **Use RELEVANT DOCUMENTATION**: If documentation is provided below, prioritize that information
-2. **Be helpful but honest**: If the user asks for real-time data (like "show me my leads"), politely explain you're in Minimal Mode and suggest they:
-   - Switch to Full AI mode for database access
-   - Or manually check the relevant section in the CRM
-3. **Provide value**: Even without database access, you can:
-   - Explain features and how to use them
-   - Provide best practices and advice
-   - Answer questions about CRM concepts
-   - Guide users on where to find information in the system
-4. **Format responses clearly**: Use markdown for better readability
-5. **Cite sources**: When using documentation, reference it in your response
+**HOW TO USE FUNCTIONS:**
+When users ask about CRM data, you MUST use the appropriate function to query the database.
 
-**EXAMPLE RESPONSES:**
-❓ User: "Show me my top leads"
-✅ You: "I'm currently in Minimal Mode (optimized for fewer AI credits), which means I can't query the database directly. To see your top leads, you can:
-1. Switch to Full AI mode using the toggle at the top
-2. Or go to the Leads section in the CRM and sort by value
+Examples:
+❓ "Show me top 5 leads from last week"
+✅ Call query_leads with: { dateFrom: "7 days ago", sortBy: "estimatedValue", sortOrder: "desc", limit: 5 }
 
-Would you like me to explain how to use the Leads filtering features?"
+❓ "What's the conversion rate this month?"
+✅ Call get_analytics with: { metric: "conversion_rate", dateFrom: "start of month" }
 
-❓ User: "How do I create a new contact?"
-✅ You: "To create a new contact in the CRM:
-1. Navigate to the Contacts section
-2. Click the 'Add Contact' button
-3. Fill in the required fields (name, email, phone)
-4. Optionally add notes and assign to a company
-5. Click Save
+❓ "List all pending tasks"
+✅ Call query_tasks with: { status: "todo", limit: 50 }
 
-Would you like more details about any specific step?"
+❓ "Show deals worth over $10,000"
+✅ Call query_deals with: { minValue: 10000 }
 
-Remember: You're optimized for efficiency and knowledge-based questions. For real-time data queries, users should enable Full AI mode.`;
+**RESPONSE GUIDELINES:**
+1. ALWAYS use functions to fetch data - don't make up data
+2. **CRITICAL: Format all data as markdown tables for better visual appeal**
+3. After tables, provide insights and context about the data
+4. If data is empty, explain possible reasons
+5. For analytics, present metrics in a summary format
+6. When asked about "today" or current date, use the date provided above
+
+**KNOWLEDGE BASE:**
+- If **RELEVANT DOCUMENTATION** section appears below, it contains information from uploaded knowledge base files
+- **PRIORITIZE** information from RELEVANT DOCUMENTATION when answering questions about products, features, or company information
+- Always cite sources when using documentation
+
+**MINIMAL MODE OPTIMIZATIONS:**
+- Limited to fewer iterations for faster responses
+- No web search (reduces credit usage)
+- Focuses on CRM data and knowledge base queries
+- For current events or external info, suggest Full AI mode
+
+Remember: Use your functions to query the CRM database for accurate, real-time data!`;
   }
 
   /**
@@ -511,7 +537,7 @@ Summary:`;
       console.log('\n🚀 Portal AI Processing...');
       console.log(`User: ${userId}`);
       console.log(`Query: "${userMessage}"`);
-      console.log(`🎚️  AI Mode: ${aiMode.toUpperCase()} ${aiMode === 'minimal' ? '(Fewer credits - vector DB only)' : '(Full capabilities - function calling enabled)'}`);
+      console.log(`🎚️  AI Mode: ${aiMode.toUpperCase()} ${aiMode === 'minimal' ? '(Optimized - database queries enabled, no web search)' : '(Full capabilities - all tools enabled)'}`);
 
       // Get or create conversation with persistent memory
       const conversation = await this.getOrCreateConversation(userId, tenantId);
@@ -542,7 +568,7 @@ Summary:`;
 
       // Modify system prompt for minimal mode
       if (aiMode === 'minimal') {
-        systemPrompt = this.getMinimalSystemPrompt(userId, dbStats, tenantConfig);
+        systemPrompt = this.getMinimalSystemPrompt(userId, dbStats, pipelineStages, tenantConfig);
       }
 
       const messages = [
@@ -564,51 +590,25 @@ Summary:`;
       // Add current user message
       messages.push(new HumanMessage(userMessage));
 
-      // MINIMAL MODE: Single-pass AI with only vector DB context (fewer credits)
+      // Get available tools based on AI mode
+      let tools = databaseTools.getTools();
+      let maxIterations = 3;
+
+      // MINIMAL MODE: Limited function calling (database queries only, no web search)
       if (aiMode === 'minimal') {
-        console.log('⚡ Using MINIMAL mode - single AI call with vector DB context only');
+        console.log('⚡ Using MINIMAL mode - database queries enabled, web search disabled, 2 iterations max');
 
-        // Make a single AI call without function calling
-        const response = await llm.invoke(messages);
-        const finalResponse = response.content;
+        // Filter out web_search tool to save credits
+        tools = tools.filter(tool => tool.function.name !== 'web_search');
+        maxIterations = 2; // Limit to 2 iterations instead of 3
 
-        console.log('✅ Portal AI Response generated (Minimal Mode)');
-
-        // Save user message and assistant response to database
-        await this.saveMessage(conversation.id, 'user', userMessage, tenantId);
-        await this.saveMessage(
-          conversation.id,
-          'assistant',
-          finalResponse,
-          tenantId,
-          null // No function calls in minimal mode
-        );
-
-        // Check if we need to summarize conversation
-        const currentMessageCount = conversation.messageCount + 2;
-        if (currentMessageCount > MEMORY_CONFIG.SUMMARIZE_THRESHOLD) {
-          console.log(`📊 Message count (${currentMessageCount}) exceeds threshold, triggering summarization...`);
-          this.summarizeConversation(conversation.id, userId, tenantConfig).catch(err =>
-            console.error('Summarization failed:', err)
-          );
-        }
-
-        return {
-          message: finalResponse,
-          data: [],
-          sources: relevantDocs.map(doc => doc.metadata),
-          stats: dbStats,
-        };
+        console.log(`   Available tools: ${tools.map(t => t.function.name).join(', ')}`);
+      } else {
+        // FULL MODE: All tools enabled (up to 3 iterations)
+        console.log('🚀 Using FULL mode - all tools enabled (up to 3 iterations)');
       }
 
-      // FULL MODE: Function calling enabled (up to 3 iterations, more credits)
-      console.log('🚀 Using FULL mode - function calling enabled (up to 3 iterations)');
-
-      // Get available tools
-      const tools = databaseTools.getTools();
-
-      // Call OpenAI with function calling (up to 3 iterations)
-      const maxIterations = 3;
+      // Call OpenAI with function calling (iterations based on mode)
       let iteration = 0;
       let finalResponse = null;
       let functionCallResults = [];

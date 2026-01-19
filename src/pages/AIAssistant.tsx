@@ -324,8 +324,8 @@ Try the quick action buttons below or ask me anything!`,
     toast({
       title: `AI Mode: ${checked ? 'Full' : 'Minimal'}`,
       description: checked
-        ? 'Using full AI capabilities with function calling (more credits)'
-        : 'Using minimal AI mode with vector DB only (fewer credits)',
+        ? 'Using full AI capabilities - all tools enabled (more credits)'
+        : 'Using minimal AI mode - database queries enabled, web search disabled (fewer credits)',
       variant: 'default',
     });
   };
