@@ -1,6 +1,8 @@
 import { Contact } from '@/types/contact';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Building2,
   Mail,
@@ -10,6 +12,7 @@ import {
   Edit,
   Trash2,
   Eye,
+  Briefcase,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -28,6 +31,110 @@ const typeColors = {
 };
 
 export function ContactListView({ contacts, onViewProfile, onEdit, onDelete }: ContactListViewProps) {
+  const isMobile = useIsMobile();
+
+  // Mobile Card View
+  if (isMobile) {
+    return (
+      <div className="space-y-3">
+        {contacts.map((contact) => (
+          <Card key={contact.id} className="p-4">
+            <div className="space-y-3">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-base truncate">{contact.name}</h3>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                    <Briefcase className="w-3 h-3" />
+                    <span className="truncate">{contact.designation}</span>
+                  </div>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  {onViewProfile && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onViewProfile(contact)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {onEdit && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onEdit(contact)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {onDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      onClick={() => onDelete(contact)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Company and Value */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col gap-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <span className="truncate">{contact.company}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground ml-6">
+                    {contact.companySize}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-sm font-semibold flex-shrink-0">
+                  <IndianRupee className="w-4 h-4" />
+                  {(contact.lifetimeValue / 100000).toFixed(1)}L
+                </div>
+              </div>
+
+              {/* Contact Info */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <Mail className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                  <span className="truncate">{contact.email}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Phone className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                  <span>{contact.phone}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <MapPin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                  <span className="truncate">
+                    {contact.address.city}, {contact.address.state}
+                  </span>
+                </div>
+              </div>
+
+              {/* Type Badge and Created Date */}
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <Badge className={`${typeColors[contact.type]} border text-xs`}>
+                  {contact.type}
+                </Badge>
+                <span className="text-muted-foreground">
+                  {formatDistanceToNow(contact.createdAt, { addSuffix: true })}
+                </span>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  // Desktop Table View
   return (
     <div className="bg-card rounded-lg border">
       <div className="overflow-x-auto">

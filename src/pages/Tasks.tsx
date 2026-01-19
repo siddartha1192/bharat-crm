@@ -216,11 +216,11 @@ export default function Tasks() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Tasks</h1>
-          <p className="text-muted-foreground">Manage your follow-ups and to-dos</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Tasks</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Manage your follow-ups and to-dos</p>
         </div>
         <div className="flex gap-2">
           <input

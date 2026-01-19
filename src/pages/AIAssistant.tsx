@@ -340,42 +340,45 @@ Try the quick action buttons below or ask me anything!`,
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] p-4">
+    <div className="flex flex-col h-[calc(100vh-8rem)] p-2 sm:p-4">
       {/* Header */}
-      <div className="mb-6 px-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">AI Assistant</h1>
-            <p className="text-muted-foreground mt-1">
+      <div className="mb-4 sm:mb-6 px-1 sm:px-2">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div className="flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold">AI Assistant</h1>
+            <p className="text-muted-foreground mt-1 text-sm sm:text-base hidden sm:block">
               Ask anything about your CRM data, features, or documentation
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
             {/* AI Quality Toggle */}
-            <div className="flex items-center gap-3 px-4 py-2 rounded-lg border bg-card shadow-sm">
+            <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 rounded-lg border bg-card shadow-sm w-full sm:w-auto justify-between sm:justify-start">
               <div className="flex items-center gap-2">
                 <Sparkles className={`w-4 h-4 ${aiMode === 'minimal' ? 'text-muted-foreground' : 'text-yellow-600'}`} />
-                <Label htmlFor="ai-mode" className="text-sm font-medium cursor-pointer">
+                <Label htmlFor="ai-mode" className="text-xs sm:text-sm font-medium cursor-pointer">
                   {aiMode === 'full' ? 'Full AI' : 'Minimal AI'}
                 </Label>
               </div>
-              <Switch
-                id="ai-mode"
-                checked={aiMode === 'full'}
-                onCheckedChange={handleAiModeChange}
-              />
-              <Zap className={`w-4 h-4 ${aiMode === 'full' ? 'text-blue-600' : 'text-muted-foreground'}`} />
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="ai-mode"
+                  checked={aiMode === 'full'}
+                  onCheckedChange={handleAiModeChange}
+                />
+                <Zap className={`w-4 h-4 ${aiMode === 'full' ? 'text-blue-600' : 'text-muted-foreground'}`} />
+              </div>
             </div>
 
             {/* AI Status Badges */}
             {aiStatus && (
-              <div className="flex gap-2">
-                <Badge variant="secondary" className="flex items-center gap-1">
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Badge variant="secondary" className="flex items-center gap-1 text-xs">
                   <Bot className="w-3 h-3" />
-                  {aiStatus.portal.model}
+                  <span className="hidden sm:inline">{aiStatus.portal.model}</span>
+                  <span className="sm:hidden">{aiStatus.portal.model.split('-')[0]}</span>
                 </Badge>
                 {aiStatus.vectorDatabase && (
-                  <Badge variant="outline" className="flex items-center gap-1">
+                  <Badge variant="outline" className="flex items-center gap-1 text-xs">
                     <Database className="w-3 h-3" />
                     {aiStatus.vectorDatabase.pointsCount} docs
                   </Badge>
@@ -389,7 +392,7 @@ Try the quick action buttons below or ask me anything!`,
       {/* Chat Container */}
       <Card className="flex-1 flex flex-col rounded-2xl shadow-xl border-border overflow-hidden">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gradient-to-b from-background to-muted/10">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6 bg-gradient-to-b from-background to-muted/10">
           {loadingHistory && messages.length === 0 && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-3">
@@ -411,12 +414,12 @@ Try the quick action buttons below or ask me anything!`,
               )}
 
               <div
-                className={`flex-1 max-w-[80%] ${
+                className={`flex-1 max-w-[90%] sm:max-w-[80%] ${
                   message.role === 'user' ? 'text-right' : ''
                 }`}
               >
                 <div
-                  className={`inline-block rounded-2xl px-4 py-3 shadow-md ${
+                  className={`inline-block rounded-2xl px-3 py-2 sm:px-4 sm:py-3 shadow-md ${
                     message.role === 'user'
                       ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-br-md'
                       : 'bg-muted rounded-bl-md'
@@ -500,9 +503,9 @@ Try the quick action buttons below or ask me anything!`,
 
         {/* Quick Actions */}
         {messages.length === 1 && !loading && (
-          <div className="px-6 py-3 border-t bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20">
-            <p className="text-sm text-muted-foreground mb-2">Quick actions:</p>
-            <div className="flex flex-wrap gap-2">
+          <div className="px-3 sm:px-6 py-3 border-t bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20">
+            <p className="text-xs sm:text-sm text-muted-foreground mb-2">Quick actions:</p>
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
               {quickActions.map((action, index) => (
                 <Button
                   key={index}
@@ -521,30 +524,30 @@ Try the quick action buttons below or ask me anything!`,
         )}
 
         {/* Input */}
-        <div className="p-6 border-t bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20">
+        <div className="p-3 sm:p-6 border-t bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20">
           <div className="flex gap-2">
             <Textarea
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder="Ask anything about your CRM data, features, or documentation..."
-              className="min-h-[60px] resize-none rounded-xl shadow-sm"
+              placeholder="Ask anything about your CRM..."
+              className="min-h-[50px] sm:min-h-[60px] resize-none rounded-xl shadow-sm text-sm sm:text-base"
               disabled={loading}
             />
             <Button
               onClick={sendMessage}
               disabled={!input.trim() || loading}
               size="lg"
-              className="px-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
+              className="px-4 sm:px-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex-shrink-0"
             >
               {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
               ) : (
-                <Send className="w-5 h-5" />
+                <Send className="w-4 h-4 sm:w-5 sm:h-5" />
               )}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
+          <p className="text-xs text-muted-foreground mt-2 hidden sm:block">
             Press Enter to send, Shift+Enter for new line
           </p>
         </div>
