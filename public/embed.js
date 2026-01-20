@@ -70,94 +70,269 @@
     // Add styles
     const style = document.createElement('style');
     style.textContent = `
+      @keyframes slideInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
       .bharat-form-wrapper {
         max-width: 600px;
         margin: 0 auto;
+        padding: 1rem;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       }
+
       .bharat-form {
         display: flex;
         flex-direction: column;
-        gap: 1rem;
-        padding: 2rem;
-        background: #ffffff;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        gap: 1.5rem;
+        padding: 2.5rem;
+        background: linear-gradient(to bottom, #ffffff, #fafafa);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06),
+          0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        animation: slideInUp 0.5s ease-out;
+        position: relative;
+        overflow: hidden;
       }
+
+      .bharat-form::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, ${config.primaryColor}, ${config.primaryColor}dd);
+        border-radius: 16px 16px 0 0;
+      }
+
       .bharat-form-title {
-        font-size: 1.75rem;
-        font-weight: bold;
-        color: #1f2937;
+        font-size: 2rem;
+        font-weight: 700;
+        color: #111827;
         margin: 0 0 0.5rem 0;
+        letter-spacing: -0.025em;
+        line-height: 1.2;
       }
+
       .bharat-form-description {
-        font-size: 1rem;
+        font-size: 1.05rem;
         color: #6b7280;
-        margin: 0 0 1.5rem 0;
+        margin: 0 0 2rem 0;
+        line-height: 1.6;
       }
+
       .bharat-form-group {
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
+        gap: 0.625rem;
       }
+
       .bharat-form-label {
-        font-size: 0.875rem;
-        font-weight: 500;
+        font-size: 0.9rem;
+        font-weight: 600;
         color: #374151;
+        letter-spacing: 0.01em;
       }
+
       .bharat-form-label.required::after {
         content: ' *';
         color: #ef4444;
+        font-weight: 700;
       }
+
       .bharat-form-input,
       .bharat-form-textarea {
-        padding: 0.75rem;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
+        padding: 0.875rem 1rem;
+        border: 2px solid #e5e7eb;
+        border-radius: 10px;
         font-size: 1rem;
-        transition: border-color 0.2s;
+        font-family: inherit;
+        transition: all 0.2s ease;
+        background-color: #ffffff;
+        color: #1f2937;
       }
+
+      .bharat-form-input:hover,
+      .bharat-form-textarea:hover {
+        border-color: #d1d5db;
+      }
+
       .bharat-form-input:focus,
       .bharat-form-textarea:focus {
         outline: none;
         border-color: ${config.primaryColor};
-        box-shadow: 0 0 0 3px ${config.primaryColor}20;
+        box-shadow: 0 0 0 4px ${config.primaryColor}15, 0 1px 2px rgba(0, 0, 0, 0.05);
+        background-color: #ffffff;
+        transform: translateY(-1px);
       }
+
+      .bharat-form-input::placeholder,
+      .bharat-form-textarea::placeholder {
+        color: #9ca3af;
+      }
+
       .bharat-form-textarea {
         min-height: 120px;
         resize: vertical;
+        line-height: 1.6;
       }
+
       .bharat-form-button {
-        padding: 0.875rem 2rem;
-        background-color: ${config.primaryColor};
+        padding: 1rem 2rem;
+        background: linear-gradient(135deg, ${config.primaryColor}, ${config.primaryColor}ee);
         color: white;
         border: none;
-        border-radius: 6px;
-        font-size: 1rem;
-        font-weight: 600;
+        border-radius: 10px;
+        font-size: 1.05rem;
+        font-weight: 700;
         cursor: pointer;
-        transition: opacity 0.2s;
+        transition: all 0.3s ease;
+        box-shadow:
+          0 4px 6px -1px ${config.primaryColor}40,
+          0 2px 4px -1px ${config.primaryColor}30;
+        letter-spacing: 0.025em;
+        margin-top: 0.5rem;
+        position: relative;
+        overflow: hidden;
       }
+
+      .bharat-form-button::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s ease;
+      }
+
       .bharat-form-button:hover {
-        opacity: 0.9;
+        transform: translateY(-2px);
+        box-shadow:
+          0 10px 15px -3px ${config.primaryColor}40,
+          0 4px 6px -2px ${config.primaryColor}30;
       }
+
+      .bharat-form-button:hover::before {
+        left: 100%;
+      }
+
+      .bharat-form-button:active {
+        transform: translateY(0);
+      }
+
       .bharat-form-button:disabled {
-        opacity: 0.5;
+        opacity: 0.6;
         cursor: not-allowed;
+        transform: none;
       }
+
+      .bharat-form-button:disabled:hover {
+        transform: none;
+      }
+
+      .bharat-form-button-spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        margin-right: 8px;
+        vertical-align: middle;
+      }
+
       .bharat-form-success {
-        padding: 1rem;
-        background-color: #d1fae5;
+        padding: 1.25rem;
+        background: linear-gradient(135deg, #d1fae5, #a7f3d0);
         color: #065f46;
-        border-radius: 6px;
+        border-radius: 12px;
         text-align: center;
+        font-weight: 600;
+        animation: fadeIn 0.3s ease-out;
+        border: 2px solid #6ee7b7;
+        box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+        position: relative;
+        padding-left: 3rem;
       }
+
+      .bharat-form-success::before {
+        content: '✓';
+        position: absolute;
+        left: 1.25rem;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #059669;
+      }
+
       .bharat-form-error {
-        padding: 1rem;
-        background-color: #fee2e2;
+        padding: 1.25rem;
+        background: linear-gradient(135deg, #fee2e2, #fecaca);
         color: #991b1b;
-        border-radius: 6px;
+        border-radius: 12px;
         text-align: center;
+        font-weight: 600;
+        animation: fadeIn 0.3s ease-out;
+        border: 2px solid #fca5a5;
+        box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.2);
+        position: relative;
+        padding-left: 3rem;
+      }
+
+      .bharat-form-error::before {
+        content: '⚠';
+        position: absolute;
+        left: 1.25rem;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #dc2626;
+      }
+
+      @media (max-width: 640px) {
+        .bharat-form {
+          padding: 1.75rem;
+          gap: 1.25rem;
+        }
+
+        .bharat-form-title {
+          font-size: 1.5rem;
+        }
+
+        .bharat-form-description {
+          font-size: 0.95rem;
+        }
+
+        .bharat-form-button {
+          padding: 0.875rem 1.5rem;
+          font-size: 1rem;
+        }
       }
     `;
     document.head.appendChild(style);
@@ -222,9 +397,9 @@
     const formMessage = form.querySelector('#form-message');
     const submitButton = form.querySelector('button[type="submit"]');
 
-    // Disable submit button
+    // Disable submit button and show spinner
     submitButton.disabled = true;
-    submitButton.textContent = 'Submitting...';
+    submitButton.innerHTML = '<span class="bharat-form-button-spinner"></span>Submitting...';
 
     // Get form data
     const formData = new FormData(form);
@@ -292,7 +467,7 @@
     } finally {
       // Re-enable submit button
       submitButton.disabled = false;
-      submitButton.textContent = config.buttonText;
+      submitButton.innerHTML = config.buttonText;
     }
   }
 })();
