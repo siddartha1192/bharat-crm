@@ -105,11 +105,18 @@ async function getVisibilityFilter(user) {
  * @returns {Boolean} - Whether assignment is allowed
  */
 async function canAssignTo(currentUser, targetUserId) {
-  const { role, id: userId, departmentId, teamId } = currentUser;
+  const { role, id: userId, departmentId, teamId, tenantId } = currentUser;
 
-  // Admins can assign to anyone
+  // Admins can assign to anyone in their tenant
   if (role === 'ADMIN') {
-    return true;
+    // Verify target user is in same tenant
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        id: targetUserId,
+        tenantId  // CRITICAL: Filter by tenant
+      }
+    });
+    return !!targetUser;
   }
 
   // Users can always assign to themselves
@@ -117,10 +124,13 @@ async function canAssignTo(currentUser, targetUserId) {
     return true;
   }
 
-  // Managers can assign to users in their department/team
+  // Managers can assign to users in their department/team (within their tenant)
   if (role === 'MANAGER') {
-    const targetUser = await prisma.user.findUnique({
-      where: { id: targetUserId },
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        id: targetUserId,
+        tenantId  // CRITICAL: Filter by tenant
+      },
       select: { departmentId: true, teamId: true }
     });
 
@@ -151,11 +161,18 @@ async function canAssignTo(currentUser, targetUserId) {
  * @returns {Boolean} - Whether assignment is allowed
  */
 async function canAssignToByName(currentUser, targetUserName) {
-  const { role, name: userName, departmentId, teamId } = currentUser;
+  const { role, name: userName, departmentId, teamId, tenantId } = currentUser;
 
-  // Admins can assign to anyone
+  // Admins can assign to anyone in their tenant
   if (role === 'ADMIN') {
-    return true;
+    // Verify target user is in same tenant
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        name: targetUserName,
+        tenantId  // CRITICAL: Filter by tenant
+      }
+    });
+    return !!targetUser;
   }
 
   // Users can always assign to themselves
@@ -163,10 +180,13 @@ async function canAssignToByName(currentUser, targetUserName) {
     return true;
   }
 
-  // Managers can assign to users in their department/team
+  // Managers can assign to users in their department/team (within their tenant)
   if (role === 'MANAGER') {
     const targetUser = await prisma.user.findFirst({
-      where: { name: targetUserName },
+      where: {
+        name: targetUserName,
+        tenantId  // CRITICAL: Filter by tenant
+      },
       select: { departmentId: true, teamId: true }
     });
 
@@ -196,19 +216,25 @@ async function canAssignToByName(currentUser, targetUserName) {
  * @returns {Array} - List of users that can be assigned to
  */
 async function getAssignableUsers(currentUser) {
-  const { role, id: userId, departmentId, teamId } = currentUser;
+  const { role, id: userId, departmentId, teamId, tenantId } = currentUser;
 
-  // Admins can assign to anyone
+  // Admins can assign to anyone in their tenant
   if (role === 'ADMIN') {
     return await prisma.user.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        tenantId  // CRITICAL: Filter by tenant
+      },
       select: { id: true, name: true, email: true, role: true }
     });
   }
 
-  // Managers can assign to users in their department/team
+  // Managers can assign to users in their department/team (within their tenant)
   if (role === 'MANAGER') {
-    const where = { isActive: true };
+    const where = {
+      isActive: true,
+      tenantId  // CRITICAL: Filter by tenant
+    };
 
     if (departmentId) {
       where.departmentId = departmentId;
