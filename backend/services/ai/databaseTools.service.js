@@ -9,6 +9,67 @@ const prisma = new PrismaClient();
 
 class DatabaseToolsService {
   /**
+   * Helper: Get user's context for role-based filtering
+   * - ADMIN: See all tenant data
+   * - MANAGER: See team/department data
+   * - AGENT/VIEWER: See only their assigned data
+   */
+  async getUserContext(userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        tenantId: true,
+        role: true,
+        departmentId: true,
+        teamId: true
+      }
+    });
+
+    if (!user) {
+      console.error('User not found:', userId);
+      return null;
+    }
+
+    return user;
+  }
+
+  /**
+   * Build where clause based on user role
+   * - ADMIN: Filter by tenantId (all org data)
+   * - MANAGER: Filter by tenantId + departmentId/teamId (team data)
+   * - AGENT/VIEWER: Filter by userId (only their data)
+   */
+  buildRoleBasedFilter(userContext) {
+    const { role, id: userId, tenantId, departmentId, teamId } = userContext;
+
+    // ADMIN gets full tenant access
+    if (role === 'ADMIN') {
+      return { tenantId };
+    }
+
+    // MANAGER gets department/team access
+    if (role === 'MANAGER') {
+      const filter = { tenantId };
+
+      // Prefer department over team if both exist
+      if (departmentId) {
+        filter.departmentId = departmentId;
+      } else if (teamId) {
+        filter.teamId = teamId;
+      } else {
+        // Manager with no department/team only sees their own data
+        filter.userId = userId;
+      }
+
+      return filter;
+    }
+
+    // AGENT and VIEWER only see their assigned data
+    return { tenantId, userId };
+  }
+
+  /**
    * Helper: Get user's tenantId for tenant-level filtering
    * In an enterprise CRM, users should see ALL data in their organization
    */
@@ -519,17 +580,17 @@ class DatabaseToolsService {
 
   /**
    * Query leads with filters
+   * Role-based access: ADMIN sees all, MANAGER sees team, AGENT sees own
    */
   async queryLeads(args, userId) {
-    // Get tenant ID for enterprise-level data access
-    const tenantId = await this.getTenantId(userId);
-    if (!tenantId) {
-      return { count: 0, leads: [], error: 'User tenant not found' };
+    // Get user context for role-based filtering
+    const userContext = await this.getUserContext(userId);
+    if (!userContext) {
+      return { count: 0, leads: [], error: 'User not found' };
     }
 
-    const where = {
-      tenantId, // Filter by tenant for full organizational visibility
-    };
+    // Build role-based filter
+    const where = this.buildRoleBasedFilter(userContext);
 
     // Support both old status field and new stageId
     if (args.status) where.status = args.status;
@@ -603,17 +664,17 @@ class DatabaseToolsService {
 
   /**
    * Query contacts with filters
+   * Role-based access: ADMIN sees all, MANAGER sees team, AGENT sees own
    */
   async queryContacts(args, userId) {
-    // Get tenant ID for enterprise-level data access
-    const tenantId = await this.getTenantId(userId);
-    if (!tenantId) {
-      return { count: 0, contacts: [], error: 'User tenant not found' };
+    // Get user context for role-based filtering
+    const userContext = await this.getUserContext(userId);
+    if (!userContext) {
+      return { count: 0, contacts: [], error: 'User not found' };
     }
 
-    const where = {
-      tenantId, // Filter by tenant for full organizational visibility
-    };
+    // Build role-based filter
+    const where = this.buildRoleBasedFilter(userContext);
 
     if (args.type) where.type = args.type;
     if (args.dateFrom) {
@@ -652,17 +713,17 @@ class DatabaseToolsService {
 
   /**
    * Query deals with filters
+   * Role-based access: ADMIN sees all, MANAGER sees team, AGENT sees own
    */
   async queryDeals(args, userId) {
-    // Get tenant ID for enterprise-level data access
-    const tenantId = await this.getTenantId(userId);
-    if (!tenantId) {
-      return { count: 0, totalValue: 0, deals: [], error: 'User tenant not found' };
+    // Get user context for role-based filtering
+    const userContext = await this.getUserContext(userId);
+    if (!userContext) {
+      return { count: 0, totalValue: 0, deals: [], error: 'User not found' };
     }
 
-    const where = {
-      tenantId, // Filter by tenant for full organizational visibility
-    };
+    // Build role-based filter
+    const where = this.buildRoleBasedFilter(userContext);
 
     // Only filter by stage if it's a valid stage (not 'all' or empty)
     // Support both old stage field and new stageId
@@ -730,17 +791,17 @@ class DatabaseToolsService {
 
   /**
    * Query tasks with filters
+   * Role-based access: ADMIN sees all, MANAGER sees team, AGENT sees own
    */
   async queryTasks(args, userId) {
-    // Get tenant ID for enterprise-level data access
-    const tenantId = await this.getTenantId(userId);
-    if (!tenantId) {
-      return { count: 0, tasks: [], error: 'User tenant not found' };
+    // Get user context for role-based filtering
+    const userContext = await this.getUserContext(userId);
+    if (!userContext) {
+      return { count: 0, tasks: [], error: 'User not found' };
     }
 
-    const where = {
-      tenantId, // Filter by tenant for full organizational visibility
-    };
+    // Build role-based filter
+    const where = this.buildRoleBasedFilter(userContext);
 
     if (args.status) where.status = args.status;
     if (args.priority) where.priority = args.priority;
@@ -784,17 +845,17 @@ class DatabaseToolsService {
 
   /**
    * Query invoices with filters
+   * Role-based access: ADMIN sees all, MANAGER sees team, AGENT sees own
    */
   async queryInvoices(args, userId) {
-    // Get tenant ID for enterprise-level data access
-    const tenantId = await this.getTenantId(userId);
-    if (!tenantId) {
-      return { count: 0, totalAmount: 0, invoices: [], error: 'User tenant not found' };
+    // Get user context for role-based filtering
+    const userContext = await this.getUserContext(userId);
+    if (!userContext) {
+      return { count: 0, totalAmount: 0, invoices: [], error: 'User not found' };
     }
 
-    const where = {
-      tenantId, // Filter by tenant for full organizational visibility
-    };
+    // Build role-based filter
+    const where = this.buildRoleBasedFilter(userContext);
 
     if (args.status) where.status = args.status;
     if (args.minAmount) where.total = { gte: args.minAmount };
@@ -829,17 +890,17 @@ class DatabaseToolsService {
 
   /**
    * Query calendar events
+   * Role-based access: ADMIN sees all, MANAGER sees team, AGENT sees own
    */
   async queryCalendarEvents(args, userId) {
-    // Get tenant ID for enterprise-level data access
-    const tenantId = await this.getTenantId(userId);
-    if (!tenantId) {
-      return { count: 0, events: [], error: 'User tenant not found' };
+    // Get user context for role-based filtering
+    const userContext = await this.getUserContext(userId);
+    if (!userContext) {
+      return { count: 0, events: [], error: 'User not found' };
     }
 
-    const where = {
-      tenantId, // Filter by tenant for full organizational visibility
-    };
+    // Build role-based filter
+    const where = this.buildRoleBasedFilter(userContext);
 
     if (args.startDate || args.endDate) {
       where.startTime = {};
@@ -895,15 +956,20 @@ class DatabaseToolsService {
 
   /**
    * Get analytics and aggregated metrics
+   * Role-based access: ADMIN sees all, MANAGER sees team, AGENT sees own
    */
   async getAnalytics(args, userId) {
     const { metric, dateFrom, dateTo, groupBy } = args;
 
-    // Get tenant ID for enterprise-level analytics
-    const tenantId = await this.getTenantId(userId);
-    if (!tenantId) {
-      return { error: 'User tenant not found' };
+    // Get user context for role-based filtering
+    const userContext = await this.getUserContext(userId);
+    if (!userContext) {
+      return { error: 'User not found' };
     }
+
+    // Build role-based filter (used across all analytics)
+    const roleFilter = this.buildRoleBasedFilter(userContext);
+    const tenantId = userContext.tenantId;
 
     const dateFilter = {};
     if (dateFrom) {
@@ -921,7 +987,7 @@ class DatabaseToolsService {
           by: ['status'],
           _count: { id: true },
           where: {
-            tenantId, // Filter by tenant for full organizational analytics
+            ...roleFilter, // Role-based filtering
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
         });
@@ -937,7 +1003,7 @@ class DatabaseToolsService {
           _count: { id: true },
           _sum: { value: true },
           where: {
-            tenantId, // Filter by tenant for full organizational analytics
+            ...roleFilter, // Role-based filtering
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
         });
@@ -965,7 +1031,7 @@ class DatabaseToolsService {
       case 'conversion_rate':
         const totalLeads = await prisma.lead.count({
           where: {
-            tenantId, // Filter by tenant for full organizational analytics
+            ...roleFilter, // Role-based filtering
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
         });
@@ -984,7 +1050,7 @@ class DatabaseToolsService {
 
         const wonDeals = wonStageIds.length > 0 ? await prisma.deal.count({
           where: {
-            tenantId, // Filter by tenant for full organizational analytics
+            ...roleFilter, // Role-based filtering
             stageId: { in: wonStageIds },
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
@@ -1003,7 +1069,7 @@ class DatabaseToolsService {
         const revenue = await prisma.invoice.aggregate({
           _sum: { total: true },
           where: {
-            tenantId, // Filter by tenant for full organizational analytics
+            ...roleFilter, // Role-based filtering
             status: 'paid',
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
@@ -1035,7 +1101,7 @@ class DatabaseToolsService {
         const pipelineValue = await prisma.deal.aggregate({
           _sum: { value: true },
           where: {
-            tenantId, // Filter by tenant for full organizational analytics
+            ...roleFilter, // Role-based filtering
             ...(closedStageIds.length > 0 ? { stageId: { notIn: closedStageIds } } : {}),
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
@@ -1053,7 +1119,7 @@ class DatabaseToolsService {
           by: ['status'],
           _count: { id: true },
           where: {
-            tenantId, // Filter by tenant for full organizational analytics
+            ...roleFilter, // Role-based filtering
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
         });
@@ -1069,17 +1135,17 @@ class DatabaseToolsService {
 
   /**
    * Query WhatsApp conversations with filters
+   * Role-based access: ADMIN sees all, MANAGER sees team, AGENT sees own
    */
   async queryWhatsAppConversations(args, userId) {
-    // Get tenant ID for enterprise-level data access
-    const tenantId = await this.getTenantId(userId);
-    if (!tenantId) {
-      return { count: 0, conversations: [], error: 'User tenant not found' };
+    // Get user context for role-based filtering
+    const userContext = await this.getUserContext(userId);
+    if (!userContext) {
+      return { count: 0, conversations: [], error: 'User not found' };
     }
 
-    const where = {
-      tenantId, // Filter by tenant for full organizational visibility
-    };
+    // Build role-based filter
+    const where = this.buildRoleBasedFilter(userContext);
 
     // Filter by unread status
     if (args.hasUnread !== undefined) {
