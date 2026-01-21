@@ -89,7 +89,7 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
         linkedIn: lead.linkedIn || '',
         twitter: lead.twitter || '',
         facebook: lead.facebook || '',
-        tags: lead.tags.join(', ') || '',
+        tags: Array.isArray(lead.tags) ? lead.tags.join(', ') : '',
       });
     } else {
       // Reset form for new lead - set default stageId from first pipeline stage
