@@ -80,6 +80,8 @@ router.get('/', async (req, res) => {
       priority,
       tags,
       search,
+      dateFrom,
+      dateTo,
       page = '1',
       limit = '100',
       sortBy = 'createdAt',
@@ -101,6 +103,20 @@ router.get('/', async (req, res) => {
     if (tags) {
       const tagArray = tags.split(',').map(t => t.trim());
       where.tags = { hasSome: tagArray };
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) {
+        where.createdAt.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        // Add one day to include the entire end date
+        const endDate = new Date(dateTo);
+        endDate.setDate(endDate.getDate() + 1);
+        where.createdAt.lt = endDate;
+      }
     }
 
     // Search across multiple fields

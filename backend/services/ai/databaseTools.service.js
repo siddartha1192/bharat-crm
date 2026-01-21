@@ -19,6 +19,7 @@ class DatabaseToolsService {
       where: { id: userId },
       select: {
         id: true,
+        name: true,  // Need name for assignedTo filtering
         tenantId: true,
         role: true,
         departmentId: true,
@@ -38,10 +39,10 @@ class DatabaseToolsService {
    * Build where clause based on user role
    * - ADMIN: Filter by tenantId (all org data)
    * - MANAGER: Filter by tenantId + departmentId/teamId (team data)
-   * - AGENT/VIEWER: Filter by userId (only their data)
+   * - AGENT/VIEWER: Filter by userId OR assignedTo (their data + assigned leads)
    */
   buildRoleBasedFilter(userContext) {
-    const { role, id: userId, tenantId, departmentId, teamId } = userContext;
+    const { role, id: userId, name: userName, tenantId, departmentId, teamId } = userContext;
 
     // ADMIN gets full tenant access
     if (role === 'ADMIN') {
@@ -58,15 +59,27 @@ class DatabaseToolsService {
       } else if (teamId) {
         filter.teamId = teamId;
       } else {
-        // Manager with no department/team only sees their own data
-        filter.userId = userId;
+        // Manager with no department/team sees data they created OR assigned to them
+        return {
+          tenantId,
+          OR: [
+            { userId },
+            { assignedTo: userName }
+          ]
+        };
       }
 
       return filter;
     }
 
-    // AGENT and VIEWER only see their assigned data
-    return { tenantId, userId };
+    // AGENT and VIEWER see data they created OR assigned to them
+    return {
+      tenantId,
+      OR: [
+        { userId },           // Leads they created
+        { assignedTo: userName }  // Leads assigned to them by name
+      ]
+    };
   }
 
   /**
@@ -1225,6 +1238,7 @@ class DatabaseToolsService {
 
   /**
    * Search the web using DuckDuckGo
+   * Returns only formatted results for clean LLM consumption
    */
   async webSearch(args) {
     try {
@@ -1233,15 +1247,25 @@ class DatabaseToolsService {
         args.maxResults || 5
       );
 
+      // Check if results indicate an error
+      const isError = results && results.length > 0 && results[0].isError;
+
+      // Return only formatted results to avoid confusing LLM with dual formats
+      const formattedResults = webSearchService.formatResults(results);
+
       return {
         query: args.query,
-        resultsCount: results.length,
-        results: results,
-        formattedResults: webSearchService.formatResults(results),
+        resultsCount: isError ? 0 : results.length,
+        content: formattedResults, // LLM sees only this clean formatted text
       };
     } catch (error) {
       console.error('Error performing web search:', error);
-      return { error: error.message };
+      return {
+        query: args.query,
+        resultsCount: 0,
+        content: `Web search failed: ${error.message}. Please try asking about information from the CRM database instead.`,
+        error: true,
+      };
     }
   }
 }

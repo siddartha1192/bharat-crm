@@ -60,21 +60,16 @@ export default function Leads() {
   // Advanced filters state
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
 
-  // Filter configurations
+  // Filter configurations - dynamically build from pipeline stages
   const filterConfigs: FilterConfig[] = [
     {
       key: 'status',
-      label: 'Status',
+      label: 'Stage',
       type: 'select',
-      options: [
-        { value: 'new', label: 'New' },
-        { value: 'contacted', label: 'Contacted' },
-        { value: 'qualified', label: 'Qualified' },
-        { value: 'proposal', label: 'Proposal' },
-        { value: 'negotiation', label: 'Negotiation' },
-        { value: 'won', label: 'Won' },
-        { value: 'lost', label: 'Lost' },
-      ],
+      options: pipelineStages.map(stage => ({
+        value: stage.slug,
+        label: stage.name
+      })),
     },
     {
       key: 'priority',
@@ -85,6 +80,18 @@ export default function Leads() {
         { value: 'medium', label: 'Medium' },
         { value: 'high', label: 'High' },
       ],
+    },
+    {
+      key: 'dateFrom',
+      label: 'From Date',
+      type: 'date',
+      placeholder: 'Select start date',
+    },
+    {
+      key: 'dateTo',
+      label: 'To Date',
+      type: 'date',
+      placeholder: 'Select end date',
     },
     {
       key: 'tags',

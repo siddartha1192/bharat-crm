@@ -95,12 +95,27 @@ export function AssignmentDropdown({
     );
   }
 
+  // Ensure value matches exactly one of the available users
+  const normalizedValue = value?.trim() || '';
+  const isValueValid = users.some(user => user.name === normalizedValue);
+
   return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
+    <Select
+      value={isValueValid ? normalizedValue : undefined}
+      onValueChange={onChange}
+      disabled={disabled}
+    >
       <SelectTrigger>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder={placeholder}>
+          {isValueValid && normalizedValue}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
+        {/* Add "Unassigned" option to clear assignment */}
+        <SelectItem value="">
+          <span className="text-muted-foreground italic">Unassigned</span>
+        </SelectItem>
+
         {users.map((user) => (
           <SelectItem key={user.id} value={user.name}>
             <div className="flex flex-col">
