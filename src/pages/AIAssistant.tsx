@@ -10,7 +10,7 @@ import { Send, Bot, User, Loader2, Database, BookOpen, TrendingUp, Zap, Sparkles
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-// Custom CSS for markdown tables in AI responses
+// Custom CSS for markdown tables and links in AI responses
 const markdownStyles = `
   .ai-message-content {
     word-wrap: break-word;
@@ -30,6 +30,41 @@ const markdownStyles = `
   }
   .ai-message-content code {
     word-break: break-all;
+  }
+  .ai-message-content a {
+    color: #2563eb;
+    text-decoration: underline;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .ai-message-content a:hover {
+    color: #1d4ed8;
+    text-decoration: none;
+    background-color: rgba(37, 99, 235, 0.1);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+  }
+  .ai-message-content a:visited {
+    color: #7c3aed;
+  }
+  .ai-message-content a::after {
+    content: "🔗";
+    font-size: 0.75em;
+    opacity: 0.6;
+  }
+  .dark .ai-message-content a {
+    color: #60a5fa;
+  }
+  .dark .ai-message-content a:hover {
+    color: #93c5fd;
+    background-color: rgba(96, 165, 250, 0.1);
+  }
+  .dark .ai-message-content a:visited {
+    color: #a78bfa;
   }
   @media (max-width: 640px) {
     .ai-message-content table {
@@ -466,7 +501,21 @@ Try the quick action buttons below or ask me anything!`,
                     </div>
                   ) : (
                     <div className="ai-message-content prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted-foreground/10 prose-pre:text-foreground overflow-hidden">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          a: ({ node, children, ...props }) => (
+                            <a
+                              {...props}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={props.href || 'External link'}
+                            >
+                              {children}
+                            </a>
+                          ),
+                        }}
+                      >
                         {message.content}
                       </ReactMarkdown>
                     </div>
