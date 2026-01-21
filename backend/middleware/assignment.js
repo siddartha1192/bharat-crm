@@ -216,48 +216,73 @@ async function canAssignToByName(currentUser, targetUserName) {
  * @returns {Array} - List of users that can be assigned to
  */
 async function getAssignableUsers(currentUser) {
-  const { role, id: userId, departmentId, teamId, tenantId } = currentUser;
-
-  // Admins can assign to anyone in their tenant
-  if (role === 'ADMIN') {
-    return await prisma.user.findMany({
-      where: {
-        isActive: true,
-        tenantId  // CRITICAL: Filter by tenant
-      },
-      select: { id: true, name: true, email: true, role: true }
-    });
-  }
-
-  // Managers can assign to users in their department/team (within their tenant)
-  if (role === 'MANAGER') {
-    const where = {
-      isActive: true,
-      tenantId  // CRITICAL: Filter by tenant
-    };
-
-    if (departmentId) {
-      where.departmentId = departmentId;
-    } else if (teamId) {
-      where.teamId = teamId;
-    } else {
-      // Manager with no department/team can only assign to self
-      where.id = userId;
+  try {
+    // Validate currentUser has required fields
+    if (!currentUser || !currentUser.id) {
+      console.error('getAssignableUsers: Invalid currentUser object', currentUser);
+      return [];
     }
 
-    return await prisma.user.findMany({
-      where,
+    const { role, id: userId, departmentId, teamId, tenantId } = currentUser;
+
+    // Validate tenantId
+    if (!tenantId) {
+      console.error('getAssignableUsers: No tenantId found for user', userId);
+      // Fallback: get only current user
+      const currentUserData = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, email: true, role: true }
+      });
+      return currentUserData ? [currentUserData] : [];
+    }
+
+    // Admins can assign to anyone in their tenant
+    if (role === 'ADMIN') {
+      return await prisma.user.findMany({
+        where: {
+          isActive: true,
+          tenantId  // CRITICAL: Filter by tenant
+        },
+        select: { id: true, name: true, email: true, role: true },
+        orderBy: { name: 'asc' }
+      });
+    }
+
+    // Managers can assign to users in their department/team (within their tenant)
+    if (role === 'MANAGER') {
+      const where = {
+        isActive: true,
+        tenantId  // CRITICAL: Filter by tenant
+      };
+
+      if (departmentId) {
+        where.departmentId = departmentId;
+      } else if (teamId) {
+        where.teamId = teamId;
+      } else {
+        // Manager with no department/team can only assign to self
+        where.id = userId;
+      }
+
+      return await prisma.user.findMany({
+        where,
+        select: { id: true, name: true, email: true, role: true },
+        orderBy: { name: 'asc' }
+      });
+    }
+
+    // Agents and viewers can only assign to themselves
+    const currentUserData = await prisma.user.findUnique({
+      where: { id: userId },
       select: { id: true, name: true, email: true, role: true }
     });
+
+    return currentUserData ? [currentUserData] : [];
+  } catch (error) {
+    console.error('Error in getAssignableUsers:', error);
+    // Return empty array on error to prevent page crash
+    return [];
   }
-
-  // Agents and viewers can only assign to themselves
-  const currentUserData = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, name: true, email: true, role: true }
-  });
-
-  return currentUserData ? [currentUserData] : [];
 }
 
 /**

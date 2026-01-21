@@ -54,14 +54,26 @@ export function AssignmentDropdown({
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch assignable users');
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to fetch assignable users (${response.status})`);
         }
 
         const data = await response.json();
-        setUsers(data);
+
+        // Handle empty array or non-array response
+        if (!Array.isArray(data)) {
+          console.error('Invalid response from assignable users API:', data);
+          setUsers([]);
+        } else {
+          setUsers(data);
+        }
       } catch (err) {
         console.error('Error fetching assignable users:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load users');
+        // Set a user-friendly error message
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load users';
+        setError(errorMessage);
+        // Set empty users array to allow component to render
+        setUsers([]);
       } finally {
         setLoading(false);
       }
@@ -80,18 +92,48 @@ export function AssignmentDropdown({
   }
 
   if (error) {
+    // Still render a functional select, but with a warning
     return (
-      <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-destructive/10 text-destructive">
-        <span className="text-sm">{error}</span>
-      </div>
+      <Select value={value} onValueChange={onChange} disabled={disabled}>
+        <SelectTrigger className="border-destructive/50">
+          <SelectValue placeholder={placeholder}>
+            {value || ""}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="">
+            <span className="text-muted-foreground italic">Unassigned</span>
+          </SelectItem>
+          {value && (
+            <SelectItem value={value}>
+              <span>{value}</span>
+            </SelectItem>
+          )}
+        </SelectContent>
+      </Select>
     );
   }
 
-  if (users.length === 0) {
+  if (users.length === 0 && !loading && !error) {
+    // Allow manual input if no users found
     return (
-      <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted text-muted-foreground">
-        <span className="text-sm">No users available for assignment</span>
-      </div>
+      <Select value={value} onValueChange={onChange} disabled={disabled}>
+        <SelectTrigger>
+          <SelectValue placeholder={placeholder}>
+            {value || ""}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="">
+            <span className="text-muted-foreground italic">Unassigned</span>
+          </SelectItem>
+          {value && (
+            <SelectItem value={value}>
+              <span>{value}</span>
+            </SelectItem>
+          )}
+        </SelectContent>
+      </Select>
     );
   }
 
