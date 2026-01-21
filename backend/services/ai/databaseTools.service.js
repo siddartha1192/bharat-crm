@@ -19,6 +19,7 @@ class DatabaseToolsService {
       where: { id: userId },
       select: {
         id: true,
+        name: true,  // Need name for assignedTo filtering
         tenantId: true,
         role: true,
         departmentId: true,
@@ -38,10 +39,10 @@ class DatabaseToolsService {
    * Build where clause based on user role
    * - ADMIN: Filter by tenantId (all org data)
    * - MANAGER: Filter by tenantId + departmentId/teamId (team data)
-   * - AGENT/VIEWER: Filter by userId (only their data)
+   * - AGENT/VIEWER: Filter by userId OR assignedTo (their data + assigned leads)
    */
   buildRoleBasedFilter(userContext) {
-    const { role, id: userId, tenantId, departmentId, teamId } = userContext;
+    const { role, id: userId, name: userName, tenantId, departmentId, teamId } = userContext;
 
     // ADMIN gets full tenant access
     if (role === 'ADMIN') {
@@ -58,15 +59,27 @@ class DatabaseToolsService {
       } else if (teamId) {
         filter.teamId = teamId;
       } else {
-        // Manager with no department/team only sees their own data
-        filter.userId = userId;
+        // Manager with no department/team sees data they created OR assigned to them
+        return {
+          tenantId,
+          OR: [
+            { userId },
+            { assignedTo: userName }
+          ]
+        };
       }
 
       return filter;
     }
 
-    // AGENT and VIEWER only see their assigned data
-    return { tenantId, userId };
+    // AGENT and VIEWER see data they created OR assigned to them
+    return {
+      tenantId,
+      OR: [
+        { userId },           // Leads they created
+        { assignedTo: userName }  // Leads assigned to them by name
+      ]
+    };
   }
 
   /**
