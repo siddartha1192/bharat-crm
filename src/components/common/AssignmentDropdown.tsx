@@ -23,6 +23,9 @@ interface AssignmentDropdownProps {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+// Special value to represent "unassigned" since Radix UI Select doesn't allow empty string
+const UNASSIGNED_VALUE = '__unassigned__';
+
 export function AssignmentDropdown({
   value,
   onChange,
@@ -32,6 +35,14 @@ export function AssignmentDropdown({
   const [users, setUsers] = useState<AssignableUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Normalize value for Select component (convert empty string to special value)
+  const selectValue = value?.trim() || UNASSIGNED_VALUE;
+
+  // Handle value change (convert special value back to empty string)
+  const handleValueChange = (newValue: string) => {
+    onChange(newValue === UNASSIGNED_VALUE ? '' : newValue);
+  };
 
   useEffect(() => {
     const fetchAssignableUsers = async () => {
@@ -94,19 +105,17 @@ export function AssignmentDropdown({
   if (error) {
     // Still render a functional select, but with a warning
     return (
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <Select value={selectValue} onValueChange={handleValueChange} disabled={disabled}>
         <SelectTrigger className="border-destructive/50">
-          <SelectValue placeholder={placeholder}>
-            {value || ""}
-          </SelectValue>
+          <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">
+          <SelectItem value={UNASSIGNED_VALUE}>
             <span className="text-muted-foreground italic">Unassigned</span>
           </SelectItem>
-          {value && (
-            <SelectItem value={value}>
-              <span>{value}</span>
+          {value && value.trim() && (
+            <SelectItem value={value.trim()}>
+              <span>{value.trim()}</span>
             </SelectItem>
           )}
         </SelectContent>
@@ -117,19 +126,17 @@ export function AssignmentDropdown({
   if (users.length === 0 && !loading && !error) {
     // Allow manual input if no users found
     return (
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <Select value={selectValue} onValueChange={handleValueChange} disabled={disabled}>
         <SelectTrigger>
-          <SelectValue placeholder={placeholder}>
-            {value || ""}
-          </SelectValue>
+          <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">
+          <SelectItem value={UNASSIGNED_VALUE}>
             <span className="text-muted-foreground italic">Unassigned</span>
           </SelectItem>
-          {value && (
-            <SelectItem value={value}>
-              <span>{value}</span>
+          {value && value.trim() && (
+            <SelectItem value={value.trim()}>
+              <span>{value.trim()}</span>
             </SelectItem>
           )}
         </SelectContent>
@@ -137,24 +144,22 @@ export function AssignmentDropdown({
     );
   }
 
-  // Ensure value matches exactly one of the available users
+  // Check if current value is valid
   const normalizedValue = value?.trim() || '';
-  const isValueValid = users.some(user => user.name === normalizedValue);
+  const isValueValid = normalizedValue && users.some(user => user.name === normalizedValue);
 
   return (
     <Select
-      value={isValueValid ? normalizedValue : undefined}
-      onValueChange={onChange}
+      value={isValueValid ? normalizedValue : UNASSIGNED_VALUE}
+      onValueChange={handleValueChange}
       disabled={disabled}
     >
       <SelectTrigger>
-        <SelectValue placeholder={placeholder}>
-          {isValueValid && normalizedValue}
-        </SelectValue>
+        <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
         {/* Add "Unassigned" option to clear assignment */}
-        <SelectItem value="">
+        <SelectItem value={UNASSIGNED_VALUE}>
           <span className="text-muted-foreground italic">Unassigned</span>
         </SelectItem>
 

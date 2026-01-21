@@ -3,7 +3,10 @@ import { Lead, LeadStatus, LeadPriority, LeadSource } from '@/types/lead';
 import {
   Sheet,
   SheetContent,
+  SheetTitle,
+  SheetDescription,
 } from '@/components/ui/sheet';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -196,6 +199,14 @@ export function LeadDialog({ lead, open, onOpenChange, onSave }: LeadDialogProps
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="p-0 w-full sm:max-w-2xl overflow-hidden flex flex-col">
+        {/* Accessibility: Hidden title and description for screen readers */}
+        <VisuallyHidden>
+          <SheetTitle>{lead ? 'Edit Lead' : 'Add New Lead'}</SheetTitle>
+          <SheetDescription>
+            {lead ? 'Edit lead information and save changes' : 'Fill in lead information and create new lead'}
+          </SheetDescription>
+        </VisuallyHidden>
+
         {/* Modern Blue Ribbon Header */}
         <div className="relative bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 text-white px-6 py-5 shadow-lg">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjAzIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-40"></div>
