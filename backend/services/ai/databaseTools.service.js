@@ -1225,6 +1225,7 @@ class DatabaseToolsService {
 
   /**
    * Search the web using DuckDuckGo
+   * Returns only formatted results for clean LLM consumption
    */
   async webSearch(args) {
     try {
@@ -1233,15 +1234,25 @@ class DatabaseToolsService {
         args.maxResults || 5
       );
 
+      // Check if results indicate an error
+      const isError = results && results.length > 0 && results[0].isError;
+
+      // Return only formatted results to avoid confusing LLM with dual formats
+      const formattedResults = webSearchService.formatResults(results);
+
       return {
         query: args.query,
-        resultsCount: results.length,
-        results: results,
-        formattedResults: webSearchService.formatResults(results),
+        resultsCount: isError ? 0 : results.length,
+        content: formattedResults, // LLM sees only this clean formatted text
       };
     } catch (error) {
       console.error('Error performing web search:', error);
-      return { error: error.message };
+      return {
+        query: args.query,
+        resultsCount: 0,
+        content: `Web search failed: ${error.message}. Please try asking about information from the CRM database instead.`,
+        error: true,
+      };
     }
   }
 }
