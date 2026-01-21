@@ -9,6 +9,24 @@ const prisma = new PrismaClient();
 
 class DatabaseToolsService {
   /**
+   * Helper: Get user's tenantId for tenant-level filtering
+   * In an enterprise CRM, users should see ALL data in their organization
+   */
+  async getTenantId(userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { tenantId: true }
+    });
+
+    if (!user) {
+      console.error('User not found:', userId);
+      return null;
+    }
+
+    return user.tenantId;
+  }
+
+  /**
    * Parse natural language date strings into Date objects
    */
   parseDate(dateString) {
@@ -503,8 +521,14 @@ class DatabaseToolsService {
    * Query leads with filters
    */
   async queryLeads(args, userId) {
+    // Get tenant ID for enterprise-level data access
+    const tenantId = await this.getTenantId(userId);
+    if (!tenantId) {
+      return { count: 0, leads: [], error: 'User tenant not found' };
+    }
+
     const where = {
-      userId, // Filter by logged-in user
+      tenantId, // Filter by tenant for full organizational visibility
     };
 
     // Support both old status field and new stageId
@@ -581,8 +605,14 @@ class DatabaseToolsService {
    * Query contacts with filters
    */
   async queryContacts(args, userId) {
+    // Get tenant ID for enterprise-level data access
+    const tenantId = await this.getTenantId(userId);
+    if (!tenantId) {
+      return { count: 0, contacts: [], error: 'User tenant not found' };
+    }
+
     const where = {
-      userId, // Filter by logged-in user
+      tenantId, // Filter by tenant for full organizational visibility
     };
 
     if (args.type) where.type = args.type;
@@ -624,8 +654,14 @@ class DatabaseToolsService {
    * Query deals with filters
    */
   async queryDeals(args, userId) {
+    // Get tenant ID for enterprise-level data access
+    const tenantId = await this.getTenantId(userId);
+    if (!tenantId) {
+      return { count: 0, totalValue: 0, deals: [], error: 'User tenant not found' };
+    }
+
     const where = {
-      userId, // Filter by logged-in user
+      tenantId, // Filter by tenant for full organizational visibility
     };
 
     // Only filter by stage if it's a valid stage (not 'all' or empty)
@@ -696,8 +732,14 @@ class DatabaseToolsService {
    * Query tasks with filters
    */
   async queryTasks(args, userId) {
+    // Get tenant ID for enterprise-level data access
+    const tenantId = await this.getTenantId(userId);
+    if (!tenantId) {
+      return { count: 0, tasks: [], error: 'User tenant not found' };
+    }
+
     const where = {
-      userId, // Filter by logged-in user
+      tenantId, // Filter by tenant for full organizational visibility
     };
 
     if (args.status) where.status = args.status;
@@ -744,8 +786,14 @@ class DatabaseToolsService {
    * Query invoices with filters
    */
   async queryInvoices(args, userId) {
+    // Get tenant ID for enterprise-level data access
+    const tenantId = await this.getTenantId(userId);
+    if (!tenantId) {
+      return { count: 0, totalAmount: 0, invoices: [], error: 'User tenant not found' };
+    }
+
     const where = {
-      userId, // Filter by logged-in user
+      tenantId, // Filter by tenant for full organizational visibility
     };
 
     if (args.status) where.status = args.status;
@@ -783,8 +831,14 @@ class DatabaseToolsService {
    * Query calendar events
    */
   async queryCalendarEvents(args, userId) {
+    // Get tenant ID for enterprise-level data access
+    const tenantId = await this.getTenantId(userId);
+    if (!tenantId) {
+      return { count: 0, events: [], error: 'User tenant not found' };
+    }
+
     const where = {
-      userId, // Filter by logged-in user
+      tenantId, // Filter by tenant for full organizational visibility
     };
 
     if (args.startDate || args.endDate) {
@@ -845,6 +899,12 @@ class DatabaseToolsService {
   async getAnalytics(args, userId) {
     const { metric, dateFrom, dateTo, groupBy } = args;
 
+    // Get tenant ID for enterprise-level analytics
+    const tenantId = await this.getTenantId(userId);
+    if (!tenantId) {
+      return { error: 'User tenant not found' };
+    }
+
     const dateFilter = {};
     if (dateFrom) {
       const parsedDate = this.parseDate(dateFrom);
@@ -861,7 +921,7 @@ class DatabaseToolsService {
           by: ['status'],
           _count: { id: true },
           where: {
-            userId, // Filter by logged-in user
+            tenantId, // Filter by tenant for full organizational analytics
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
         });
@@ -877,7 +937,7 @@ class DatabaseToolsService {
           _count: { id: true },
           _sum: { value: true },
           where: {
-            userId, // Filter by logged-in user
+            tenantId, // Filter by tenant for full organizational analytics
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
         });
@@ -905,21 +965,15 @@ class DatabaseToolsService {
       case 'conversion_rate':
         const totalLeads = await prisma.lead.count({
           where: {
-            userId, // Filter by logged-in user
+            tenantId, // Filter by tenant for full organizational analytics
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
-        });
-
-        // Get user's tenantId to find won stages
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { tenantId: true }
         });
 
         // Find "won" stages using explicit stage mapping
         const wonStages = await prisma.pipelineStage.findMany({
           where: {
-            tenantId: user.tenantId,
+            tenantId,
             isWonStage: true,
             isActive: true,
           },
@@ -930,7 +984,7 @@ class DatabaseToolsService {
 
         const wonDeals = wonStageIds.length > 0 ? await prisma.deal.count({
           where: {
-            userId, // Filter by logged-in user
+            tenantId, // Filter by tenant for full organizational analytics
             stageId: { in: wonStageIds },
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
@@ -949,7 +1003,7 @@ class DatabaseToolsService {
         const revenue = await prisma.invoice.aggregate({
           _sum: { total: true },
           where: {
-            userId, // Filter by logged-in user
+            tenantId, // Filter by tenant for full organizational analytics
             status: 'paid',
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
@@ -962,16 +1016,10 @@ class DatabaseToolsService {
         };
 
       case 'pipeline_value':
-        // Get user's tenantId to find closed stages
-        const pipelineUser = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { tenantId: true }
-        });
-
         // Find "closed" stages dynamically (won/lost)
         const closedStages = await prisma.pipelineStage.findMany({
           where: {
-            tenantId: pipelineUser.tenantId,
+            tenantId,
             OR: [
               { slug: { contains: 'won' } },
               { slug: { contains: 'lost' } },
@@ -987,7 +1035,7 @@ class DatabaseToolsService {
         const pipelineValue = await prisma.deal.aggregate({
           _sum: { value: true },
           where: {
-            userId, // Filter by logged-in user
+            tenantId, // Filter by tenant for full organizational analytics
             ...(closedStageIds.length > 0 ? { stageId: { notIn: closedStageIds } } : {}),
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
@@ -1005,7 +1053,7 @@ class DatabaseToolsService {
           by: ['status'],
           _count: { id: true },
           where: {
-            userId, // Filter by logged-in user
+            tenantId, // Filter by tenant for full organizational analytics
             ...(dateFrom || dateTo ? { createdAt: dateFilter } : {}),
           },
         });
@@ -1023,8 +1071,14 @@ class DatabaseToolsService {
    * Query WhatsApp conversations with filters
    */
   async queryWhatsAppConversations(args, userId) {
+    // Get tenant ID for enterprise-level data access
+    const tenantId = await this.getTenantId(userId);
+    if (!tenantId) {
+      return { count: 0, conversations: [], error: 'User tenant not found' };
+    }
+
     const where = {
-      userId, // Filter by logged-in user
+      tenantId, // Filter by tenant for full organizational visibility
     };
 
     // Filter by unread status
