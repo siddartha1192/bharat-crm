@@ -20,7 +20,7 @@ import { Filter, X, ChevronDown } from 'lucide-react';
 export interface FilterConfig {
   key: string;
   label: string;
-  type: 'select' | 'multiselect' | 'text' | 'tags';
+  type: 'select' | 'multiselect' | 'text' | 'tags' | 'date';
   options?: { value: string; label: string }[];
   placeholder?: string;
 }
@@ -122,6 +122,17 @@ export function AdvancedFilters({ filters, values, onChange, onReset }: Advanced
                     placeholder={filter.placeholder || 'Enter tags separated by commas'}
                   />
                 )}
+
+                {filter.type === 'date' && (
+                  <Input
+                    id={filter.key}
+                    type="date"
+                    value={values[filter.key] || ''}
+                    onChange={(e) => handleChange(filter.key, e.target.value)}
+                    placeholder={filter.placeholder || `Select ${filter.label}`}
+                    className="w-full"
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -141,6 +152,14 @@ export function AdvancedFilters({ filters, values, onChange, onReset }: Advanced
             if (filter.type === 'select' && filter.options) {
               const option = filter.options.find((o) => o.value === value);
               displayValue = option?.label || value;
+            } else if (filter.type === 'date' && value) {
+              // Format date for display (YYYY-MM-DD to readable format)
+              const date = new Date(value);
+              displayValue = date.toLocaleDateString('en-IN', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              });
             }
 
             return (
