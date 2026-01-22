@@ -161,10 +161,10 @@ export default function CallLogsPage() {
       });
   };
 
-  // Get recording URL via proxy
+  // Get recording URL via proxy with token
   const getRecordingUrl = (callId: string) => {
     const token = localStorage.getItem('token');
-    return `/api/calls/logs/${callId}/recording`;
+    return `/api/calls/logs/${callId}/recording?token=${encodeURIComponent(token || '')}`;
   };
 
   if (isLoading) {
