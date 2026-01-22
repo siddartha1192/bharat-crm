@@ -1364,23 +1364,68 @@ router.post('/webhook/transcription', async (req, res) => {
  */
 router.post('/webhook/ai-conversation', async (req, res) => {
   try {
-    const { leadId } = req.query;
+    const { leadId, timeoutCount = '0', retry = 'false' } = req.query;
     const { SpeechResult, CallSid, Confidence } = req.body;
 
     console.log('[WEBHOOK] AI Conversation:', {
       leadId,
       CallSid,
       speech: SpeechResult,
-      confidence: Confidence
+      confidence: Confidence,
+      timeoutCount,
+      retry
     });
+
+    // Track timeout attempts
+    let currentTimeoutCount = parseInt(timeoutCount) || 0;
+
+    // Handle explicit retry (from TwiML redirect when timeout occurs)
+    if (retry === 'true' && !SpeechResult) {
+      console.log('[WEBHOOK] Retry attempt after timeout, count:', currentTimeoutCount);
+
+      // Generate fallback TwiML with progressive messages
+      let fallbackMessage;
+      if (currentTimeoutCount === 1) {
+        fallbackMessage = 'I can hear some background noise. If you\'re there, please say hello or yes.';
+      } else if (currentTimeoutCount === 2) {
+        fallbackMessage = 'This might not be a good time. Should I call you back later? Please say yes or no.';
+      } else {
+        // After multiple retries, end gracefully
+        fallbackMessage = 'It seems we\'re having trouble connecting. I\'ll have someone from our team follow up with you. Have a great day!';
+      }
+
+      const twiml = twilioService.generateAIConversationTwiML(
+        leadId,
+        fallbackMessage,
+        currentTimeoutCount < 3, // Only continue if less than 3 timeouts
+        currentTimeoutCount
+      );
+      res.type('text/xml');
+      return res.send(twiml);
+    }
 
     // Validate speech result
     if (!SpeechResult || !CallSid) {
       console.warn('[WEBHOOK] No speech detected or missing CallSid');
+      currentTimeoutCount++;
+
+      // Progressive fallback messages
+      let fallbackMessage;
+      if (currentTimeoutCount === 0) {
+        fallbackMessage = 'I didn\'t catch that. Could you please repeat?';
+      } else if (currentTimeoutCount === 1) {
+        fallbackMessage = 'I still can\'t hear you clearly. Are you able to speak? Please say yes or no.';
+      } else if (currentTimeoutCount === 2) {
+        fallbackMessage = 'It seems we\'re having trouble connecting. Would you like me to call you back? Please say yes or no.';
+      } else {
+        fallbackMessage = 'I apologize for the inconvenience. Someone from our team will follow up with you. Thank you and goodbye.';
+      }
+
       const twiml = twilioService.generateAIConversationTwiML(
         leadId,
-        'I didn\'t catch that. Could you please repeat?',
-        true
+        fallbackMessage,
+        currentTimeoutCount < 3, // Only continue if less than 3 timeouts
+        currentTimeoutCount
       );
       res.type('text/xml');
       return res.send(twiml);
@@ -1465,10 +1510,12 @@ router.post('/webhook/ai-conversation', async (req, res) => {
     });
 
     // Generate TwiML response with AI's answer
+    // Reset timeout count to 0 since we got a successful response
     const twiml = twilioService.generateAIConversationTwiML(
       leadId,
       aiResult.response,
-      aiResult.shouldContinue
+      aiResult.shouldContinue,
+      0 // Reset timeout count after successful interaction
     );
 
     res.type('text/xml');
@@ -1476,11 +1523,12 @@ router.post('/webhook/ai-conversation', async (req, res) => {
   } catch (error) {
     console.error('[WEBHOOK] Error in AI conversation:', error);
 
-    // Fallback TwiML
+    // Fallback TwiML - end call due to technical error
     const twiml = twilioService.generateAIConversationTwiML(
       req.query.leadId,
-      'I apologize, I\'m having technical difficulties. Thank you for your time. Goodbye.',
-      false
+      'I apologize, I\'m having technical difficulties. Someone from our team will follow up with you. Thank you for your time. Goodbye.',
+      false, // Don't continue conversation
+      0 // Reset timeout count
     );
 
     res.type('text/xml');
