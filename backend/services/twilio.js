@@ -57,12 +57,24 @@ class TwilioService {
         asyncAmd: 'true', // Async answering machine detection
       };
 
-      // Add recording if enabled
+      // Add recording if enabled (respects script-level override)
       if (settings.enableRecording) {
         callOptions.record = true;
         callOptions.recordingStatusCallback = `${baseUrl}/api/calls/webhook/recording`;
         callOptions.recordingStatusCallbackEvent = ['completed'];
+
+        // Add transcription if enabled (respects script-level override)
+        if (settings.enableTranscription) {
+          callOptions.recordingStatusCallbackMethod = 'POST';
+          callOptions.transcribe = true;
+          callOptions.transcribeCallback = `${baseUrl}/api/calls/webhook/transcription`;
+        }
       }
+
+      console.log('[TWILIO] Call recording settings:', {
+        recording: settings.enableRecording || false,
+        transcription: settings.enableTranscription || false
+      });
 
       console.log('[TWILIO] Initiating call:', {
         to: phoneNumber,
@@ -146,9 +158,9 @@ class TwilioService {
     // Create gather for speech input - the greeting will be said before listening
     const gather = response.gather({
       input: 'speech',
-      timeout: 5, // Wait 5 seconds for user to start speaking after greeting
+      timeout: 8, // Increased from 5 to 8 seconds for better user response time
       speechTimeout: 'auto', // Auto-detect when user stops speaking
-      action: `${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}`,
+      action: `${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}&timeoutCount=0`,
       method: 'POST',
       language: 'en-IN',
       hints: 'product, price, demo, meeting, interested, yes, no, hello, okay, sure, features, benefits' // Help Twilio recognize common words
@@ -163,16 +175,17 @@ class TwilioService {
       greeting
     );
 
-    // If user doesn't say anything after gather timeout, this will execute
+    // If user doesn't say anything after gather timeout, give them another chance
     response.say(
       {
         voice: 'alice',
         language: 'en-IN'
       },
-      'I didn\'t catch that. Thank you for your time. Goodbye.'
+      'Are you still there? Please say yes if you can hear me.'
     );
 
-    response.hangup();
+    // Redirect to retry with timeout tracking
+    response.redirect(`${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}&retry=true&timeoutCount=1`);
 
     return response.toString();
   }
@@ -182,9 +195,10 @@ class TwilioService {
    * @param {string} leadId - Lead ID
    * @param {string} aiResponse - AI-generated response text
    * @param {boolean} continueConversation - Whether to continue gathering input
+   * @param {number} timeoutCount - Number of timeouts that have occurred (for progressive fallback)
    * @returns {string} TwiML response
    */
-  generateAIConversationTwiML(leadId, aiResponse, continueConversation = true) {
+  generateAIConversationTwiML(leadId, aiResponse, continueConversation = true, timeoutCount = 0) {
     const response = new VoiceResponse();
     const baseUrl = process.env.APP_URL || 'http://localhost:3001';
 
@@ -192,9 +206,9 @@ class TwilioService {
       // Create gather that first says AI response, then waits for user input
       const gather = response.gather({
         input: 'speech',
-        timeout: 5, // Wait 5 seconds for user to start speaking
+        timeout: 8, // Increased from 5 to 8 seconds for better user response time
         speechTimeout: 'auto', // Auto-detect when user stops speaking
-        action: `${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}`,
+        action: `${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}&timeoutCount=${timeoutCount}`,
         method: 'POST',
         language: 'en-IN',
         hints: 'product, price, demo, meeting, interested, yes, no, hello, thanks, okay'
@@ -209,14 +223,40 @@ class TwilioService {
         aiResponse
       );
 
-      // If user doesn't respond after timeout
-      response.say(
-        {
-          voice: 'alice',
-          language: 'en-IN'
-        },
-        'Thank you for your time. Goodbye.'
-      );
+      // Progressive fallback based on timeout count
+      if (timeoutCount === 0) {
+        // First timeout - check if user is still there
+        response.say(
+          {
+            voice: 'alice',
+            language: 'en-IN'
+          },
+          'Are you still there? Please say yes if you can hear me.'
+        );
+        // Redirect back to conversation with increased timeout count
+        response.redirect(`${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}&retry=true&timeoutCount=1`);
+      } else if (timeoutCount === 1) {
+        // Second timeout - offer to call back
+        response.say(
+          {
+            voice: 'alice',
+            language: 'en-IN'
+          },
+          'I haven\'t heard from you. This might not be a good time. Would you like me to call back later? Please say yes or no.'
+        );
+        // Give one more chance
+        response.redirect(`${baseUrl}/api/calls/webhook/ai-conversation?leadId=${leadId}&retry=true&timeoutCount=2`);
+      } else {
+        // After 2-3 timeouts, end gracefully
+        response.say(
+          {
+            voice: 'alice',
+            language: 'en-IN'
+          },
+          'It seems like this might not be a good time. I\'ll have someone follow up with you. Have a great day!'
+        );
+        response.hangup();
+      }
     } else {
       // End conversation - just say final message and hangup
       response.say(
@@ -226,9 +266,8 @@ class TwilioService {
         },
         aiResponse
       );
+      response.hangup();
     }
-
-    response.hangup();
 
     return response.toString();
   }

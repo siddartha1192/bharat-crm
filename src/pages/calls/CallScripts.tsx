@@ -38,6 +38,8 @@ export default function CallScriptsPage() {
     aiPersonality: 'professional',
     manualScript: '',
     isDefault: false,
+    enableRecording: true,
+    enableTranscription: true,
   });
   const [documentFile, setDocumentFile] = useState<File | null>(null);
 
@@ -74,6 +76,8 @@ export default function CallScriptsPage() {
       aiPersonality: 'professional',
       manualScript: '',
       isDefault: false,
+      enableRecording: true,
+      enableTranscription: true,
     });
     setDocumentFile(null);
     setEditingScript(null);
@@ -91,6 +95,8 @@ export default function CallScriptsPage() {
       aiPersonality: script.aiPersonality || 'professional',
       manualScript: script.manualScript || '',
       isDefault: script.isDefault,
+      enableRecording: script.enableRecording !== undefined ? script.enableRecording : true,
+      enableTranscription: script.enableTranscription !== undefined ? script.enableTranscription : true,
     });
     setIsDialogOpen(true);
   };
@@ -236,15 +242,46 @@ export default function CallScriptsPage() {
               </div>
 
               {/* Settings */}
-              <div className="flex items-center justify-between border-t pt-4">
-                <div className="space-y-0.5">
-                  <Label>Set as Default Script</Label>
-                  <p className="text-sm text-gray-500">Use this script by default for calls</p>
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Set as Default Script</Label>
+                    <p className="text-sm text-gray-500">Use this script by default for calls</p>
+                  </div>
+                  <Switch
+                    checked={formData.isDefault}
+                    onCheckedChange={(checked) => setFormData({ ...formData, isDefault: checked })}
+                  />
                 </div>
-                <Switch
-                  checked={formData.isDefault}
-                  onCheckedChange={(checked) => setFormData({ ...formData, isDefault: checked })}
-                />
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="flex items-center gap-2">
+                      Enable Call Recording
+                      <Badge variant="secondary" className="text-xs">PRO</Badge>
+                    </Label>
+                    <p className="text-sm text-gray-500">Record calls made with this script</p>
+                  </div>
+                  <Switch
+                    checked={formData.enableRecording}
+                    onCheckedChange={(checked) => setFormData({ ...formData, enableRecording: checked })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="flex items-center gap-2">
+                      Enable Transcription
+                      <Badge variant="secondary" className="text-xs">PRO</Badge>
+                    </Label>
+                    <p className="text-sm text-gray-500">Transcribe call recordings to text (requires recording)</p>
+                  </div>
+                  <Switch
+                    checked={formData.enableTranscription}
+                    onCheckedChange={(checked) => setFormData({ ...formData, enableTranscription: checked })}
+                    disabled={!formData.enableRecording}
+                  />
+                </div>
               </div>
 
               {/* Actions */}
@@ -317,6 +354,16 @@ export default function CallScriptsPage() {
                     {script.documentFileName}
                   </div>
                 )}
+
+                {/* Recording & Transcription Status */}
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={script.enableRecording ? "default" : "secondary"} className="text-xs">
+                    {script.enableRecording ? "📹 Recording" : "🚫 No Recording"}
+                  </Badge>
+                  <Badge variant={script.enableTranscription ? "default" : "secondary"} className="text-xs">
+                    {script.enableTranscription ? "📝 Transcription" : "🚫 No Transcription"}
+                  </Badge>
+                </div>
 
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span>Used {script.usageCount} times</span>

@@ -403,6 +403,59 @@ Keep it concise, actionable, and professional.`
   }
 });
 
+/**
+ * GET /api/calls/logs/:id/recording
+ * Proxy call recording with authentication
+ * This endpoint fetches the recording from Twilio with proper authentication
+ */
+router.get('/logs/:id/recording', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user.tenantId;
+
+    // Verify ownership and get call log
+    const callLog = await prisma.callLog.findFirst({
+      where: { id, tenantId }
+    });
+
+    if (!callLog) {
+      return res.status(404).json({ error: 'Call log not found' });
+    }
+
+    if (!callLog.recordingUrl) {
+      return res.status(404).json({ error: 'No recording available for this call' });
+    }
+
+    // Get tenant's Twilio credentials
+    const settings = await prisma.callSettings.findUnique({
+      where: { tenantId }
+    });
+
+    if (!settings?.twilioAccountSid || !settings?.twilioAuthToken) {
+      return res.status(400).json({ error: 'Twilio credentials not configured' });
+    }
+
+    // Fetch recording from Twilio with authentication using axios
+    const axios = require('axios');
+    const auth = Buffer.from(`${settings.twilioAccountSid}:${settings.twilioAuthToken}`).toString('base64');
+
+    const recordingResponse = await axios.get(callLog.recordingUrl, {
+      headers: {
+        'Authorization': `Basic ${auth}`
+      },
+      responseType: 'stream'
+    });
+
+    // Stream the recording to client
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', `inline; filename="recording-${id}.mp3"`);
+    recordingResponse.data.pipe(res);
+  } catch (error) {
+    console.error('[CALLS API] Error proxying recording:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==========================================
 // CALL QUEUE
 // ==========================================
@@ -932,7 +985,9 @@ router.post('/scripts', upload.single('document'), async (req, res) => {
       aiInstructions,
       aiPersonality = 'professional',
       manualScript,
-      isDefault = false
+      isDefault = false,
+      enableRecording = true,
+      enableTranscription = true
     } = req.body;
 
     if (!name) {
@@ -951,6 +1006,8 @@ router.post('/scripts', upload.single('document'), async (req, res) => {
       manualScript,
       isActive: true,
       isDefault: isDefault === 'true' || isDefault === true,
+      enableRecording: enableRecording === 'true' || enableRecording === true,
+      enableTranscription: enableTranscription === 'true' || enableTranscription === true,
       tenantId,
       userId
     };
@@ -1050,6 +1107,12 @@ router.put('/scripts/:id', upload.single('document'), async (req, res) => {
     }
     if (req.body.isActive !== undefined) {
       updateData.isActive = req.body.isActive === 'true' || req.body.isActive === true;
+    }
+    if (req.body.enableRecording !== undefined) {
+      updateData.enableRecording = req.body.enableRecording === 'true' || req.body.enableRecording === true;
+    }
+    if (req.body.enableTranscription !== undefined) {
+      updateData.enableTranscription = req.body.enableTranscription === 'true' || req.body.enableTranscription === true;
     }
 
     // Handle document upload
@@ -1193,13 +1256,18 @@ router.post('/webhook/twiml', async (req, res) => {
           // Use the script from the call log (the one selected during call initiation)
           if (callLog && callLog.callScript) {
             script = callLog.callScript;
-            console.log('[WEBHOOK] Using script bound to call:', script.name);
+            // Script-level recording setting takes precedence
+            enableRecording = script.enableRecording !== undefined ? script.enableRecording : enableRecording;
+            console.log('[WEBHOOK] Using script bound to call:', script.name, 'with recording:', enableRecording);
           } else if (settings && settings.defaultCallScriptId) {
             // Fallback to default script only if no script was bound to the call
             script = await prisma.callScript.findUnique({
               where: { id: settings.defaultCallScriptId }
             });
-            console.log('[WEBHOOK] Using default script:', script?.name);
+            if (script) {
+              enableRecording = script.enableRecording !== undefined ? script.enableRecording : enableRecording;
+            }
+            console.log('[WEBHOOK] Using default script:', script?.name, 'with recording:', enableRecording);
           }
         }
       }
@@ -1364,23 +1432,68 @@ router.post('/webhook/transcription', async (req, res) => {
  */
 router.post('/webhook/ai-conversation', async (req, res) => {
   try {
-    const { leadId } = req.query;
+    const { leadId, timeoutCount = '0', retry = 'false' } = req.query;
     const { SpeechResult, CallSid, Confidence } = req.body;
 
     console.log('[WEBHOOK] AI Conversation:', {
       leadId,
       CallSid,
       speech: SpeechResult,
-      confidence: Confidence
+      confidence: Confidence,
+      timeoutCount,
+      retry
     });
+
+    // Track timeout attempts
+    let currentTimeoutCount = parseInt(timeoutCount) || 0;
+
+    // Handle explicit retry (from TwiML redirect when timeout occurs)
+    if (retry === 'true' && !SpeechResult) {
+      console.log('[WEBHOOK] Retry attempt after timeout, count:', currentTimeoutCount);
+
+      // Generate fallback TwiML with progressive messages
+      let fallbackMessage;
+      if (currentTimeoutCount === 1) {
+        fallbackMessage = 'I can hear some background noise. If you\'re there, please say hello or yes.';
+      } else if (currentTimeoutCount === 2) {
+        fallbackMessage = 'This might not be a good time. Should I call you back later? Please say yes or no.';
+      } else {
+        // After multiple retries, end gracefully
+        fallbackMessage = 'It seems we\'re having trouble connecting. I\'ll have someone from our team follow up with you. Have a great day!';
+      }
+
+      const twiml = twilioService.generateAIConversationTwiML(
+        leadId,
+        fallbackMessage,
+        currentTimeoutCount < 3, // Only continue if less than 3 timeouts
+        currentTimeoutCount
+      );
+      res.type('text/xml');
+      return res.send(twiml);
+    }
 
     // Validate speech result
     if (!SpeechResult || !CallSid) {
       console.warn('[WEBHOOK] No speech detected or missing CallSid');
+      currentTimeoutCount++;
+
+      // Progressive fallback messages
+      let fallbackMessage;
+      if (currentTimeoutCount === 0) {
+        fallbackMessage = 'I didn\'t catch that. Could you please repeat?';
+      } else if (currentTimeoutCount === 1) {
+        fallbackMessage = 'I still can\'t hear you clearly. Are you able to speak? Please say yes or no.';
+      } else if (currentTimeoutCount === 2) {
+        fallbackMessage = 'It seems we\'re having trouble connecting. Would you like me to call you back? Please say yes or no.';
+      } else {
+        fallbackMessage = 'I apologize for the inconvenience. Someone from our team will follow up with you. Thank you and goodbye.';
+      }
+
       const twiml = twilioService.generateAIConversationTwiML(
         leadId,
-        'I didn\'t catch that. Could you please repeat?',
-        true
+        fallbackMessage,
+        currentTimeoutCount < 3, // Only continue if less than 3 timeouts
+        currentTimeoutCount
       );
       res.type('text/xml');
       return res.send(twiml);
@@ -1465,10 +1578,12 @@ router.post('/webhook/ai-conversation', async (req, res) => {
     });
 
     // Generate TwiML response with AI's answer
+    // Reset timeout count to 0 since we got a successful response
     const twiml = twilioService.generateAIConversationTwiML(
       leadId,
       aiResult.response,
-      aiResult.shouldContinue
+      aiResult.shouldContinue,
+      0 // Reset timeout count after successful interaction
     );
 
     res.type('text/xml');
@@ -1476,11 +1591,12 @@ router.post('/webhook/ai-conversation', async (req, res) => {
   } catch (error) {
     console.error('[WEBHOOK] Error in AI conversation:', error);
 
-    // Fallback TwiML
+    // Fallback TwiML - end call due to technical error
     const twiml = twilioService.generateAIConversationTwiML(
       req.query.leadId,
-      'I apologize, I\'m having technical difficulties. Thank you for your time. Goodbye.',
-      false
+      'I apologize, I\'m having technical difficulties. Someone from our team will follow up with you. Thank you for your time. Goodbye.',
+      false, // Don't continue conversation
+      0 // Reset timeout count
     );
 
     res.type('text/xml');
@@ -1739,6 +1855,111 @@ router.get('/stats', async (req, res) => {
     });
   } catch (error) {
     console.error('[CALLS API] Error fetching stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/calls/logs/export
+ * Export call logs to CSV
+ */
+router.get('/logs/export', async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const {
+      callType,
+      callOutcome,
+      startDate,
+      endDate
+    } = req.query;
+
+    // Build where clause
+    const where = { tenantId };
+    if (callType && callType !== 'all') where.callType = callType;
+    if (callOutcome && callOutcome !== 'all') where.callOutcome = callOutcome;
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
+    }
+
+    // Fetch all matching call logs
+    const callLogs = await prisma.callLog.findMany({
+      where,
+      include: {
+        lead: {
+          select: { name: true, company: true, email: true }
+        },
+        contact: {
+          select: { name: true, company: true, email: true }
+        },
+        callScript: {
+          select: { name: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Generate CSV content
+    const csvHeaders = [
+      'Date',
+      'Time',
+      'Contact Name',
+      'Company',
+      'Phone Number',
+      'Call Type',
+      'Status',
+      'Outcome',
+      'Duration (seconds)',
+      'Call Script',
+      'Sentiment',
+      'Has Recording',
+      'Has Transcript',
+      'Meeting Agreed',
+      'Call SID'
+    ];
+
+    const csvRows = callLogs.map(call => {
+      const date = new Date(call.createdAt);
+      return [
+        date.toISOString().split('T')[0], // Date
+        date.toTimeString().split(' ')[0], // Time
+        call.lead?.name || call.contact?.name || 'Unknown',
+        call.lead?.company || call.contact?.company || '',
+        call.phoneNumber,
+        call.callType || 'ai',
+        call.twilioStatus,
+        call.callOutcome || '',
+        call.duration || 0,
+        call.callScript?.name || '',
+        call.sentiment || '',
+        call.recordingUrl ? 'Yes' : 'No',
+        call.transcript ? 'Yes' : 'No',
+        call.meetingAgreed ? 'Yes' : (call.hasMeetingRequest ? 'No' : 'N/A'),
+        call.twilioCallSid
+      ];
+    });
+
+    // Build CSV string
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvRows.map(row => row.map(cell => {
+        // Escape commas and quotes in cell content
+        const cellStr = String(cell);
+        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+          return `"${cellStr.replace(/"/g, '""')}"`;
+        }
+        return cellStr;
+      }).join(','))
+    ].join('\n');
+
+    // Set response headers for CSV download
+    const filename = `call-logs-${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csvContent);
+  } catch (error) {
+    console.error('[CALLS API] Error exporting call logs:', error);
     res.status(500).json({ error: error.message });
   }
 });

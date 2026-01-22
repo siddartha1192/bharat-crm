@@ -1518,6 +1518,10 @@ model CallScript {
   isActive  Boolean @default(true)
   isDefault Boolean @default(false) // Default script for the tenant
 
+  // Recording & Transcription Controls (Script-level override)
+  enableRecording     Boolean @default(true) // Record calls using this script
+  enableTranscription Boolean @default(true) // Transcribe calls using this script
+
   // Usage Statistics
   usageCount Int       @default(0)
   lastUsedAt DateTime?
