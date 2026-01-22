@@ -57,12 +57,24 @@ class TwilioService {
         asyncAmd: 'true', // Async answering machine detection
       };
 
-      // Add recording if enabled
+      // Add recording if enabled (respects script-level override)
       if (settings.enableRecording) {
         callOptions.record = true;
         callOptions.recordingStatusCallback = `${baseUrl}/api/calls/webhook/recording`;
         callOptions.recordingStatusCallbackEvent = ['completed'];
+
+        // Add transcription if enabled (respects script-level override)
+        if (settings.enableTranscription) {
+          callOptions.recordingStatusCallbackMethod = 'POST';
+          callOptions.transcribe = true;
+          callOptions.transcribeCallback = `${baseUrl}/api/calls/webhook/transcription`;
+        }
       }
+
+      console.log('[TWILIO] Call recording settings:', {
+        recording: settings.enableRecording || false,
+        transcription: settings.enableTranscription || false
+      });
 
       console.log('[TWILIO] Initiating call:', {
         to: phoneNumber,

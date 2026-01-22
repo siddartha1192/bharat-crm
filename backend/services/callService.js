@@ -53,6 +53,22 @@ class CallService {
         });
       }
 
+      // Merge settings with script-level overrides
+      // Script-level recording/transcription settings take precedence over tenant settings
+      const effectiveSettings = {
+        ...settings,
+        enableRecording: callScript ? callScript.enableRecording : settings.enableRecording,
+        enableTranscription: callScript ? callScript.enableTranscription : settings.enableTranscription
+      };
+
+      console.log('[CALL SERVICE] Effective call settings:', {
+        scriptId: callScript?.id,
+        scriptName: callScript?.name,
+        enableRecording: effectiveSettings.enableRecording,
+        enableTranscription: effectiveSettings.enableTranscription,
+        source: callScript ? 'script-level' : 'tenant-level'
+      });
+
       // Normalize phone number to E.164 format for Twilio
       const phoneNormalization = normalizePhoneNumber(
         queueItem.phoneNumber,
@@ -66,9 +82,9 @@ class CallService {
       const normalizedPhone = phoneNormalization.normalized;
       console.log(`[CALL SERVICE] Normalized phone: ${queueItem.phoneNumber} -> ${normalizedPhone}`);
 
-      // Make the call via Twilio
+      // Make the call via Twilio with effective settings
       const twilioCall = await twilioService.makeCall(
-        settings,
+        effectiveSettings,
         normalizedPhone,
         queueItem.leadId || queueItem.contactId,
         queueItem.callType

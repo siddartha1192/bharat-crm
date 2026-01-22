@@ -985,7 +985,9 @@ router.post('/scripts', upload.single('document'), async (req, res) => {
       aiInstructions,
       aiPersonality = 'professional',
       manualScript,
-      isDefault = false
+      isDefault = false,
+      enableRecording = true,
+      enableTranscription = true
     } = req.body;
 
     if (!name) {
@@ -1004,6 +1006,8 @@ router.post('/scripts', upload.single('document'), async (req, res) => {
       manualScript,
       isActive: true,
       isDefault: isDefault === 'true' || isDefault === true,
+      enableRecording: enableRecording === 'true' || enableRecording === true,
+      enableTranscription: enableTranscription === 'true' || enableTranscription === true,
       tenantId,
       userId
     };
@@ -1103,6 +1107,12 @@ router.put('/scripts/:id', upload.single('document'), async (req, res) => {
     }
     if (req.body.isActive !== undefined) {
       updateData.isActive = req.body.isActive === 'true' || req.body.isActive === true;
+    }
+    if (req.body.enableRecording !== undefined) {
+      updateData.enableRecording = req.body.enableRecording === 'true' || req.body.enableRecording === true;
+    }
+    if (req.body.enableTranscription !== undefined) {
+      updateData.enableTranscription = req.body.enableTranscription === 'true' || req.body.enableTranscription === true;
     }
 
     // Handle document upload
@@ -1246,13 +1256,18 @@ router.post('/webhook/twiml', async (req, res) => {
           // Use the script from the call log (the one selected during call initiation)
           if (callLog && callLog.callScript) {
             script = callLog.callScript;
-            console.log('[WEBHOOK] Using script bound to call:', script.name);
+            // Script-level recording setting takes precedence
+            enableRecording = script.enableRecording !== undefined ? script.enableRecording : enableRecording;
+            console.log('[WEBHOOK] Using script bound to call:', script.name, 'with recording:', enableRecording);
           } else if (settings && settings.defaultCallScriptId) {
             // Fallback to default script only if no script was bound to the call
             script = await prisma.callScript.findUnique({
               where: { id: settings.defaultCallScriptId }
             });
-            console.log('[WEBHOOK] Using default script:', script?.name);
+            if (script) {
+              enableRecording = script.enableRecording !== undefined ? script.enableRecording : enableRecording;
+            }
+            console.log('[WEBHOOK] Using default script:', script?.name, 'with recording:', enableRecording);
           }
         }
       }
