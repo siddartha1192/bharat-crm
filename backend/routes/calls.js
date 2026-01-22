@@ -403,6 +403,59 @@ Keep it concise, actionable, and professional.`
   }
 });
 
+/**
+ * GET /api/calls/logs/:id/recording
+ * Proxy call recording with authentication
+ * This endpoint fetches the recording from Twilio with proper authentication
+ */
+router.get('/logs/:id/recording', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user.tenantId;
+
+    // Verify ownership and get call log
+    const callLog = await prisma.callLog.findFirst({
+      where: { id, tenantId }
+    });
+
+    if (!callLog) {
+      return res.status(404).json({ error: 'Call log not found' });
+    }
+
+    if (!callLog.recordingUrl) {
+      return res.status(404).json({ error: 'No recording available for this call' });
+    }
+
+    // Get tenant's Twilio credentials
+    const settings = await prisma.callSettings.findUnique({
+      where: { tenantId }
+    });
+
+    if (!settings?.twilioAccountSid || !settings?.twilioAuthToken) {
+      return res.status(400).json({ error: 'Twilio credentials not configured' });
+    }
+
+    // Fetch recording from Twilio with authentication using axios
+    const axios = require('axios');
+    const auth = Buffer.from(`${settings.twilioAccountSid}:${settings.twilioAuthToken}`).toString('base64');
+
+    const recordingResponse = await axios.get(callLog.recordingUrl, {
+      headers: {
+        'Authorization': `Basic ${auth}`
+      },
+      responseType: 'stream'
+    });
+
+    // Stream the recording to client
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', `inline; filename="recording-${id}.mp3"`);
+    recordingResponse.data.pipe(res);
+  } catch (error) {
+    console.error('[CALLS API] Error proxying recording:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==========================================
 // CALL QUEUE
 // ==========================================
@@ -1787,6 +1840,111 @@ router.get('/stats', async (req, res) => {
     });
   } catch (error) {
     console.error('[CALLS API] Error fetching stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/calls/logs/export
+ * Export call logs to CSV
+ */
+router.get('/logs/export', async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const {
+      callType,
+      callOutcome,
+      startDate,
+      endDate
+    } = req.query;
+
+    // Build where clause
+    const where = { tenantId };
+    if (callType && callType !== 'all') where.callType = callType;
+    if (callOutcome && callOutcome !== 'all') where.callOutcome = callOutcome;
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
+    }
+
+    // Fetch all matching call logs
+    const callLogs = await prisma.callLog.findMany({
+      where,
+      include: {
+        lead: {
+          select: { name: true, company: true, email: true }
+        },
+        contact: {
+          select: { name: true, company: true, email: true }
+        },
+        callScript: {
+          select: { name: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Generate CSV content
+    const csvHeaders = [
+      'Date',
+      'Time',
+      'Contact Name',
+      'Company',
+      'Phone Number',
+      'Call Type',
+      'Status',
+      'Outcome',
+      'Duration (seconds)',
+      'Call Script',
+      'Sentiment',
+      'Has Recording',
+      'Has Transcript',
+      'Meeting Agreed',
+      'Call SID'
+    ];
+
+    const csvRows = callLogs.map(call => {
+      const date = new Date(call.createdAt);
+      return [
+        date.toISOString().split('T')[0], // Date
+        date.toTimeString().split(' ')[0], // Time
+        call.lead?.name || call.contact?.name || 'Unknown',
+        call.lead?.company || call.contact?.company || '',
+        call.phoneNumber,
+        call.callType || 'ai',
+        call.twilioStatus,
+        call.callOutcome || '',
+        call.duration || 0,
+        call.callScript?.name || '',
+        call.sentiment || '',
+        call.recordingUrl ? 'Yes' : 'No',
+        call.transcript ? 'Yes' : 'No',
+        call.meetingAgreed ? 'Yes' : (call.hasMeetingRequest ? 'No' : 'N/A'),
+        call.twilioCallSid
+      ];
+    });
+
+    // Build CSV string
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvRows.map(row => row.map(cell => {
+        // Escape commas and quotes in cell content
+        const cellStr = String(cell);
+        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+          return `"${cellStr.replace(/"/g, '""')}"`;
+        }
+        return cellStr;
+      }).join(','))
+    ].join('\n');
+
+    // Set response headers for CSV download
+    const filename = `call-logs-${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csvContent);
+  } catch (error) {
+    console.error('[CALLS API] Error exporting call logs:', error);
     res.status(500).json({ error: error.message });
   }
 });

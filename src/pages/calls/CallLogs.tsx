@@ -124,6 +124,49 @@ export default function CallLogsPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Export call logs to CSV
+  const handleExport = () => {
+    const params = new URLSearchParams();
+    if (callType !== 'all') params.append('callType', callType);
+    if (callOutcome !== 'all') params.append('callOutcome', callOutcome);
+
+    // Get auth token from localStorage
+    const token = localStorage.getItem('token');
+
+    // Create a temporary link to download the CSV
+    const url = `/api/calls/logs/export?${params.toString()}`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `call-logs-${new Date().toISOString().split('T')[0]}.csv`);
+
+    // Add authorization header via fetch and create blob URL
+    fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+      .then(response => response.blob())
+      .then(blob => {
+        const blobUrl = window.URL.createObjectURL(blob);
+        link.href = blobUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        toast.success('Call logs exported successfully');
+      })
+      .catch(error => {
+        console.error('Export error:', error);
+        toast.error('Failed to export call logs');
+      });
+  };
+
+  // Get recording URL via proxy
+  const getRecordingUrl = (callId: string) => {
+    const token = localStorage.getItem('token');
+    return `/api/calls/logs/${callId}/recording`;
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -172,7 +215,7 @@ export default function CallLogsPage() {
               </SelectContent>
             </Select>
 
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
@@ -249,7 +292,7 @@ export default function CallLogsPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => window.open(call.recordingUrl, '_blank')}
+                            onClick={() => window.open(getRecordingUrl(call.id), '_blank')}
                           >
                             <Play className="w-4 h-4" />
                           </Button>
@@ -354,7 +397,7 @@ export default function CallLogsPage() {
               {selectedCall.recordingUrl && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Recording</p>
-                  <audio controls className="w-full" src={selectedCall.recordingUrl}>
+                  <audio controls className="w-full" src={getRecordingUrl(selectedCall.id)}>
                     Your browser does not support the audio element.
                   </audio>
                 </div>
