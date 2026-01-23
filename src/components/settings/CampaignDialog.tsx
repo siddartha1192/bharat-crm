@@ -354,6 +354,8 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
       if (enableUtmTracking && (formData.utmSource || formData.utmMedium || formData.utmCampaign)) {
         campaignData.autoTagLinks = true;
         campaignData.trackClicks = true;
+        // Short links are required for click tracking to work
+        campaignData.useShortLinks = true;
       }
 
       // Add schedule if selected
