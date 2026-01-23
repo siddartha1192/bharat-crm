@@ -51,7 +51,8 @@ class CampaignService {
 
       // Build initial recipient list based on targetType filters
       // This allows users to see and manage recipients before starting the campaign
-      if (campaignData.targetType && campaignData.targetType !== 'custom') {
+      // Now includes custom lists (emails/phones entered manually)
+      if (campaignData.targetType) {
         try {
           const recipients = await this.buildRecipientList(campaign);
 
@@ -73,7 +74,9 @@ class CampaignService {
               },
             });
 
-            console.log(`Created campaign with ${recipients.length} recipients`);
+            console.log(`Created campaign with ${recipients.length} recipients (targetType: ${campaignData.targetType})`);
+          } else {
+            console.log(`Campaign created but no recipients found for targetType: ${campaignData.targetType}`);
           }
         } catch (recipientError) {
           console.error('Error building initial recipient list:', recipientError);
@@ -428,6 +431,14 @@ class CampaignService {
           if (targetFilters.createdAfter) {
             where.createdAt = { gte: new Date(targetFilters.createdAfter) };
           }
+          // Search by name, email, or company (case-insensitive)
+          if (targetFilters.searchQuery && targetFilters.searchQuery.trim()) {
+            where.OR = [
+              { name: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { email: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { company: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+            ];
+          }
         }
 
         const leads = await prisma.lead.findMany({
@@ -469,6 +480,14 @@ class CampaignService {
           if (targetFilters.assignedTo) {
             where.assignedTo = targetFilters.assignedTo;
           }
+          // Search by name, email, or company (case-insensitive)
+          if (targetFilters.searchQuery && targetFilters.searchQuery.trim()) {
+            where.OR = [
+              { name: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { email: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { company: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+            ];
+          }
         }
 
         const contacts = await prisma.contact.findMany({
@@ -500,9 +519,35 @@ class CampaignService {
         }));
       } else if (targetType === 'all') {
         // Get both leads and contacts
+        // Build search filters for both leads and contacts
+        const leadWhere = { userId: campaign.userId };
+        const contactWhere = { userId: campaign.userId };
+
+        if (targetFilters) {
+          // Apply tag filter to both
+          if (targetFilters.tags && targetFilters.tags.length > 0) {
+            leadWhere.tags = { hasSome: targetFilters.tags };
+            contactWhere.tags = { hasSome: targetFilters.tags };
+          }
+
+          // Apply search query to both (name, email, company)
+          if (targetFilters.searchQuery && targetFilters.searchQuery.trim()) {
+            leadWhere.OR = [
+              { name: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { email: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { company: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+            ];
+            contactWhere.OR = [
+              { name: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { email: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { company: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+            ];
+          }
+        }
+
         const [leads, contacts] = await Promise.all([
           prisma.lead.findMany({
-            where: { userId: campaign.userId },
+            where: leadWhere,
             select: {
               id: true,
               name: true,
@@ -515,7 +560,7 @@ class CampaignService {
             take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
           }),
           prisma.contact.findMany({
-            where: { userId: campaign.userId },
+            where: contactWhere,
             select: {
               id: true,
               name: true,
@@ -553,12 +598,33 @@ class CampaignService {
       } else if (targetType === 'tags') {
         // Get both leads and contacts filtered by tags
         if (targetFilters && targetFilters.tags && targetFilters.tags.length > 0) {
+          // Build where clauses for both leads and contacts
+          const leadWhere = {
+            userId: campaign.userId,
+            tags: { hasSome: targetFilters.tags },
+          };
+          const contactWhere = {
+            userId: campaign.userId,
+            tags: { hasSome: targetFilters.tags },
+          };
+
+          // Add search query if provided
+          if (targetFilters.searchQuery && targetFilters.searchQuery.trim()) {
+            leadWhere.OR = [
+              { name: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { email: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { company: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+            ];
+            contactWhere.OR = [
+              { name: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { email: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+              { company: { contains: targetFilters.searchQuery.trim(), mode: 'insensitive' } },
+            ];
+          }
+
           const [leads, contacts] = await Promise.all([
             prisma.lead.findMany({
-              where: {
-                userId: campaign.userId,
-                tags: { hasSome: targetFilters.tags },
-              },
+              where: leadWhere,
               select: {
                 id: true,
                 name: true,
@@ -572,10 +638,7 @@ class CampaignService {
               take: CAMPAIGN_CONFIG.MAX_RECIPIENTS / 2,
             }),
             prisma.contact.findMany({
-              where: {
-                userId: campaign.userId,
-                tags: { hasSome: targetFilters.tags },
-              },
+              where: contactWhere,
               select: {
                 id: true,
                 name: true,
