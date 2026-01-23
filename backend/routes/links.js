@@ -224,6 +224,124 @@ router.get('/api/links/campaigns', authenticate, tenantContext, async (req, res)
 });
 
 /**
+ * Get complete conversion funnel for a campaign
+ * GET /api/links/conversion-funnel/:campaignId
+ */
+router.get('/api/links/conversion-funnel/:campaignId', authenticate, tenantContext, async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    const tenantId = req.tenant.id;
+
+    // Get campaign details
+    const campaign = await prisma.campaign.findFirst({
+      where: { id: campaignId, tenantId }
+    });
+
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        error: 'Campaign not found'
+      });
+    }
+
+    // Get click statistics
+    const clicks = await prisma.campaignClick.count({
+      where: { campaignId, tenantId }
+    });
+
+    const uniqueClicks = await prisma.campaignClick.groupBy({
+      by: ['ipAddress'],
+      where: { campaignId, tenantId },
+      _count: true
+    });
+
+    // Get form submissions that match this campaign's UTM parameters
+    const formSubmissions = await prisma.formSubmission.findMany({
+      where: {
+        tenantId,
+        utmCampaign: campaign.utmCampaign,
+        utmSource: campaign.utmSource,
+        utmMedium: campaign.utmMedium
+      },
+      include: {
+        lead: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            status: true,
+            priority: true,
+            createdAt: true
+          }
+        }
+      }
+    });
+
+    // Count leads created from this campaign
+    const leadsCreated = formSubmissions.filter(fs => fs.leadId).length;
+
+    // Calculate conversion metrics
+    const ctr = campaign.totalRecipients > 0
+      ? ((clicks / campaign.totalRecipients) * 100).toFixed(2)
+      : 0;
+
+    const formConversionRate = clicks > 0
+      ? ((formSubmissions.length / clicks) * 100).toFixed(2)
+      : 0;
+
+    const overallLeadConversion = campaign.totalRecipients > 0
+      ? ((leadsCreated / campaign.totalRecipients) * 100).toFixed(2)
+      : 0;
+
+    // Get recent conversions (last 10)
+    const recentConversions = formSubmissions
+      .filter(fs => fs.leadId)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 10)
+      .map(fs => ({
+        submittedAt: fs.createdAt,
+        name: fs.name,
+        email: fs.email,
+        leadId: fs.leadId,
+        leadStatus: fs.lead?.status,
+        leadPriority: fs.lead?.priority
+      }));
+
+    return res.json({
+      success: true,
+      data: {
+        campaign: {
+          id: campaign.id,
+          name: campaign.name,
+          channel: campaign.channel,
+          utmCampaign: campaign.utmCampaign
+        },
+        funnel: {
+          sent: campaign.totalRecipients,
+          delivered: campaign.sentCount,
+          clicks: clicks,
+          uniqueClicks: uniqueClicks.length,
+          formSubmissions: formSubmissions.length,
+          leadsCreated: leadsCreated
+        },
+        metrics: {
+          ctr: parseFloat(ctr),
+          formConversionRate: parseFloat(formConversionRate),
+          overallLeadConversion: parseFloat(overallLeadConversion)
+        },
+        recentConversions
+      }
+    });
+  } catch (error) {
+    console.error('[Conversion Funnel] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * UTM TEMPLATE MANAGEMENT
  */
 
