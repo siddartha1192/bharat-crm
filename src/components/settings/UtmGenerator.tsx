@@ -31,7 +31,8 @@ import {
   Globe,
   QrCode,
   Download,
-  Sparkles
+  Sparkles,
+  X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
