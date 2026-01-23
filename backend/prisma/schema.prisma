@@ -1139,8 +1139,8 @@ model CampaignLink {
   // Multi-tenant relationship
   tenantId String
 
-  campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   // Link details
   originalUrl String @db.Text // Original URL before UTM tagging
