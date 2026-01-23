@@ -51,7 +51,8 @@ class CampaignService {
 
       // Build initial recipient list based on targetType filters
       // This allows users to see and manage recipients before starting the campaign
-      if (campaignData.targetType && campaignData.targetType !== 'custom') {
+      // Now includes custom lists (emails/phones entered manually)
+      if (campaignData.targetType) {
         try {
           const recipients = await this.buildRecipientList(campaign);
 
@@ -73,7 +74,9 @@ class CampaignService {
               },
             });
 
-            console.log(`Created campaign with ${recipients.length} recipients`);
+            console.log(`Created campaign with ${recipients.length} recipients (targetType: ${campaignData.targetType})`);
+          } else {
+            console.log(`Campaign created but no recipients found for targetType: ${campaignData.targetType}`);
           }
         } catch (recipientError) {
           console.error('Error building initial recipient list:', recipientError);
