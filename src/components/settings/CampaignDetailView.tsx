@@ -35,6 +35,8 @@ import {
   UserPlus,
   Trash,
   Search,
+  ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api';
@@ -53,6 +55,12 @@ export function CampaignDetailView({ campaign, onBack, onUpdate }: Props) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'recipients' | 'logs'>('recipients');
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalRecipients, setTotalRecipients] = useState(0);
+  const [recipientsPerPage] = useState(50);
+  const [exporting, setExporting] = useState(false);
+
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editName, setEditName] = useState(campaign.name);
@@ -68,19 +76,25 @@ export function CampaignDetailView({ campaign, onBack, onUpdate }: Props) {
 
   useEffect(() => {
     fetchDetails();
-  }, [campaign.id]);
+  }, [campaign.id, currentPage]);
 
   const fetchDetails = async () => {
     try {
       setLoading(true);
       const [statsRes, recipientsRes, logsRes] = await Promise.all([
         api.get(`/campaigns/${campaign.id}/stats`),
-        api.get(`/campaigns/${campaign.id}/recipients?limit=100`),
+        api.get(`/campaigns/${campaign.id}/recipients`, {
+          params: {
+            page: currentPage,
+            limit: recipientsPerPage
+          }
+        }),
         api.get(`/campaigns/${campaign.id}/logs`),
       ]);
 
       setStats(statsRes.data.stats);
-      setRecipients(recipientsRes.data.recipients);
+      setRecipients(recipientsRes.data.recipients || recipientsRes.data.data);
+      setTotalRecipients(recipientsRes.data.total || recipientsRes.data.recipients?.length || 0);
       setLogs(logsRes.data.logs);
     } catch (error) {
       console.error('Error fetching campaign details:', error);
@@ -126,6 +140,107 @@ export function CampaignDetailView({ campaign, onBack, onUpdate }: Props) {
       });
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const handleExportRecipients = async () => {
+    try {
+      setExporting(true);
+
+      // Fetch ALL recipients (not just current page)
+      const allRecipients: CampaignRecipient[] = [];
+      let page = 1;
+      let hasMore = true;
+      const batchSize = 100;
+
+      toast({
+        title: 'Exporting...',
+        description: 'Fetching all recipients data. This may take a moment for large lists.',
+      });
+
+      // Fetch all pages
+      while (hasMore) {
+        const response = await api.get(`/campaigns/${campaign.id}/recipients`, {
+          params: {
+            page,
+            limit: batchSize
+          }
+        });
+
+        const batch = response.data.recipients || response.data.data || [];
+        allRecipients.push(...batch);
+
+        hasMore = batch.length === batchSize;
+        page++;
+      }
+
+      if (allRecipients.length === 0) {
+        toast({
+          title: 'No Data',
+          description: 'No recipients to export',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Prepare CSV content
+      const headers = [
+        'Name',
+        campaign.channel === 'email' ? 'Email' : 'Phone',
+        'Status',
+        'Sent At',
+        'Opened At',
+        'Clicked At',
+        'Click Count',
+        'Error Message'
+      ];
+
+      const rows = allRecipients.map(recipient => [
+        recipient.recipientName || '',
+        campaign.channel === 'email' ? (recipient.recipientEmail || '') : (recipient.recipientPhone || ''),
+        recipient.status || '',
+        recipient.sentAt ? new Date(recipient.sentAt).toLocaleString() : '',
+        recipient.openedAt ? new Date(recipient.openedAt).toLocaleString() : '',
+        recipient.firstClickedAt ? new Date(recipient.firstClickedAt).toLocaleString() : '',
+        recipient.clickedCount || 0,
+        recipient.errorMessage || ''
+      ]);
+
+      // Create CSV content
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => {
+          // Escape commas and quotes in cell content
+          const cellStr = String(cell);
+          if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+            return `"${cellStr.replace(/"/g, '""')}"`;
+          }
+          return cellStr;
+        }).join(','))
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `campaign-${campaign.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-recipients-${Date.now()}.csv`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Export Successful',
+        description: `Exported ${allRecipients.length} recipients to CSV`,
+      });
+    } catch (error: any) {
+      console.error('Error exporting recipients:', error);
+      toast({
+        title: 'Export Failed',
+        description: error.response?.data?.message || 'Failed to export recipients',
+        variant: 'destructive',
+      });
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -408,28 +523,55 @@ export function CampaignDetailView({ campaign, onBack, onUpdate }: Props) {
       {activeTab === 'recipients' && (
         <Card>
           <div className="p-4 border-b flex items-center justify-between">
-            <h3 className="font-semibold">Campaign Recipients</h3>
-            <Button variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
+            <div>
+              <h3 className="font-semibold">Campaign Recipients</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Showing {recipients.length} of {totalRecipients} recipients
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportRecipients}
+              disabled={exporting || recipients.length === 0}
+            >
+              {exporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export All ({totalRecipients})
+                </>
+              )}
             </Button>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>
-                  {campaign.channel === 'email' ? 'Email' : 'Phone'}
-                </TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Sent At</TableHead>
-                <TableHead>Error</TableHead>
-                {campaign.status === 'draft' && <TableHead>Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recipients.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+                <p className="text-muted-foreground">Loading recipients...</p>
+              </div>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>
+                    {campaign.channel === 'email' ? 'Email' : 'Phone'}
+                  </TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Sent At</TableHead>
+                  <TableHead>Error</TableHead>
+                  {campaign.status === 'draft' && <TableHead>Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recipients.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={campaign.status === 'draft' ? 6 : 5} className="text-center py-8 text-muted-foreground">
                     No recipients yet. Click "Manage Recipients" to add contacts.
@@ -470,6 +612,36 @@ export function CampaignDetailView({ campaign, onBack, onUpdate }: Props) {
               )}
             </TableBody>
           </Table>
+          )}
+
+          {/* Pagination Controls */}
+          {!loading && totalRecipients > recipientsPerPage && (
+            <div className="p-4 border-t flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Page {currentPage} of {Math.ceil(totalRecipients / recipientsPerPage)}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1 || loading}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalRecipients / recipientsPerPage), prev + 1))}
+                  disabled={currentPage >= Math.ceil(totalRecipients / recipientsPerPage) || loading}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
