@@ -16,10 +16,13 @@ import {
   Monitor,
   Globe,
   Smartphone,
+  Eye,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
+import ClickDetailsDrawer from './ClickDetailsDrawer';
+import RetargetingAudiences from './RetargetingAudiences';
 
 interface Campaign {
   id: string;
@@ -57,6 +60,7 @@ export function LinkAnalytics() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [campaignsLoading, setCampaignsLoading] = useState(true);
+  const [selectedLink, setSelectedLink] = useState<{ id: string; url: string; clicks: number } | null>(null);
 
   useEffect(() => {
     fetchCampaigns();
@@ -307,13 +311,30 @@ export function LinkAnalytics() {
                             </Badge>
                           )}
                         </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold">
-                            {link.totalClicks}
+                        <div className="text-right flex flex-col items-end gap-2">
+                          <div>
+                            <div className="text-2xl font-bold">
+                              {link.totalClicks}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {link.uniqueClicks} unique
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-500">
-                            {link.uniqueClicks} unique
-                          </div>
+                          {link.totalClicks > 0 && (
+                            <Button
+                              onClick={() => setSelectedLink({
+                                id: link.linkId,
+                                url: link.originalUrl,
+                                clicks: link.totalClicks
+                              })}
+                              size="sm"
+                              variant="outline"
+                              className="flex items-center gap-2"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View Clicks
+                            </Button>
+                          )}
                         </div>
                       </div>
 
@@ -400,8 +421,26 @@ export function LinkAnalytics() {
               )}
             </CardContent>
           </Card>
+
+          {/* Retargeting Audiences */}
+          {selectedCampaign && (
+            <RetargetingAudiences
+              campaignId={selectedCampaign}
+              campaignName={campaigns.find(c => c.id === selectedCampaign)?.name || ''}
+            />
+          )}
         </>
       ) : null}
+
+      {/* Click Details Drawer */}
+      {selectedLink && (
+        <ClickDetailsDrawer
+          linkId={selectedLink.id}
+          linkUrl={selectedLink.url}
+          totalClicks={selectedLink.clicks}
+          onClose={() => setSelectedLink(null)}
+        />
+      )}
     </div>
   );
 }

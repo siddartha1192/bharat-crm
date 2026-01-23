@@ -440,6 +440,17 @@ class UtmService {
         }
       }
 
+      // Check if this is a unique click (first time from this IP address for this link)
+      const existingClick = await prisma.campaignClick.findFirst({
+        where: {
+          linkId,
+          ipAddress,
+          tenantId
+        }
+      });
+
+      const isUniqueClick = !existingClick;
+
       // Create click record
       const click = await prisma.campaignClick.create({
         data: {
@@ -465,12 +476,19 @@ class UtmService {
       });
 
       // Update link statistics
+      const updateData = {
+        totalClicks: { increment: 1 },
+        lastClickedAt: new Date()
+      };
+
+      // If this is a unique click, increment uniqueClicks counter
+      if (isUniqueClick) {
+        updateData.uniqueClicks = { increment: 1 };
+      }
+
       await prisma.campaignLink.update({
         where: { id: linkId },
-        data: {
-          totalClicks: { increment: 1 },
-          lastClickedAt: new Date()
-        }
+        data: updateData
       });
 
       // Update recipient statistics if applicable
@@ -571,6 +589,7 @@ class UtmService {
       include: {
         clicks: {
           select: {
+            ipAddress: true,
             device: true,
             browser: true,
             os: true,
@@ -586,6 +605,10 @@ class UtmService {
     const analytics = links.map(link => {
       const clicks = link.clicks || [];
 
+      // Calculate unique clicks from actual click data (distinct IP addresses)
+      const uniqueIPs = new Set(clicks.map(click => click.ipAddress).filter(Boolean));
+      const calculatedUniqueClicks = uniqueIPs.size;
+
       return {
         linkId: link.id,
         originalUrl: link.originalUrl,
@@ -595,7 +618,7 @@ class UtmService {
         linkText: link.linkText,
         linkPosition: link.linkPosition,
         totalClicks: link.totalClicks,
-        uniqueClicks: link.uniqueClicks,
+        uniqueClicks: calculatedUniqueClicks, // Use calculated value instead of stored value
         lastClickedAt: link.lastClickedAt,
         utmParams: {
           source: link.utmSource,

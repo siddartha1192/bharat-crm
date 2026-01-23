@@ -861,6 +861,7 @@ router.get('/api/links/manual-analytics', authenticate, tenantContext, async (re
       include: {
         clicks: {
           select: {
+            ipAddress: true,
             device: true,
             browser: true,
             os: true,
@@ -890,15 +891,28 @@ router.get('/api/links/manual-analytics', authenticate, tenantContext, async (re
       }
     });
 
+    // Calculate unique clicks for each link from actual click data
+    const linksWithCalculatedUniqueClicks = links.map(link => {
+      const clicks = link.clicks || [];
+      const uniqueIPs = new Set(clicks.map(click => click.ipAddress).filter(Boolean));
+
+      return {
+        ...link,
+        uniqueClicks: uniqueIPs.size
+      };
+    });
+
     const totalClicks = links.reduce((sum, link) => sum + link.totalClicks, 0);
+    const totalUniqueClicks = linksWithCalculatedUniqueClicks.reduce((sum, link) => sum + link.uniqueClicks, 0);
     const leadsCreated = formSubmissions.filter(fs => fs.leadId).length;
 
     return res.json({
       success: true,
       data: {
         utmCampaign,
-        links,
+        links: linksWithCalculatedUniqueClicks,
         clicks: totalClicks,
+        uniqueClicks: totalUniqueClicks,
         formSubmissions: formSubmissions.length,
         leadsCreated,
         conversionRate: totalClicks > 0

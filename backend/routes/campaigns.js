@@ -636,4 +636,93 @@ router.post('/estimate-recipients', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/campaigns/:id/recipients-analytics
+ * Get campaign recipients with engagement analytics for retargeting
+ */
+router.get('/:id/recipients-analytics', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const campaignId = req.params.id;
+    const tenantId = req.tenant?.id;
+
+    // Verify campaign belongs to user
+    const campaign = await prisma.campaign.findFirst({
+      where: {
+        id: campaignId,
+        userId,
+        ...(tenantId && { tenantId })
+      }
+    });
+
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        error: 'Campaign not found'
+      });
+    }
+
+    // Get recipients with click and conversion data
+    const recipients = await prisma.campaignRecipient.findMany({
+      where: {
+        campaignId,
+        ...(tenantId && { tenantId })
+      },
+      select: {
+        id: true,
+        recipientName: true,
+        recipientEmail: true,
+        recipientPhone: true,
+        recipientType: true,
+        clickedCount: true,
+        lastClickedAt: true,
+        firstClickedAt: true,
+        status: true
+      },
+      orderBy: {
+        clickedCount: 'desc'
+      }
+    });
+
+    // Check for conversions (form submissions matching this campaign's UTM params)
+    const conversions = await prisma.formSubmission.findMany({
+      where: {
+        tenantId: tenantId || campaign.tenantId,
+        utmCampaign: campaign.utmCampaign,
+        utmSource: campaign.utmSource,
+        utmMedium: campaign.utmMedium,
+        leadId: { not: null }
+      },
+      select: {
+        email: true,
+        phone: true
+      }
+    });
+
+    // Create a set of converted emails/phones for quick lookup
+    const convertedContacts = new Set([
+      ...conversions.map(c => c.email).filter(Boolean),
+      ...conversions.map(c => c.phone).filter(Boolean)
+    ]);
+
+    // Enrich recipients with conversion status
+    const enrichedRecipients = recipients.map(recipient => ({
+      ...recipient,
+      hasConverted: convertedContacts.has(recipient.recipientEmail) ||
+                    convertedContacts.has(recipient.recipientPhone)
+    }));
+
+    res.json({
+      success: true,
+      data: enrichedRecipients
+    });
+  } catch (error) {
+    console.error('Error fetching recipients analytics:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch recipients analytics'
+    });
+  }
+});
+
 module.exports = router;
