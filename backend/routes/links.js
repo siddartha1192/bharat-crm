@@ -612,4 +612,214 @@ router.post('/api/utm/generate', authenticate, tenantContext, async (req, res) =
   }
 });
 
+/**
+ * Create manual short link with tracking (for YouTube, social media, etc.)
+ * POST /api/links/create-short-link
+ */
+router.post('/api/links/create-short-link', authenticate, tenantContext, async (req, res) => {
+  try {
+    const tenantId = req.tenant.id;
+    const {
+      url,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      utmTerm,
+      utmContent,
+      name
+    } = req.body;
+
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL is required'
+      });
+    }
+
+    // Build UTM parameters
+    const utmParams = {};
+    if (utmSource) utmParams.utm_source = utmSource;
+    if (utmMedium) utmParams.utm_medium = utmMedium;
+    if (utmCampaign) utmParams.utm_campaign = utmCampaign;
+    if (utmTerm) utmParams.utm_term = utmTerm;
+    if (utmContent) utmParams.utm_content = utmContent;
+
+    // Add UTM to URL
+    const taggedUrl = utmService.addUtmToUrl(url, utmParams);
+
+    // Generate short code
+    const shortCode = utmService.generateShortCode();
+    const baseUrl = process.env.APP_URL || 'http://localhost:3000';
+    const shortUrl = `${baseUrl}/l/${shortCode}`;
+
+    // Create link record (no campaign association)
+    const link = await prisma.campaignLink.create({
+      data: {
+        tenantId,
+        campaignId: null, // Manual link, not tied to campaign
+        originalUrl: url,
+        taggedUrl,
+        shortCode,
+        shortUrl,
+        platform: utmMedium || 'manual',
+        linkText: name || null,
+        utmSource,
+        utmMedium,
+        utmCampaign,
+        utmTerm,
+        utmContent
+      }
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        id: link.id,
+        originalUrl: url,
+        taggedUrl,
+        shortCode,
+        shortUrl,
+        utmParams
+      }
+    });
+  } catch (error) {
+    console.error('[Create Short Link] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Get all manual short links for tenant
+ * GET /api/links/manual
+ */
+router.get('/api/links/manual', authenticate, tenantContext, async (req, res) => {
+  try {
+    const tenantId = req.tenant.id;
+
+    const links = await prisma.campaignLink.findMany({
+      where: {
+        tenantId,
+        campaignId: null // Manual links only
+      },
+      select: {
+        id: true,
+        originalUrl: true,
+        taggedUrl: true,
+        shortCode: true,
+        shortUrl: true,
+        platform: true,
+        linkText: true,
+        utmSource: true,
+        utmMedium: true,
+        utmCampaign: true,
+        totalClicks: true,
+        uniqueClicks: true,
+        lastClickedAt: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return res.json({
+      success: true,
+      data: links
+    });
+  } catch (error) {
+    console.error('[Manual Links] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Get analytics for manual links (by UTM campaign)
+ * GET /api/links/manual-analytics?utmCampaign=xxx
+ */
+router.get('/api/links/manual-analytics', authenticate, tenantContext, async (req, res) => {
+  try {
+    const tenantId = req.tenant.id;
+    const { utmCampaign, utmSource, utmMedium } = req.query;
+
+    if (!utmCampaign) {
+      return res.status(400).json({
+        success: false,
+        error: 'utmCampaign parameter is required'
+      });
+    }
+
+    // Get all manual links matching UTM campaign
+    const links = await prisma.campaignLink.findMany({
+      where: {
+        tenantId,
+        campaignId: null,
+        utmCampaign,
+        ...(utmSource && { utmSource }),
+        ...(utmMedium && { utmMedium })
+      },
+      include: {
+        clicks: {
+          select: {
+            device: true,
+            browser: true,
+            os: true,
+            clickedAt: true
+          }
+        }
+      }
+    });
+
+    // Get form submissions
+    const formSubmissions = await prisma.formSubmission.findMany({
+      where: {
+        tenantId,
+        utmCampaign,
+        ...(utmSource && { utmSource }),
+        ...(utmMedium && { utmMedium })
+      },
+      include: {
+        lead: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            status: true
+          }
+        }
+      }
+    });
+
+    const totalClicks = links.reduce((sum, link) => sum + link.totalClicks, 0);
+    const leadsCreated = formSubmissions.filter(fs => fs.leadId).length;
+
+    return res.json({
+      success: true,
+      data: {
+        utmCampaign,
+        links,
+        clicks: totalClicks,
+        formSubmissions: formSubmissions.length,
+        leadsCreated,
+        conversionRate: totalClicks > 0
+          ? ((formSubmissions.length / totalClicks) * 100).toFixed(2)
+          : 0,
+        recentConversions: formSubmissions
+          .filter(fs => fs.leadId)
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .slice(0, 10)
+      }
+    });
+  } catch (error) {
+    console.error('[Manual Analytics] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
