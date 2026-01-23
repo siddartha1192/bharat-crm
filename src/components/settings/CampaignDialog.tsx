@@ -46,6 +46,19 @@ interface CampaignTemplate {
   targetType: CampaignTargetType;
 }
 
+interface UtmTemplate {
+  id: string;
+  name: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmTerm?: string;
+  utmContent?: string;
+  platform?: string;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
 export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign }: Props) {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
@@ -54,6 +67,9 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
   const [recipientCount, setRecipientCount] = useState(0);
   const [templates, setTemplates] = useState<CampaignTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [utmTemplates, setUtmTemplates] = useState<UtmTemplate[]>([]);
+  const [selectedUtmTemplate, setSelectedUtmTemplate] = useState<string>('');
+  const [enableUtmTracking, setEnableUtmTracking] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const token = localStorage.getItem('token');
 
@@ -76,6 +92,12 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
     whatsappTemplateName: '',
     whatsappTemplateLanguage: 'en',
     whatsappTemplateParams: [''],
+    // UTM tracking fields
+    utmSource: undefined,
+    utmMedium: undefined,
+    utmCampaign: undefined,
+    utmTerm: undefined,
+    utmContent: undefined,
   });
 
   const [scheduleType, setScheduleType] = useState<'immediate' | 'scheduled'>('immediate');
@@ -161,8 +183,40 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
   useEffect(() => {
     if (open && step === 2) {
       fetchTemplates();
+      fetchUtmTemplates();
     }
   }, [open, step]);
+
+  const fetchUtmTemplates = async () => {
+    try {
+      const response = await api.get('/utm-templates');
+      const templatesData = response.data.data || response.data;
+      if (Array.isArray(templatesData)) {
+        // Only show active templates
+        setUtmTemplates(templatesData.filter((t: UtmTemplate) => t.isActive));
+      }
+    } catch (error) {
+      console.error('Error fetching UTM templates:', error);
+    }
+  };
+
+  const applyUtmTemplate = (templateId: string) => {
+    const template = utmTemplates.find((t) => t.id === templateId);
+    if (template) {
+      updateFormData({
+        utmSource: template.utmSource,
+        utmMedium: template.utmMedium,
+        utmCampaign: template.utmCampaign,
+        utmTerm: template.utmTerm,
+        utmContent: template.utmContent,
+      });
+      setSelectedUtmTemplate(templateId);
+      toast({
+        title: 'UTM Template Applied',
+        description: `"${template.name}" parameters will be applied to all links in this campaign.`,
+      });
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -182,11 +236,18 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
       whatsappTemplateName: '',
       whatsappTemplateLanguage: 'en',
       whatsappTemplateParams: [''],
+      utmSource: undefined,
+      utmMedium: undefined,
+      utmCampaign: undefined,
+      utmTerm: undefined,
+      utmContent: undefined,
     });
     setStep(1);
     setScheduleType('immediate');
     setScheduleDate(undefined);
     setScheduleTime('12:00');
+    setEnableUtmTracking(false);
+    setSelectedUtmTemplate('');
   };
 
   const updateFormData = (updates: Partial<CreateCampaignData>) => {
@@ -286,6 +347,12 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
       const campaignData: CreateCampaignData = {
         ...formData,
       };
+
+      // Enable auto-tagging if UTM tracking is enabled
+      if (enableUtmTracking && (formData.utmSource || formData.utmMedium || formData.utmCampaign)) {
+        campaignData.autoTagLinks = true;
+        campaignData.trackClicks = true;
+      }
 
       // Add schedule if selected
       if (scheduleType === 'scheduled' && scheduleDate) {
@@ -567,6 +634,110 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
               value={formData.htmlContent || ''}
               onChange={(value) => updateFormData({ htmlContent: value })}
             />
+          </div>
+
+          {/* UTM Tracking Configuration */}
+          <div className="border-t pt-4 mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <Label className="text-sm font-semibold">Link Tracking (UTM Parameters)</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Automatically track all links in your email campaign with UTM parameters
+                </p>
+              </div>
+              <Switch
+                checked={enableUtmTracking}
+                onCheckedChange={setEnableUtmTracking}
+              />
+            </div>
+
+            {enableUtmTracking && (
+              <div className="space-y-4 ml-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border-2 border-blue-200 dark:border-blue-900">
+                {/* UTM Template Selector */}
+                {utmTemplates.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Use a UTM Template</Label>
+                    <div className="flex gap-2">
+                      <Select value={selectedUtmTemplate} onValueChange={applyUtmTemplate}>
+                        <SelectTrigger className="bg-white dark:bg-slate-900">
+                          <SelectValue placeholder="Choose a template..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {utmTemplates.map((template) => (
+                            <SelectItem key={template.id} value={template.id}>
+                              {template.name}
+                              {template.platform && ` (${template.platform})`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedUtmTemplate && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedUtmTemplate('');
+                            updateFormData({
+                              utmSource: undefined,
+                              utmMedium: undefined,
+                              utmCampaign: undefined,
+                              utmTerm: undefined,
+                              utmContent: undefined,
+                            });
+                          }}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Manual UTM Parameters */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Source</Label>
+                    <Input
+                      placeholder="e.g., newsletter"
+                      value={formData.utmSource || ''}
+                      onChange={(e) => updateFormData({ utmSource: e.target.value })}
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Medium</Label>
+                    <Input
+                      placeholder="e.g., email"
+                      value={formData.utmMedium || ''}
+                      onChange={(e) => updateFormData({ utmMedium: e.target.value })}
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Campaign</Label>
+                    <Input
+                      placeholder="e.g., spring_sale"
+                      value={formData.utmCampaign || ''}
+                      onChange={(e) => updateFormData({ utmCampaign: e.target.value })}
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Content (Optional)</Label>
+                    <Input
+                      placeholder="e.g., header_link"
+                      value={formData.utmContent || ''}
+                      onChange={(e) => updateFormData({ utmContent: e.target.value })}
+                      className="text-sm"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  💡 All URLs in your email will automatically include these UTM parameters for tracking
+                </p>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -858,6 +1029,110 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
             </Alert>
           </TabsContent>
         </Tabs>
+
+        {/* UTM Tracking Configuration for WhatsApp */}
+        <div className="border-t pt-4 mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <Label className="text-sm font-semibold">Link Tracking (UTM Parameters)</Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Automatically track all links in your WhatsApp campaign with UTM parameters
+              </p>
+            </div>
+            <Switch
+              checked={enableUtmTracking}
+              onCheckedChange={setEnableUtmTracking}
+            />
+          </div>
+
+          {enableUtmTracking && (
+            <div className="space-y-4 ml-4 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border-2 border-green-200 dark:border-green-900">
+              {/* UTM Template Selector */}
+              {utmTemplates.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Use a UTM Template</Label>
+                  <div className="flex gap-2">
+                    <Select value={selectedUtmTemplate} onValueChange={applyUtmTemplate}>
+                      <SelectTrigger className="bg-white dark:bg-slate-900">
+                        <SelectValue placeholder="Choose a template..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {utmTemplates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name}
+                            {template.platform && ` (${template.platform})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedUtmTemplate && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedUtmTemplate('');
+                          updateFormData({
+                            utmSource: undefined,
+                            utmMedium: undefined,
+                            utmCampaign: undefined,
+                            utmTerm: undefined,
+                            utmContent: undefined,
+                          });
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Manual UTM Parameters */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Source</Label>
+                  <Input
+                    placeholder="e.g., whatsapp"
+                    value={formData.utmSource || ''}
+                    onChange={(e) => updateFormData({ utmSource: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Medium</Label>
+                  <Input
+                    placeholder="e.g., messenger"
+                    value={formData.utmMedium || ''}
+                    onChange={(e) => updateFormData({ utmMedium: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Campaign</Label>
+                  <Input
+                    placeholder="e.g., product_launch"
+                    value={formData.utmCampaign || ''}
+                    onChange={(e) => updateFormData({ utmCampaign: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Content (Optional)</Label>
+                  <Input
+                    placeholder="e.g., button_link"
+                    value={formData.utmContent || ''}
+                    onChange={(e) => updateFormData({ utmContent: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-green-700 dark:text-green-300">
+                💡 All URLs in your WhatsApp message will automatically include these UTM parameters for tracking
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -1062,6 +1337,41 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
             <p className="text-sm whitespace-pre-wrap">{formData.textContent}</p>
           </div>
         </div>
+
+        {/* UTM Tracking Info */}
+        {enableUtmTracking && (formData.utmSource || formData.utmMedium || formData.utmCampaign) && (
+          <div className="bg-blue-50 dark:bg-blue-950/20 border-2 border-blue-200 dark:border-blue-900 p-4 rounded-lg">
+            <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+              Link Tracking Enabled
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {formData.utmSource && (
+                <div>
+                  <span className="text-muted-foreground">Source:</span>
+                  <span className="ml-2 font-mono">{formData.utmSource}</span>
+                </div>
+              )}
+              {formData.utmMedium && (
+                <div>
+                  <span className="text-muted-foreground">Medium:</span>
+                  <span className="ml-2 font-mono">{formData.utmMedium}</span>
+                </div>
+              )}
+              {formData.utmCampaign && (
+                <div>
+                  <span className="text-muted-foreground">Campaign:</span>
+                  <span className="ml-2 font-mono">{formData.utmCampaign}</span>
+                </div>
+              )}
+              {formData.utmContent && (
+                <div>
+                  <span className="text-muted-foreground">Content:</span>
+                  <span className="ml-2 font-mono">{formData.utmContent}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-yellow-50 dark:bg-yellow-950/20 border-2 border-yellow-200 dark:border-yellow-900 p-4 rounded-lg">

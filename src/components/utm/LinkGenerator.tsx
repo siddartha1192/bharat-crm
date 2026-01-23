@@ -1,14 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, ExternalLink, Link, Sparkles, QrCode } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Copy, ExternalLink, Link, Sparkles, QrCode, FileCode, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 import QRCode from 'qrcode';
+import { Badge } from '@/components/ui/badge';
+
+interface UtmTemplate {
+  id: string;
+  name: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmTerm?: string;
+  utmContent?: string;
+  platform?: string;
+  isDefault: boolean;
+  isActive: boolean;
+}
 
 export function LinkGenerator() {
   const { toast } = useToast();
@@ -23,6 +44,41 @@ export function LinkGenerator() {
   const [shortLink, setShortLink] = useState('');
   const [loading, setLoading] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+  const [templates, setTemplates] = useState<UtmTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  const fetchTemplates = async () => {
+    try {
+      const response = await api.get('/utm-templates');
+      const templatesData = response.data.data || response.data;
+      if (Array.isArray(templatesData)) {
+        // Only show active templates
+        setTemplates(templatesData.filter((t: UtmTemplate) => t.isActive));
+      }
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+    }
+  };
+
+  const applyTemplate = (templateId: string) => {
+    const template = templates.find((t) => t.id === templateId);
+    if (template) {
+      setUtmSource(template.utmSource || '');
+      setUtmMedium(template.utmMedium || '');
+      setUtmCampaign(template.utmCampaign || '');
+      setUtmTerm(template.utmTerm || '');
+      setUtmContent(template.utmContent || '');
+      setSelectedTemplate(templateId);
+      toast({
+        title: 'Template Applied',
+        description: `"${template.name}" has been loaded. You can customize the parameters before generating.`,
+      });
+    }
+  };
 
   const handleGenerate = async () => {
     if (!url || !utmSource || !utmMedium || !utmCampaign) {
@@ -125,6 +181,67 @@ export function LinkGenerator() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* UTM Template Selector */}
+          {templates.length > 0 && (
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-2 border-blue-200 dark:border-blue-900 p-4 rounded-lg space-y-3">
+              <div className="flex items-center gap-2">
+                <FileCode className="w-5 h-5 text-blue-600" />
+                <Label className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                  Quick Start with Templates
+                </Label>
+              </div>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                Select a saved template to auto-fill UTM parameters, or create your own from scratch
+              </p>
+              <div className="flex gap-2">
+                <Select value={selectedTemplate} onValueChange={applyTemplate}>
+                  <SelectTrigger className="bg-white dark:bg-slate-900">
+                    <SelectValue placeholder="Choose a UTM template..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{template.name}</span>
+                          {template.platform && (
+                            <Badge variant="secondary" className="text-xs">
+                              {template.platform}
+                            </Badge>
+                          )}
+                          {template.isDefault && (
+                            <Badge variant="outline" className="text-xs">
+                              Default
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedTemplate && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedTemplate('');
+                      setUtmSource('');
+                      setUtmMedium('');
+                      setUtmCampaign('');
+                      setUtmTerm('');
+                      setUtmContent('');
+                      toast({
+                        title: 'Template Cleared',
+                        description: 'UTM parameters have been reset',
+                      });
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Base URL */}
           <div className="space-y-2">
             <Label htmlFor="url">Base URL *</Label>
