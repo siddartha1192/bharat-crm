@@ -25,6 +25,9 @@ import {
   MessageSquare,
   Paperclip,
   X,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import {
   Dialog,
@@ -84,6 +87,16 @@ export default function Emails() {
   const [checkingReplies, setCheckingReplies] = useState(false);
   const { toast } = useToast();
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalEmails, setTotalEmails] = useState(0);
+  const [emailsPerPage] = useState(50);
+
+  // Bulk selection state
+  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   // Compose form state
   const [composeData, setComposeData] = useState({
     to: '',
@@ -97,9 +110,14 @@ export default function Emails() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
+    setCurrentPage(1); // Reset to page 1 when filter changes
     fetchEmails();
     fetchStats();
   }, [statusFilter]);
+
+  useEffect(() => {
+    fetchEmails();
+  }, [currentPage]);
 
   // Auto-refresh replies every 10 minutes
   useEffect(() => {
@@ -114,6 +132,8 @@ export default function Emails() {
     try {
       const queryParams = new URLSearchParams();
       if (statusFilter !== 'all') queryParams.append('status', statusFilter);
+      queryParams.append('page', currentPage.toString());
+      queryParams.append('limit', emailsPerPage.toString());
 
       const response = await fetch(`${API_URL}/emails?${queryParams}`, {
         headers: getAuthHeaders(),
@@ -122,7 +142,8 @@ export default function Emails() {
       if (!response.ok) throw new Error('Failed to fetch emails');
 
       const data = await response.json();
-      setEmails(data.logs);
+      setEmails(data.logs || []);
+      setTotalEmails(data.total || data.logs?.length || 0);
     } catch (error) {
       console.error('Error fetching emails:', error);
       toast({
@@ -269,6 +290,83 @@ export default function Emails() {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedEmails.size === 0) return;
+
+    try {
+      setBulkDeleting(true);
+
+      // Delete emails in batches for better performance
+      const emailIds = Array.from(selectedEmails);
+      const batchSize = 10;
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < emailIds.length; i += batchSize) {
+        const batch = emailIds.slice(i, i + batchSize);
+
+        await Promise.all(
+          batch.map(async (id) => {
+            try {
+              const response = await fetch(`${API_URL}/emails/${id}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders(),
+              });
+
+              if (response.ok) {
+                successCount++;
+              } else {
+                failCount++;
+              }
+            } catch (error) {
+              failCount++;
+              console.error(`Failed to delete email ${id}:`, error);
+            }
+          })
+        );
+      }
+
+      toast({
+        title: successCount > 0 ? 'Bulk Delete Completed' : 'Delete Failed',
+        description: `Successfully deleted ${successCount} email${successCount !== 1 ? 's' : ''}${
+          failCount > 0 ? `, ${failCount} failed` : ''
+        }`,
+        variant: successCount > 0 ? 'default' : 'destructive',
+      });
+
+      setBulkDeleteConfirmOpen(false);
+      setSelectedEmails(new Set());
+      fetchEmails();
+      fetchStats();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete emails',
+        variant: 'destructive',
+      });
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedEmails.size === filteredEmails.length) {
+      setSelectedEmails(new Set());
+    } else {
+      setSelectedEmails(new Set(filteredEmails.map((e) => e.id)));
+    }
+  };
+
+  const toggleSelectEmail = (emailId: string) => {
+    const newSelected = new Set(selectedEmails);
+    if (newSelected.has(emailId)) {
+      newSelected.delete(emailId);
+    } else {
+      newSelected.add(emailId);
+    }
+    setSelectedEmails(newSelected);
   };
 
   const handleCheckReplies = async (silent = false) => {
@@ -468,12 +566,74 @@ export default function Emails() {
         </div>
       </Card>
 
+      {/* Bulk Action Bar */}
+      {selectedEmails.size > 0 && (
+        <Card className="bg-blue-50 border-blue-200">
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-5 h-5 text-blue-600" />
+              <span className="font-medium text-gray-900">
+                {selectedEmails.size} email{selectedEmails.size > 1 ? 's' : ''} selected
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setSelectedEmails(new Set())}
+                variant="ghost"
+                size="sm"
+              >
+                Clear Selection
+              </Button>
+              <Button
+                onClick={() => setBulkDeleteConfirmOpen(true)}
+                variant="destructive"
+                size="sm"
+                disabled={bulkDeleting}
+              >
+                {bulkDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Selected
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Email List */}
       <Card>
+        {/* Header with Select All */}
+        {!loading && filteredEmails.length > 0 && (
+          <div className="p-4 border-b flex items-center justify-between bg-gray-50">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={filteredEmails.length > 0 && selectedEmails.size === filteredEmails.length}
+                onChange={toggleSelectAll}
+                className="w-4 h-4 rounded border-gray-300"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Select All ({filteredEmails.length})
+              </span>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Showing {filteredEmails.length} of {totalEmails} emails
+            </div>
+          </div>
+        )}
+
         <div className="divide-y">
           {loading ? (
             <div className="p-8 text-center text-muted-foreground">
-              Loading emails...
+              <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-blue-600" />
+              <p>Loading emails...</p>
             </div>
           ) : filteredEmails.length === 0 ? (
             <div className="p-8 text-center">
@@ -484,19 +644,35 @@ export default function Emails() {
             filteredEmails.map((email) => (
               <div
                 key={email.id}
-                className="px-3 sm:px-4 py-3 sm:py-2 hover:bg-accent/50 cursor-pointer transition-colors border-b border-border"
-                onClick={() => handleViewEmail(email)}
+                className={`px-3 sm:px-4 py-3 sm:py-2 hover:bg-accent/50 transition-colors border-b border-border ${
+                  selectedEmails.has(email.id) ? 'bg-blue-50' : ''
+                }`}
               >
                 {/* Mobile Layout */}
                 <div className="flex sm:hidden flex-col gap-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-2 flex-1 min-w-0">
-                      <div className="shrink-0 mt-0.5">{getStatusIcon(email.status)}</div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold truncate text-sm">{email.subject}</h3>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
-                          To: {email.to[0]}{email.to.length > 1 && ` +${email.to.length - 1}`}
-                        </p>
+                      <input
+                        type="checkbox"
+                        checked={selectedEmails.has(email.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleSelectEmail(email.id);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 rounded border-gray-300 mt-1 shrink-0"
+                      />
+                      <div
+                        className="flex items-start gap-2 flex-1 min-w-0 cursor-pointer"
+                        onClick={() => handleViewEmail(email)}
+                      >
+                        <div className="shrink-0 mt-0.5">{getStatusIcon(email.status)}</div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold truncate text-sm">{email.subject}</h3>
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">
+                            To: {email.to[0]}{email.to.length > 1 && ` +${email.to.length - 1}`}
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
@@ -548,8 +724,22 @@ export default function Emails() {
                 {/* Desktop Layout */}
                 <div className="hidden sm:flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="shrink-0">{getStatusIcon(email.status)}</div>
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedEmails.has(email.id)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        toggleSelectEmail(email.id);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 rounded border-gray-300 shrink-0"
+                    />
+                    <div
+                      className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                      onClick={() => handleViewEmail(email)}
+                    >
+                      <div className="shrink-0">{getStatusIcon(email.status)}</div>
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <h3 className="font-semibold truncate text-sm">{email.subject}</h3>
                         {getStatusBadge(email.status)}
@@ -567,7 +757,8 @@ export default function Emails() {
                       </div>
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
                         To: {email.to[0]}{email.to.length > 1 && ` +${email.to.length - 1}`}
-                      </span>
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
@@ -606,6 +797,35 @@ export default function Emails() {
             ))
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {!loading && totalEmails > emailsPerPage && (
+          <div className="p-4 border-t flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Page {currentPage} of {Math.ceil(totalEmails / emailsPerPage)}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1 || loading}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalEmails / emailsPerPage), prev + 1))}
+                disabled={currentPage >= Math.ceil(totalEmails / emailsPerPage) || loading}
+              >
+                Next
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Compose Dialog */}
@@ -909,6 +1129,61 @@ export default function Emails() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Multiple Emails</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedEmails.size} email{selectedEmails.size > 1 ? 's' : ''}?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-md">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-yellow-900">Warning</p>
+                  <p className="text-sm text-yellow-800 mt-1">
+                    You are about to permanently delete {selectedEmails.size} email{selectedEmails.size > 1 ? 's' : ''}.
+                    This action cannot be reversed.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setBulkDeleteConfirmOpen(false)}
+                disabled={bulkDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+              >
+                {bulkDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete {selectedEmails.size} Email{selectedEmails.size > 1 ? 's' : ''}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
