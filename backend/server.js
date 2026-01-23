@@ -76,6 +76,7 @@ const documentsRoutes = require('./routes/documents');
 const vectorDataRoutes = require('./routes/vectorData');
 const migrateRoutes = require('./routes/migrate');
 const campaignsRoutes = require('./routes/campaigns');
+const linksRoutes = require('./routes/links');
 const formsRoutes = require('./routes/forms');
 const landingPagesRoutes = require('./routes/landingPages');
 const tenantsRoutes = require('./routes/tenants');
@@ -97,6 +98,8 @@ const publicChatRoutes = require('./routes/publicChat');
 app.use('/tenant-admin', tenantAdminRoutes);
 app.use('/api/tenants', tenantsRoutes);
 app.use('/api/auth', authRoutes);
+// Link tracking routes (includes public /l/:shortCode and API routes)
+app.use('/', linksRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/contacts', contactRoutes);
