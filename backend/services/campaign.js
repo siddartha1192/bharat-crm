@@ -6,6 +6,7 @@
 const { PrismaClient } = require('@prisma/client');
 const emailService = require('./email');
 const whatsappService = require('./whatsapp');
+const utmService = require('./utm');
 
 const prisma = new PrismaClient();
 
@@ -907,7 +908,7 @@ class CampaignService {
 
       if (campaign.channel === 'email') {
         // Replace template variables
-        const content = this.replaceTemplateVariables(campaign.textContent, {
+        let content = this.replaceTemplateVariables(campaign.textContent, {
           name: recipient.recipientName,
           email: recipient.recipientEmail,
           phone: recipient.recipientPhone,
@@ -917,12 +918,37 @@ class CampaignService {
           name: recipient.recipientName,
         });
 
-        const htmlContent = campaign.htmlContent
+        let htmlContent = campaign.htmlContent
           ? this.replaceTemplateVariables(campaign.htmlContent, {
               name: recipient.recipientName,
               email: recipient.recipientEmail,
             })
           : null;
+
+        // Process UTM tagging if enabled
+        if (campaign.autoTagLinks && htmlContent) {
+          try {
+            const utmParams = utmService.buildUtmParameters(campaign, 'email', {
+              utm_content: `email_${recipient.recipientType}_${recipient.id}`
+            });
+
+            const processed = await utmService.processContent({
+              tenantId: campaign.tenantId,
+              campaignId: campaign.id,
+              content: htmlContent,
+              contentType: 'html',
+              platform: 'email',
+              utmParams,
+              useShortLinks: campaign.useShortLinks
+            });
+
+            htmlContent = processed.processedContent;
+            console.log(`[Campaign] Processed ${processed.links.length} links for email to ${recipient.recipientEmail}`);
+          } catch (utmError) {
+            console.error('[Campaign] UTM processing error for email:', utmError.message);
+            // Continue with original content if UTM processing fails
+          }
+        }
 
         const result = await emailService.sendEmail({
           to: recipient.recipientEmail,
@@ -953,11 +979,36 @@ class CampaignService {
 
         if (whatsappMessageType === 'text') {
           // Text message
-          const content = this.replaceTemplateVariables(campaign.textContent, {
+          let content = this.replaceTemplateVariables(campaign.textContent, {
             name: recipient.recipientName,
             email: recipient.recipientEmail,
             phone: recipient.recipientPhone,
           });
+
+          // Process UTM tagging if enabled
+          if (campaign.autoTagLinks) {
+            try {
+              const utmParams = utmService.buildUtmParameters(campaign, 'whatsapp', {
+                utm_content: `whatsapp_${recipient.recipientType}_${recipient.id}`
+              });
+
+              const processed = await utmService.processContent({
+                tenantId: campaign.tenantId,
+                campaignId: campaign.id,
+                content: content,
+                contentType: 'text',
+                platform: 'whatsapp',
+                utmParams,
+                useShortLinks: campaign.useShortLinks
+              });
+
+              content = processed.processedContent;
+              console.log(`[Campaign] Processed ${processed.links.length} links for WhatsApp to ${recipient.recipientPhone}`);
+            } catch (utmError) {
+              console.error('[Campaign] UTM processing error for WhatsApp:', utmError.message);
+              // Continue with original content if UTM processing fails
+            }
+          }
 
           const result = await whatsappService.sendMessage(recipient.recipientPhone, content, tenantConfig);
           messageId = result.messageId;
@@ -968,13 +1019,38 @@ class CampaignService {
           const mediaUrl = campaign.whatsappMediaUrl;
 
           // Replace variables in caption
-          const caption = campaign.whatsappCaption
+          let caption = campaign.whatsappCaption
             ? this.replaceTemplateVariables(campaign.whatsappCaption, {
                 name: recipient.recipientName,
                 email: recipient.recipientEmail,
                 phone: recipient.recipientPhone,
               })
             : '';
+
+          // Process UTM tagging in caption if enabled
+          if (campaign.autoTagLinks && caption) {
+            try {
+              const utmParams = utmService.buildUtmParameters(campaign, 'whatsapp', {
+                utm_content: `whatsapp_media_${recipient.recipientType}_${recipient.id}`
+              });
+
+              const processed = await utmService.processContent({
+                tenantId: campaign.tenantId,
+                campaignId: campaign.id,
+                content: caption,
+                contentType: 'text',
+                platform: 'whatsapp',
+                utmParams,
+                useShortLinks: campaign.useShortLinks
+              });
+
+              caption = processed.processedContent;
+              console.log(`[Campaign] Processed ${processed.links.length} links in WhatsApp media caption`);
+            } catch (utmError) {
+              console.error('[Campaign] UTM processing error for WhatsApp media caption:', utmError.message);
+              // Continue with original caption if UTM processing fails
+            }
+          }
 
           let result;
           if (mediaType === 'image') {

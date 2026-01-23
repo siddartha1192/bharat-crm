@@ -1029,6 +1029,19 @@ model Campaign {
   deliveredCount  Int @default(0) // For WhatsApp
   openedCount     Int @default(0) // For emails (if tracking enabled)
 
+  // UTM Configuration
+  utmSource           String? // e.g., "bharat_crm", "newsletter"
+  utmMedium           String? // e.g., "email", "whatsapp", "social"
+  utmCampaign         String? // e.g., "spring_sale_2026"
+  utmTerm             String? // e.g., "running+shoes" (for paid search)
+  utmContent          String? // e.g., "cta_button", "header_link" (for A/B testing)
+  platformUtmConfig   Json?   // Platform-specific UTM overrides: { "email": {...}, "whatsapp": {...} }
+
+  // Link tracking configuration
+  autoTagLinks  Boolean @default(true) // Auto-append UTM to all links
+  trackClicks   Boolean @default(true) // Enable click tracking
+  useShortLinks Boolean @default(false) // Use short redirect URLs
+
   // Metadata
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1043,6 +1056,8 @@ model Campaign {
   // Relations
   recipients CampaignRecipient[]
   logs       CampaignLog[]
+  links      CampaignLink[]
+  clicks     CampaignClick[]
 
   @@index([userId])
   @@index([status])
@@ -1079,6 +1094,14 @@ model CampaignRecipient {
   // External IDs
   messageId String? // Email/WhatsApp message ID
 
+  // Click tracking
+  clickedCount   Int       @default(0) // Number of clicks
+  firstClickedAt DateTime? // First link click time
+  lastClickedAt  DateTime? // Most recent click time
+
+  // Relations
+  clicks CampaignClick[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1107,6 +1130,132 @@ model CampaignLog {
   @@index([campaignId])
   @@index([createdAt])
   @@index([tenantId])
+}
+
+// Campaign Link - Track all links in campaigns with UTM parameters
+model CampaignLink {
+  id String @id @default(uuid())
+
+  // Multi-tenant relationship
+  tenantId String
+
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Link details
+  originalUrl String @db.Text // Original URL before UTM tagging
+  taggedUrl   String @db.Text // URL with UTM parameters
+  shortCode   String? @unique // Short code for redirect (e.g., "abc123")
+  shortUrl    String? @db.Text // Full short URL (e.g., "https://crm.com/l/abc123")
+
+  // UTM Parameters (stored for analytics)
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmTerm     String?
+  utmContent  String?
+
+  // Link metadata
+  linkText     String? @db.Text // Anchor text or button text
+  linkPosition String? // "header", "body", "footer", "cta"
+  platform     String? // "email", "whatsapp", "youtube", "social"
+
+  // Statistics
+  totalClicks   Int       @default(0)
+  uniqueClicks  Int       @default(0)
+  lastClickedAt DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  clicks CampaignClick[]
+
+  @@index([tenantId, campaignId])
+  @@index([shortCode])
+  @@map("campaign_links")
+}
+
+// Campaign Click - Track each individual click on campaign links
+model CampaignClick {
+  id String @id @default(uuid())
+
+  // Multi-tenant relationship
+  tenantId String
+
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  linkId String
+  link   CampaignLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  // Recipient tracking
+  recipientId    String?
+  recipient      CampaignRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  recipientType  String? // "lead" | "contact"
+  recipientEmail String?
+  recipientPhone String?
+
+  // Click metadata
+  ipAddress String?
+  userAgent String?
+  device    String? // "desktop" | "mobile" | "tablet"
+  browser   String? // "chrome" | "firefox" | "safari" | "edge"
+  os        String? // "windows" | "macos" | "ios" | "android"
+
+  // Location tracking (optional - integrate with GeoIP service)
+  country String?
+  region  String?
+  city    String?
+
+  // Referrer and UTM passthrough
+  referrer    String? @db.Text
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmTerm     String?
+  utmContent  String?
+
+  // Timestamp
+  clickedAt DateTime @default(now())
+
+  @@index([tenantId, campaignId])
+  @@index([linkId])
+  @@index([recipientId])
+  @@index([clickedAt])
+  @@map("campaign_clicks")
+}
+
+// UTM Template - Reusable UTM configurations per tenant
+model UtmTemplate {
+  id String @id @default(uuid())
+
+  // Multi-tenant relationship
+  tenantId String
+
+  name        String // "Email Default", "WhatsApp Promo", "YouTube Links"
+  description String? @db.Text
+
+  // Default UTM values
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String? // Can use variables like {{campaign_name}}
+  utmTerm     String?
+  utmContent  String?
+
+  // Platform targeting
+  platform String? // "email" | "whatsapp" | "youtube" | "social" | "all"
+
+  // Status
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, platform])
+  @@map("utm_templates")
 }
 
 // Form Model - Embeddable lead capture forms
