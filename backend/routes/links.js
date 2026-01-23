@@ -24,13 +24,11 @@ router.get('/l/:shortCode', async (req, res) => {
 
     console.log(`[Link Redirect] Short code: ${shortCode}`);
 
-    // Find link by short code
+    // Find link by short code (campaign is optional for manual links)
     const link = await prisma.campaignLink.findUnique({
       where: { shortCode },
       include: {
-        campaign: {
-          select: { id: true, name: true, tenantId: true }
-        }
+        campaign: true
       }
     });
 
@@ -347,6 +345,38 @@ router.get('/api/links/conversion-funnel/:campaignId', authenticate, tenantConte
 
 /**
  * Get all UTM templates for tenant
+ * GET /api/utm-templates
+ */
+/**
+ * UTM TEMPLATES
+ *
+ * UTM templates are reusable presets for UTM parameters that make it easy to maintain
+ * consistent tracking across your marketing campaigns.
+ *
+ * USE CASES:
+ * 1. Create templates for different marketing channels (email, social, ads)
+ * 2. Set platform-specific defaults (Facebook, LinkedIn, Google Ads, etc.)
+ * 3. Maintain consistency across team members
+ * 4. Quickly apply standard UTM parameters when creating short links
+ *
+ * HOW TO USE:
+ * 1. Create a template with your standard UTM parameters (e.g., "Facebook Ads Template")
+ * 2. Mark it as default for a platform if you want it auto-selected
+ * 3. When creating a short link, select the template to auto-fill UTM fields
+ * 4. Override individual fields as needed for specific campaigns
+ *
+ * EXAMPLE:
+ * Template: "Social Media - Facebook"
+ * - utm_source: facebook
+ * - utm_medium: social
+ * - utm_campaign: {campaign_name} (user fills in)
+ * - platform: facebook
+ *
+ * This template can be applied to all Facebook campaigns, ensuring consistent tracking.
+ */
+
+/**
+ * Get all UTM templates
  * GET /api/utm-templates
  */
 router.get('/api/utm-templates', authenticate, tenantContext, async (req, res) => {
@@ -881,6 +911,219 @@ router.get('/api/links/manual-analytics', authenticate, tenantContext, async (re
     });
   } catch (error) {
     console.error('[Manual Analytics] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Update a manual short link
+ * PUT /api/links/manual/:linkId
+ */
+router.put('/api/links/manual/:linkId', authenticate, tenantContext, async (req, res) => {
+  try {
+    const tenantId = req.tenant.id;
+    const { linkId } = req.params;
+    const {
+      url,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      utmTerm,
+      utmContent,
+      name
+    } = req.body;
+
+    // Verify link exists and belongs to tenant
+    const existingLink = await prisma.campaignLink.findFirst({
+      where: {
+        id: linkId,
+        tenantId,
+        campaignId: null // Only manual links can be edited here
+      }
+    });
+
+    if (!existingLink) {
+      return res.status(404).json({
+        success: false,
+        error: 'Manual link not found'
+      });
+    }
+
+    // Sanitize URL if provided
+    let sanitizedUrl = existingLink.originalUrl;
+    if (url) {
+      sanitizedUrl = url.trim().replace(/\\/g, '/');
+      if (!sanitizedUrl.startsWith('http://') && !sanitizedUrl.startsWith('https://')) {
+        sanitizedUrl = 'https://' + sanitizedUrl;
+      }
+
+      // Validate URL format
+      try {
+        new URL(sanitizedUrl);
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid URL format. Please provide a valid URL.'
+        });
+      }
+    }
+
+    // Build UTM parameters
+    const utmParams = {};
+    if (utmSource !== undefined) utmParams.utm_source = utmSource?.trim() || null;
+    if (utmMedium !== undefined) utmParams.utm_medium = utmMedium?.trim() || null;
+    if (utmCampaign !== undefined) utmParams.utm_campaign = utmCampaign?.trim() || null;
+    if (utmTerm !== undefined) utmParams.utm_term = utmTerm?.trim() || null;
+    if (utmContent !== undefined) utmParams.utm_content = utmContent?.trim() || null;
+
+    // Generate new tagged URL
+    let taggedUrl = existingLink.taggedUrl;
+    if (url || Object.keys(utmParams).length > 0) {
+      try {
+        // Remove null values
+        Object.keys(utmParams).forEach(key => {
+          if (utmParams[key] === null) delete utmParams[key];
+        });
+
+        taggedUrl = Object.keys(utmParams).length > 0
+          ? utmService.addUtmToUrl(sanitizedUrl, utmParams)
+          : sanitizedUrl;
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          error: `Failed to add UTM parameters: ${error.message}`
+        });
+      }
+    }
+
+    // Update link
+    const updatedLink = await prisma.campaignLink.update({
+      where: { id: linkId },
+      data: {
+        originalUrl: sanitizedUrl,
+        taggedUrl,
+        linkText: name !== undefined ? name : existingLink.linkText,
+        utmSource: utmParams.utm_source !== undefined ? utmParams.utm_source : existingLink.utmSource,
+        utmMedium: utmParams.utm_medium !== undefined ? utmParams.utm_medium : existingLink.utmMedium,
+        utmCampaign: utmParams.utm_campaign !== undefined ? utmParams.utm_campaign : existingLink.utmCampaign,
+        utmTerm: utmParams.utm_term !== undefined ? utmParams.utm_term : existingLink.utmTerm,
+        utmContent: utmParams.utm_content !== undefined ? utmParams.utm_content : existingLink.utmContent
+      }
+    });
+
+    return res.json({
+      success: true,
+      data: updatedLink
+    });
+  } catch (error) {
+    console.error('[Update Manual Link] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Delete a manual short link
+ * DELETE /api/links/manual/:linkId
+ */
+router.delete('/api/links/manual/:linkId', authenticate, tenantContext, async (req, res) => {
+  try {
+    const tenantId = req.tenant.id;
+    const { linkId } = req.params;
+
+    // Verify link exists and belongs to tenant
+    const link = await prisma.campaignLink.findFirst({
+      where: {
+        id: linkId,
+        tenantId,
+        campaignId: null // Only manual links can be deleted here
+      }
+    });
+
+    if (!link) {
+      return res.status(404).json({
+        success: false,
+        error: 'Manual link not found'
+      });
+    }
+
+    // Delete link (cascades to clicks)
+    await prisma.campaignLink.delete({
+      where: { id: linkId }
+    });
+
+    return res.json({
+      success: true,
+      message: 'Link deleted successfully'
+    });
+  } catch (error) {
+    console.error('[Delete Manual Link] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Generate QR code for a short link
+ * GET /api/links/qr/:linkId
+ */
+router.get('/api/links/qr/:linkId', authenticate, tenantContext, async (req, res) => {
+  try {
+    const tenantId = req.tenant.id;
+    const { linkId } = req.params;
+    const { size = 300 } = req.query;
+
+    // Verify link exists and belongs to tenant
+    const link = await prisma.campaignLink.findFirst({
+      where: {
+        id: linkId,
+        tenantId
+      }
+    });
+
+    if (!link) {
+      return res.status(404).json({
+        success: false,
+        error: 'Link not found'
+      });
+    }
+
+    if (!link.shortUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'Link does not have a short URL'
+      });
+    }
+
+    // Generate QR code as data URL (we'll use a simple QR library)
+    const QRCode = require('qrcode');
+
+    const qrCodeDataUrl = await QRCode.toDataURL(link.shortUrl, {
+      width: parseInt(size),
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        qrCode: qrCodeDataUrl,
+        shortUrl: link.shortUrl,
+        linkId: link.id
+      }
+    });
+  } catch (error) {
+    console.error('[Generate QR Code] Error:', error);
     return res.status(500).json({
       success: false,
       error: error.message

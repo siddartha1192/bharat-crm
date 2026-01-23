@@ -1184,8 +1184,8 @@ model CampaignClick {
   // Multi-tenant relationship
   tenantId String
 
-  campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   linkId String
   link   CampaignLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
