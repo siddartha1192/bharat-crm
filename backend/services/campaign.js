@@ -46,6 +46,17 @@ class CampaignService {
           whatsappTemplateName: campaignData.whatsappTemplateName || null,
           whatsappTemplateLanguage: campaignData.whatsappTemplateLanguage || null,
           whatsappTemplateParams: campaignData.whatsappTemplateParams || null,
+          // UTM tracking fields
+          utmSource: campaignData.utmSource || null,
+          utmMedium: campaignData.utmMedium || null,
+          utmCampaign: campaignData.utmCampaign || null,
+          utmTerm: campaignData.utmTerm || null,
+          utmContent: campaignData.utmContent || null,
+          platformUtmConfig: campaignData.platformUtmConfig || null,
+          // Link tracking configuration
+          autoTagLinks: campaignData.autoTagLinks !== undefined ? campaignData.autoTagLinks : true,
+          trackClicks: campaignData.trackClicks !== undefined ? campaignData.trackClicks : true,
+          useShortLinks: campaignData.useShortLinks !== undefined ? campaignData.useShortLinks : false,
         },
       });
 
