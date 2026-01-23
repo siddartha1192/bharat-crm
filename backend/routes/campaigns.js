@@ -52,10 +52,10 @@ router.post('/', async (req, res) => {
     const campaignData = req.body;
 
     // Validation
-    if (!campaignData.name || !campaignData.channel || !campaignData.textContent) {
+    if (!campaignData.name || !campaignData.channel) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: name, channel, textContent',
+        message: 'Missing required fields: name, channel',
       });
     }
 
@@ -66,12 +66,56 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Email campaigns require subject
-    if (campaignData.channel === 'email' && !campaignData.subject) {
-      return res.status(400).json({
-        success: false,
-        message: 'Subject is required for email campaigns',
-      });
+    // Email campaigns require subject and textContent
+    if (campaignData.channel === 'email') {
+      if (!campaignData.subject) {
+        return res.status(400).json({
+          success: false,
+          message: 'Subject is required for email campaigns',
+        });
+      }
+      if (!campaignData.textContent) {
+        return res.status(400).json({
+          success: false,
+          message: 'Message content is required for email campaigns',
+        });
+      }
+    }
+
+    // WhatsApp campaigns validation
+    if (campaignData.channel === 'whatsapp') {
+      const messageType = campaignData.whatsappMessageType || 'text';
+
+      if (messageType === 'text' && !campaignData.textContent) {
+        return res.status(400).json({
+          success: false,
+          message: 'Message content is required for WhatsApp text messages',
+        });
+      }
+
+      if (messageType === 'media') {
+        if (!campaignData.whatsappMediaType) {
+          return res.status(400).json({
+            success: false,
+            message: 'Media type is required for WhatsApp media messages',
+          });
+        }
+        if (!campaignData.whatsappMediaUrl) {
+          return res.status(400).json({
+            success: false,
+            message: 'Media URL is required for WhatsApp media messages',
+          });
+        }
+      }
+
+      if (messageType === 'template') {
+        if (!campaignData.whatsappTemplateName) {
+          return res.status(400).json({
+            success: false,
+            message: 'Template name is required for WhatsApp template messages',
+          });
+        }
+      }
     }
 
     const campaign = await campaignService.createCampaign(userId, campaignData, req.tenant.id);

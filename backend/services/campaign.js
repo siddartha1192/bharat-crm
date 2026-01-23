@@ -56,7 +56,8 @@ class CampaignService {
           // Link tracking configuration
           autoTagLinks: campaignData.autoTagLinks !== undefined ? campaignData.autoTagLinks : true,
           trackClicks: campaignData.trackClicks !== undefined ? campaignData.trackClicks : true,
-          useShortLinks: campaignData.useShortLinks !== undefined ? campaignData.useShortLinks : false,
+          // Enable short links by default for click tracking to work
+          useShortLinks: campaignData.useShortLinks !== undefined ? campaignData.useShortLinks : true,
         },
       });
 

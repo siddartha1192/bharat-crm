@@ -229,6 +229,21 @@ class UtmService {
   }
 
   /**
+   * Check if a URL is already a short link from this system
+   * @param {String} url - URL to check
+   * @returns {Boolean} True if URL is a short link from this system
+   */
+  isSystemShortLink(url) {
+    try {
+      const baseUrl = process.env.APP_URL || 'http://localhost:3000';
+      // Check if URL starts with our base URL and has the /l/ pattern
+      return url.startsWith(`${baseUrl}/l/`) || url.includes('/l/');
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
    * Create tracking link record in database
    * @param {Object} params - Link creation parameters
    * @returns {Object} Created CampaignLink
@@ -343,6 +358,12 @@ class UtmService {
       const { url: originalUrl, text, position } = urlInfo;
 
       try {
+        // Skip if this is already a short link from our system
+        if (this.isSystemShortLink(originalUrl)) {
+          console.log(`Skipping short link: ${originalUrl}`);
+          continue;
+        }
+
         // Add UTM parameters
         const taggedUrl = this.addUtmToUrl(originalUrl, utmParams);
 
