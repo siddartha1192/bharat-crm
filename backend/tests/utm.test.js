@@ -274,6 +274,38 @@ describe('UTM Service', () => {
     });
   });
 
+  describe('isSystemShortLink', () => {
+    test('should detect system short links', () => {
+      const shortLink = 'http://localhost:3000/l/abc12345';
+      const result = utmService.isSystemShortLink(shortLink);
+
+      expect(result).toBe(true);
+    });
+
+    test('should detect short links with custom base URL', () => {
+      process.env.APP_URL = 'https://myapp.com';
+      const shortLink = 'https://myapp.com/l/xyz67890';
+      const result = utmService.isSystemShortLink(shortLink);
+
+      expect(result).toBe(true);
+      delete process.env.APP_URL;
+    });
+
+    test('should not detect regular URLs as short links', () => {
+      const regularUrl = 'https://example.com/page';
+      const result = utmService.isSystemShortLink(regularUrl);
+
+      expect(result).toBe(false);
+    });
+
+    test('should not detect other short link services', () => {
+      const otherShortLink = 'https://bit.ly/abc123';
+      const result = utmService.isSystemShortLink(otherShortLink);
+
+      expect(result).toBe(false);
+    });
+  });
+
   describe('aggregateByField', () => {
     test('should aggregate clicks by device', () => {
       const clicks = [
