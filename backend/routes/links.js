@@ -586,19 +586,50 @@ router.post('/api/utm/generate', authenticate, tenantContext, async (req, res) =
       });
     }
 
-    const utmParams = {};
-    if (utmSource) utmParams.utm_source = utmSource;
-    if (utmMedium) utmParams.utm_medium = utmMedium;
-    if (utmCampaign) utmParams.utm_campaign = utmCampaign;
-    if (utmTerm) utmParams.utm_term = utmTerm;
-    if (utmContent) utmParams.utm_content = utmContent;
+    // Sanitize URL - fix common issues
+    let sanitizedUrl = url.trim();
 
-    const taggedUrl = utmService.addUtmToUrl(url, utmParams);
+    // Fix backslashes (common copy-paste error)
+    sanitizedUrl = sanitizedUrl.replace(/\\/g, '/');
+
+    // Ensure URL has protocol
+    if (!sanitizedUrl.startsWith('http://') && !sanitizedUrl.startsWith('https://')) {
+      sanitizedUrl = 'https://' + sanitizedUrl;
+    }
+
+    // Validate URL format
+    try {
+      new URL(sanitizedUrl);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid URL format. Please provide a valid URL.'
+      });
+    }
+
+    // Build UTM parameters - remove empty values
+    const utmParams = {};
+    if (utmSource && utmSource.trim()) utmParams.utm_source = utmSource.trim();
+    if (utmMedium && utmMedium.trim()) utmParams.utm_medium = utmMedium.trim();
+    if (utmCampaign && utmCampaign.trim()) utmParams.utm_campaign = utmCampaign.trim();
+    if (utmTerm && utmTerm.trim()) utmParams.utm_term = utmTerm.trim();
+    if (utmContent && utmContent.trim()) utmParams.utm_content = utmContent.trim();
+
+    // Add UTM to URL
+    let taggedUrl;
+    try {
+      taggedUrl = utmService.addUtmToUrl(sanitizedUrl, utmParams);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        error: `Failed to add UTM parameters: ${error.message}`
+      });
+    }
 
     return res.json({
       success: true,
       data: {
-        originalUrl: url,
+        originalUrl: sanitizedUrl,
         taggedUrl,
         utmParams
       }
@@ -636,16 +667,51 @@ router.post('/api/links/create-short-link', authenticate, tenantContext, async (
       });
     }
 
-    // Build UTM parameters
+    // Sanitize URL - fix common issues
+    let sanitizedUrl = url.trim();
+
+    // Fix backslashes (common copy-paste error)
+    sanitizedUrl = sanitizedUrl.replace(/\\/g, '/');
+
+    // Ensure URL has protocol
+    if (!sanitizedUrl.startsWith('http://') && !sanitizedUrl.startsWith('https://')) {
+      sanitizedUrl = 'https://' + sanitizedUrl;
+    }
+
+    // Validate URL format
+    try {
+      new URL(sanitizedUrl);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid URL format. Please provide a valid URL.'
+      });
+    }
+
+    // Build UTM parameters - remove empty values
     const utmParams = {};
-    if (utmSource) utmParams.utm_source = utmSource;
-    if (utmMedium) utmParams.utm_medium = utmMedium;
-    if (utmCampaign) utmParams.utm_campaign = utmCampaign;
-    if (utmTerm) utmParams.utm_term = utmTerm;
-    if (utmContent) utmParams.utm_content = utmContent;
+    if (utmSource && utmSource.trim()) utmParams.utm_source = utmSource.trim();
+    if (utmMedium && utmMedium.trim()) utmParams.utm_medium = utmMedium.trim();
+    if (utmCampaign && utmCampaign.trim()) utmParams.utm_campaign = utmCampaign.trim();
+    if (utmTerm && utmTerm.trim()) utmParams.utm_term = utmTerm.trim();
+    if (utmContent && utmContent.trim()) utmParams.utm_content = utmContent.trim();
 
     // Add UTM to URL
-    const taggedUrl = utmService.addUtmToUrl(url, utmParams);
+    let taggedUrl;
+    try {
+      taggedUrl = utmService.addUtmToUrl(sanitizedUrl, utmParams);
+      console.log('[Create Short Link] UTM tagging successful:', {
+        original: sanitizedUrl,
+        tagged: taggedUrl,
+        params: utmParams
+      });
+    } catch (error) {
+      console.error('[Create Short Link] UTM tagging failed:', error);
+      return res.status(400).json({
+        success: false,
+        error: `Failed to add UTM parameters: ${error.message}`
+      });
+    }
 
     // Generate short code
     const shortCode = utmService.generateShortCode();
@@ -657,17 +723,17 @@ router.post('/api/links/create-short-link', authenticate, tenantContext, async (
       data: {
         tenantId,
         campaignId: null, // Manual link, not tied to campaign
-        originalUrl: url,
+        originalUrl: sanitizedUrl,
         taggedUrl,
         shortCode,
         shortUrl,
         platform: utmMedium || 'manual',
         linkText: name || null,
-        utmSource,
-        utmMedium,
-        utmCampaign,
-        utmTerm,
-        utmContent
+        utmSource: utmParams.utm_source || null,
+        utmMedium: utmParams.utm_medium || null,
+        utmCampaign: utmParams.utm_campaign || null,
+        utmTerm: utmParams.utm_term || null,
+        utmContent: utmParams.utm_content || null
       }
     });
 
@@ -675,7 +741,7 @@ router.post('/api/links/create-short-link', authenticate, tenantContext, async (
       success: true,
       data: {
         id: link.id,
-        originalUrl: url,
+        originalUrl: sanitizedUrl,
         taggedUrl,
         shortCode,
         shortUrl,
