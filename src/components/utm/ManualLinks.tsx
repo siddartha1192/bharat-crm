@@ -46,7 +46,9 @@ export function ManualLinks() {
   const fetchManualLinks = async () => {
     try {
       const response = await api.get('/links/manual');
-      setLinks(response.data);
+      // Backend returns { success: true, data: [...] }
+      const linksData = response.data.data || response.data;
+      setLinks(linksData);
     } catch (error) {
       console.error('Error fetching manual links:', error);
       toast({

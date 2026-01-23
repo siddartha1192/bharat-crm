@@ -91,9 +91,11 @@ export function LinkAnalytics() {
   const fetchCampaigns = async () => {
     try {
       const response = await api.get('/links/campaigns');
-      setCampaigns(response.data);
-      if (response.data.length > 0) {
-        setSelectedCampaign(response.data[0].id);
+      // Backend returns { success: true, data: [...] }
+      const campaignsData = response.data.data || response.data;
+      setCampaigns(campaignsData);
+      if (campaignsData.length > 0) {
+        setSelectedCampaign(campaignsData[0].id);
       }
     } catch (error) {
       console.error('Error fetching campaigns:', error);
@@ -113,7 +115,9 @@ export function LinkAnalytics() {
     setLoading(true);
     try {
       const response = await api.get(`/links/analytics/${selectedCampaign}`);
-      setAnalytics(response.data);
+      // Backend returns { success: true, data: {...} }
+      const analyticsData = response.data.data || response.data;
+      setAnalytics(analyticsData);
     } catch (error) {
       console.error('Error fetching analytics:', error);
       toast({

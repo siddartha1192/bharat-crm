@@ -46,13 +46,15 @@ export function LinkGenerator() {
         utmContent: utmContent || undefined,
       });
 
-      const taggedUrl = utmResponse.data.url;
+      // Backend returns { success: true, data: { taggedUrl, ... } }
+      const utmData = utmResponse.data.data || utmResponse.data;
+      const taggedUrl = utmData.taggedUrl || utmData.url;
       setGeneratedUrl(taggedUrl);
 
       // If short link is requested, create it
       if (createShortLink) {
         const shortLinkResponse = await api.post('/links/create-short-link', {
-          originalUrl: taggedUrl,
+          originalUrl: url,
           utmSource,
           utmMedium,
           utmCampaign,
@@ -60,10 +62,13 @@ export function LinkGenerator() {
           utmContent: utmContent || undefined,
         });
 
-        setShortLink(shortLinkResponse.data.shortUrl);
+        // Backend returns { success: true, data: { shortUrl, ... } }
+        const shortLinkData = shortLinkResponse.data.data || shortLinkResponse.data;
+        const shortUrl = shortLinkData.shortUrl;
+        setShortLink(shortUrl);
 
         // Generate QR code for short link
-        const qrCode = await QRCode.toDataURL(shortLinkResponse.data.shortUrl);
+        const qrCode = await QRCode.toDataURL(shortUrl);
         setQrCodeDataUrl(qrCode);
       } else {
         setShortLink('');

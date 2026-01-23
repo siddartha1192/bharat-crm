@@ -21,7 +21,6 @@ import {
 import { UserManagement } from '@/components/settings/UserManagement';
 import AutomationSettings from '@/components/settings/AutomationSettings';
 import VectorDataUpload from '@/components/settings/VectorDataUpload';
-import CampaignSettings from '@/components/settings/CampaignSettings';
 import APISettings from '@/components/settings/APISettings';
 import ReminderSettings from '@/components/settings/ReminderSettings';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
@@ -77,14 +76,6 @@ const settingItems: SettingItem[] = [
   },
 
   // Communication
-  {
-    id: 'campaigns',
-    label: 'Campaigns',
-    icon: Send,
-    description: 'Configure email and WhatsApp campaigns',
-    category: 'Communication',
-    component: CampaignSettings,
-  },
   {
     id: 'email-templates',
     label: 'Email Templates',

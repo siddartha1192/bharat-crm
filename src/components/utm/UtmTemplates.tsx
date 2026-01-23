@@ -66,7 +66,9 @@ export function UtmTemplates() {
     try {
       const params = filterPlatform !== 'all' ? { platform: filterPlatform } : {};
       const response = await api.get('/utm-templates', { params });
-      setTemplates(response.data);
+      // Backend returns { success: true, data: [...] }
+      const templatesData = response.data.data || response.data;
+      setTemplates(templatesData);
     } catch (error) {
       console.error('Error fetching templates:', error);
       toast({
