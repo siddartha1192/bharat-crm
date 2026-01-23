@@ -17,6 +17,8 @@ import {
   TrendingUp,
   FormInput,
   Phone,
+  Send,
+  Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -33,6 +35,8 @@ const navigation = [
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Pipeline', href: '/pipeline', icon: Target },
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
+  { name: 'Campaigns', href: '/campaigns', icon: Send, badge: 'Pro' },
+  { name: 'UTM Manager', href: '/utm', icon: Link2, badge: 'Pro' },
   { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
   { name: 'Emails', href: '/emails', icon: Mail },
   { name: 'AI Calls', href: '/calls', icon: Phone, badge: 'New', requiresAI: true },

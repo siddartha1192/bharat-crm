@@ -39,6 +39,8 @@ import Forms from "./pages/Forms";
 import PromoLanding from "./pages/PromoLanding";
 import PublicForm from "./pages/PublicForm";
 import Calls from "./pages/Calls";
+import Campaigns from "./pages/Campaigns";
+import UtmManager from "./pages/UtmManager";
 import ProductPage from "./pages/ProductPage";
 import FeaturesPage from "./pages/FeaturesPage";
 import PricingPage from "./pages/PricingPage";
@@ -122,6 +124,8 @@ const App = () => (
               <Route path="/contacts" element={<ProtectedLayout><Contacts /></ProtectedLayout>} />
               <Route path="/pipeline" element={<ProtectedLayout><Pipeline /></ProtectedLayout>} />
               <Route path="/tasks" element={<ProtectedLayout><Tasks /></ProtectedLayout>} />
+              <Route path="/campaigns" element={<ProtectedLayout><Campaigns /></ProtectedLayout>} />
+              <Route path="/utm" element={<ProtectedLayout><UtmManager /></ProtectedLayout>} />
               <Route path="/whatsapp" element={<ProtectedLayout><WhatsApp /></ProtectedLayout>} />
               <Route path="/emails" element={<ProtectedLayout><Emails /></ProtectedLayout>} />
               <Route path="/calls" element={<ProtectedLayout><ProtectedAIRoute><Calls /></ProtectedAIRoute></ProtectedLayout>} />
