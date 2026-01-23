@@ -7,7 +7,7 @@
 
 const express = require('express');
 const router = express.Router();
-const prisma = require('../lib/prisma');
+const { prisma } = require('../server');
 const utmService = require('../services/utm');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext } = require('../middleware/tenant');
