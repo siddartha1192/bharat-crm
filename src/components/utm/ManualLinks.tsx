@@ -75,7 +75,7 @@ export function ManualLinks() {
     if (!confirm('Are you sure you want to delete this link?')) return;
 
     try {
-      await api.delete(`/links/${id}`);
+      await api.delete(`/links/manual/${id}`);
       toast({
         title: 'Success',
         description: 'Link deleted successfully',
