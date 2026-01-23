@@ -66,14 +66,24 @@ export function UtmTemplates() {
     try {
       const params = filterPlatform !== 'all' ? { platform: filterPlatform } : {};
       const response = await api.get('/utm-templates', { params });
+      console.log('Templates Response:', response.data);
       // Backend returns { success: true, data: [...] }
       const templatesData = response.data.data || response.data;
-      setTemplates(templatesData);
-    } catch (error) {
+      console.log('Extracted Templates Data:', templatesData);
+
+      // Ensure we have an array
+      if (Array.isArray(templatesData)) {
+        setTemplates(templatesData);
+      } else {
+        console.error('Templates data is not an array:', templatesData);
+        setTemplates([]);
+      }
+    } catch (error: any) {
       console.error('Error fetching templates:', error);
+      console.error('Error response:', error.response?.data);
       toast({
         title: 'Error',
-        description: 'Failed to fetch templates',
+        description: error.response?.data?.error || error.response?.data?.message || 'Failed to fetch templates',
         variant: 'destructive',
       });
     } finally {

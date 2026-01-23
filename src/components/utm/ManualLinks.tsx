@@ -46,14 +46,24 @@ export function ManualLinks() {
   const fetchManualLinks = async () => {
     try {
       const response = await api.get('/links/manual');
+      console.log('Manual Links Response:', response.data);
       // Backend returns { success: true, data: [...] }
       const linksData = response.data.data || response.data;
-      setLinks(linksData);
-    } catch (error) {
+      console.log('Extracted Links Data:', linksData);
+
+      // Ensure we have an array
+      if (Array.isArray(linksData)) {
+        setLinks(linksData);
+      } else {
+        console.error('Links data is not an array:', linksData);
+        setLinks([]);
+      }
+    } catch (error: any) {
       console.error('Error fetching manual links:', error);
+      console.error('Error response:', error.response?.data);
       toast({
         title: 'Error',
-        description: 'Failed to fetch manual links',
+        description: error.response?.data?.error || error.response?.data?.message || 'Failed to fetch manual links',
         variant: 'destructive',
       });
     } finally {

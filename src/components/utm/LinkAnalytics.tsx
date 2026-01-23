@@ -13,22 +13,13 @@ import {
   MousePointerClick,
   Users,
   ExternalLink,
-  TrendingUp,
   Monitor,
-  Smartphone,
   Globe,
+  Smartphone,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 
 interface Campaign {
   id: string;
@@ -37,44 +28,33 @@ interface Campaign {
 }
 
 interface LinkAnalytics {
-  link: {
-    id: string;
-    originalUrl: string;
-    taggedUrl: string;
-    shortUrl?: string;
-    linkText?: string;
-    linkPosition?: string;
-    totalClicks: number;
-    uniqueClicks: number;
-  };
-  clicksByDevice: { device: string; count: number }[];
-  clicksByBrowser: { browser: string; count: number }[];
-  clicksByOS: { os: string; count: number }[];
-  recentClicks: {
-    id: string;
-    device?: string;
-    browser?: string;
-    os?: string;
-    clickedAt: string;
-  }[];
+  linkId: string;
+  originalUrl: string;
+  taggedUrl: string;
+  shortUrl?: string;
+  linkText?: string;
+  linkPosition?: string;
+  totalClicks: number;
+  uniqueClicks: number;
+  clicksByDevice: Record<string, number>;
+  clicksByBrowser: Record<string, number>;
+  clicksByOS: Record<string, number>;
 }
 
-interface CampaignAnalytics {
-  campaign: {
-    id: string;
-    name: string;
+interface AnalyticsData {
+  links: LinkAnalytics[];
+  summary: {
     totalLinks: number;
     totalClicks: number;
-    uniqueClicks: number;
+    totalUniqueClicks: number;
   };
-  links: LinkAnalytics[];
 }
 
 export function LinkAnalytics() {
   const { toast } = useToast();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<string>('');
-  const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [campaignsLoading, setCampaignsLoading] = useState(true);
 
@@ -91,17 +71,26 @@ export function LinkAnalytics() {
   const fetchCampaigns = async () => {
     try {
       const response = await api.get('/links/campaigns');
-      // Backend returns { success: true, data: [...] }
+      console.log('Campaigns Response:', response.data);
       const campaignsData = response.data.data || response.data;
-      setCampaigns(campaignsData);
-      if (campaignsData.length > 0) {
-        setSelectedCampaign(campaignsData[0].id);
+      console.log('Extracted Campaigns Data:', campaignsData);
+
+      // Ensure we have an array
+      if (Array.isArray(campaignsData)) {
+        setCampaigns(campaignsData);
+        if (campaignsData.length > 0) {
+          setSelectedCampaign(campaignsData[0].id);
+        }
+      } else {
+        console.error('Campaigns data is not an array:', campaignsData);
+        setCampaigns([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching campaigns:', error);
+      console.error('Error response:', error.response?.data);
       toast({
         title: 'Error',
-        description: 'Failed to fetch campaigns',
+        description: error.response?.data?.error || error.response?.data?.message || 'Failed to fetch campaigns',
         variant: 'destructive',
       });
     } finally {
@@ -115,14 +104,29 @@ export function LinkAnalytics() {
     setLoading(true);
     try {
       const response = await api.get(`/links/analytics/${selectedCampaign}`);
-      // Backend returns { success: true, data: {...} }
+      console.log('Analytics Response:', response.data);
+      // Backend returns { success: true, data: { links: [], summary: {} } }
       const analyticsData = response.data.data || response.data;
-      setAnalytics(analyticsData);
-    } catch (error) {
+      console.log('Extracted Analytics Data:', analyticsData);
+
+      // Validate data structure
+      if (analyticsData && typeof analyticsData === 'object') {
+        if (!analyticsData.links || !Array.isArray(analyticsData.links)) {
+          console.error('Analytics data missing links array:', analyticsData);
+        }
+        if (!analyticsData.summary || typeof analyticsData.summary !== 'object') {
+          console.error('Analytics data missing summary object:', analyticsData);
+        }
+        setAnalytics(analyticsData);
+      } else {
+        console.error('Invalid analytics data structure:', analyticsData);
+      }
+    } catch (error: any) {
       console.error('Error fetching analytics:', error);
+      console.error('Error response:', error.response?.data);
       toast({
         title: 'Error',
-        description: 'Failed to fetch analytics',
+        description: error.response?.data?.error || error.response?.data?.message || 'Failed to fetch analytics',
         variant: 'destructive',
       });
     } finally {
@@ -215,7 +219,7 @@ export function LinkAnalytics() {
                     <ExternalLink className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="text-3xl font-bold">
-                    {analytics.campaign.totalLinks}
+                    {analytics.summary.totalLinks}
                   </div>
                 </div>
               </CardContent>
@@ -233,7 +237,7 @@ export function LinkAnalytics() {
                     <MousePointerClick className="w-5 h-5 text-green-600" />
                   </div>
                   <div className="text-3xl font-bold">
-                    {analytics.campaign.totalClicks}
+                    {analytics.summary.totalClicks}
                   </div>
                 </div>
               </CardContent>
@@ -251,14 +255,14 @@ export function LinkAnalytics() {
                     <Users className="w-5 h-5 text-purple-600" />
                   </div>
                   <div className="text-3xl font-bold">
-                    {analytics.campaign.uniqueClicks}
+                    {analytics.summary.totalUniqueClicks}
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Link Performance Table */}
+          {/* Link Performance */}
           <Card>
             <CardHeader>
               <CardTitle>Link Performance</CardTitle>
@@ -273,9 +277,9 @@ export function LinkAnalytics() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {analytics.links.map((linkAnalytics) => (
+                  {analytics.links.map((link) => (
                     <div
-                      key={linkAnalytics.link.id}
+                      key={link.linkId}
                       className="border rounded-lg p-4 space-y-4"
                     >
                       {/* Link Info */}
@@ -284,31 +288,31 @@ export function LinkAnalytics() {
                           <div className="flex items-center gap-2 mb-2">
                             <ExternalLink className="w-4 h-4 text-gray-400 flex-shrink-0" />
                             <a
-                              href={linkAnalytics.link.originalUrl}
+                              href={link.originalUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline truncate"
+                              className="text-blue-600 hover:underline truncate text-sm"
                             >
-                              {linkAnalytics.link.originalUrl}
+                              {link.originalUrl}
                             </a>
                           </div>
-                          {linkAnalytics.link.shortUrl && (
+                          {link.shortUrl && (
                             <div className="text-sm text-gray-500">
-                              Short: {linkAnalytics.link.shortUrl}
+                              Short: {link.shortUrl}
                             </div>
                           )}
-                          {linkAnalytics.link.linkPosition && (
+                          {link.linkPosition && (
                             <Badge variant="secondary" className="mt-2">
-                              {linkAnalytics.link.linkPosition}
+                              {link.linkPosition}
                             </Badge>
                           )}
                         </div>
                         <div className="text-right">
                           <div className="text-2xl font-bold">
-                            {linkAnalytics.link.totalClicks}
+                            {link.totalClicks}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {linkAnalytics.link.uniqueClicks} unique
+                            {link.uniqueClicks} unique
                           </div>
                         </div>
                       </div>
@@ -322,16 +326,16 @@ export function LinkAnalytics() {
                             Devices
                           </h4>
                           <div className="space-y-1">
-                            {linkAnalytics.clicksByDevice.length > 0 ? (
-                              linkAnalytics.clicksByDevice.map((item) => (
+                            {Object.keys(link.clicksByDevice).length > 0 ? (
+                              Object.entries(link.clicksByDevice).map(([device, count]) => (
                                 <div
-                                  key={item.device}
+                                  key={device}
                                   className="flex justify-between text-sm"
                                 >
                                   <span className="text-gray-600 capitalize">
-                                    {item.device || 'Unknown'}
+                                    {device}
                                   </span>
-                                  <span className="font-medium">{item.count}</span>
+                                  <span className="font-medium">{count}</span>
                                 </div>
                               ))
                             ) : (
@@ -347,16 +351,16 @@ export function LinkAnalytics() {
                             Browsers
                           </h4>
                           <div className="space-y-1">
-                            {linkAnalytics.clicksByBrowser.length > 0 ? (
-                              linkAnalytics.clicksByBrowser.map((item) => (
+                            {Object.keys(link.clicksByBrowser).length > 0 ? (
+                              Object.entries(link.clicksByBrowser).map(([browser, count]) => (
                                 <div
-                                  key={item.browser}
+                                  key={browser}
                                   className="flex justify-between text-sm"
                                 >
                                   <span className="text-gray-600 capitalize">
-                                    {item.browser || 'Unknown'}
+                                    {browser}
                                   </span>
-                                  <span className="font-medium">{item.count}</span>
+                                  <span className="font-medium">{count}</span>
                                 </div>
                               ))
                             ) : (
@@ -372,16 +376,16 @@ export function LinkAnalytics() {
                             Operating Systems
                           </h4>
                           <div className="space-y-1">
-                            {linkAnalytics.clicksByOS.length > 0 ? (
-                              linkAnalytics.clicksByOS.map((item) => (
+                            {Object.keys(link.clicksByOS).length > 0 ? (
+                              Object.entries(link.clicksByOS).map(([os, count]) => (
                                 <div
-                                  key={item.os}
+                                  key={os}
                                   className="flex justify-between text-sm"
                                 >
                                   <span className="text-gray-600 capitalize">
-                                    {item.os || 'Unknown'}
+                                    {os.replace(/_/g, ' ')}
                                   </span>
-                                  <span className="font-medium">{item.count}</span>
+                                  <span className="font-medium">{count}</span>
                                 </div>
                               ))
                             ) : (

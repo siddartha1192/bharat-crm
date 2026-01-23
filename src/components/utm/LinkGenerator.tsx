@@ -46,15 +46,17 @@ export function LinkGenerator() {
         utmContent: utmContent || undefined,
       });
 
-      // Backend returns { success: true, data: { taggedUrl, ... } }
+      console.log('UTM Response:', utmResponse.data);
+
+      // Backend returns { success: true, data: { originalUrl, taggedUrl, utmParams } }
       const utmData = utmResponse.data.data || utmResponse.data;
-      const taggedUrl = utmData.taggedUrl || utmData.url;
+      const taggedUrl = utmData.taggedUrl;
       setGeneratedUrl(taggedUrl);
 
       // If short link is requested, create it
       if (createShortLink) {
         const shortLinkResponse = await api.post('/links/create-short-link', {
-          originalUrl: url,
+          url: url, // Use original URL, backend will add UTM params
           utmSource,
           utmMedium,
           utmCampaign,
@@ -62,7 +64,9 @@ export function LinkGenerator() {
           utmContent: utmContent || undefined,
         });
 
-        // Backend returns { success: true, data: { shortUrl, ... } }
+        console.log('Short Link Response:', shortLinkResponse.data);
+
+        // Backend returns { success: true, data: { id, originalUrl, taggedUrl, shortCode, shortUrl, utmParams } }
         const shortLinkData = shortLinkResponse.data.data || shortLinkResponse.data;
         const shortUrl = shortLinkData.shortUrl;
         setShortLink(shortUrl);
@@ -81,9 +85,10 @@ export function LinkGenerator() {
       });
     } catch (error: any) {
       console.error('Error generating link:', error);
+      console.error('Error response:', error.response?.data);
       toast({
         title: 'Error',
-        description: error.response?.data?.message || 'Failed to generate link',
+        description: error.response?.data?.error || error.response?.data?.message || 'Failed to generate link',
         variant: 'destructive',
       });
     } finally {
