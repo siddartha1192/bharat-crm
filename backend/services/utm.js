@@ -17,9 +17,10 @@ class UtmService {
    * @param {Object} campaign - Campaign object
    * @param {String} platform - Platform: 'email' | 'whatsapp' | 'youtube' | 'social'
    * @param {Object} overrides - Manual UTM overrides
+   * @param {Object} recipient - Optional recipient data for personalized tracking
    * @returns {Object} UTM parameters
    */
-  buildUtmParameters(campaign, platform = 'email', overrides = {}) {
+  buildUtmParameters(campaign, platform = 'email', overrides = {}, recipient = null) {
     // Start with campaign-level defaults
     const utmParams = {
       utm_source: campaign.utmSource || 'bharat_crm',
@@ -28,6 +29,24 @@ class UtmService {
       utm_term: campaign.utmTerm || undefined,
       utm_content: campaign.utmContent || undefined
     };
+
+    // Add recipient tracking for retargeting and ROI attribution
+    if (recipient) {
+      // Add recipient email/phone to utm_term for retargeting
+      if (recipient.recipientEmail) {
+        utmParams.utm_id = Buffer.from(recipient.recipientEmail).toString('base64').substring(0, 20);
+        // Also add email hash for privacy-conscious tracking
+        utmParams.utm_term = recipient.recipientEmail;
+      } else if (recipient.recipientPhone) {
+        utmParams.utm_id = Buffer.from(recipient.recipientPhone).toString('base64').substring(0, 20);
+        utmParams.utm_term = recipient.recipientPhone;
+      }
+
+      // Enhance utm_content with recipient type and ID
+      if (!overrides.utm_content) {
+        utmParams.utm_content = `${platform}_${recipient.recipientType || 'contact'}_${recipient.id}`;
+      }
+    }
 
     // Apply platform-specific overrides from campaign config
     if (campaign.platformUtmConfig && campaign.platformUtmConfig[platform]) {
@@ -299,7 +318,8 @@ class UtmService {
       contentType = 'html',
       platform = 'email',
       utmParams,
-      useShortLinks = false
+      useShortLinks = false,
+      recipientId = null  // Add recipient tracking
     } = params;
 
     if (!content) {
@@ -341,8 +361,13 @@ class UtmService {
 
         createdLinks.push(link);
 
-        // Replace in content
-        const finalUrl = useShortLinks && link.shortUrl ? link.shortUrl : taggedUrl;
+        // Replace in content with recipient tracking
+        let finalUrl = useShortLinks && link.shortUrl ? link.shortUrl : taggedUrl;
+
+        // Add recipient tracking parameter for attribution
+        if (recipientId && useShortLinks && link.shortUrl) {
+          finalUrl = `${link.shortUrl}?r=${recipientId}`;
+        }
 
         // Use a more precise replacement to avoid replacing partial matches
         const escapedOriginal = this.escapeRegExp(originalUrl);
