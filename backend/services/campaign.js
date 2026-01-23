@@ -928,9 +928,8 @@ class CampaignService {
         // Process UTM tagging if enabled
         if (campaign.autoTagLinks && htmlContent) {
           try {
-            const utmParams = utmService.buildUtmParameters(campaign, 'email', {
-              utm_content: `email_${recipient.recipientType}_${recipient.id}`
-            });
+            // Pass recipient data for personalized tracking and retargeting
+            const utmParams = utmService.buildUtmParameters(campaign, 'email', {}, recipient);
 
             const processed = await utmService.processContent({
               tenantId: campaign.tenantId,
@@ -939,11 +938,12 @@ class CampaignService {
               contentType: 'html',
               platform: 'email',
               utmParams,
-              useShortLinks: campaign.useShortLinks
+              useShortLinks: campaign.useShortLinks,
+              recipientId: recipient.id  // Pass recipient ID for click tracking
             });
 
             htmlContent = processed.processedContent;
-            console.log(`[Campaign] Processed ${processed.links.length} links for email to ${recipient.recipientEmail}`);
+            console.log(`[Campaign] Processed ${processed.links.length} links for email to ${recipient.recipientEmail} with recipient tracking`);
           } catch (utmError) {
             console.error('[Campaign] UTM processing error for email:', utmError.message);
             // Continue with original content if UTM processing fails
@@ -988,9 +988,8 @@ class CampaignService {
           // Process UTM tagging if enabled
           if (campaign.autoTagLinks) {
             try {
-              const utmParams = utmService.buildUtmParameters(campaign, 'whatsapp', {
-                utm_content: `whatsapp_${recipient.recipientType}_${recipient.id}`
-              });
+              // Pass recipient data for personalized tracking and retargeting
+              const utmParams = utmService.buildUtmParameters(campaign, 'whatsapp', {}, recipient);
 
               const processed = await utmService.processContent({
                 tenantId: campaign.tenantId,
@@ -999,11 +998,12 @@ class CampaignService {
                 contentType: 'text',
                 platform: 'whatsapp',
                 utmParams,
-                useShortLinks: campaign.useShortLinks
+                useShortLinks: campaign.useShortLinks,
+                recipientId: recipient.id  // Pass recipient ID for click tracking
               });
 
               content = processed.processedContent;
-              console.log(`[Campaign] Processed ${processed.links.length} links for WhatsApp to ${recipient.recipientPhone}`);
+              console.log(`[Campaign] Processed ${processed.links.length} links for WhatsApp to ${recipient.recipientPhone} with recipient tracking`);
             } catch (utmError) {
               console.error('[Campaign] UTM processing error for WhatsApp:', utmError.message);
               // Continue with original content if UTM processing fails
@@ -1030,9 +1030,8 @@ class CampaignService {
           // Process UTM tagging in caption if enabled
           if (campaign.autoTagLinks && caption) {
             try {
-              const utmParams = utmService.buildUtmParameters(campaign, 'whatsapp', {
-                utm_content: `whatsapp_media_${recipient.recipientType}_${recipient.id}`
-              });
+              // Pass recipient data for personalized tracking and retargeting
+              const utmParams = utmService.buildUtmParameters(campaign, 'whatsapp', {}, recipient);
 
               const processed = await utmService.processContent({
                 tenantId: campaign.tenantId,
@@ -1041,11 +1040,12 @@ class CampaignService {
                 contentType: 'text',
                 platform: 'whatsapp',
                 utmParams,
-                useShortLinks: campaign.useShortLinks
+                useShortLinks: campaign.useShortLinks,
+                recipientId: recipient.id  // Pass recipient ID for click tracking
               });
 
               caption = processed.processedContent;
-              console.log(`[Campaign] Processed ${processed.links.length} links in WhatsApp media caption`);
+              console.log(`[Campaign] Processed ${processed.links.length} links in WhatsApp media caption with recipient tracking`);
             } catch (utmError) {
               console.error('[Campaign] UTM processing error for WhatsApp media caption:', utmError.message);
               // Continue with original caption if UTM processing fails

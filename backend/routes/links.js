@@ -21,8 +21,9 @@ const { tenantContext } = require('../middleware/tenant');
 router.get('/l/:shortCode', async (req, res) => {
   try {
     const { shortCode } = req.params;
+    const { r: recipientId } = req.query;  // Extract recipient tracking parameter
 
-    console.log(`[Link Redirect] Short code: ${shortCode}`);
+    console.log(`[Link Redirect] Short code: ${shortCode}, Recipient: ${recipientId || 'anonymous'}`);
 
     // Find link by short code (campaign is optional for manual links)
     const link = await prisma.campaignLink.findUnique({
@@ -42,14 +43,14 @@ router.get('/l/:shortCode', async (req, res) => {
     const userAgent = req.headers['user-agent'];
     const referrer = req.headers['referer'] || req.headers['referrer'];
 
-    console.log(`[Link Redirect] Tracking click for link ${link.id}, IP: ${ipAddress}`);
+    console.log(`[Link Redirect] Tracking click for link ${link.id}, IP: ${ipAddress}, Recipient: ${recipientId || 'none'}`);
 
     // Track click asynchronously (fire and forget - don't block redirect)
     utmService.trackClick({
       tenantId: link.tenantId,
       linkId: link.id,
       campaignId: link.campaignId,
-      recipientId: null, // Can be enhanced with recipient tracking via URL param
+      recipientId: recipientId || null,  // Use recipient from URL parameter for attribution
       ipAddress,
       userAgent,
       referrer
@@ -1124,6 +1125,143 @@ router.get('/api/links/qr/:linkId', authenticate, tenantContext, async (req, res
     });
   } catch (error) {
     console.error('[Generate QR Code] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Get recipient-level analytics for a campaign
+ * GET /api/links/recipient-analytics/:campaignId
+ * Shows which recipients clicked which links, conversion data, and ROI
+ */
+router.get('/api/links/recipient-analytics/:campaignId', authenticate, tenantContext, async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    const tenantId = req.tenant.id;
+
+    console.log(`[Recipient Analytics] Fetching for campaign ${campaignId}, tenant ${tenantId}`);
+
+    // Verify campaign belongs to tenant
+    const campaign = await prisma.campaign.findFirst({
+      where: {
+        id: campaignId,
+        tenantId
+      }
+    });
+
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        error: 'Campaign not found'
+      });
+    }
+
+    // Get all clicks with recipient information
+    const clicks = await prisma.campaignClick.findMany({
+      where: {
+        tenantId,
+        campaignId
+      },
+      include: {
+        link: {
+          select: {
+            originalUrl: true,
+            shortUrl: true,
+            utmSource: true,
+            utmMedium: true,
+            utmCampaign: true,
+            utmTerm: true,
+            utmContent: true
+          }
+        },
+        recipient: {
+          select: {
+            recipientName: true,
+            recipientEmail: true,
+            recipientPhone: true,
+            recipientType: true
+          }
+        }
+      },
+      orderBy: {
+        clickedAt: 'desc'
+      }
+    });
+
+    // Aggregate by recipient
+    const recipientMap = new Map();
+
+    clicks.forEach(click => {
+      if (!click.recipientId) return; // Skip anonymous clicks
+
+      const key = click.recipientId;
+      if (!recipientMap.has(key)) {
+        recipientMap.set(key, {
+          recipientId: click.recipientId,
+          recipientName: click.recipient?.recipientName || 'Unknown',
+          recipientEmail: click.recipient?.recipientEmail || click.recipientEmail,
+          recipientPhone: click.recipient?.recipientPhone || click.recipientPhone,
+          recipientType: click.recipient?.recipientType,
+          totalClicks: 0,
+          uniqueLinks: new Set(),
+          firstClickAt: click.clickedAt,
+          lastClickAt: click.clickedAt,
+          clicks: []
+        });
+      }
+
+      const recipientData = recipientMap.get(key);
+      recipientData.totalClicks++;
+      recipientData.uniqueLinks.add(click.linkId);
+      recipientData.lastClickAt = click.clickedAt;
+      recipientData.clicks.push({
+        clickedAt: click.clickedAt,
+        url: click.link.originalUrl,
+        utmTerm: click.link.utmTerm,
+        device: click.device,
+        browser: click.browser,
+        os: click.os
+      });
+    });
+
+    // Convert to array and format
+    const recipientAnalytics = Array.from(recipientMap.values()).map(r => ({
+      recipientId: r.recipientId,
+      recipientName: r.recipientName,
+      recipientEmail: r.recipientEmail,
+      recipientPhone: r.recipientPhone,
+      recipientType: r.recipientType,
+      totalClicks: r.totalClicks,
+      uniqueLinks: r.uniqueLinks.size,
+      firstClickAt: r.firstClickAt,
+      lastClickAt: r.lastClickAt,
+      clicks: r.clicks
+    }));
+
+    // Get overall stats
+    const totalRecipients = recipientAnalytics.length;
+    const totalClicks = clicks.length;
+    const clicksWithRecipient = clicks.filter(c => c.recipientId).length;
+    const anonymousClicks = totalClicks - clicksWithRecipient;
+
+    return res.json({
+      success: true,
+      data: {
+        summary: {
+          totalRecipients,
+          totalClicks,
+          clicksWithRecipient,
+          anonymousClicks,
+          avgClicksPerRecipient: totalRecipients > 0 ? (clicksWithRecipient / totalRecipients).toFixed(2) : 0
+        },
+        recipients: recipientAnalytics
+      }
+    });
+  } catch (error) {
+    console.error('[Recipient Analytics] Error:', error);
     return res.status(500).json({
       success: false,
       error: error.message
