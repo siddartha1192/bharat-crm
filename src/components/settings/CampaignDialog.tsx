@@ -20,7 +20,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mail, MessageSquare, ChevronLeft, ChevronRight, Send, CalendarIcon, Users, Image, FileText, Video, Music, Plus, X, AlertCircle, Upload, Loader2, Megaphone } from 'lucide-react';
+import { Mail, MessageSquare, ChevronLeft, ChevronRight, Send, CalendarIcon, Users, Image, FileText, Video, Music, Plus, X, AlertCircle, Upload, Loader2, Megaphone, FileCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { EmailEditor } from './EmailEditor';
 import api from '@/lib/api';
@@ -36,12 +36,24 @@ interface Props {
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+interface CampaignTemplate {
+  id: string;
+  name: string;
+  channel: CampaignChannel;
+  subject?: string;
+  htmlContent?: string;
+  textContent: string;
+  targetType: CampaignTargetType;
+}
+
 export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign }: Props) {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [recipientCount, setRecipientCount] = useState(0);
+  const [templates, setTemplates] = useState<CampaignTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const token = localStorage.getItem('token');
 
@@ -115,6 +127,42 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
       setRecipientCount(0);
     }
   };
+
+  const fetchTemplates = async () => {
+    try {
+      setLoadingTemplates(true);
+      const response = await api.get('/campaigns/templates/list');
+      setTemplates(response.data.templates || []);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load templates',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const applyTemplate = (template: CampaignTemplate) => {
+    updateFormData({
+      subject: template.subject || formData.subject,
+      htmlContent: template.htmlContent || formData.htmlContent,
+      textContent: template.textContent,
+      targetType: template.targetType,
+    });
+    toast({
+      title: 'Template Applied',
+      description: `${template.name} has been loaded. You can customize it before creating the campaign.`,
+    });
+  };
+
+  useEffect(() => {
+    if (open && step === 2) {
+      fetchTemplates();
+    }
+  }, [open, step]);
 
   const resetForm = () => {
     setFormData({
@@ -411,10 +459,50 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
   );
 
   const renderStep2 = () => {
+    // Filter templates by channel
+    const channelTemplates = templates.filter((t) => t.channel === formData.channel);
+
     if (formData.channel === 'email') {
       // Email campaign content
       return (
         <div className="space-y-4">
+          {/* Template Selector */}
+          {channelTemplates.length > 0 && (
+            <div className="bg-blue-50 dark:bg-blue-950/20 border-2 border-blue-200 dark:border-blue-900 p-4 rounded-lg space-y-3">
+              <div className="flex items-center gap-2">
+                <FileCode className="w-5 h-5 text-blue-600" />
+                <Label className="text-sm font-semibold text-blue-900 dark:text-blue-100">Use a Template</Label>
+              </div>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                Choose a pre-designed template to get started quickly
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {loadingTemplates ? (
+                  <div className="col-span-2 flex items-center justify-center py-4">
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                  </div>
+                ) : (
+                  channelTemplates.map((template) => (
+                    <Button
+                      key={template.id}
+                      type="button"
+                      variant="outline"
+                      onClick={() => applyTemplate(template)}
+                      className="justify-start text-left h-auto py-3 border-2 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                    >
+                      <div>
+                        <div className="font-semibold text-sm">{template.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {template.subject || template.textContent.substring(0, 40)}...
+                        </div>
+                      </div>
+                    </Button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="subject" className="text-sm font-semibold">Email Subject *</Label>
             <Input
@@ -487,6 +575,43 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
     // WhatsApp campaign content with tabs
     return (
       <div className="space-y-4">
+        {/* Template Selector for WhatsApp */}
+        {channelTemplates.length > 0 && (
+          <div className="bg-green-50 dark:bg-green-950/20 border-2 border-green-200 dark:border-green-900 p-4 rounded-lg space-y-3">
+            <div className="flex items-center gap-2">
+              <FileCode className="w-5 h-5 text-green-600" />
+              <Label className="text-sm font-semibold text-green-900 dark:text-green-100">Use a Template</Label>
+            </div>
+            <p className="text-xs text-green-700 dark:text-green-300">
+              Choose a pre-designed template to get started quickly
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {loadingTemplates ? (
+                <div className="col-span-2 flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-green-600" />
+                </div>
+              ) : (
+                channelTemplates.map((template) => (
+                  <Button
+                    key={template.id}
+                    type="button"
+                    variant="outline"
+                    onClick={() => applyTemplate(template)}
+                    className="justify-start text-left h-auto py-3 border-2 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-950/40"
+                  >
+                    <div>
+                      <div className="font-semibold text-sm">{template.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {template.textContent.substring(0, 40)}...
+                      </div>
+                    </div>
+                  </Button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
         <Tabs
           value={formData.whatsappMessageType || 'text'}
           onValueChange={(value) => updateFormData({ whatsappMessageType: value as WhatsAppMessageType })}
