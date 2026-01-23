@@ -151,30 +151,53 @@ class UtmService {
    */
   addUtmToUrl(url, utmParams) {
     try {
+      // Validate input
+      if (!url || typeof url !== 'string') {
+        throw new Error('URL must be a non-empty string');
+      }
+
       // Skip if already has UTM parameters (avoid double-tagging)
       if (url.includes('utm_source=') || url.includes('utm_medium=')) {
-        console.log(`Skipping already tagged URL: ${url}`);
+        console.log(`[UTM Service] Skipping already tagged URL: ${url}`);
         return url;
       }
 
       // Skip non-http URLs (mailto:, tel:, etc.)
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        console.log(`[UTM Service] Skipping non-HTTP URL: ${url}`);
         return url;
       }
 
+      // Parse URL
       const urlObj = new URL(url);
+
+      // Count how many UTM parameters will be added
+      let addedCount = 0;
 
       // Add each UTM parameter to query string
       Object.keys(utmParams).forEach(key => {
-        if (utmParams[key]) {
-          urlObj.searchParams.set(key, utmParams[key]);
+        if (utmParams[key] && typeof utmParams[key] === 'string' && utmParams[key].trim()) {
+          urlObj.searchParams.set(key, utmParams[key].trim());
+          addedCount++;
         }
       });
 
-      return urlObj.toString();
+      const finalUrl = urlObj.toString();
+
+      if (addedCount === 0) {
+        console.log(`[UTM Service] No UTM parameters added to URL: ${url}`);
+      } else {
+        console.log(`[UTM Service] Added ${addedCount} UTM parameters to URL`);
+      }
+
+      return finalUrl;
     } catch (error) {
-      console.error('Invalid URL:', url, error.message);
-      return url; // Return original if invalid
+      console.error('[UTM Service] Error adding UTM to URL:', {
+        url,
+        error: error.message,
+        stack: error.stack
+      });
+      throw new Error(`Failed to add UTM parameters: ${error.message}`);
     }
   }
 
