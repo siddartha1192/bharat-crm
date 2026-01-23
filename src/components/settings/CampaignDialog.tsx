@@ -1168,13 +1168,18 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
             <Label className="text-xs">Search by Name, Email, or Company</Label>
             <Input
               placeholder="Type to search..."
+              value={formData.targetFilters?.searchQuery || ''}
               onChange={(e) => {
-                updateFormData({
-                  targetFilters: {
-                    ...formData.targetFilters,
-                    searchQuery: e.target.value
-                  }
-                });
+                const value = e.target.value.trim();
+                const newFilters = { ...formData.targetFilters };
+
+                if (value) {
+                  newFilters.searchQuery = value;
+                } else {
+                  delete newFilters.searchQuery;
+                }
+
+                updateFormData({ targetFilters: newFilters });
               }}
               className="border-2 focus:border-blue-500 rounded-lg"
             />
@@ -1185,14 +1190,23 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
             <Label className="text-xs">Filter by Tags</Label>
             <Input
               placeholder="e.g., vip, interested, premium (comma-separated)"
+              value={formData.targetFilters?.tags?.join(', ') || ''}
               onChange={(e) => {
-                const tags = e.target.value.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
-                updateFormData({
-                  targetFilters: {
-                    ...formData.targetFilters,
-                    tags: tags.length > 0 ? tags : undefined
+                const value = e.target.value.trim();
+                const newFilters = { ...formData.targetFilters };
+
+                if (value) {
+                  const tags = value.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
+                  if (tags.length > 0) {
+                    newFilters.tags = tags;
+                  } else {
+                    delete newFilters.tags;
                   }
-                });
+                } else {
+                  delete newFilters.tags;
+                }
+
+                updateFormData({ targetFilters: newFilters });
               }}
               className="border-2 focus:border-blue-500 rounded-lg"
             />
