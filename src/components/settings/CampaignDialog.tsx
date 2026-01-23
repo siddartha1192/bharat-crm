@@ -1158,6 +1158,52 @@ export function CampaignDialog({ open, onOpenChange, onSuccess, editingCampaign 
         </Select>
       </div>
 
+      {/* Lead/Contact Search and Filters */}
+      {(formData.targetType === 'leads' || formData.targetType === 'contacts' || formData.targetType === 'all') && (
+        <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-900/20 rounded-lg border-2">
+          <Label className="text-sm font-semibold">Filter Recipients (Optional)</Label>
+
+          {/* Search Input */}
+          <div className="space-y-2">
+            <Label className="text-xs">Search by Name, Email, or Company</Label>
+            <Input
+              placeholder="Type to search..."
+              onChange={(e) => {
+                updateFormData({
+                  targetFilters: {
+                    ...formData.targetFilters,
+                    searchQuery: e.target.value
+                  }
+                });
+              }}
+              className="border-2 focus:border-blue-500 rounded-lg"
+            />
+          </div>
+
+          {/* Tag Filter */}
+          <div className="space-y-2">
+            <Label className="text-xs">Filter by Tags</Label>
+            <Input
+              placeholder="e.g., vip, interested, premium (comma-separated)"
+              onChange={(e) => {
+                const tags = e.target.value.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
+                updateFormData({
+                  targetFilters: {
+                    ...formData.targetFilters,
+                    tags: tags.length > 0 ? tags : undefined
+                  }
+                });
+              }}
+              className="border-2 focus:border-blue-500 rounded-lg"
+            />
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            💡 Leave filters empty to include all {formData.targetType === 'leads' ? 'leads' : formData.targetType === 'contacts' ? 'contacts' : 'leads and contacts'}
+          </p>
+        </div>
+      )}
+
       {formData.targetType === 'tags' && (
         <div className="space-y-2">
           <Label className="text-sm font-semibold">Tags (comma-separated) *</Label>
