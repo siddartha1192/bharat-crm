@@ -9,12 +9,36 @@ const { QdrantVectorStore } = require('@langchain/qdrant');
 const { RecursiveCharacterTextSplitter } = require('@langchain/textsplitters');
 const aiConfig = require('../../config/ai.config');
 
+// Embedding model dimensions mapping (CRITICAL for correct vector similarity)
+const EMBEDDING_DIM_MAP = {
+  'text-embedding-3-small': 1536,
+  'text-embedding-3-large': 3072,
+  'text-embedding-ada-002': 1536,
+};
+
 class VectorDBService {
   constructor() {
     this.client = null;
     this.vectorStore = null;
     this.embeddings = null;
     this.initialized = false;
+  }
+
+  /**
+   * Get vector dimension for configured embedding model
+   * @returns {number} Vector dimension
+   */
+  getVectorDimension() {
+    const modelName = aiConfig.vectorDB.embeddingModel;
+    const dimension = EMBEDDING_DIM_MAP[modelName];
+
+    if (!dimension) {
+      console.warn(`⚠️ Unknown embedding model: ${modelName}, defaulting to 1536 dimensions`);
+      return 1536;
+    }
+
+    console.log(`📐 Using ${dimension} dimensions for model: ${modelName}`);
+    return dimension;
   }
 
   /**
@@ -49,13 +73,14 @@ class VectorDBService {
       } catch (error) {
         console.log(`📝 Creating collection '${aiConfig.vectorDB.collectionName}'...`);
         try {
+          const vectorSize = this.getVectorDimension();
           await this.client.createCollection(aiConfig.vectorDB.collectionName, {
             vectors: {
-              size: 1536, // OpenAI embedding dimension for text-embedding-3-small
+              size: vectorSize, // Dynamic dimension based on embedding model
               distance: 'Cosine',
             },
           });
-          console.log('✅ Collection created');
+          console.log(`✅ Collection created with ${vectorSize} dimensions`);
         } catch (createError) {
           // If collection already exists (409 Conflict), that's fine - just continue
           if (createError.status === 409) {
@@ -101,9 +126,11 @@ class VectorDBService {
 
       // Split documents into chunks for better retrieval
       // BUT: Respect doNotChunk flag for CSV/Excel rows to preserve data integrity
+      // Optimized chunk size: 600 chars (better for semantic search than 1000)
+      // Increased overlap: 100 chars (preserves context at boundaries)
       const textSplitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 1000,
-        chunkOverlap: 200,
+        chunkSize: 600,
+        chunkOverlap: 100,
       });
 
       const splitDocs = [];
@@ -116,9 +143,17 @@ class VectorDBService {
 
         // Check if this document should NOT be chunked (e.g., CSV/Excel rows)
         if (metadata.doNotChunk) {
-          // Add document as-is without chunking to preserve row integrity
+          // Add contextual information to improve semantic search
+          // This helps the LLM understand the source and structure without breaking row integrity
+          const contextPrefix = metadata.fileType && metadata.fileName
+            ? `[${metadata.fileType.toUpperCase()} Data from ${metadata.fileName}${metadata.sheetName ? ` - Sheet: ${metadata.sheetName}` : ''}]\n`
+            : '';
+
+          const enhancedContent = `${contextPrefix}${doc.content}`;
+
+          // Add document without chunking to preserve row integrity
           splitDocs.push({
-            pageContent: doc.content,
+            pageContent: enhancedContent,
             metadata: metadata
           });
           preservedCount++;
@@ -146,12 +181,12 @@ class VectorDBService {
   /**
    * Search for relevant documents with tenant isolation and advanced filtering
    * @param {string} query - Search query
-   * @param {number} k - Number of results to return
+   * @param {number} k - Number of results to return (default: 10 for better recall)
    * @param {string} tenantId - Tenant ID for filtering results
    * @param {Object} additionalFilters - Optional additional filters (fileType, fileName, etc.)
    * @returns {Array} - Array of relevant documents
    */
-  async search(query, k = 5, tenantId = null, additionalFilters = {}) {
+  async search(query, k = 10, tenantId = null, additionalFilters = {}) {
     await this.initialize();
 
     if (!tenantId) {
@@ -160,10 +195,11 @@ class VectorDBService {
 
     try {
       // Build Qdrant filter with tenant isolation
+      // CRITICAL: LangChain stores metadata directly in payload, not nested under 'metadata.'
       const filter = {
         must: [
           {
-            key: 'metadata.tenantId',
+            key: 'tenantId',
             match: { value: tenantId }
           }
         ]
@@ -172,21 +208,21 @@ class VectorDBService {
       // Add optional filters for fileType, fileName, etc.
       if (additionalFilters.fileType) {
         filter.must.push({
-          key: 'metadata.fileType',
+          key: 'fileType',
           match: { value: additionalFilters.fileType }
         });
       }
 
       if (additionalFilters.fileName) {
         filter.must.push({
-          key: 'metadata.fileName',
+          key: 'fileName',
           match: { value: additionalFilters.fileName }
         });
       }
 
       if (additionalFilters.sheetName) {
         filter.must.push({
-          key: 'metadata.sheetName',
+          key: 'sheetName',
           match: { value: additionalFilters.sheetName }
         });
       }
@@ -195,7 +231,7 @@ class VectorDBService {
       if (additionalFilters.excludeFullFile) {
         filter.must_not = filter.must_not || [];
         filter.must_not.push({
-          key: 'metadata.isFullFile',
+          key: 'isFullFile',
           match: { value: true }
         });
       }
@@ -215,12 +251,12 @@ class VectorDBService {
   /**
    * Search with relevance scores, tenant isolation, and advanced filtering
    * @param {string} query - Search query
-   * @param {number} k - Number of results
-   * @param {number} minScore - Minimum relevance score (0-1)
+   * @param {number} k - Number of results (default: 15 for better recall)
+   * @param {number} minScore - Minimum relevance score (0-1, default: 0.5 for better recall on tabular data)
    * @param {string} tenantId - Tenant ID for filtering results
    * @param {Object} additionalFilters - Optional additional filters (fileType, fileName, etc.)
    */
-  async searchWithScore(query, k = 5, minScore = 0.7, tenantId = null, additionalFilters = {}) {
+  async searchWithScore(query, k = 15, minScore = 0.5, tenantId = null, additionalFilters = {}) {
     await this.initialize();
 
     if (!tenantId) {
@@ -229,10 +265,11 @@ class VectorDBService {
 
     try {
       // Build Qdrant filter with tenant isolation
+      // CRITICAL: LangChain stores metadata directly in payload, not nested under 'metadata.'
       const filter = {
         must: [
           {
-            key: 'metadata.tenantId',
+            key: 'tenantId',
             match: { value: tenantId }
           }
         ]
@@ -241,21 +278,21 @@ class VectorDBService {
       // Add optional filters for fileType, fileName, etc.
       if (additionalFilters.fileType) {
         filter.must.push({
-          key: 'metadata.fileType',
+          key: 'fileType',
           match: { value: additionalFilters.fileType }
         });
       }
 
       if (additionalFilters.fileName) {
         filter.must.push({
-          key: 'metadata.fileName',
+          key: 'fileName',
           match: { value: additionalFilters.fileName }
         });
       }
 
       if (additionalFilters.sheetName) {
         filter.must.push({
-          key: 'metadata.sheetName',
+          key: 'sheetName',
           match: { value: additionalFilters.sheetName }
         });
       }
@@ -264,7 +301,7 @@ class VectorDBService {
       if (additionalFilters.excludeFullFile) {
         filter.must_not = filter.must_not || [];
         filter.must_not.push({
-          key: 'metadata.isFullFile',
+          key: 'isFullFile',
           match: { value: true }
         });
       }
@@ -307,10 +344,11 @@ class VectorDBService {
       // Delete and recreate collection
       await this.client.deleteCollection(aiConfig.vectorDB.collectionName);
 
-      // Recreate collection
+      // Recreate collection with correct dimensions
+      const vectorSize = this.getVectorDimension();
       await this.client.createCollection(aiConfig.vectorDB.collectionName, {
         vectors: {
-          size: 1536,
+          size: vectorSize,
           distance: 'Cosine',
         },
       });

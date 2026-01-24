@@ -78,10 +78,11 @@ const documentFileFilter = (req, file, cb) => {
 
 /**
  * File filter for vector data
+ * IMPROVED: Checks both MIME type AND file extension for better compatibility
  */
 const vectorDataFileFilter = (req, file, cb) => {
-  // Allowed file types for vector data: .txt, .md, .csv, .json, .pdf, .xlsx, .xls, .docx, .doc
-  const allowedTypes = [
+  // Allowed MIME types for vector data
+  const allowedMimeTypes = [
     'text/plain',
     'text/markdown',
     'text/x-markdown',
@@ -93,13 +94,27 @@ const vectorDataFileFilter = (req, file, cb) => {
     'application/vnd.ms-excel', // .xls
     // Word files
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-    'application/msword' // .doc
+    'application/msword', // .doc
+    // Fallback MIME types (some browsers send these for Office files)
+    'application/zip', // .docx/.xlsx are actually ZIP files
+    'application/octet-stream' // Generic binary
   ];
 
-  if (allowedTypes.includes(file.mimetype)) {
+  // Allowed file extensions (as fallback check)
+  const allowedExtensions = ['.txt', '.md', '.csv', '.json', '.pdf', '.xlsx', '.xls', '.docx', '.doc'];
+
+  // Get file extension
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  // Check MIME type first, then fall back to extension check
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else if (allowedExtensions.includes(ext)) {
+    // Allow if extension matches, even if MIME type is wrong
+    console.log(`⚠️ Accepting file by extension: ${file.originalname} (MIME: ${file.mimetype})`);
     cb(null, true);
   } else {
-    cb(new Error(`File type ${file.mimetype} is not allowed for vector data. Supported types: TXT, MD, CSV, JSON, PDF, XLSX, XLS, DOCX, DOC`), false);
+    cb(new Error(`File type "${ext}" (MIME: ${file.mimetype}) is not allowed for vector data. Supported types: TXT, MD, CSV, JSON, PDF, XLSX, XLS, DOCX, DOC`), false);
   }
 };
 

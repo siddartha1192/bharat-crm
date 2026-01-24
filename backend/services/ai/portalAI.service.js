@@ -567,16 +567,17 @@ Summary:`;
       console.log(`📊 Found ${pipelineStages.length} pipeline stages for user`);
 
       // Search vector DB for relevant documentation with error handling and tenant isolation
-      // Use intelligent retrieval: more results for CSV/Excel queries, with score filtering
+      // Use intelligent retrieval: more results for CSV/Excel queries, with adaptive score filtering
       let relevantDocs = [];
       try {
         // Detect if query is likely about CSV/Excel data
         const isDataQuery = /\b(csv|excel|spreadsheet|rows?|data|table|filter|find|show|list)\b/i.test(userMessage);
 
-        // Use more results for data queries (20), fewer for general questions (5)
-        // Apply score threshold to filter out irrelevant results
-        const k = isDataQuery ? 20 : 5;
-        const minScore = 0.65; // Relevance threshold (0-1 scale, higher = more strict)
+        // Adaptive parameters based on query type
+        // Data queries: Higher k (30), lower minScore (0.45) for better recall on tabular data
+        // General queries: Moderate k (10), higher minScore (0.60) for better precision
+        const k = isDataQuery ? 30 : 10;
+        const minScore = isDataQuery ? 0.45 : 0.60;
 
         console.log(`🔍 Vector search: k=${k}, minScore=${minScore}, isDataQuery=${isDataQuery}`);
 

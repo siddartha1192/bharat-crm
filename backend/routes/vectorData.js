@@ -44,6 +44,10 @@ function addIngestLog(message) {
  * @param {string} tenantId - Tenant ID for multi-tenant isolation
  */
 async function processVectorData(filePath, fileName, tenantId) {
+  console.log(`\n🚀 Starting vector data processing for: ${fileName}`);
+  console.log(`   File path: ${filePath}`);
+  console.log(`   Tenant ID: ${tenantId}`);
+
   try {
     if (!tenantId) {
       throw new Error('tenantId is required for vector data processing');
@@ -51,6 +55,7 @@ async function processVectorData(filePath, fileName, tenantId) {
 
     // Determine file type and process accordingly
     const ext = path.extname(fileName).toLowerCase();
+    console.log(`   File extension: ${ext}`);
 
     let documents = [];
 
@@ -85,13 +90,24 @@ async function processVectorData(filePath, fileName, tenantId) {
         // Convert each row to semantic text format for better search
         // Mark as doNotChunk to preserve row integrity
         jsonData.forEach((row, index) => {
-          // Create semantic text representation (better than JSON.stringify)
-          const rowText = Object.entries(row)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join(', ');
+          // Create enhanced semantic text representation with natural language
+          // This dramatically improves vector search accuracy for tabular data
+          const entries = Object.entries(row);
+
+          // Build natural language representation
+          const rowText = entries
+            .map(([key, value]) => {
+              // Clean up key names (remove underscores, capitalize)
+              const cleanKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              return `${cleanKey}: ${value}`;
+            })
+            .join(' | '); // Use pipe separator for better readability
+
+          // Add sheet and row number for reference
+          const enhancedText = `Sheet: ${sheetName}, Row ${index + 1} - ${rowText}`;
 
           documents.push({
-            content: rowText,
+            content: enhancedText,
             metadata: {
               fileName,
               fileType: 'excel',
@@ -121,25 +137,42 @@ async function processVectorData(filePath, fileName, tenantId) {
       });
     } else if (ext === '.docx') {
       // Process Word .docx files
-      const result = await mammoth.extractRawText({ path: filePath });
-      const content = result.value;
+      console.log(`📄 Processing Word .docx file: ${fileName}`);
+      try {
+        const result = await mammoth.extractRawText({ path: filePath });
+        const content = result.value;
 
-      // Split text into paragraphs
-      const paragraphs = content.split('\n').filter(para => para.trim());
-
-      // Group paragraphs into reasonable chunks (max 5 paragraphs per chunk)
-      for (let i = 0; i < paragraphs.length; i += 5) {
-        const chunk = paragraphs.slice(i, i + 5).join('\n');
-        if (chunk.trim()) {
-          documents.push({
-            content: chunk,
-            metadata: {
-              fileName,
-              fileType: 'docx',
-              chunkNumber: Math.floor(i / 5) + 1
-            }
-          });
+        if (!content || content.trim().length === 0) {
+          console.warn(`⚠️ Warning: No text content extracted from ${fileName}`);
+          throw new Error('Word document appears to be empty or contains no extractable text.');
         }
+
+        console.log(`✅ Extracted ${content.length} characters from ${fileName}`);
+
+        // Split text into paragraphs
+        const paragraphs = content.split('\n').filter(para => para.trim());
+
+        console.log(`📊 Found ${paragraphs.length} paragraphs in ${fileName}`);
+
+        // Group paragraphs into reasonable chunks (max 5 paragraphs per chunk)
+        for (let i = 0; i < paragraphs.length; i += 5) {
+          const chunk = paragraphs.slice(i, i + 5).join('\n');
+          if (chunk.trim()) {
+            documents.push({
+              content: chunk,
+              metadata: {
+                fileName,
+                fileType: 'docx',
+                chunkNumber: Math.floor(i / 5) + 1
+              }
+            });
+          }
+        }
+
+        console.log(`✅ Created ${documents.length} chunks from ${fileName}`);
+      } catch (error) {
+        console.error(`❌ Error processing Word file ${fileName}:`, error);
+        throw new Error(`Failed to process Word document: ${error.message}`);
       }
     } else if (ext === '.doc') {
       // For older .doc files, try to read as text (best effort)
@@ -178,13 +211,24 @@ async function processVectorData(filePath, fileName, tenantId) {
         // Convert each row to semantic text format for better search
         // Mark as doNotChunk to preserve row integrity
         documents = jsonData.map((row, index) => {
-          // Create semantic text representation (better than JSON.stringify)
-          const rowText = Object.entries(row)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join(', ');
+          // Create enhanced semantic text representation with natural language
+          // This dramatically improves vector search accuracy for tabular data
+          const entries = Object.entries(row);
+
+          // Build natural language representation
+          const rowText = entries
+            .map(([key, value]) => {
+              // Clean up key names (remove underscores, capitalize)
+              const cleanKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              return `${cleanKey}: ${value}`;
+            })
+            .join(' | '); // Use pipe separator for better readability
+
+          // Add row number for reference
+          const enhancedText = `Row ${index + 1} - ${rowText}`;
 
           return {
-            content: rowText,
+            content: enhancedText,
             metadata: {
               fileName,
               fileType: 'csv',
@@ -219,21 +263,29 @@ async function processVectorData(filePath, fileName, tenantId) {
     }
 
     // Import documents to vector database with tenant isolation
+    if (documents.length === 0) {
+      console.warn(`⚠️ No documents extracted from ${fileName}`);
+      throw new Error('No content could be extracted from the file. Please ensure the file contains readable text.');
+    }
+
+    console.log(`📊 Prepared ${documents.length} document chunks for upload`);
+
     try {
       const vectorDBService = require('../services/ai/vectorDB.service');
+
+      console.log(`📤 Uploading to vector database for tenant ${tenantId}...`);
 
       // addDocuments now requires tenantId for isolation
       await vectorDBService.addDocuments(documents, tenantId);
 
-      console.log(`✅ Uploaded ${documents.length} documents to vector database for tenant ${tenantId}`);
+      console.log(`✅ Successfully uploaded ${documents.length} documents to vector database for tenant ${tenantId}`);
       return documents.length;
     } catch (error) {
-      console.error('VectorDB service not available or error:', error);
-      // Continue without vector DB processing
-      return documents.length;
+      console.error('❌ VectorDB service error:', error);
+      throw new Error(`Failed to upload to vector database: ${error.message}`);
     }
   } catch (error) {
-    console.error('Error processing vector data:', error);
+    console.error(`❌ Error processing vector data for ${fileName}:`, error);
     throw error;
   }
 }
