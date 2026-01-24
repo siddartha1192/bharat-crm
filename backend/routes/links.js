@@ -13,6 +13,31 @@ const { authenticate } = require('../middleware/auth');
 const { tenantContext } = require('../middleware/tenant');
 
 /**
+ * Normalize IP address to a consistent format
+ * Handles IPv6-mapped IPv4 addresses and x-forwarded-for headers
+ */
+function normalizeIpAddress(req) {
+  let ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+
+  // Handle x-forwarded-for with multiple IPs (take the first one - client IP)
+  if (typeof ip === 'string' && ip.includes(',')) {
+    ip = ip.split(',')[0].trim();
+  }
+
+  // Convert IPv6-mapped IPv4 to regular IPv4
+  if (ip && ip.startsWith('::ffff:')) {
+    ip = ip.substring(7);
+  }
+
+  // Handle IPv6 localhost
+  if (ip === '::1') {
+    ip = '127.0.0.1';
+  }
+
+  return ip || 'unknown';
+}
+
+/**
  * PUBLIC ROUTE: Redirect short link and track click
  * GET /l/:shortCode
  *
@@ -39,7 +64,7 @@ router.get('/l/:shortCode', async (req, res) => {
     }
 
     // Extract tracking information
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    const ipAddress = normalizeIpAddress(req);
     const userAgent = req.headers['user-agent'];
     const referrer = req.headers['referer'] || req.headers['referrer'];
 
