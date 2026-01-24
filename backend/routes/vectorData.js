@@ -85,13 +85,24 @@ async function processVectorData(filePath, fileName, tenantId) {
         // Convert each row to semantic text format for better search
         // Mark as doNotChunk to preserve row integrity
         jsonData.forEach((row, index) => {
-          // Create semantic text representation (better than JSON.stringify)
-          const rowText = Object.entries(row)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join(', ');
+          // Create enhanced semantic text representation with natural language
+          // This dramatically improves vector search accuracy for tabular data
+          const entries = Object.entries(row);
+
+          // Build natural language representation
+          const rowText = entries
+            .map(([key, value]) => {
+              // Clean up key names (remove underscores, capitalize)
+              const cleanKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              return `${cleanKey}: ${value}`;
+            })
+            .join(' | '); // Use pipe separator for better readability
+
+          // Add sheet and row number for reference
+          const enhancedText = `Sheet: ${sheetName}, Row ${index + 1} - ${rowText}`;
 
           documents.push({
-            content: rowText,
+            content: enhancedText,
             metadata: {
               fileName,
               fileType: 'excel',
@@ -178,13 +189,24 @@ async function processVectorData(filePath, fileName, tenantId) {
         // Convert each row to semantic text format for better search
         // Mark as doNotChunk to preserve row integrity
         documents = jsonData.map((row, index) => {
-          // Create semantic text representation (better than JSON.stringify)
-          const rowText = Object.entries(row)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join(', ');
+          // Create enhanced semantic text representation with natural language
+          // This dramatically improves vector search accuracy for tabular data
+          const entries = Object.entries(row);
+
+          // Build natural language representation
+          const rowText = entries
+            .map(([key, value]) => {
+              // Clean up key names (remove underscores, capitalize)
+              const cleanKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              return `${cleanKey}: ${value}`;
+            })
+            .join(' | '); // Use pipe separator for better readability
+
+          // Add row number for reference
+          const enhancedText = `Row ${index + 1} - ${rowText}`;
 
           return {
-            content: rowText,
+            content: enhancedText,
             metadata: {
               fileName,
               fileType: 'csv',
