@@ -45,6 +45,9 @@ module.exports = { prisma, io };
 // Make io accessible to routes
 app.set('io', io);
 
+// Trust proxy to get correct IP addresses (needed for click tracking)
+app.set('trust proxy', true);
+
 // Serve static files from public directory
 app.use(express.static('public'));
 

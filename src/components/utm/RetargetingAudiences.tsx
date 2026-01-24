@@ -359,15 +359,6 @@ const RetargetingAudiences: React.FC<RetargetingAudiencesProps> = ({
                     <Download className="w-4 h-4 mr-2" />
                     Export CSV
                   </Button>
-                  <Button
-                    onClick={createRetargetingCampaign}
-                    disabled={selectedRecipients.size === 0}
-                    size="sm"
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                  >
-                    <Mail className="w-4 h-4 mr-2" />
-                    Create Campaign
-                  </Button>
                 </div>
               </div>
             </div>
@@ -515,14 +506,6 @@ const RetargetingAudiences: React.FC<RetargetingAudiencesProps> = ({
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Export
-                    </Button>
-                    <Button
-                      onClick={createRetargetingCampaign}
-                      size="sm"
-                      className="bg-gradient-to-r from-blue-600 to-purple-600"
-                    >
-                      <Mail className="w-4 h-4 mr-2" />
-                      Create Campaign
                     </Button>
                   </div>
                 </div>
