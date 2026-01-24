@@ -44,6 +44,10 @@ function addIngestLog(message) {
  * @param {string} tenantId - Tenant ID for multi-tenant isolation
  */
 async function processVectorData(filePath, fileName, tenantId) {
+  console.log(`\n🚀 Starting vector data processing for: ${fileName}`);
+  console.log(`   File path: ${filePath}`);
+  console.log(`   Tenant ID: ${tenantId}`);
+
   try {
     if (!tenantId) {
       throw new Error('tenantId is required for vector data processing');
@@ -51,6 +55,7 @@ async function processVectorData(filePath, fileName, tenantId) {
 
     // Determine file type and process accordingly
     const ext = path.extname(fileName).toLowerCase();
+    console.log(`   File extension: ${ext}`);
 
     let documents = [];
 
@@ -132,25 +137,42 @@ async function processVectorData(filePath, fileName, tenantId) {
       });
     } else if (ext === '.docx') {
       // Process Word .docx files
-      const result = await mammoth.extractRawText({ path: filePath });
-      const content = result.value;
+      console.log(`📄 Processing Word .docx file: ${fileName}`);
+      try {
+        const result = await mammoth.extractRawText({ path: filePath });
+        const content = result.value;
 
-      // Split text into paragraphs
-      const paragraphs = content.split('\n').filter(para => para.trim());
-
-      // Group paragraphs into reasonable chunks (max 5 paragraphs per chunk)
-      for (let i = 0; i < paragraphs.length; i += 5) {
-        const chunk = paragraphs.slice(i, i + 5).join('\n');
-        if (chunk.trim()) {
-          documents.push({
-            content: chunk,
-            metadata: {
-              fileName,
-              fileType: 'docx',
-              chunkNumber: Math.floor(i / 5) + 1
-            }
-          });
+        if (!content || content.trim().length === 0) {
+          console.warn(`⚠️ Warning: No text content extracted from ${fileName}`);
+          throw new Error('Word document appears to be empty or contains no extractable text.');
         }
+
+        console.log(`✅ Extracted ${content.length} characters from ${fileName}`);
+
+        // Split text into paragraphs
+        const paragraphs = content.split('\n').filter(para => para.trim());
+
+        console.log(`📊 Found ${paragraphs.length} paragraphs in ${fileName}`);
+
+        // Group paragraphs into reasonable chunks (max 5 paragraphs per chunk)
+        for (let i = 0; i < paragraphs.length; i += 5) {
+          const chunk = paragraphs.slice(i, i + 5).join('\n');
+          if (chunk.trim()) {
+            documents.push({
+              content: chunk,
+              metadata: {
+                fileName,
+                fileType: 'docx',
+                chunkNumber: Math.floor(i / 5) + 1
+              }
+            });
+          }
+        }
+
+        console.log(`✅ Created ${documents.length} chunks from ${fileName}`);
+      } catch (error) {
+        console.error(`❌ Error processing Word file ${fileName}:`, error);
+        throw new Error(`Failed to process Word document: ${error.message}`);
       }
     } else if (ext === '.doc') {
       // For older .doc files, try to read as text (best effort)
@@ -241,21 +263,29 @@ async function processVectorData(filePath, fileName, tenantId) {
     }
 
     // Import documents to vector database with tenant isolation
+    if (documents.length === 0) {
+      console.warn(`⚠️ No documents extracted from ${fileName}`);
+      throw new Error('No content could be extracted from the file. Please ensure the file contains readable text.');
+    }
+
+    console.log(`📊 Prepared ${documents.length} document chunks for upload`);
+
     try {
       const vectorDBService = require('../services/ai/vectorDB.service');
+
+      console.log(`📤 Uploading to vector database for tenant ${tenantId}...`);
 
       // addDocuments now requires tenantId for isolation
       await vectorDBService.addDocuments(documents, tenantId);
 
-      console.log(`✅ Uploaded ${documents.length} documents to vector database for tenant ${tenantId}`);
+      console.log(`✅ Successfully uploaded ${documents.length} documents to vector database for tenant ${tenantId}`);
       return documents.length;
     } catch (error) {
-      console.error('VectorDB service not available or error:', error);
-      // Continue without vector DB processing
-      return documents.length;
+      console.error('❌ VectorDB service error:', error);
+      throw new Error(`Failed to upload to vector database: ${error.message}`);
     }
   } catch (error) {
-    console.error('Error processing vector data:', error);
+    console.error(`❌ Error processing vector data for ${fileName}:`, error);
     throw error;
   }
 }
