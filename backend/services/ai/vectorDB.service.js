@@ -264,52 +264,39 @@ class VectorDBService {
     }
 
     try {
-      // Build Qdrant filter with tenant isolation
-      // CRITICAL: LangChain stores metadata directly in payload, not nested under 'metadata.'
-      const filter = {
-        must: [
-          {
-            key: 'tenantId',
-            match: { value: tenantId }
+      // ADAPTIVE APPROACH: Try multiple filter strategies
+      // Strategy 1: Try without 'metadata.' prefix (current approach)
+      let results = await this._searchWithFilter(query, k, tenantId, additionalFilters, false);
+
+      // Strategy 2: If no results, try WITH 'metadata.' prefix
+      if (results.length === 0) {
+        console.log('⚠️ No results with flat keys, trying with "metadata." prefix...');
+        results = await this._searchWithFilter(query, k, tenantId, additionalFilters, true);
+      }
+
+      // Strategy 3: If still no results, search without filters and filter manually
+      if (results.length === 0) {
+        console.log('⚠️ No results with filters, searching without filters and filtering manually...');
+        const unfilteredResults = await this.vectorStore.similaritySearchWithScore(query, k * 2); // Get more results
+
+        console.log(`🔍 DEBUG: Got ${unfilteredResults.length} results without filters`);
+
+        // Manually filter by tenantId
+        results = unfilteredResults.filter(([doc, _score]) => {
+          // Check both flat and nested metadata
+          const docTenantId = doc.metadata?.tenantId || doc.metadata?.metadata?.tenantId;
+          const matches = docTenantId === tenantId;
+
+          if (!matches && unfilteredResults.indexOf([doc, _score]) === 0) {
+            console.log('🔍 DEBUG: First doc metadata:', doc.metadata);
+            console.log(`🔍 DEBUG: Looking for tenantId: ${tenantId}, found: ${docTenantId}`);
           }
-        ]
-      };
 
-      // Add optional filters for fileType, fileName, etc.
-      if (additionalFilters.fileType) {
-        filter.must.push({
-          key: 'fileType',
-          match: { value: additionalFilters.fileType }
+          return matches;
         });
+
+        console.log(`🔍 DEBUG: After manual tenant filtering: ${results.length} results`);
       }
-
-      if (additionalFilters.fileName) {
-        filter.must.push({
-          key: 'fileName',
-          match: { value: additionalFilters.fileName }
-        });
-      }
-
-      if (additionalFilters.sheetName) {
-        filter.must.push({
-          key: 'sheetName',
-          match: { value: additionalFilters.sheetName }
-        });
-      }
-
-      // Exclude full file summaries if specified (get only actual rows)
-      if (additionalFilters.excludeFullFile) {
-        filter.must_not = filter.must_not || [];
-        filter.must_not.push({
-          key: 'isFullFile',
-          match: { value: true }
-        });
-      }
-
-      console.log('🔍 DEBUG: Qdrant filter being sent:', JSON.stringify(filter, null, 2));
-      console.log(`🔍 DEBUG: Query: "${query}", k=${k}, minScore=${minScore}, tenantId=${tenantId}`);
-
-      const results = await this.vectorStore.similaritySearchWithScore(query, k, filter);
 
       console.log(`🔍 DEBUG: Qdrant returned ${results.length} results before score filtering`);
       if (results.length > 0) {
@@ -336,6 +323,67 @@ class VectorDBService {
       console.error('❌ Error searching with score:', error);
       throw error;
     }
+  }
+
+  /**
+   * INTERNAL: Try searching with a specific filter strategy
+   * @param {string} query
+   * @param {number} k
+   * @param {string} tenantId
+   * @param {Object} additionalFilters
+   * @param {boolean} useMetadataPrefix - Whether to use 'metadata.' prefix for keys
+   * @returns {Array} Results as [doc, score] tuples
+   */
+  async _searchWithFilter(query, k, tenantId, additionalFilters, useMetadataPrefix) {
+    const prefix = useMetadataPrefix ? 'metadata.' : '';
+
+    const filter = {
+      must: [
+        {
+          key: `${prefix}tenantId`,
+          match: { value: tenantId }
+        }
+      ]
+    };
+
+    // Add optional filters
+    if (additionalFilters.fileType) {
+      filter.must.push({
+        key: `${prefix}fileType`,
+        match: { value: additionalFilters.fileType }
+      });
+    }
+
+    if (additionalFilters.fileName) {
+      filter.must.push({
+        key: `${prefix}fileName`,
+        match: { value: additionalFilters.fileName }
+      });
+    }
+
+    if (additionalFilters.sheetName) {
+      filter.must.push({
+        key: `${prefix}sheetName`,
+        match: { value: additionalFilters.sheetName }
+      });
+    }
+
+    if (additionalFilters.excludeFullFile) {
+      filter.must_not = filter.must_not || [];
+      filter.must_not.push({
+        key: `${prefix}isFullFile`,
+        match: { value: true }
+      });
+    }
+
+    console.log(`🔍 DEBUG: Qdrant filter (${useMetadataPrefix ? 'WITH' : 'WITHOUT'} metadata prefix):`, JSON.stringify(filter, null, 2));
+    console.log(`🔍 DEBUG: Query: "${query}", k=${k}, tenantId=${tenantId}`);
+
+    const results = await this.vectorStore.similaritySearchWithScore(query, k, filter);
+
+    console.log(`🔍 DEBUG: Got ${results.length} results with ${useMetadataPrefix ? 'metadata.' : 'flat'} keys`);
+
+    return results;
   }
 
   /**
