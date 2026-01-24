@@ -306,7 +306,19 @@ class VectorDBService {
         });
       }
 
+      console.log('🔍 DEBUG: Qdrant filter being sent:', JSON.stringify(filter, null, 2));
+      console.log(`🔍 DEBUG: Query: "${query}", k=${k}, minScore=${minScore}, tenantId=${tenantId}`);
+
       const results = await this.vectorStore.similaritySearchWithScore(query, k, filter);
+
+      console.log(`🔍 DEBUG: Qdrant returned ${results.length} results before score filtering`);
+      if (results.length > 0) {
+        console.log('🔍 DEBUG: First result sample:', {
+          score: results[0][1],
+          metadata: results[0][0].metadata,
+          contentPreview: results[0][0].pageContent.substring(0, 100)
+        });
+      }
 
       // Filter by minimum score
       const filtered = results
@@ -316,6 +328,8 @@ class VectorDBService {
           metadata: doc.metadata,
           score,
         }));
+
+      console.log(`🔍 DEBUG: After score filtering (>= ${minScore}): ${filtered.length} results`);
 
       return filtered;
     } catch (error) {
@@ -386,6 +400,69 @@ class VectorDBService {
       };
     } catch (error) {
       console.error('❌ Error getting stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * DEBUG: Get sample points from collection to inspect metadata structure
+   * @param {number} limit - Number of points to retrieve
+   */
+  async getSamplePoints(limit = 5) {
+    await this.initialize();
+
+    try {
+      const response = await this.client.scroll(aiConfig.vectorDB.collectionName, {
+        limit,
+        with_payload: true,
+        with_vector: false
+      });
+
+      console.log('📊 DEBUG: Sample points from collection:');
+      response.points.forEach((point, index) => {
+        console.log(`\nPoint ${index + 1}:`, {
+          id: point.id,
+          payload: point.payload
+        });
+      });
+
+      return response.points;
+    } catch (error) {
+      console.error('❌ Error getting sample points:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * DEBUG: Search without any filters to test if documents exist
+   * @param {string} query - Search query
+   * @param {number} k - Number of results
+   */
+  async searchWithoutFilters(query, k = 10) {
+    await this.initialize();
+
+    try {
+      console.log(`🔍 DEBUG: Searching WITHOUT filters for: "${query}"`);
+
+      // Search without any filters
+      const results = await this.vectorStore.similaritySearchWithScore(query, k);
+
+      console.log(`🔍 DEBUG: Found ${results.length} results without filters`);
+      if (results.length > 0) {
+        console.log('🔍 DEBUG: Top result:', {
+          score: results[0][1],
+          metadata: results[0][0].metadata,
+          contentPreview: results[0][0].pageContent.substring(0, 150)
+        });
+      }
+
+      return results.map(([doc, score]) => ({
+        content: doc.pageContent,
+        metadata: doc.metadata,
+        score,
+      }));
+    } catch (error) {
+      console.error('❌ Error in unfiltered search:', error);
       throw error;
     }
   }
