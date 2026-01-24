@@ -615,4 +615,60 @@ router.post('/restart-backend', authorize('ADMIN'), async (req, res) => {
   }
 });
 
+/**
+ * DEBUG: Get sample points from vector database to inspect metadata structure
+ * GET /api/vector-data/debug/sample-points
+ */
+router.get('/debug/sample-points', authorize('ADMIN'), async (req, res) => {
+  try {
+    const vectorDBService = require('../services/ai/vectorDB.service');
+    const limit = parseInt(req.query.limit) || 5;
+
+    const points = await vectorDBService.getSamplePoints(limit);
+
+    res.json({
+      message: 'Sample points retrieved',
+      count: points.length,
+      points: points.map(p => ({
+        id: p.id,
+        payload: p.payload
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting sample points:', error);
+    res.status(500).json({ error: 'Failed to get sample points', details: error.message });
+  }
+});
+
+/**
+ * DEBUG: Search without filters to test document existence
+ * POST /api/vector-data/debug/search-unfiltered
+ */
+router.post('/debug/search-unfiltered', authorize('ADMIN'), async (req, res) => {
+  try {
+    const { query, k = 10 } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    const vectorDBService = require('../services/ai/vectorDB.service');
+    const results = await vectorDBService.searchWithoutFilters(query, k);
+
+    res.json({
+      message: 'Unfiltered search completed',
+      query,
+      resultsCount: results.length,
+      results: results.map(r => ({
+        score: r.score,
+        metadata: r.metadata,
+        contentPreview: r.content.substring(0, 200)
+      }))
+    });
+  } catch (error) {
+    console.error('Error in unfiltered search:', error);
+    res.status(500).json({ error: 'Failed to search', details: error.message });
+  }
+});
+
 module.exports = router;
