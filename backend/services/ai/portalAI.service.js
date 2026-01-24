@@ -163,6 +163,13 @@ Examples:
 - For current events, news, or external information not in the CRM database, use the web_search function
 - Always cite sources when using documentation or web search results
 
+**CSV/EXCEL DATA HANDLING:**
+- When answering questions about uploaded CSV/Excel files, the RELEVANT DOCUMENTATION section will contain matching rows
+- **CRITICAL**: Present ALL rows from RELEVANT DOCUMENTATION, not just a sample
+- If the user asks to "filter", "find", or "show" data from uploaded files, you MUST include all matching rows from the documentation
+- Each row is preserved intact (not chunked), so you'll see complete records
+- Always mention how many total rows were found (e.g., "Found 15 matching records")
+
 **IMPORTANT:**
 - You MUST call functions to get actual data from the database
 - Never fabricate data or statistics
@@ -171,6 +178,7 @@ Examples:
 - Always provide actionable insights along with data
 - ALWAYS use the current date provided at the top for date calculations
 - When RELEVANT DOCUMENTATION is provided, use it as the primary source of truth for that topic
+- For CSV/Excel queries, present data in well-formatted markdown tables
 
 Remember: Use your functions! You have direct database access - use it to provide accurate, real-time data.`;
   }
@@ -262,6 +270,14 @@ Examples:
 - If **RELEVANT DOCUMENTATION** section appears below, it contains information from uploaded knowledge base files
 - **PRIORITIZE** information from RELEVANT DOCUMENTATION when answering questions about products, features, or company information
 - Always cite sources when using documentation
+
+**CSV/EXCEL DATA HANDLING:**
+- When answering questions about uploaded CSV/Excel files, the RELEVANT DOCUMENTATION section will contain matching rows
+- **CRITICAL**: Present ALL rows from RELEVANT DOCUMENTATION, not just a sample
+- If the user asks to "filter", "find", or "show" data from uploaded files, you MUST include all matching rows from the documentation
+- Each row is preserved intact (not chunked), so you'll see complete records
+- Always mention how many total rows were found (e.g., "Found 15 matching records")
+- Present CSV/Excel data in well-formatted markdown tables
 
 **MINIMAL MODE OPTIMIZATIONS:**
 - Limited to fewer iterations for faster responses
@@ -551,16 +567,40 @@ Summary:`;
       console.log(`📊 Found ${pipelineStages.length} pipeline stages for user`);
 
       // Search vector DB for relevant documentation with error handling and tenant isolation
+      // Use intelligent retrieval: more results for CSV/Excel queries, with score filtering
       let relevantDocs = [];
       try {
-        relevantDocs = await vectorDBService.search(userMessage, 3, tenantId);
+        // Detect if query is likely about CSV/Excel data
+        const isDataQuery = /\b(csv|excel|spreadsheet|rows?|data|table|filter|find|show|list)\b/i.test(userMessage);
+
+        // Use more results for data queries (20), fewer for general questions (5)
+        // Apply score threshold to filter out irrelevant results
+        const k = isDataQuery ? 20 : 5;
+        const minScore = 0.65; // Relevance threshold (0-1 scale, higher = more strict)
+
+        console.log(`🔍 Vector search: k=${k}, minScore=${minScore}, isDataQuery=${isDataQuery}`);
+
+        relevantDocs = await vectorDBService.searchWithScore(
+          userMessage,
+          k,
+          minScore,
+          tenantId,
+          // Optional: Add filters if query mentions specific file types
+          isDataQuery ? { excludeFullFile: false } : {}
+        );
+
+        console.log(`📄 Found ${relevantDocs.length} relevant documents (score >= ${minScore})`);
       } catch (error) {
         console.warn('⚠️  Vector DB search failed (continuing without context):', error.message);
         // Continue without vector search results - don't fail the entire request
       }
 
       const docContext = relevantDocs.length > 0
-        ? `\n\n**RELEVANT DOCUMENTATION:**\n${relevantDocs.map((doc, i) => `${i + 1}. ${doc.content.substring(0, 500)}...`).join('\n\n')}`
+        ? `\n\n**RELEVANT DOCUMENTATION:**\n${relevantDocs.map((doc, i) => {
+            const preview = doc.content.substring(0, 800); // Increased from 500 for more context
+            const scoreInfo = doc.score ? ` (relevance: ${(doc.score * 100).toFixed(1)}%)` : '';
+            return `${i + 1}. ${preview}...${scoreInfo}`;
+          }).join('\n\n')}`
         : '';
 
       // Build messages array with appropriate system prompt based on AI mode

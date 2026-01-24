@@ -100,20 +100,37 @@ class VectorDBService {
       console.log(`📚 Adding ${documents.length} documents to vector database for tenant ${tenantId}...`);
 
       // Split documents into chunks for better retrieval
+      // BUT: Respect doNotChunk flag for CSV/Excel rows to preserve data integrity
       const textSplitter = new RecursiveCharacterTextSplitter({
         chunkSize: 1000,
         chunkOverlap: 200,
       });
 
       const splitDocs = [];
+      let chunkedCount = 0;
+      let preservedCount = 0;
+
       for (const doc of documents) {
         // Ensure tenantId is included in metadata for all chunks
         const metadata = { ...(doc.metadata || {}), tenantId };
-        const chunks = await textSplitter.createDocuments([doc.content], [metadata]);
-        splitDocs.push(...chunks);
+
+        // Check if this document should NOT be chunked (e.g., CSV/Excel rows)
+        if (metadata.doNotChunk) {
+          // Add document as-is without chunking to preserve row integrity
+          splitDocs.push({
+            pageContent: doc.content,
+            metadata: metadata
+          });
+          preservedCount++;
+        } else {
+          // Normal chunking for text documents (PDF, DOCX, TXT, etc.)
+          const chunks = await textSplitter.createDocuments([doc.content], [metadata]);
+          splitDocs.push(...chunks);
+          chunkedCount += chunks.length;
+        }
       }
 
-      console.log(`📄 Split into ${splitDocs.length} chunks`);
+      console.log(`📄 Processing complete: ${preservedCount} documents preserved (CSV/Excel rows), ${chunkedCount} chunks created from text docs`);
 
       // Add to vector store
       await this.vectorStore.addDocuments(splitDocs);
@@ -127,13 +144,14 @@ class VectorDBService {
   }
 
   /**
-   * Search for relevant documents with tenant isolation
+   * Search for relevant documents with tenant isolation and advanced filtering
    * @param {string} query - Search query
    * @param {number} k - Number of results to return
    * @param {string} tenantId - Tenant ID for filtering results
+   * @param {Object} additionalFilters - Optional additional filters (fileType, fileName, etc.)
    * @returns {Array} - Array of relevant documents
    */
-  async search(query, k = 5, tenantId = null) {
+  async search(query, k = 5, tenantId = null, additionalFilters = {}) {
     await this.initialize();
 
     if (!tenantId) {
@@ -141,7 +159,7 @@ class VectorDBService {
     }
 
     try {
-      // Use Qdrant filter to only return documents from this tenant
+      // Build Qdrant filter with tenant isolation
       const filter = {
         must: [
           {
@@ -150,6 +168,37 @@ class VectorDBService {
           }
         ]
       };
+
+      // Add optional filters for fileType, fileName, etc.
+      if (additionalFilters.fileType) {
+        filter.must.push({
+          key: 'metadata.fileType',
+          match: { value: additionalFilters.fileType }
+        });
+      }
+
+      if (additionalFilters.fileName) {
+        filter.must.push({
+          key: 'metadata.fileName',
+          match: { value: additionalFilters.fileName }
+        });
+      }
+
+      if (additionalFilters.sheetName) {
+        filter.must.push({
+          key: 'metadata.sheetName',
+          match: { value: additionalFilters.sheetName }
+        });
+      }
+
+      // Exclude full file summaries if specified (get only actual rows)
+      if (additionalFilters.excludeFullFile) {
+        filter.must_not = filter.must_not || [];
+        filter.must_not.push({
+          key: 'metadata.isFullFile',
+          match: { value: true }
+        });
+      }
 
       const results = await this.vectorStore.similaritySearch(query, k, filter);
 
@@ -164,13 +213,14 @@ class VectorDBService {
   }
 
   /**
-   * Search with relevance scores and tenant isolation
+   * Search with relevance scores, tenant isolation, and advanced filtering
    * @param {string} query - Search query
    * @param {number} k - Number of results
    * @param {number} minScore - Minimum relevance score (0-1)
    * @param {string} tenantId - Tenant ID for filtering results
+   * @param {Object} additionalFilters - Optional additional filters (fileType, fileName, etc.)
    */
-  async searchWithScore(query, k = 5, minScore = 0.7, tenantId = null) {
+  async searchWithScore(query, k = 5, minScore = 0.7, tenantId = null, additionalFilters = {}) {
     await this.initialize();
 
     if (!tenantId) {
@@ -178,7 +228,7 @@ class VectorDBService {
     }
 
     try {
-      // Use Qdrant filter to only return documents from this tenant
+      // Build Qdrant filter with tenant isolation
       const filter = {
         must: [
           {
@@ -187,6 +237,37 @@ class VectorDBService {
           }
         ]
       };
+
+      // Add optional filters for fileType, fileName, etc.
+      if (additionalFilters.fileType) {
+        filter.must.push({
+          key: 'metadata.fileType',
+          match: { value: additionalFilters.fileType }
+        });
+      }
+
+      if (additionalFilters.fileName) {
+        filter.must.push({
+          key: 'metadata.fileName',
+          match: { value: additionalFilters.fileName }
+        });
+      }
+
+      if (additionalFilters.sheetName) {
+        filter.must.push({
+          key: 'metadata.sheetName',
+          match: { value: additionalFilters.sheetName }
+        });
+      }
+
+      // Exclude full file summaries if specified (get only actual rows)
+      if (additionalFilters.excludeFullFile) {
+        filter.must_not = filter.must_not || [];
+        filter.must_not.push({
+          key: 'metadata.isFullFile',
+          match: { value: true }
+        });
+      }
 
       const results = await this.vectorStore.similaritySearchWithScore(query, k, filter);
 

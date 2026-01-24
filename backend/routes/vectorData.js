@@ -82,15 +82,23 @@ async function processVectorData(filePath, fileName, tenantId) {
         // Convert sheet to JSON
         const jsonData = xlsx.utils.sheet_to_json(worksheet, { defval: '' });
 
-        // Each row becomes a document
+        // Convert each row to semantic text format for better search
+        // Mark as doNotChunk to preserve row integrity
         jsonData.forEach((row, index) => {
+          // Create semantic text representation (better than JSON.stringify)
+          const rowText = Object.entries(row)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(', ');
+
           documents.push({
-            content: JSON.stringify(row),
+            content: rowText,
             metadata: {
               fileName,
               fileType: 'excel',
               sheetName,
-              rowNumber: index + 1
+              rowNumber: index + 1,
+              doNotChunk: true, // Flag to prevent chunking
+              originalData: row // Store original for reference
             }
           });
         });
@@ -98,13 +106,15 @@ async function processVectorData(filePath, fileName, tenantId) {
         // Also store the sheet as a single text representation for broader context
         const textData = xlsx.utils.sheet_to_csv(worksheet);
         if (textData && textData.trim()) {
+          const headers = Object.keys(jsonData[0] || {}).join(', ');
           documents.push({
-            content: `Sheet: ${sheetName}\n\n${textData}`,
+            content: `Excel Sheet: ${sheetName} (File: ${fileName})\nHeaders: ${headers}\nTotal Rows: ${jsonData.length}\n\nPreview:\n${textData.split('\n').slice(0, 10).join('\n')}`,
             metadata: {
               fileName,
               fileType: 'excel',
               sheetName,
-              isFullSheet: true
+              isFullSheet: true,
+              doNotChunk: true
             }
           });
         }
@@ -165,14 +175,38 @@ async function processVectorData(filePath, fileName, tenantId) {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = xlsx.utils.sheet_to_json(worksheet, { defval: '' });
 
-        documents = jsonData.map((row, index) => ({
-          content: JSON.stringify(row),
+        // Convert each row to semantic text format for better search
+        // Mark as doNotChunk to preserve row integrity
+        documents = jsonData.map((row, index) => {
+          // Create semantic text representation (better than JSON.stringify)
+          const rowText = Object.entries(row)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(', ');
+
+          return {
+            content: rowText,
+            metadata: {
+              fileName,
+              fileType: 'csv',
+              rowNumber: index + 1,
+              doNotChunk: true, // Flag to prevent chunking
+              originalData: row // Store original for reference
+            }
+          };
+        });
+
+        // Also store full CSV as searchable context (headers + summary)
+        const csvText = xlsx.utils.sheet_to_csv(worksheet);
+        const headers = Object.keys(jsonData[0] || {}).join(', ');
+        documents.push({
+          content: `CSV File: ${fileName}\nHeaders: ${headers}\nTotal Rows: ${jsonData.length}\n\nPreview:\n${csvText.split('\n').slice(0, 10).join('\n')}`,
           metadata: {
             fileName,
             fileType: 'csv',
-            rowNumber: index + 1
+            isFullFile: true,
+            doNotChunk: true
           }
-        }));
+        });
       } else if (ext === '.json') {
         // Parse JSON
         const data = JSON.parse(content);
