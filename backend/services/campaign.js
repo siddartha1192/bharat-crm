@@ -454,7 +454,11 @@ class CampaignService {
         }
 
         const leads = await prisma.lead.findMany({
-          where: { ...where, userId: campaign.userId },
+          where: {
+            ...where,
+            userId: campaign.userId,
+            tenantId: campaign.tenantId  // CRITICAL: Enforce tenant isolation
+          },
           select: {
             id: true,
             name: true,
@@ -503,7 +507,11 @@ class CampaignService {
         }
 
         const contacts = await prisma.contact.findMany({
-          where: { ...where, userId: campaign.userId },
+          where: {
+            ...where,
+            userId: campaign.userId,
+            tenantId: campaign.tenantId  // CRITICAL: Enforce tenant isolation
+          },
           select: {
             id: true,
             name: true,
@@ -532,8 +540,14 @@ class CampaignService {
       } else if (targetType === 'all') {
         // Get both leads and contacts
         // Build search filters for both leads and contacts
-        const leadWhere = { userId: campaign.userId };
-        const contactWhere = { userId: campaign.userId };
+        const leadWhere = {
+          userId: campaign.userId,
+          tenantId: campaign.tenantId  // CRITICAL: Enforce tenant isolation
+        };
+        const contactWhere = {
+          userId: campaign.userId,
+          tenantId: campaign.tenantId  // CRITICAL: Enforce tenant isolation
+        };
 
         if (targetFilters) {
           // Apply tag filter to both
@@ -613,10 +627,12 @@ class CampaignService {
           // Build where clauses for both leads and contacts
           const leadWhere = {
             userId: campaign.userId,
+            tenantId: campaign.tenantId,  // CRITICAL: Enforce tenant isolation
             tags: { hasSome: targetFilters.tags },
           };
           const contactWhere = {
             userId: campaign.userId,
+            tenantId: campaign.tenantId,  // CRITICAL: Enforce tenant isolation
             tags: { hasSome: targetFilters.tags },
           };
 
