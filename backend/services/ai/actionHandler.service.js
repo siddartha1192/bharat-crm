@@ -23,6 +23,21 @@ class ActionHandlerService {
       return [];
     }
 
+    // DEDUPLICATION: Only process the FIRST valid action (ignore duplicates)
+    // This prevents issues where AI might return multiple similar actions
+    const validActions = actions.filter(a => a.type && a.type !== 'none');
+    const actionsToProcess = validActions.length > 0 ? [validActions[0]] : [];
+
+    if (validActions.length > 1) {
+      console.log(`⚠️ AI returned ${validActions.length} actions, only processing first one: ${validActions[0].type}`);
+      console.log(`   Ignored actions: ${validActions.slice(1).map(a => a.type).join(', ')}`);
+    }
+
+    if (actionsToProcess.length === 0) {
+      console.log(`ℹ️ No actions to execute (all are 'none' type)`);
+      return [];
+    }
+
     // Check if user has permission to execute actions (only ADMIN role)
     const user = await prisma.user.findUnique({
       where: { id: context.userId },
@@ -40,7 +55,7 @@ class ActionHandlerService {
 
     const results = [];
 
-    for (const action of actions) {
+    for (const action of actionsToProcess) {
       if (action.type === 'none') {
         continue;
       }
