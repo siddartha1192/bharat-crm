@@ -146,10 +146,15 @@ class ActionHandlerService {
         return { success: false, error: 'Date and time are required' };
       }
 
+      console.log(`   📅 [Appointment] Raw data from AI: date="${data.date}", time="${data.time}"`);
+
       // Parse date and time
       const appointmentDateTime = this.parseDateTime(data.date, data.time);
       const startTime = appointmentDateTime;
       const endTime = new Date(appointmentDateTime.getTime() + 60 * 60 * 1000);
+
+      console.log(`   📅 [Appointment] Parsed datetime: ${appointmentDateTime.toISOString()} (UTC)`);
+      console.log(`   📅 [Appointment] This represents IST: ${appointmentDateTime.toISOString().replace('Z', '')} + 5:30`);
 
       const title = `CRM Demo/Consultation - ${data.name || 'WhatsApp Lead'}`;
       const description = `
