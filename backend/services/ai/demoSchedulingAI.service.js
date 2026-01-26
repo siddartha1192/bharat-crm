@@ -265,20 +265,48 @@ Return ONLY valid JSON, no additional text.`;
       console.log(`   🇮🇳 Formatting calendar event in IST (server-independent)`);
 
       if (meetingInfo.proposedDateTime) {
-        // Parse the proposed datetime - assume it's in IST
-        const parsed = new Date(meetingInfo.proposedDateTime);
-        if (!isNaN(parsed.getTime())) {
-          // The AI returned an ISO string - treat the time as IST
-          // Extract components and create proper IST date
-          const year = parsed.getFullYear();
-          const month = parsed.getMonth();
-          const day = parsed.getDate();
-          const hours = parsed.getHours();
-          const minutes = parsed.getMinutes();
-          startDateTime = this.createISTDate(year, month, day, hours, minutes);
-          console.log(`   🕐 Parsed proposedDateTime: ${meetingInfo.proposedDateTime} -> IST ${hours}:${String(minutes).padStart(2, '0')}`);
+        // Parse the proposed datetime - treat it as IST (server-timezone independent)
+        const dtStr = meetingInfo.proposedDateTime;
+
+        // Check if it's a UTC string (has Z suffix) or local IST string
+        if (dtStr.includes('Z') || dtStr.includes('+')) {
+          // UTC format - parse and convert to IST
+          const parsed = new Date(dtStr);
+          if (!isNaN(parsed.getTime())) {
+            // Convert UTC to IST by adding offset, then extract components
+            const istTime = new Date(parsed.getTime() + IST_OFFSET_MS);
+            const year = istTime.getUTCFullYear();
+            const month = istTime.getUTCMonth();
+            const day = istTime.getUTCDate();
+            const hours = istTime.getUTCHours();
+            const minutes = istTime.getUTCMinutes();
+            startDateTime = this.createISTDate(year, month, day, hours, minutes);
+            console.log(`   🕐 Parsed UTC proposedDateTime: ${dtStr} -> IST ${hours}:${String(minutes).padStart(2, '0')}`);
+          } else {
+            startDateTime = this.getISTDatePlusDays(1, 10);
+          }
+        } else if (dtStr.includes('T')) {
+          // Local format without Z (e.g., "2026-01-27T15:00:00") - treat as IST directly
+          // Extract components from STRING to be server-timezone independent
+          const [datePart, timePart] = dtStr.split('T');
+          const [year, month, day] = datePart.split('-').map(Number);
+          const [hours, minutes] = timePart.split(':').map(s => parseInt(s) || 0);
+          startDateTime = this.createISTDate(year, month - 1, day, hours, minutes);
+          console.log(`   🕐 Parsed IST proposedDateTime: ${dtStr} -> IST ${hours}:${String(minutes).padStart(2, '0')}`);
         } else {
-          startDateTime = this.getISTDatePlusDays(1, 10); // Default tomorrow 10 AM IST
+          // Fallback - try parsing with Date and extract local components
+          const parsed = new Date(dtStr);
+          if (!isNaN(parsed.getTime())) {
+            const year = parsed.getFullYear();
+            const month = parsed.getMonth();
+            const day = parsed.getDate();
+            const hours = parsed.getHours();
+            const minutes = parsed.getMinutes();
+            startDateTime = this.createISTDate(year, month, day, hours, minutes);
+            console.log(`   🕐 Parsed fallback proposedDateTime: ${dtStr} -> IST ${hours}:${String(minutes).padStart(2, '0')}`);
+          } else {
+            startDateTime = this.getISTDatePlusDays(1, 10);
+          }
         }
       } else if (meetingInfo.proposedDate && meetingInfo.proposedTime) {
         // Parse date and time separately (both in IST)

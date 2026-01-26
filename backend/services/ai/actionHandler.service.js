@@ -631,12 +631,23 @@ Notes: ${data.notes || 'None'}
         targetDay = nextWeek.getUTCDate();
       } else {
         // Try to parse the date string (e.g., "2026-01-30", "January 30, 2026")
-        const parsed = new Date(dateStr);
-        if (!isNaN(parsed.getTime())) {
-          // Extract date components (the parsed date is in local time, but we just want the numbers)
-          targetYear = parsed.getFullYear();
-          targetMonth = parsed.getMonth();
-          targetDay = parsed.getDate();
+        // For ISO format dates, extract from string to be server-timezone independent
+        const isoDateMatch = lowerDateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (isoDateMatch) {
+          // ISO format - extract directly from string
+          targetYear = parseInt(isoDateMatch[1]);
+          targetMonth = parseInt(isoDateMatch[2]) - 1; // 0-indexed
+          targetDay = parseInt(isoDateMatch[3]);
+        } else {
+          // Natural language date - use Date parser as fallback
+          const parsed = new Date(dateStr);
+          if (!isNaN(parsed.getTime())) {
+            // For natural language dates, use local methods
+            // This might have timezone issues but is unavoidable for free-form text
+            targetYear = parsed.getFullYear();
+            targetMonth = parsed.getMonth();
+            targetDay = parsed.getDate();
+          }
         }
       }
     }
