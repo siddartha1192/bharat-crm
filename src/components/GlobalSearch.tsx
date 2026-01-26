@@ -27,6 +27,7 @@ import { DealDialog } from '@/components/pipeline/DealDialog';
 import { LeadDialog } from '@/components/leads/LeadDialog';
 import { TaskDialog } from '@/components/tasks/TaskDialog';
 import { InvoiceDialog } from '@/components/invoice/InvoiceDialog';
+import { EventDetailDialog, CalendarEvent } from '@/components/calendar/EventDetailDialog';
 import { Contact } from '@/types/contact';
 import { Deal } from '@/types/pipeline';
 import { Lead } from '@/types/lead';
@@ -63,6 +64,7 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
   const [leadDialogOpen, setLeadDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [eventDialogOpen, setEventDialogOpen] = useState(false);
 
   // Entity data states
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -70,6 +72,7 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   // Search function with debounce
   useEffect(() => {
@@ -131,11 +134,8 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
           endpoint = `/invoices/${result.id}`;
           break;
         case 'event':
-          // For events, navigate to calendar since the dialog is inline
-          navigate('/calendar');
-          onOpenChange(false);
-          setQuery('');
-          return;
+          endpoint = `/calendar/events/${result.id}`;
+          break;
       }
 
       const response = await fetch(`${API_URL}${endpoint}`, {
@@ -170,6 +170,10 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
         case 'invoice':
           setSelectedInvoice(data);
           setInvoiceDialogOpen(true);
+          break;
+        case 'event':
+          setSelectedEvent(data);
+          setEventDialogOpen(true);
           break;
       }
 
@@ -541,6 +545,12 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
         open={invoiceDialogOpen}
         onOpenChange={setInvoiceDialogOpen}
         onSave={handleSaveInvoice}
+      />
+
+      <EventDetailDialog
+        event={selectedEvent}
+        open={eventDialogOpen}
+        onOpenChange={setEventDialogOpen}
       />
     </>
   );

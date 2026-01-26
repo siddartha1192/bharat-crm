@@ -226,6 +226,30 @@ router.get('/events', async (req, res) => {
   }
 });
 
+// Get single event by ID
+router.get('/events/:eventId', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { eventId } = req.params;
+
+    const event = await prisma.calendarEvent.findFirst({
+      where: getTenantFilter(req, {
+        id: eventId,
+        userId
+      })
+    });
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    res.json(event);
+  } catch (error) {
+    console.error('Error fetching event:', error);
+    res.status(500).json({ error: 'Failed to fetch event' });
+  }
+});
+
 // Create event
 router.post('/events', async (req, res) => {
   try {

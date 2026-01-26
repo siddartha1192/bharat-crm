@@ -460,6 +460,11 @@
   ];
 
   function createFieldHTML(field) {
+    // Skip hidden fields (like phoneCountryCode which is handled by phone field)
+    if (field.hidden) {
+      return '';
+    }
+
     const isRequired = field.required ? 'required' : '';
     const requiredClass = field.required ? 'required' : '';
 
