@@ -10,6 +10,12 @@ const CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events'
 ];
 
+/**
+ * IST Timezone Constants (Server-Independent)
+ * IST = UTC + 5:30
+ */
+const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000; // 5:30 in milliseconds = 19800000
+
 class GoogleCalendarService {
   constructor() {
     // Global fallback credentials
@@ -295,21 +301,92 @@ class GoogleCalendarService {
     return response.data.items || [];
   }
 
+  /**
+   * Format any date input (Date object or string) to IST datetime string for Google Calendar
+   * Google Calendar needs datetime in the timezone format WITHOUT Z suffix
+   * Example: "2026-01-27T15:00:00" represents 3 PM IST when paired with timeZone: 'Asia/Kolkata'
+   *
+   * @param {Date|string} dateInput - Date object or ISO string
+   * @param {string} targetTimezone - Target timezone (default: 'Asia/Kolkata' for IST)
+   * @returns {string} Formatted datetime string for Google Calendar
+   */
+  formatDateTimeForGoogleCalendar(dateInput, targetTimezone = 'Asia/Kolkata') {
+    let date;
+
+    // Convert input to Date object
+    if (dateInput instanceof Date) {
+      date = dateInput;
+    } else if (typeof dateInput === 'string') {
+      date = new Date(dateInput);
+    } else {
+      throw new Error('Invalid date input: must be Date object or string');
+    }
+
+    if (isNaN(date.getTime())) {
+      throw new Error('Invalid date: unable to parse');
+    }
+
+    // For IST (Asia/Kolkata), we need to:
+    // 1. If the input has Z suffix (UTC), convert to IST by adding 5:30 offset
+    // 2. If already in local format without Z, assume it's already IST
+
+    let istTime;
+    const dateStr = dateInput.toString();
+
+    // Check if input is UTC (has Z suffix or is a Date object which stores UTC internally)
+    if (dateInput instanceof Date || (typeof dateInput === 'string' && dateStr.includes('Z'))) {
+      // Input is in UTC, convert to IST by adding offset
+      istTime = new Date(date.getTime() + IST_OFFSET_MS);
+    } else if (typeof dateInput === 'string' && !dateStr.includes('Z') && dateStr.includes('T')) {
+      // Input is a local datetime string without Z (e.g., "2026-01-27T15:00:00")
+      // Assume it's already in IST, just parse the components
+      const [datePart, timePart] = dateStr.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hours, minutes, seconds] = timePart.split(':').map(s => parseInt(s) || 0);
+
+      // Return as-is since it's already in IST format
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    } else {
+      // Fallback: treat as UTC
+      istTime = new Date(date.getTime() + IST_OFFSET_MS);
+    }
+
+    // Extract IST components using UTC methods (since we already added the offset)
+    const year = istTime.getUTCFullYear();
+    const month = String(istTime.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(istTime.getUTCDate()).padStart(2, '0');
+    const hours = String(istTime.getUTCHours()).padStart(2, '0');
+    const minutes = String(istTime.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(istTime.getUTCSeconds()).padStart(2, '0');
+
+    // Return WITHOUT Z suffix - this tells Google the time is in the specified timezone
+    const formatted = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+
+    console.log(`📅 [Calendar] Formatted datetime for Google: ${dateInput} -> ${formatted} (${targetTimezone})`);
+
+    return formatted;
+  }
+
   // Create event in Google Calendar
   async createEvent(auth, eventData) {
     const calendar = google.calendar({ version: 'v3', auth });
+    const timezone = eventData.timeZone || 'Asia/Kolkata';
+
+    // Format start and end times for Google Calendar (IST format without Z suffix)
+    const formattedStartTime = this.formatDateTimeForGoogleCalendar(eventData.startTime, timezone);
+    const formattedEndTime = this.formatDateTimeForGoogleCalendar(eventData.endTime, timezone);
 
     const event = {
       summary: eventData.title,
       description: eventData.description || '',
       location: eventData.location || '',
       start: {
-        dateTime: eventData.startTime,
-        timeZone: eventData.timeZone || 'Asia/Kolkata',
+        dateTime: formattedStartTime,
+        timeZone: timezone,
       },
       end: {
-        dateTime: eventData.endTime,
-        timeZone: eventData.timeZone || 'Asia/Kolkata',
+        dateTime: formattedEndTime,
+        timeZone: timezone,
       },
       attendees: (eventData.attendees || []).map(email => ({ email })),
       reminders: eventData.reminders || {
@@ -322,15 +399,18 @@ class GoogleCalendarService {
     };
 
     if (eventData.isAllDay) {
+      // For all-day events, extract date from formatted string
       event.start = {
-        date: eventData.startTime.split('T')[0],
-        timeZone: eventData.timeZone || 'Asia/Kolkata',
+        date: formattedStartTime.split('T')[0],
+        timeZone: timezone,
       };
       event.end = {
-        date: eventData.endTime.split('T')[0],
-        timeZone: eventData.timeZone || 'Asia/Kolkata',
+        date: formattedEndTime.split('T')[0],
+        timeZone: timezone,
       };
     }
+
+    console.log(`📅 [Calendar] Creating event: "${eventData.title}" at ${formattedStartTime} ${timezone}`);
 
     const response = await calendar.events.insert({
       calendarId: 'primary',
@@ -344,18 +424,23 @@ class GoogleCalendarService {
   // Update event in Google Calendar
   async updateEvent(auth, eventId, eventData) {
     const calendar = google.calendar({ version: 'v3', auth });
+    const timezone = eventData.timeZone || 'Asia/Kolkata';
+
+    // Format start and end times for Google Calendar (IST format without Z suffix)
+    const formattedStartTime = this.formatDateTimeForGoogleCalendar(eventData.startTime, timezone);
+    const formattedEndTime = this.formatDateTimeForGoogleCalendar(eventData.endTime, timezone);
 
     const event = {
       summary: eventData.title,
       description: eventData.description || '',
       location: eventData.location || '',
       start: {
-        dateTime: eventData.startTime,
-        timeZone: eventData.timeZone || 'Asia/Kolkata',
+        dateTime: formattedStartTime,
+        timeZone: timezone,
       },
       end: {
-        dateTime: eventData.endTime,
-        timeZone: eventData.timeZone || 'Asia/Kolkata',
+        dateTime: formattedEndTime,
+        timeZone: timezone,
       },
       attendees: (eventData.attendees || []).map(email => ({ email })),
       reminders: eventData.reminders || {
@@ -368,15 +453,18 @@ class GoogleCalendarService {
     };
 
     if (eventData.isAllDay) {
+      // For all-day events, extract date from formatted string
       event.start = {
-        date: eventData.startTime.split('T')[0],
-        timeZone: eventData.timeZone || 'Asia/Kolkata',
+        date: formattedStartTime.split('T')[0],
+        timeZone: timezone,
       };
       event.end = {
-        date: eventData.endTime.split('T')[0],
-        timeZone: eventData.timeZone || 'Asia/Kolkata',
+        date: formattedEndTime.split('T')[0],
+        timeZone: timezone,
       };
     }
+
+    console.log(`📅 [Calendar] Updating event ${eventId}: "${eventData.title}" at ${formattedStartTime} ${timezone}`);
 
     const response = await calendar.events.update({
       calendarId: 'primary',
