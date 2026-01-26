@@ -74,6 +74,28 @@ class DemoSchedulingAIService {
   }
 
   /**
+   * Format a UTC Date object as IST datetime string for Google Calendar
+   * Google Calendar needs datetime in the timezone format WITHOUT Z suffix
+   * Example output: "2026-01-27T15:00:00" (this represents 3 PM IST)
+   * @param {Date} utcDate - Date object (stored as UTC)
+   * @returns {string} IST datetime string in format YYYY-MM-DDTHH:MM:SS
+   */
+  formatAsISTString(utcDate) {
+    // Add IST offset to UTC to get IST time components
+    const istTime = new Date(utcDate.getTime() + IST_OFFSET_MS);
+
+    const year = istTime.getUTCFullYear();
+    const month = String(istTime.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(istTime.getUTCDate()).padStart(2, '0');
+    const hours = String(istTime.getUTCHours()).padStart(2, '0');
+    const minutes = String(istTime.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(istTime.getUTCSeconds()).padStart(2, '0');
+
+    // Return WITHOUT Z suffix - this tells Google the time is in the specified timezone
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  }
+
+  /**
    * Initialize OpenAI client with tenant-specific or global API key
    */
   async initialize(tenantId) {
@@ -300,11 +322,18 @@ Return ONLY valid JSON, no additional text.`;
       // Build description
       const description = this.buildEventDescription(meetingInfo, leadData, callData);
 
+      // Format as IST string (without Z suffix) for Google Calendar
+      // This ensures Google Calendar interprets the time correctly with Asia/Kolkata timezone
+      const startDateTimeIST = this.formatAsISTString(startDateTime);
+      const endDateTimeIST = this.formatAsISTString(endDateTime);
+
+      console.log(`   📅 Calendar event times (IST format): ${startDateTimeIST} to ${endDateTimeIST}`);
+
       return {
         summary: title,
         description,
-        startDateTime: startDateTime.toISOString(),
-        endDateTime: endDateTime.toISOString(),
+        startDateTime: startDateTimeIST,
+        endDateTime: endDateTimeIST,
         attendees: this.buildAttendeeList(leadData),
         location: meetingInfo.meetingType === 'demo' ? 'Online Demo' : '',
         reminders: {
