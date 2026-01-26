@@ -306,61 +306,66 @@ class GoogleCalendarService {
    * Google Calendar needs datetime in the timezone format WITHOUT Z suffix
    * Example: "2026-01-27T15:00:00" represents 3 PM IST when paired with timeZone: 'Asia/Kolkata'
    *
-   * @param {Date|string} dateInput - Date object or ISO string
+   * IMPORTANT: All datetime inputs from the application are expected to be in IST,
+   * even if they have a Z suffix (frontend quirk). We extract the time values AS-IS
+   * without any timezone conversion.
+   *
+   * @param {Date|string} dateInput - Date object or ISO string (treated as IST)
    * @param {string} targetTimezone - Target timezone (default: 'Asia/Kolkata' for IST)
    * @returns {string} Formatted datetime string for Google Calendar
    */
   formatDateTimeForGoogleCalendar(dateInput, targetTimezone = 'Asia/Kolkata') {
-    let date;
+    let year, month, day, hours, minutes, seconds;
 
-    // Convert input to Date object
-    if (dateInput instanceof Date) {
-      date = dateInput;
-    } else if (typeof dateInput === 'string') {
-      date = new Date(dateInput);
+    if (typeof dateInput === 'string') {
+      // For string input, extract components directly from the string
+      // This avoids any timezone conversion issues
+
+      if (dateInput.includes('T')) {
+        // ISO format: "2026-01-29T12:28:00.000Z" or "2026-01-29T12:28:00"
+        const [datePart, timePart] = dateInput.split('T');
+        const [y, m, d] = datePart.split('-').map(Number);
+        // Remove Z suffix and milliseconds if present, then parse time
+        const cleanTime = timePart.replace('Z', '').split('.')[0];
+        const [h, min, s] = cleanTime.split(':').map(n => parseInt(n) || 0);
+
+        year = y;
+        month = m;
+        day = d;
+        hours = h;
+        minutes = min;
+        seconds = s;
+      } else {
+        // Non-ISO format, try to parse with Date
+        const date = new Date(dateInput);
+        if (isNaN(date.getTime())) {
+          throw new Error('Invalid date: unable to parse');
+        }
+        // Use local methods to get what the user intended
+        year = date.getFullYear();
+        month = date.getMonth() + 1;
+        day = date.getDate();
+        hours = date.getHours();
+        minutes = date.getMinutes();
+        seconds = date.getSeconds();
+      }
+    } else if (dateInput instanceof Date) {
+      // For Date objects from our app (created via createISTDate):
+      // The Date stores the correct UTC moment for the IST time
+      // We need to convert back to IST by adding the offset
+      const istTime = new Date(dateInput.getTime() + IST_OFFSET_MS);
+      year = istTime.getUTCFullYear();
+      month = istTime.getUTCMonth() + 1;
+      day = istTime.getUTCDate();
+      hours = istTime.getUTCHours();
+      minutes = istTime.getUTCMinutes();
+      seconds = istTime.getUTCSeconds();
     } else {
       throw new Error('Invalid date input: must be Date object or string');
     }
 
-    if (isNaN(date.getTime())) {
-      throw new Error('Invalid date: unable to parse');
-    }
-
-    // For IST (Asia/Kolkata), we need to:
-    // 1. If the input has Z suffix (UTC), convert to IST by adding 5:30 offset
-    // 2. If already in local format without Z, assume it's already IST
-
-    let istTime;
-    const dateStr = dateInput.toString();
-
-    // Check if input is UTC (has Z suffix or is a Date object which stores UTC internally)
-    if (dateInput instanceof Date || (typeof dateInput === 'string' && dateStr.includes('Z'))) {
-      // Input is in UTC, convert to IST by adding offset
-      istTime = new Date(date.getTime() + IST_OFFSET_MS);
-    } else if (typeof dateInput === 'string' && !dateStr.includes('Z') && dateStr.includes('T')) {
-      // Input is a local datetime string without Z (e.g., "2026-01-27T15:00:00")
-      // Assume it's already in IST, just parse the components
-      const [datePart, timePart] = dateStr.split('T');
-      const [year, month, day] = datePart.split('-').map(Number);
-      const [hours, minutes, seconds] = timePart.split(':').map(s => parseInt(s) || 0);
-
-      // Return as-is since it's already in IST format
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    } else {
-      // Fallback: treat as UTC
-      istTime = new Date(date.getTime() + IST_OFFSET_MS);
-    }
-
-    // Extract IST components using UTC methods (since we already added the offset)
-    const year = istTime.getUTCFullYear();
-    const month = String(istTime.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(istTime.getUTCDate()).padStart(2, '0');
-    const hours = String(istTime.getUTCHours()).padStart(2, '0');
-    const minutes = String(istTime.getUTCMinutes()).padStart(2, '0');
-    const seconds = String(istTime.getUTCSeconds()).padStart(2, '0');
-
-    // Return WITHOUT Z suffix - this tells Google the time is in the specified timezone
-    const formatted = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    // Format as IST datetime string WITHOUT Z suffix
+    const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
     console.log(`📅 [Calendar] Formatted datetime for Google: ${dateInput} -> ${formatted} (${targetTimezone})`);
 
