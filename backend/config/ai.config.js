@@ -21,11 +21,11 @@ module.exports = {
     embeddingModel: process.env.EMBEDDING_MODEL || 'text-embedding-3-small',
   },
 
-  // WhatsApp AI Configuration (Limited, Structured Output)
+  // WhatsApp AI Configuration (Conversational + Structured Actions)
   whatsappAI: {
     model: process.env.WHATSAPP_AI_MODEL || 'gpt-4o-mini',
     temperature: parseFloat(process.env.WHATSAPP_AI_TEMPERATURE || '0.3'),
-    maxTokens: 500,
+    maxTokens: 1000,
     allowedActions: (process.env.ALLOWED_WHATSAPP_ACTIONS || 'create_appointment,create_task,create_lead,get_features').split(','),
   },
 
@@ -38,7 +38,7 @@ module.exports = {
 
   // Context Configuration
   context: {
-    maxMessages: parseInt(process.env.MAX_CONTEXT_MESSAGES || '10'),
+    maxMessages: parseInt(process.env.MAX_CONTEXT_MESSAGES || '15'),
   },
 
   // Knowledge Base
