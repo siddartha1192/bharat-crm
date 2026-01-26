@@ -62,9 +62,9 @@ const ProtectedLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <ProtectedRoute>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex h-screen overflow-hidden bg-background">
         <Sidebar mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           <Header onMenuClick={() => setMobileMenuOpen(true)} />
           <main className="flex-1 overflow-auto">
             {children}

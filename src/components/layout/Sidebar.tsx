@@ -88,7 +88,7 @@ const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
   return (
     <>
       {/* Logo Header */}
-      <div className="p-4 border-b border-blue-500/30">
+      <div className="flex-shrink-0 p-4 border-b border-blue-500/30">
         <div className="flex items-center gap-4 px-5 py-4 bg-white rounded-2xl border border-blue-100 shadow-sm">
           {/* Logo */}
           <div className="w-14 h-14 flex items-center justify-center">
@@ -112,7 +112,7 @@ const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500/30 scrollbar-track-transparent">
+      <nav className="flex-1 min-h-0 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500/30 scrollbar-track-transparent">
         {availableNavigation.map((item) => (
         <NavLink
           key={item.name}
@@ -140,7 +140,7 @@ const SidebarContent = ({ onLinkClick }: { onLinkClick?: () => void }) => {
     </nav>
 
     {/* Settings Footer */}
-    <div className="p-4 border-t border-blue-500/30 space-y-1">
+    <div className="flex-shrink-0 p-4 border-t border-blue-500/30 space-y-1">
       <NavLink
         to="/users"
         onClick={onLinkClick}
@@ -170,7 +170,7 @@ export function Sidebar({ mobileMenuOpen = false, setMobileMenuOpen }: SidebarPr
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 shadow-2xl">
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 h-full min-h-0 bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 shadow-2xl">
         <SidebarContent />
       </aside>
 
