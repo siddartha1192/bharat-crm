@@ -307,10 +307,11 @@ class GoogleCalendarService {
    * Example: "2026-01-27T15:00:00" represents 3 PM IST when paired with timeZone: 'Asia/Kolkata'
    *
    * IMPORTANT CONVERSION RULES:
-   * - Date objects: Assumed to store UTC (from createISTDate). Converted back to IST by adding offset.
-   * - String inputs: Assumed to already be in IST (from frontend). Extracted AS-IS without conversion.
+   * - Date objects: Assumed to store UTC (from createISTDate). Converted to IST by adding offset.
+   * - UTC strings (with 'Z' suffix): Parsed as UTC and converted to IST by adding offset.
+   * - Local strings (without 'Z'): Assumed to already be in IST. Extracted AS-IS.
    *
-   * @param {Date|string} dateInput - Date object (UTC) or ISO string (IST)
+   * @param {Date|string} dateInput - Date object (UTC), UTC ISO string, or local IST string
    * @param {string} targetTimezone - Target timezone (default: 'Asia/Kolkata' for IST)
    * @returns {string} Formatted datetime string for Google Calendar (without Z suffix)
    */
@@ -318,23 +319,40 @@ class GoogleCalendarService {
     let year, month, day, hours, minutes, seconds;
 
     if (typeof dateInput === 'string') {
-      // For string input, extract components directly from the string
-      // This avoids any timezone conversion issues
-
       if (dateInput.includes('T')) {
-        // ISO format: "2026-01-29T12:28:00.000Z" or "2026-01-29T12:28:00"
-        const [datePart, timePart] = dateInput.split('T');
-        const [y, m, d] = datePart.split('-').map(Number);
-        // Remove Z suffix and milliseconds if present, then parse time
-        const cleanTime = timePart.replace('Z', '').split('.')[0];
-        const [h, min, s] = cleanTime.split(':').map(n => parseInt(n) || 0);
+        // Check if this is a UTC string (has 'Z' suffix or timezone offset)
+        const isUTCString = dateInput.includes('Z') || /[+-]\d{2}:\d{2}$/.test(dateInput);
 
-        year = y;
-        month = m;
-        day = d;
-        hours = h;
-        minutes = min;
-        seconds = s;
+        if (isUTCString) {
+          // UTC string - parse and convert to IST
+          const utcDate = new Date(dateInput);
+          if (isNaN(utcDate.getTime())) {
+            throw new Error('Invalid date: unable to parse UTC string');
+          }
+          // Convert UTC to IST by adding the offset
+          const istTime = new Date(utcDate.getTime() + IST_OFFSET_MS);
+          year = istTime.getUTCFullYear();
+          month = istTime.getUTCMonth() + 1;
+          day = istTime.getUTCDate();
+          hours = istTime.getUTCHours();
+          minutes = istTime.getUTCMinutes();
+          seconds = istTime.getUTCSeconds();
+
+          console.log(`📅 [Calendar] UTC string conversion: ${dateInput} -> IST ${hours}:${String(minutes).padStart(2, '0')} (${targetTimezone})`);
+        } else {
+          // Local IST format without Z (e.g., "2026-01-29T12:28:00") - extract as-is
+          const [datePart, timePart] = dateInput.split('T');
+          const [y, m, d] = datePart.split('-').map(Number);
+          const cleanTime = timePart.split('.')[0]; // Remove milliseconds if present
+          const [h, min, s] = cleanTime.split(':').map(n => parseInt(n) || 0);
+
+          year = y;
+          month = m;
+          day = d;
+          hours = h;
+          minutes = min;
+          seconds = s;
+        }
       } else {
         // Non-ISO format, try to parse with Date
         const date = new Date(dateInput);
@@ -546,12 +564,37 @@ class GoogleCalendarService {
       // Create the calendar event
       const calendar = google.calendar({ version: 'v3', auth });
 
+      // Format start and end times to ensure correct IST handling
+      // If start/end have dateTime property, format it properly
+      let formattedStart = eventData.start;
+      let formattedEnd = eventData.end;
+
+      if (eventData.start?.dateTime) {
+        const timezone = eventData.start.timeZone || 'Asia/Kolkata';
+        formattedStart = {
+          dateTime: this.formatDateTimeForGoogleCalendar(eventData.start.dateTime, timezone),
+          timeZone: timezone,
+        };
+      }
+
+      if (eventData.end?.dateTime) {
+        const timezone = eventData.end.timeZone || 'Asia/Kolkata';
+        formattedEnd = {
+          dateTime: this.formatDateTimeForGoogleCalendar(eventData.end.dateTime, timezone),
+          timeZone: timezone,
+        };
+      }
+
+      console.log(`📅 [Calendar] createEventForUser: ${eventData.summary}`);
+      console.log(`   Start: ${JSON.stringify(formattedStart)}`);
+      console.log(`   End: ${JSON.stringify(formattedEnd)}`);
+
       const event = {
         summary: eventData.summary,
         description: eventData.description || '',
         location: eventData.location || '',
-        start: eventData.start,
-        end: eventData.end,
+        start: formattedStart,
+        end: formattedEnd,
         attendees: eventData.attendees || [],
         reminders: eventData.reminders || {
           useDefault: false,
