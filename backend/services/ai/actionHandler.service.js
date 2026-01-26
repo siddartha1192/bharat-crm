@@ -282,18 +282,20 @@ Notes: ${data.notes || 'None'}
         return { success: false, error: 'User not found' };
       }
 
-      // Parse due date if provided, otherwise default to 7 days from now
+      // Parse due date if provided, otherwise default to 7 days from now (IST)
       let dueDate;
       if (data.dueDate) {
-        dueDate = new Date(data.dueDate);
+        // If dueDate is provided, parse it in IST context
+        dueDate = this.parseDateTime(data.dueDate, null);
       } else if (data.date || data.time) {
-        // Try to parse from date/time fields
+        // Try to parse from date/time fields (in IST)
         dueDate = this.parseDateTime(data.date, data.time);
       } else {
-        // Default: 7 days from now
-        dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 7);
-        console.log('   ℹ️ No due date specified, defaulting to 7 days from now:', dueDate.toISOString());
+        // Default: 7 days from now (IST)
+        const nowIST = this.getISTDate();
+        dueDate = new Date(nowIST.getTime() + 7 * 24 * 60 * 60 * 1000);
+        dueDate.setHours(10, 0, 0, 0); // Default to 10 AM IST
+        console.log('   ℹ️ No due date specified, defaulting to 7 days from now (IST):', dueDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
       }
 
       // Determine assignedTo name (from AI data or default to owner)
@@ -516,26 +518,58 @@ Notes: ${data.notes || 'None'}
   }
 
   /**
-   * Parse date and time string into Date object
+   * Get current date/time in Indian Standard Time (IST - UTC+5:30)
+   * @returns {Date} Current date in IST
+   */
+  getISTDate() {
+    const now = new Date();
+    // IST is UTC+5:30
+    const istOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
+    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+    return new Date(utcTime + istOffset);
+  }
+
+  /**
+   * Convert a Date to IST timezone
+   * @param {Date} date - Date to convert
+   * @returns {Date} Date adjusted for IST
+   */
+  toIST(date) {
+    const istOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
+    const utcTime = date.getTime() + (date.getTimezoneOffset() * 60 * 1000);
+    return new Date(utcTime + istOffset);
+  }
+
+  /**
+   * Parse date and time string into Date object (in IST - Indian Standard Time)
    */
   parseDateTime(dateStr, timeStr) {
-    const now = new Date();
-    let targetDate = new Date();
+    // Get current time in IST
+    const nowIST = this.getISTDate();
+    let targetDate = new Date(nowIST);
 
-    // Handle relative dates
+    console.log(`   🕐 Parsing date/time in IST: dateStr="${dateStr}", timeStr="${timeStr}"`);
+    console.log(`   🕐 Current IST time: ${nowIST.toISOString()}`);
+
+    // Handle relative dates (based on IST)
     if (dateStr && dateStr.toLowerCase() === 'today') {
-      targetDate = new Date();
+      targetDate = new Date(nowIST);
     } else if (dateStr && dateStr.toLowerCase() === 'tomorrow') {
-      targetDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      targetDate = new Date(nowIST.getTime() + 24 * 60 * 60 * 1000);
     } else if (dateStr && dateStr.toLowerCase().startsWith('next')) {
       // "next monday", "next week" etc.
-      targetDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      targetDate = new Date(nowIST.getTime() + 7 * 24 * 60 * 60 * 1000);
     } else if (dateStr) {
       // Try to parse the date string
-      targetDate = new Date(dateStr);
+      const parsed = new Date(dateStr);
+      if (!isNaN(parsed.getTime())) {
+        // Keep the date part but use IST context
+        targetDate = new Date(nowIST);
+        targetDate.setFullYear(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      }
     }
 
-    // Parse time
+    // Parse time (in IST)
     if (timeStr) {
       const timeMatch = timeStr.match(/([0-9]{1,2}):?([0-9]{2})?\s*(AM|PM|am|pm)?/i);
       if (timeMatch) {
@@ -549,10 +583,11 @@ Notes: ${data.notes || 'None'}
         targetDate.setHours(hours, minutes, 0, 0);
       }
     } else {
-      // Default to 10 AM if no time specified
+      // Default to 10 AM IST if no time specified
       targetDate.setHours(10, 0, 0, 0);
     }
 
+    console.log(`   🕐 Parsed IST date/time: ${targetDate.toISOString()} (${targetDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST)`);
     return targetDate;
   }
 }
