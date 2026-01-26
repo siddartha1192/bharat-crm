@@ -153,8 +153,10 @@ class ActionHandlerService {
       const startTime = appointmentDateTime;
       const endTime = new Date(appointmentDateTime.getTime() + 60 * 60 * 1000);
 
-      console.log(`   📅 [Appointment] Parsed datetime: ${appointmentDateTime.toISOString()} (UTC)`);
-      console.log(`   📅 [Appointment] This represents IST: ${appointmentDateTime.toISOString().replace('Z', '')} + 5:30`);
+      // Log the datetime conversion for debugging
+      const istTimeForLog = new Date(appointmentDateTime.getTime() + ActionHandlerService.IST_OFFSET_MS);
+      console.log(`   📅 [Appointment] Stored as UTC: ${appointmentDateTime.toISOString()}`);
+      console.log(`   📅 [Appointment] Represents IST: ${istTimeForLog.toISOString().replace('Z', '').split('.')[0]} IST`);
 
       const title = `CRM Demo/Consultation - ${data.name || 'WhatsApp Lead'}`;
       const description = `

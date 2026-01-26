@@ -306,13 +306,13 @@ class GoogleCalendarService {
    * Google Calendar needs datetime in the timezone format WITHOUT Z suffix
    * Example: "2026-01-27T15:00:00" represents 3 PM IST when paired with timeZone: 'Asia/Kolkata'
    *
-   * IMPORTANT: All datetime inputs from the application are expected to be in IST,
-   * even if they have a Z suffix (frontend quirk). We extract the time values AS-IS
-   * without any timezone conversion.
+   * IMPORTANT CONVERSION RULES:
+   * - Date objects: Assumed to store UTC (from createISTDate). Converted back to IST by adding offset.
+   * - String inputs: Assumed to already be in IST (from frontend). Extracted AS-IS without conversion.
    *
-   * @param {Date|string} dateInput - Date object or ISO string (treated as IST)
+   * @param {Date|string} dateInput - Date object (UTC) or ISO string (IST)
    * @param {string} targetTimezone - Target timezone (default: 'Asia/Kolkata' for IST)
-   * @returns {string} Formatted datetime string for Google Calendar
+   * @returns {string} Formatted datetime string for Google Calendar (without Z suffix)
    */
   formatDateTimeForGoogleCalendar(dateInput, targetTimezone = 'Asia/Kolkata') {
     let year, month, day, hours, minutes, seconds;
@@ -354,17 +354,21 @@ class GoogleCalendarService {
       // The Date stores the correct UTC moment for the IST time
       // We need to convert back to IST by adding the offset
       const istTime = new Date(dateInput.getTime() + IST_OFFSET_MS);
-      year = istTime.getUTCFullYear();
-      month = istTime.getUTCMonth() + 1;
-      day = istTime.getUTCDate();
-      hours = istTime.getUTCHours();
-      minutes = istTime.getUTCMinutes();
-      seconds = istTime.getUTCSeconds();
+
+      // Use toISOString() for consistent formatting, then extract without Z suffix
+      // This ensures the datetime string represents the IST time values
+      const isoString = istTime.toISOString();
+      // Return format: "YYYY-MM-DDTHH:MM:SS" (without Z and milliseconds)
+      const formatted = isoString.replace('Z', '').split('.')[0];
+
+      console.log(`📅 [Calendar] Date object conversion: UTC ${dateInput.toISOString()} -> IST ${formatted} (${targetTimezone})`);
+
+      return formatted;
     } else {
       throw new Error('Invalid date input: must be Date object or string');
     }
 
-    // Format as IST datetime string WITHOUT Z suffix
+    // Format as IST datetime string WITHOUT Z suffix (for string inputs)
     const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
     console.log(`📅 [Calendar] Formatted datetime for Google: ${dateInput} -> ${formatted} (${targetTimezone})`);
