@@ -23,6 +23,21 @@ class ActionHandlerService {
       return [];
     }
 
+    // DEDUPLICATION: Only process the FIRST valid action (ignore duplicates)
+    // This prevents issues where AI might return multiple similar actions
+    const validActions = actions.filter(a => a.type && a.type !== 'none');
+    const actionsToProcess = validActions.length > 0 ? [validActions[0]] : [];
+
+    if (validActions.length > 1) {
+      console.log(`⚠️ AI returned ${validActions.length} actions, only processing first one: ${validActions[0].type}`);
+      console.log(`   Ignored actions: ${validActions.slice(1).map(a => a.type).join(', ')}`);
+    }
+
+    if (actionsToProcess.length === 0) {
+      console.log(`ℹ️ No actions to execute (all are 'none' type)`);
+      return [];
+    }
+
     // Check if user has permission to execute actions (only ADMIN role)
     const user = await prisma.user.findUnique({
       where: { id: context.userId },
@@ -40,7 +55,7 @@ class ActionHandlerService {
 
     const results = [];
 
-    for (const action of actions) {
+    for (const action of actionsToProcess) {
       if (action.type === 'none') {
         continue;
       }
@@ -284,11 +299,18 @@ Notes: ${data.notes || 'None'}
       // Determine assignedTo name (from AI data or default to owner)
       const assignedToName = data.assignedTo || data.assignee || ownerUser.name || ownerUser.email;
 
+      // Build description with WhatsApp source info
+      let taskDescription = data.description || '';
+      if (context.contactPhone) {
+        const sourceInfo = `\n\n---\n📱 Source: WhatsApp chat from ${context.contactPhone}`;
+        taskDescription = taskDescription + sourceInfo;
+      }
+
       // Create task
       const task = await prisma.task.create({
         data: {
           title: data.title,
-          description: data.description || '',
+          description: taskDescription,
           priority: data.priority || 'medium',
           status: 'todo',
           dueDate,
@@ -321,8 +343,12 @@ Notes: ${data.notes || 'None'}
    */
   async createLead(data, context) {
     try {
-      if (!data.name || !data.email) {
-        return { success: false, error: 'Name and email are required' };
+      if (!data.name || !data.email || !data.phone) {
+        const missing = [];
+        if (!data.name) missing.push('name');
+        if (!data.email) missing.push('email');
+        if (!data.phone) missing.push('phone');
+        return { success: false, error: `Missing required fields: ${missing.join(', ')}` };
       }
 
       // Get user from context
