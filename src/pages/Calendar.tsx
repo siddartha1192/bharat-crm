@@ -20,6 +20,14 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -45,6 +53,7 @@ import {
   MapPin,
   Clock,
   MoreVertical,
+  X,
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -495,193 +504,261 @@ export default function Calendar() {
       )}
 
       {/* Event Dialog */}
-      <Dialog open={showEventDialog} onOpenChange={setShowEventDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditMode ? 'Edit Event' : 'Create New Event'}
-            </DialogTitle>
-            <DialogDescription>
+      <Sheet open={showEventDialog} onOpenChange={setShowEventDialog}>
+        <SheetContent className="p-0 w-full sm:max-w-2xl overflow-hidden flex flex-col">
+          {/* Accessibility: Hidden title and description for screen readers */}
+          <VisuallyHidden>
+            <SheetTitle>{isEditMode ? 'Edit Event' : 'Create New Event'}</SheetTitle>
+            <SheetDescription>
               {isEditMode
                 ? 'Update the event details below'
                 : 'Fill in the details for your new event'}
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </VisuallyHidden>
 
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="title">Title *</Label>
-              <Input
-                id="title"
-                placeholder="Event title"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Event description"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                rows={3}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="startTime">Start Time *</Label>
-                <Input
-                  id="startTime"
-                  type="datetime-local"
-                  value={formData.startTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, startTime: e.target.value })
-                  }
-                />
+          {/* Modern Blue Ribbon Header */}
+          <div className="relative bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 text-white px-6 py-5 shadow-lg">
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjAzIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-40"></div>
+            <div className="relative flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <CalendarIcon className="w-6 h-6" />
+                </div>
+                <h2 className="text-xl font-bold">{isEditMode ? 'Edit Event' : 'Create New Event'}</h2>
               </div>
-
-              <div>
-                <Label htmlFor="endTime">End Time *</Label>
-                <Input
-                  id="endTime"
-                  type="datetime-local"
-                  value={formData.endTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, endTime: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="isAllDay"
-                checked={formData.isAllDay}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, isAllDay: checked })
-                }
-              />
-              <Label htmlFor="isAllDay">All day event</Label>
-            </div>
-
-            <div>
-              <Label htmlFor="location">
-                <MapPin className="w-4 h-4 inline mr-1" />
-                Location
-              </Label>
-              <Input
-                id="location"
-                placeholder="Event location"
-                value={formData.location}
-                onChange={(e) =>
-                  setFormData({ ...formData, location: e.target.value })
-                }
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="attendees">
-                <Users className="w-4 h-4 inline mr-1" />
-                Attendees (comma separated emails)
-              </Label>
-              <Input
-                id="attendees"
-                placeholder="email1@example.com, email2@example.com"
-                value={formData.attendees}
-                onChange={(e) =>
-                  setFormData({ ...formData, attendees: e.target.value })
-                }
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="color">Event Color</Label>
-              <Select
-                value={formData.color}
-                onValueChange={(value) => setFormData({ ...formData, color: value })}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowEventDialog(false)}
+                className="text-white hover:bg-white/20 rounded-lg"
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="blue">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded bg-blue-500"></div>
-                      Blue
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="green">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded bg-green-500"></div>
-                      Green
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="red">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded bg-red-500"></div>
-                      Red
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="yellow">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded bg-yellow-500"></div>
-                      Yellow
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="purple">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded bg-purple-500"></div>
-                      Purple
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="pink">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded bg-pink-500"></div>
-                      Pink
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                <X className="w-5 h-5" />
+              </Button>
             </div>
-
-            {isConnected && (
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="syncWithGoogle"
-                  checked={formData.syncWithGoogle}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, syncWithGoogle: checked })
-                  }
-                />
-                <Label htmlFor="syncWithGoogle">Sync with Google Calendar</Label>
-              </div>
-            )}
           </div>
 
-          <DialogFooter className="gap-2">
+          {/* Scrollable Form Area */}
+          <ScrollArea className="flex-1 px-6 py-6">
+            <div className="space-y-6">
+              {/* Event Details */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg text-foreground border-l-4 border-l-blue-500 pl-3">Event Details</h3>
+                <div className="space-y-2">
+                  <Label htmlFor="title" className="text-sm font-semibold">Title *</Label>
+                  <Input
+                    id="title"
+                    placeholder="Event title"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="border-2 focus:border-blue-500 rounded-lg"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description" className="text-sm font-semibold">Description</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Event description"
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                    rows={3}
+                    className="border-2 focus:border-blue-500 rounded-lg resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Date & Time */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg text-foreground border-l-4 border-l-purple-500 pl-3">Date & Time</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="startTime" className="text-sm font-semibold">
+                      <Clock className="w-4 h-4 inline mr-1" />
+                      Start Time *
+                    </Label>
+                    <Input
+                      id="startTime"
+                      type="datetime-local"
+                      value={formData.startTime}
+                      onChange={(e) => {
+                        const newStartTime = e.target.value;
+                        // Auto-update end time to be 1 hour after start time
+                        const startDate = new Date(newStartTime);
+                        const endDate = addHours(startDate, 1);
+                        setFormData({
+                          ...formData,
+                          startTime: newStartTime,
+                          endTime: format(endDate, "yyyy-MM-dd'T'HH:mm")
+                        });
+                      }}
+                      className="border-2 focus:border-blue-500 rounded-lg"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="endTime" className="text-sm font-semibold">
+                      <Clock className="w-4 h-4 inline mr-1" />
+                      End Time *
+                    </Label>
+                    <Input
+                      id="endTime"
+                      type="datetime-local"
+                      value={formData.endTime}
+                      onChange={(e) =>
+                        setFormData({ ...formData, endTime: e.target.value })
+                      }
+                      className="border-2 focus:border-blue-500 rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="isAllDay"
+                    checked={formData.isAllDay}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, isAllDay: checked })
+                    }
+                  />
+                  <Label htmlFor="isAllDay" className="text-sm font-semibold">All day event</Label>
+                </div>
+              </div>
+
+              {/* Location & Attendees */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg text-foreground border-l-4 border-l-green-500 pl-3">Location & Attendees</h3>
+                <div className="space-y-2">
+                  <Label htmlFor="location" className="text-sm font-semibold">
+                    <MapPin className="w-4 h-4 inline mr-1" />
+                    Location
+                  </Label>
+                  <Input
+                    id="location"
+                    placeholder="Event location"
+                    value={formData.location}
+                    onChange={(e) =>
+                      setFormData({ ...formData, location: e.target.value })
+                    }
+                    className="border-2 focus:border-blue-500 rounded-lg"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="attendees" className="text-sm font-semibold">
+                    <Users className="w-4 h-4 inline mr-1" />
+                    Attendees (comma separated emails)
+                  </Label>
+                  <Input
+                    id="attendees"
+                    placeholder="email1@example.com, email2@example.com"
+                    value={formData.attendees}
+                    onChange={(e) =>
+                      setFormData({ ...formData, attendees: e.target.value })
+                    }
+                    className="border-2 focus:border-blue-500 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              {/* Appearance & Sync */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg text-foreground border-l-4 border-l-amber-500 pl-3">Appearance & Sync</h3>
+                <div className="space-y-2">
+                  <Label htmlFor="color" className="text-sm font-semibold">Event Color</Label>
+                  <Select
+                    value={formData.color}
+                    onValueChange={(value) => setFormData({ ...formData, color: value })}
+                  >
+                    <SelectTrigger className="border-2 rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="blue">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded bg-blue-500"></div>
+                          Blue
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="green">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded bg-green-500"></div>
+                          Green
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="red">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded bg-red-500"></div>
+                          Red
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="yellow">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded bg-yellow-500"></div>
+                          Yellow
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="purple">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded bg-purple-500"></div>
+                          Purple
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="pink">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded bg-pink-500"></div>
+                          Pink
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {isConnected && (
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="syncWithGoogle"
+                      checked={formData.syncWithGoogle}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, syncWithGoogle: checked })
+                      }
+                    />
+                    <Label htmlFor="syncWithGoogle" className="text-sm font-semibold">Sync with Google Calendar</Label>
+                  </div>
+                )}
+              </div>
+            </div>
+          </ScrollArea>
+
+          {/* Modern Action Footer */}
+          <div className="border-t bg-gradient-to-r from-slate-50 to-slate-100/50 px-6 py-4 flex gap-3 shadow-lg">
             {isEditMode && (
               <Button
                 variant="destructive"
                 onClick={() => setShowDeleteDialog(true)}
+                className="rounded-lg shadow-sm"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
               </Button>
             )}
-            <Button variant="outline" onClick={() => setShowEventDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowEventDialog(false)}
+              className="flex-1 border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg shadow-sm"
+            >
               Cancel
             </Button>
-            <Button onClick={handleSaveEvent}>
+            <Button
+              onClick={handleSaveEvent}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all rounded-lg"
+            >
               {isEditMode ? 'Update' : 'Create'} Event
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
