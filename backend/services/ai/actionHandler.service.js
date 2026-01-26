@@ -283,6 +283,7 @@ Notes: ${data.notes || 'None'}
       }
 
       // Parse due date if provided, otherwise default to 7 days from now (IST)
+      // All dates are handled in IST, independent of server timezone
       let dueDate;
       if (data.dueDate) {
         // If dueDate is provided, parse it in IST context
@@ -291,11 +292,9 @@ Notes: ${data.notes || 'None'}
         // Try to parse from date/time fields (in IST)
         dueDate = this.parseDateTime(data.date, data.time);
       } else {
-        // Default: 7 days from now (IST)
-        const nowIST = this.getISTDate();
-        dueDate = new Date(nowIST.getTime() + 7 * 24 * 60 * 60 * 1000);
-        dueDate.setHours(10, 0, 0, 0); // Default to 10 AM IST
-        console.log('   ℹ️ No due date specified, defaulting to 7 days from now (IST):', dueDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+        // Default: 7 days from now at 10 AM IST (server-timezone independent)
+        dueDate = this.getISTDatePlusDays(7, 10);
+        console.log('   ℹ️ No due date specified, defaulting to 7 days from now (10 AM IST)');
       }
 
       // Determine assignedTo name (from AI data or default to owner)
@@ -518,58 +517,131 @@ Notes: ${data.notes || 'None'}
   }
 
   /**
+   * IST TIMEZONE CONSTANTS (Server-Independent)
+   * IST = UTC + 5:30
+   */
+  static IST_OFFSET_HOURS = 5;
+  static IST_OFFSET_MINUTES = 30;
+  static IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000; // 5:30 in milliseconds = 19800000
+
+  /**
    * Get current date/time in Indian Standard Time (IST - UTC+5:30)
-   * @returns {Date} Current date in IST
+   * IMPORTANT: This is completely independent of server timezone
+   * Works correctly regardless of where the server is hosted
+   * @returns {Object} { date: Date, year, month, day, hours, minutes, seconds, formatted }
    */
-  getISTDate() {
-    const now = new Date();
-    // IST is UTC+5:30
-    const istOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
-    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
-    return new Date(utcTime + istOffset);
+  getISTNow() {
+    // Get current UTC timestamp (this is always correct regardless of server timezone)
+    const nowUTC = new Date();
+
+    // Calculate IST components directly from UTC
+    // IST = UTC + 5:30
+    const istTime = new Date(nowUTC.getTime() + ActionHandlerService.IST_OFFSET_MS);
+
+    // Extract IST components using UTC methods (since we already added the offset)
+    const year = istTime.getUTCFullYear();
+    const month = istTime.getUTCMonth();
+    const day = istTime.getUTCDate();
+    const hours = istTime.getUTCHours();
+    const minutes = istTime.getUTCMinutes();
+    const seconds = istTime.getUTCSeconds();
+    const dayOfWeek = istTime.getUTCDay();
+
+    // Format for logging
+    const formatted = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} IST`;
+
+    console.log(`   🇮🇳 Current IST (server-independent): ${formatted}`);
+    console.log(`   🌐 Server UTC time: ${nowUTC.toISOString()}`);
+
+    return {
+      date: istTime,
+      year,
+      month,
+      day,
+      hours,
+      minutes,
+      seconds,
+      dayOfWeek,
+      formatted,
+      utcDate: nowUTC
+    };
   }
 
   /**
-   * Convert a Date to IST timezone
-   * @param {Date} date - Date to convert
-   * @returns {Date} Date adjusted for IST
+   * Create a Date object representing a specific IST time
+   * The returned Date, when stored in DB, will represent the correct IST moment
+   * @param {number} year - Year
+   * @param {number} month - Month (0-11)
+   * @param {number} day - Day of month
+   * @param {number} hours - Hours (0-23) in IST
+   * @param {number} minutes - Minutes (0-59)
+   * @returns {Date} Date object representing the IST time
    */
-  toIST(date) {
-    const istOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
-    const utcTime = date.getTime() + (date.getTimezoneOffset() * 60 * 1000);
-    return new Date(utcTime + istOffset);
+  createISTDate(year, month, day, hours = 10, minutes = 0) {
+    // Create a date with the given components as if they were UTC
+    const dateAsUTC = Date.UTC(year, month, day, hours, minutes, 0, 0);
+
+    // Subtract IST offset to convert IST -> UTC for storage
+    // Because: IST time - 5:30 = UTC time
+    const utcTimestamp = dateAsUTC - ActionHandlerService.IST_OFFSET_MS;
+
+    const result = new Date(utcTimestamp);
+
+    console.log(`   🇮🇳 Created IST date: ${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} IST`);
+    console.log(`   🌐 Stored as UTC: ${result.toISOString()}`);
+
+    return result;
   }
 
   /**
-   * Parse date and time string into Date object (in IST - Indian Standard Time)
+   * Parse date and time string into Date object (assumes IST input)
+   * IMPORTANT: Completely server-timezone independent
+   * User input is assumed to be in IST, output is stored correctly for IST
    */
   parseDateTime(dateStr, timeStr) {
-    // Get current time in IST
-    const nowIST = this.getISTDate();
-    let targetDate = new Date(nowIST);
+    // Get current IST time (server-independent)
+    const istNow = this.getISTNow();
 
-    console.log(`   🕐 Parsing date/time in IST: dateStr="${dateStr}", timeStr="${timeStr}"`);
-    console.log(`   🕐 Current IST time: ${nowIST.toISOString()}`);
+    console.log(`   🕐 Parsing date/time (assuming IST): dateStr="${dateStr}", timeStr="${timeStr}"`);
+
+    // Start with current IST date components
+    let targetYear = istNow.year;
+    let targetMonth = istNow.month;
+    let targetDay = istNow.day;
+    let targetHours = 10; // Default 10 AM IST
+    let targetMinutes = 0;
 
     // Handle relative dates (based on IST)
-    if (dateStr && dateStr.toLowerCase() === 'today') {
-      targetDate = new Date(nowIST);
-    } else if (dateStr && dateStr.toLowerCase() === 'tomorrow') {
-      targetDate = new Date(nowIST.getTime() + 24 * 60 * 60 * 1000);
-    } else if (dateStr && dateStr.toLowerCase().startsWith('next')) {
-      // "next monday", "next week" etc.
-      targetDate = new Date(nowIST.getTime() + 7 * 24 * 60 * 60 * 1000);
-    } else if (dateStr) {
-      // Try to parse the date string
-      const parsed = new Date(dateStr);
-      if (!isNaN(parsed.getTime())) {
-        // Keep the date part but use IST context
-        targetDate = new Date(nowIST);
-        targetDate.setFullYear(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+    if (dateStr) {
+      const lowerDateStr = dateStr.toLowerCase().trim();
+
+      if (lowerDateStr === 'today') {
+        // Already set to today's IST date
+      } else if (lowerDateStr === 'tomorrow') {
+        // Add one day
+        const tomorrow = new Date(Date.UTC(targetYear, targetMonth, targetDay + 1));
+        targetYear = tomorrow.getUTCFullYear();
+        targetMonth = tomorrow.getUTCMonth();
+        targetDay = tomorrow.getUTCDate();
+      } else if (lowerDateStr.startsWith('next')) {
+        // "next monday", "next week" etc. - add 7 days
+        const nextWeek = new Date(Date.UTC(targetYear, targetMonth, targetDay + 7));
+        targetYear = nextWeek.getUTCFullYear();
+        targetMonth = nextWeek.getUTCMonth();
+        targetDay = nextWeek.getUTCDate();
+      } else {
+        // Try to parse the date string (e.g., "2026-01-30", "January 30, 2026")
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+          // Extract date components (the parsed date is in local time, but we just want the numbers)
+          targetYear = parsed.getFullYear();
+          targetMonth = parsed.getMonth();
+          targetDay = parsed.getDate();
+        }
       }
     }
 
-    // Parse time (in IST)
+    // Parse time (user specifies IST time)
     if (timeStr) {
       const timeMatch = timeStr.match(/([0-9]{1,2}):?([0-9]{2})?\s*(AM|PM|am|pm)?/i);
       if (timeMatch) {
@@ -577,18 +649,38 @@ Notes: ${data.notes || 'None'}
         const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
         const meridiem = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
 
+        // Convert 12-hour to 24-hour format
         if (meridiem === 'PM' && hours < 12) hours += 12;
         if (meridiem === 'AM' && hours === 12) hours = 0;
 
-        targetDate.setHours(hours, minutes, 0, 0);
+        targetHours = hours;
+        targetMinutes = minutes;
       }
-    } else {
-      // Default to 10 AM IST if no time specified
-      targetDate.setHours(10, 0, 0, 0);
     }
 
-    console.log(`   🕐 Parsed IST date/time: ${targetDate.toISOString()} (${targetDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST)`);
-    return targetDate;
+    // Create the IST date (will be stored as correct UTC)
+    const result = this.createISTDate(targetYear, targetMonth, targetDay, targetHours, targetMinutes);
+
+    return result;
+  }
+
+  /**
+   * Get IST date N days from now
+   * @param {number} days - Number of days to add
+   * @param {number} defaultHour - Default hour in IST (0-23)
+   * @returns {Date} Date object representing the IST time
+   */
+  getISTDatePlusDays(days, defaultHour = 10) {
+    const istNow = this.getISTNow();
+    const futureDate = new Date(Date.UTC(istNow.year, istNow.month, istNow.day + days));
+
+    return this.createISTDate(
+      futureDate.getUTCFullYear(),
+      futureDate.getUTCMonth(),
+      futureDate.getUTCDate(),
+      defaultHour,
+      0
+    );
   }
 }
 
