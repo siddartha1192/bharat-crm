@@ -107,7 +107,6 @@ export default function Forms() {
           fields: [
             { name: 'name', label: 'Name', type: 'text', required: true },
             { name: 'email', label: 'Email', type: 'email', required: formData.requireEmail },
-            { name: 'phoneCountryCode', label: 'Phone Country Code', type: 'select', required: false, defaultValue: '+91', hidden: true },
             { name: 'phone', label: 'Phone', type: 'phone', required: formData.requirePhone },
             { name: 'company', label: 'Company', type: 'text', required: false },
             { name: 'message', label: 'Message', type: 'textarea', required: false },
