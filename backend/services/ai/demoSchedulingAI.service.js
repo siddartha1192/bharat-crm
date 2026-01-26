@@ -4,13 +4,73 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 /**
+ * IST Timezone Constants (Server-Independent)
+ * IST = UTC + 5:30
+ */
+const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000; // 5:30 in milliseconds = 19800000
+
+/**
  * Enterprise AI Service for extracting demo/meeting scheduling from call transcripts
  * This is a PROFESSIONAL/ENTERPRISE feature only
+ * All dates/times are handled in IST (Indian Standard Time) independent of server timezone
  */
 class DemoSchedulingAIService {
   constructor() {
     this.openai = null;
     this.initialized = false;
+  }
+
+  /**
+   * Get current date/time in IST (server-timezone independent)
+   * @returns {Object} IST date components
+   */
+  getISTNow() {
+    const nowUTC = new Date();
+    const istTime = new Date(nowUTC.getTime() + IST_OFFSET_MS);
+
+    return {
+      date: istTime,
+      year: istTime.getUTCFullYear(),
+      month: istTime.getUTCMonth(),
+      day: istTime.getUTCDate(),
+      hours: istTime.getUTCHours(),
+      minutes: istTime.getUTCMinutes(),
+      formatted: `${istTime.getUTCFullYear()}-${String(istTime.getUTCMonth() + 1).padStart(2, '0')}-${String(istTime.getUTCDate()).padStart(2, '0')} ${String(istTime.getUTCHours()).padStart(2, '0')}:${String(istTime.getUTCMinutes()).padStart(2, '0')} IST`
+    };
+  }
+
+  /**
+   * Create a Date object for specific IST time (server-timezone independent)
+   * @param {number} year
+   * @param {number} month (0-11)
+   * @param {number} day
+   * @param {number} hours (0-23) in IST
+   * @param {number} minutes
+   * @returns {Date} Date object representing the IST time as UTC
+   */
+  createISTDate(year, month, day, hours = 10, minutes = 0) {
+    // Create as if UTC, then subtract IST offset to get correct UTC time
+    const dateAsUTC = Date.UTC(year, month, day, hours, minutes, 0, 0);
+    const utcTimestamp = dateAsUTC - IST_OFFSET_MS;
+    return new Date(utcTimestamp);
+  }
+
+  /**
+   * Get IST date N days from now
+   * @param {number} days
+   * @param {number} defaultHour in IST (0-23)
+   * @returns {Date}
+   */
+  getISTDatePlusDays(days, defaultHour = 10) {
+    const istNow = this.getISTNow();
+    const futureDate = new Date(Date.UTC(istNow.year, istNow.month, istNow.day + days));
+    return this.createISTDate(
+      futureDate.getUTCFullYear(),
+      futureDate.getUTCMonth(),
+      futureDate.getUTCDate(),
+      defaultHour,
+      0
+    );
   }
 
   /**
@@ -159,13 +219,16 @@ Extract the following information and return as JSON:
 - Parse relative dates like "tomorrow", "next week", "Monday" based on call date
 - If no specific date/time mentioned but agreed, set agreed=true with null date/time
 - Be conservative with "agreed" - uncertain means false
-- Extract timezone if mentioned (IST, PST, etc.)
+- **TIMEZONE: Assume all times are in IST (Indian Standard Time) unless explicitly stated otherwise**
+- When returning proposedTime, use 24-hour format (HH:MM)
+- When returning proposedDate, use ISO format (YYYY-MM-DD)
 
 Return ONLY valid JSON, no additional text.`;
   }
 
   /**
    * Convert extracted meeting info into calendar event format
+   * All times are in IST (Indian Standard Time) - server-timezone independent
    *
    * @param {Object} meetingInfo - Extracted meeting information
    * @param {Object} leadData - Lead information
@@ -174,22 +237,53 @@ Return ONLY valid JSON, no additional text.`;
    */
   formatAsCalendarEvent(meetingInfo, leadData, callData) {
     try {
-      // Determine start time
+      // Determine start time (all times treated as IST)
       let startDateTime;
 
+      console.log(`   🇮🇳 Formatting calendar event in IST (server-independent)`);
+
       if (meetingInfo.proposedDateTime) {
-        startDateTime = new Date(meetingInfo.proposedDateTime);
+        // Parse the proposed datetime - assume it's in IST
+        const parsed = new Date(meetingInfo.proposedDateTime);
+        if (!isNaN(parsed.getTime())) {
+          // The AI returned an ISO string - treat the time as IST
+          // Extract components and create proper IST date
+          const year = parsed.getFullYear();
+          const month = parsed.getMonth();
+          const day = parsed.getDate();
+          const hours = parsed.getHours();
+          const minutes = parsed.getMinutes();
+          startDateTime = this.createISTDate(year, month, day, hours, minutes);
+          console.log(`   🕐 Parsed proposedDateTime: ${meetingInfo.proposedDateTime} -> IST ${hours}:${String(minutes).padStart(2, '0')}`);
+        } else {
+          startDateTime = this.getISTDatePlusDays(1, 10); // Default tomorrow 10 AM IST
+        }
       } else if (meetingInfo.proposedDate && meetingInfo.proposedTime) {
-        startDateTime = new Date(`${meetingInfo.proposedDate}T${meetingInfo.proposedTime}`);
+        // Parse date and time separately (both in IST)
+        const dateParts = meetingInfo.proposedDate.split('-');
+        const timeParts = meetingInfo.proposedTime.split(':');
+        const year = parseInt(dateParts[0]);
+        const month = parseInt(dateParts[1]) - 1; // 0-indexed
+        const day = parseInt(dateParts[2]);
+        const hours = parseInt(timeParts[0]);
+        const minutes = parseInt(timeParts[1]) || 0;
+        startDateTime = this.createISTDate(year, month, day, hours, minutes);
+        console.log(`   🕐 Parsed date+time: ${meetingInfo.proposedDate} ${meetingInfo.proposedTime} IST`);
       } else if (meetingInfo.proposedDate) {
-        // Default to 10 AM if only date provided
-        startDateTime = new Date(`${meetingInfo.proposedDate}T10:00:00`);
+        // Only date provided - default to 10 AM IST
+        const dateParts = meetingInfo.proposedDate.split('-');
+        const year = parseInt(dateParts[0]);
+        const month = parseInt(dateParts[1]) - 1;
+        const day = parseInt(dateParts[2]);
+        startDateTime = this.createISTDate(year, month, day, 10, 0);
+        console.log(`   🕐 Parsed date only: ${meetingInfo.proposedDate}, defaulting to 10 AM IST`);
       } else {
-        // No date specified - schedule for tomorrow at 10 AM
-        startDateTime = new Date();
-        startDateTime.setDate(startDateTime.getDate() + 1);
-        startDateTime.setHours(10, 0, 0, 0);
+        // No date specified - schedule for tomorrow at 10 AM IST (server-independent)
+        startDateTime = this.getISTDatePlusDays(1, 10);
+        console.log(`   🕐 No date specified, defaulting to tomorrow 10 AM IST`);
       }
+
+      console.log(`   🌐 Calendar event start time (UTC): ${startDateTime.toISOString()}`);
 
       // Determine duration (default 30 minutes for demo, 60 for meeting)
       const duration = meetingInfo.duration ||
