@@ -128,10 +128,14 @@ class GmailIntegrationService {
    */
   async getAuthenticatedClient(user, tenant) {
     if (!user.gmailAccessToken || !user.gmailRefreshToken) {
-      throw new Error('Gmail not connected for this user');
+      const error = new Error('Gmail not connected for this user');
+      error.requiresReconnect = true;
+      error.code = 'GMAIL_NOT_CONNECTED';
+      throw error;
     }
 
     const oauth2Client = this.getTenantOAuthClient(tenant);
+    const userId = user.id;
 
     // Set user credentials
     oauth2Client.setCredentials({
@@ -140,27 +144,77 @@ class GmailIntegrationService {
       expiry_date: user.gmailTokenExpiry ? new Date(user.gmailTokenExpiry).getTime() : undefined,
     });
 
-    // Check if token is expired and refresh if needed
-    if (user.gmailTokenExpiry && new Date(user.gmailTokenExpiry) <= new Date()) {
-      console.log(`[Gmail Integration] Token expired for user ${user.id}, refreshing...`);
-      await this.refreshUserTokens(user.id, tenant);
+    // Proactive refresh: Refresh token 5 minutes before expiry to prevent interruptions
+    const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
+    const now = Date.now();
+    const expiryTime = user.gmailTokenExpiry ? new Date(user.gmailTokenExpiry).getTime() : 0;
+    const shouldRefresh = expiryTime > 0 && (expiryTime - now) <= REFRESH_BUFFER_MS;
 
-      // Reload user with new tokens
-      const updatedUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: {
-          gmailAccessToken: true,
-          gmailRefreshToken: true,
-          gmailTokenExpiry: true,
-        },
-      });
+    if (shouldRefresh) {
+      const timeUntilExpiry = Math.round((expiryTime - now) / 1000);
+      console.log(`[Gmail Integration] Token expiring in ${timeUntilExpiry}s for user ${userId}, proactively refreshing...`);
 
-      oauth2Client.setCredentials({
-        access_token: updatedUser.gmailAccessToken,
-        refresh_token: updatedUser.gmailRefreshToken,
-        expiry_date: updatedUser.gmailTokenExpiry ? new Date(updatedUser.gmailTokenExpiry).getTime() : undefined,
-      });
+      try {
+        await this.refreshUserTokens(userId, tenant);
+
+        // Reload user with new tokens
+        const updatedUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            gmailAccessToken: true,
+            gmailRefreshToken: true,
+            gmailTokenExpiry: true,
+          },
+        });
+
+        if (updatedUser?.gmailAccessToken) {
+          oauth2Client.setCredentials({
+            access_token: updatedUser.gmailAccessToken,
+            refresh_token: updatedUser.gmailRefreshToken,
+            expiry_date: updatedUser.gmailTokenExpiry ? new Date(updatedUser.gmailTokenExpiry).getTime() : undefined,
+          });
+        }
+      } catch (refreshError) {
+        // If refresh fails with requiresReconnect, propagate it
+        if (refreshError.requiresReconnect) {
+          throw refreshError;
+        }
+        // For other errors, log but continue with existing token (it might still work)
+        console.error(`[Gmail Integration] Proactive refresh failed for user ${userId}:`, refreshError.message);
+      }
     }
+
+    // Listen for automatic token refresh by the Google OAuth library
+    // and persist new tokens to the database
+    oauth2Client.on('tokens', async (tokens) => {
+      try {
+        const updateData = {};
+
+        if (tokens.access_token) {
+          updateData.gmailAccessToken = tokens.access_token;
+          console.log(`[Gmail Integration] Auto-refresh: New access token received for user ${userId}`);
+        }
+
+        if (tokens.refresh_token) {
+          updateData.gmailRefreshToken = tokens.refresh_token;
+          console.log(`[Gmail Integration] Auto-refresh: New refresh token received for user ${userId}`);
+        }
+
+        if (tokens.expiry_date) {
+          updateData.gmailTokenExpiry = new Date(tokens.expiry_date);
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+          });
+          console.log(`[Gmail Integration] Auto-refresh: Tokens saved for user ${userId}`);
+        }
+      } catch (saveError) {
+        console.error(`[Gmail Integration] Failed to save auto-refreshed tokens for user ${userId}:`, saveError.message);
+      }
+    });
 
     return google.gmail({ version: 'v1', auth: oauth2Client });
   }
@@ -171,6 +225,7 @@ class GmailIntegrationService {
    * @param {string} userId - User ID
    * @param {Object} tenant - Tenant object
    * @returns {Promise<Object>} - New tokens
+   * @throws {Error} - With requiresReconnect property if refresh token is invalid
    */
   async refreshUserTokens(userId, tenant) {
     const user = await prisma.user.findUnique({
@@ -181,7 +236,9 @@ class GmailIntegrationService {
     });
 
     if (!user || !user.gmailRefreshToken) {
-      throw new Error('No refresh token available for this user');
+      const error = new Error('No refresh token available for this user');
+      error.requiresReconnect = true;
+      throw error;
     }
 
     const oauth2Client = this.getTenantOAuthClient(tenant);
@@ -192,18 +249,56 @@ class GmailIntegrationService {
     try {
       const { credentials } = await oauth2Client.refreshAccessToken();
 
+      // Save new tokens including refresh token if provided
+      const updateData = {
+        gmailAccessToken: credentials.access_token,
+        gmailTokenExpiry: new Date(credentials.expiry_date),
+      };
+
+      // Google sometimes issues a new refresh token - save it if provided
+      if (credentials.refresh_token) {
+        updateData.gmailRefreshToken = credentials.refresh_token;
+        console.log(`[Gmail Integration] New refresh token received for user ${userId}`);
+      }
+
       await prisma.user.update({
         where: { id: userId },
-        data: {
-          gmailAccessToken: credentials.access_token,
-          gmailTokenExpiry: new Date(credentials.expiry_date),
-        },
+        data: updateData,
       });
 
       console.log(`[Gmail Integration] Refreshed tokens for user ${userId}`);
       return credentials;
     } catch (error) {
       console.error('Error refreshing Gmail tokens:', error.message);
+
+      // Check if this is an invalid_grant error (refresh token revoked/expired)
+      const isInvalidGrant = error.message?.includes('invalid_grant') ||
+        error.response?.data?.error === 'invalid_grant' ||
+        error.code === 'invalid_grant';
+
+      if (isInvalidGrant) {
+        console.warn(`[Gmail Integration] Refresh token revoked/expired for user ${userId}. Clearing tokens.`);
+
+        // Clear invalid tokens from database
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            gmailAccessToken: null,
+            gmailRefreshToken: null,
+            gmailTokenExpiry: null,
+            gmailConnectedAt: null,
+            gmailScopes: null,
+          },
+        });
+
+        const reconnectError = new Error(
+          'Your Gmail connection has expired. Please reconnect your account in Settings > Integrations.'
+        );
+        reconnectError.requiresReconnect = true;
+        reconnectError.code = 'GMAIL_TOKEN_REVOKED';
+        throw reconnectError;
+      }
+
       throw new Error('Failed to refresh Gmail tokens: ' + error.message);
     }
   }
