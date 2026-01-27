@@ -145,10 +145,14 @@ class GoogleCalendarService {
    */
   async getAuthenticatedClient(user, tenant = null) {
     if (!user.calendarAccessToken || !user.calendarRefreshToken) {
-      throw new Error('Calendar not connected for this user');
+      const error = new Error('Calendar not connected for this user');
+      error.requiresReconnect = true;
+      error.code = 'CALENDAR_NOT_CONNECTED';
+      throw error;
     }
 
     const oauth2Client = this.getOAuth2Client(tenant);
+    const userId = user.id;
 
     oauth2Client.setCredentials({
       access_token: user.calendarAccessToken,
@@ -156,34 +160,76 @@ class GoogleCalendarService {
       expiry_date: user.calendarTokenExpiry ? new Date(user.calendarTokenExpiry).getTime() : undefined,
     });
 
-    // Check if token is expired and refresh if needed
-    if (user.calendarTokenExpiry && new Date(user.calendarTokenExpiry) <= new Date()) {
-      console.log(`[Calendar Integration] Token expired for user ${user.id}, refreshing...`);
-      await this.refreshUserTokens(user.id, tenant);
+    // Proactive refresh: Refresh token 5 minutes before expiry to prevent interruptions
+    const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
+    const now = Date.now();
+    const expiryTime = user.calendarTokenExpiry ? new Date(user.calendarTokenExpiry).getTime() : 0;
+    const shouldRefresh = expiryTime > 0 && (expiryTime - now) <= REFRESH_BUFFER_MS;
 
-      // Reload user with new tokens
-      const updatedUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: {
-          calendarAccessToken: true,
-          calendarRefreshToken: true,
-          calendarTokenExpiry: true,
-        },
-      });
+    if (shouldRefresh) {
+      const timeUntilExpiry = Math.round((expiryTime - now) / 1000);
+      console.log(`[Calendar Integration] Token expiring in ${timeUntilExpiry}s for user ${userId}, proactively refreshing...`);
 
-      oauth2Client.setCredentials({
-        access_token: updatedUser.calendarAccessToken,
-        refresh_token: updatedUser.calendarRefreshToken,
-        expiry_date: updatedUser.calendarTokenExpiry ? new Date(updatedUser.calendarTokenExpiry).getTime() : undefined,
-      });
+      try {
+        await this.refreshUserTokens(userId, tenant);
+
+        // Reload user with new tokens
+        const updatedUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            calendarAccessToken: true,
+            calendarRefreshToken: true,
+            calendarTokenExpiry: true,
+          },
+        });
+
+        if (updatedUser?.calendarAccessToken) {
+          oauth2Client.setCredentials({
+            access_token: updatedUser.calendarAccessToken,
+            refresh_token: updatedUser.calendarRefreshToken,
+            expiry_date: updatedUser.calendarTokenExpiry ? new Date(updatedUser.calendarTokenExpiry).getTime() : undefined,
+          });
+        }
+      } catch (refreshError) {
+        // If refresh fails with requiresReconnect, propagate it
+        if (refreshError.requiresReconnect) {
+          throw refreshError;
+        }
+        // For other errors, log but continue with existing token (it might still work)
+        console.error(`[Calendar Integration] Proactive refresh failed for user ${userId}:`, refreshError.message);
+      }
     }
 
-    // Refresh token if expired
-    oauth2Client.on('tokens', (tokens) => {
-      if (tokens.refresh_token) {
-        console.log('New Calendar refresh token received');
+    // Listen for automatic token refresh by the Google OAuth library
+    // and persist new tokens to the database
+    oauth2Client.on('tokens', async (tokens) => {
+      try {
+        const updateData = {};
+
+        if (tokens.access_token) {
+          updateData.calendarAccessToken = tokens.access_token;
+          console.log(`[Calendar Integration] Auto-refresh: New access token received for user ${userId}`);
+        }
+
+        if (tokens.refresh_token) {
+          updateData.calendarRefreshToken = tokens.refresh_token;
+          console.log(`[Calendar Integration] Auto-refresh: New refresh token received for user ${userId}`);
+        }
+
+        if (tokens.expiry_date) {
+          updateData.calendarTokenExpiry = new Date(tokens.expiry_date);
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+          });
+          console.log(`[Calendar Integration] Auto-refresh: Tokens saved for user ${userId}`);
+        }
+      } catch (saveError) {
+        console.error(`[Calendar Integration] Failed to save auto-refreshed tokens for user ${userId}:`, saveError.message);
       }
-      console.log('New Calendar access token received');
     });
 
     return oauth2Client;
@@ -194,6 +240,7 @@ class GoogleCalendarService {
    * @param {string} userId - User ID
    * @param {Object} tenant - Tenant object
    * @returns {Promise<Object>} - New tokens
+   * @throws {Error} - With requiresReconnect property if refresh token is invalid
    */
   async refreshUserTokens(userId, tenant = null) {
     const user = await prisma.user.findUnique({
@@ -204,7 +251,9 @@ class GoogleCalendarService {
     });
 
     if (!user || !user.calendarRefreshToken) {
-      throw new Error('No refresh token available for this user');
+      const error = new Error('No refresh token available for this user');
+      error.requiresReconnect = true;
+      throw error;
     }
 
     const oauth2Client = this.getOAuth2Client(tenant);
@@ -215,18 +264,56 @@ class GoogleCalendarService {
     try {
       const { credentials } = await oauth2Client.refreshAccessToken();
 
+      // Save new tokens including refresh token if provided
+      const updateData = {
+        calendarAccessToken: credentials.access_token,
+        calendarTokenExpiry: new Date(credentials.expiry_date),
+      };
+
+      // Google sometimes issues a new refresh token - save it if provided
+      if (credentials.refresh_token) {
+        updateData.calendarRefreshToken = credentials.refresh_token;
+        console.log(`[Calendar Integration] New refresh token received for user ${userId}`);
+      }
+
       await prisma.user.update({
         where: { id: userId },
-        data: {
-          calendarAccessToken: credentials.access_token,
-          calendarTokenExpiry: new Date(credentials.expiry_date),
-        },
+        data: updateData,
       });
 
       console.log(`[Calendar Integration] Refreshed tokens for user ${userId}`);
       return credentials;
     } catch (error) {
       console.error('Error refreshing Calendar tokens:', error.message);
+
+      // Check if this is an invalid_grant error (refresh token revoked/expired)
+      const isInvalidGrant = error.message?.includes('invalid_grant') ||
+        error.response?.data?.error === 'invalid_grant' ||
+        error.code === 'invalid_grant';
+
+      if (isInvalidGrant) {
+        console.warn(`[Calendar Integration] Refresh token revoked/expired for user ${userId}. Clearing tokens.`);
+
+        // Clear invalid tokens from database
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            calendarAccessToken: null,
+            calendarRefreshToken: null,
+            calendarTokenExpiry: null,
+            calendarConnectedAt: null,
+            calendarScopes: null,
+          },
+        });
+
+        const reconnectError = new Error(
+          'Your Google Calendar connection has expired. Please reconnect your account in Settings > Integrations.'
+        );
+        reconnectError.requiresReconnect = true;
+        reconnectError.code = 'CALENDAR_TOKEN_REVOKED';
+        throw reconnectError;
+      }
+
       throw new Error('Failed to refresh Calendar tokens: ' + error.message);
     }
   }
