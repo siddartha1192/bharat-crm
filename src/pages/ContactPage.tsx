@@ -73,7 +73,7 @@ export default function ContactPage() {
     {
       icon: <MessageSquare className="w-6 h-6" />,
       title: "WhatsApp",
-      value: "+91 98765-43210",
+      value: "+91 9148014455",
       description: "Chat with us anytime",
       gradient: "from-green-500 to-emerald-500"
     },
