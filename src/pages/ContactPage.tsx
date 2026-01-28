@@ -59,14 +59,14 @@ export default function ContactPage() {
     {
       icon: <Mail className="w-6 h-6" />,
       title: "Email Us",
-      value: "hello@neuragg.com",
+      value: "vicidas2021@gmail.com",
       description: "Get a response within 24 hours",
       gradient: "from-blue-500 to-cyan-500"
     },
     {
       icon: <Phone className="w-6 h-6" />,
       title: "Call Us",
-      value: "+91 80-1234-5678",
+      value: "+91 9148014455",
       description: "Mon-Fri, 9 AM - 6 PM IST",
       gradient: "from-purple-500 to-pink-500"
     },
