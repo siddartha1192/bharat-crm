@@ -306,7 +306,7 @@ export default function PromoLanding() {
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
               Why Businesses
-              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent"> Love NeuraGG CRM</span>
+              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent"> Love Neuragg CRM</span>
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Real results that impact your bottom line from day one.
@@ -494,7 +494,7 @@ export default function PromoLanding() {
                   Ready to Transform Your Sales?
                 </h2>
                 <p className="text-xl text-gray-600">
-                  Request a personalized demo and see NeuraGG CRM in action
+                  Request a personalized demo and see Neuragg CRM in action
                 </p>
               </div>
 
@@ -635,7 +635,7 @@ export default function PromoLanding() {
             Start your free trial today. No credit card required.
           </p>
           <p className="text-xl mb-10 text-gray-400">
-            Join hundreds of Indian businesses already using NeuraGG CRM
+            Join hundreds of Indian businesses already using Neuragg CRM
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-12">
