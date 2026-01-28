@@ -155,7 +155,7 @@ export default function Login() {
               <Building2 className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">CLiM</h1>
+          <h1 className="text-3xl font-bold text-foreground">Neuragg CRM</h1>
           <p className="text-muted-foreground">
             Welcome back! Please login to continue.
           </p>
