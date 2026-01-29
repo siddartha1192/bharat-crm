@@ -48,7 +48,7 @@ import APIPage from "./pages/APIPage";
 import AboutPage from "./pages/AboutPage";
 import BlogPage from "./pages/BlogPage";
 import BlogDetailPage from "./pages/BlogDetailPage";
-import CareersPage from "./pages/CareersPage";
+//import CareersPage from "./pages/CareersPage";
 import HelpCenterPage from "./pages/HelpCenterPage";
 import ContactPage from "./pages/ContactPage";
 import StatusPage from "./pages/StatusPage";
