@@ -59,7 +59,7 @@ export default function ContactPage() {
     {
       icon: <Mail className="w-6 h-6" />,
       title: "Email Us",
-      value: "vicidas2021@gmail.com",
+      value: "office@neuragg.com",
       description: "Get a response within 24 hours",
       gradient: "from-blue-500 to-cyan-500"
     },
