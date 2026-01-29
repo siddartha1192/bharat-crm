@@ -1,0 +1,99 @@
+# =============================================================================
+# BHARAT CRM - WORKER SERVER DOCKERFILE
+# =============================================================================
+#
+# This Dockerfile builds the worker server that:
+#   - Runs all scheduled cron jobs
+#   - Hosts Qdrant vector database (embedded)
+#   - Processes campaigns, reminders, calls
+#   - Uses distributed locking via Redis
+#
+# Build:
+#   docker build -f Dockerfile.worker -t bharat-crm-worker .
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Dependencies
+# -----------------------------------------------------------------------------
+FROM node:20-slim AS dependencies
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    openssl \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install all dependencies
+RUN npm ci
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# -----------------------------------------------------------------------------
+# Stage 2: Qdrant Setup
+# -----------------------------------------------------------------------------
+FROM qdrant/qdrant:latest AS qdrant
+
+# -----------------------------------------------------------------------------
+# Stage 3: Production Worker
+# -----------------------------------------------------------------------------
+FROM node:20-slim AS production
+
+WORKDIR /app
+
+# Install runtime dependencies and supervisor
+RUN apt-get update && apt-get install -y \
+    openssl \
+    wget \
+    curl \
+    supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Qdrant binary and libs from qdrant image
+COPY --from=qdrant /qdrant/qdrant /usr/local/bin/qdrant
+COPY --from=qdrant /qdrant/config /qdrant/config
+
+# Copy node_modules from dependencies stage
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY --from=dependencies /app/node_modules/.prisma ./node_modules/.prisma
+
+# Copy application code
+COPY . .
+
+# Copy worker-specific files
+COPY docker-entrypoint.worker.sh /docker-entrypoint.sh
+COPY supervisord.worker.conf /etc/supervisor/conf.d/supervisord.conf
+RUN chmod +x /docker-entrypoint.sh
+
+# Create directories
+RUN mkdir -p /qdrant/storage /var/log/supervisor
+
+# Create non-root user
+RUN groupadd -r nodejs && useradd -r -g nodejs nodejs
+RUN chown -R nodejs:nodejs /app /qdrant
+
+# Environment
+ENV NODE_ENV=production
+ENV PORT=3002
+ENV IS_WORKER=true
+ENV QDRANT_URL=http://localhost:6333
+
+# Expose ports
+EXPOSE 3002 6333 6334
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3002/health || exit 1
+
+# Start with supervisor
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
