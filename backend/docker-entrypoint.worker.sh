@@ -15,7 +15,17 @@ echo "========================================"
 
 # Wait for Redis
 echo "Waiting for Redis..."
-until wget -q --spider http://${REDIS_HOST:-redis}:${REDIS_PORT:-6379} 2>/dev/null || nc -z ${REDIS_HOST:-redis} ${REDIS_PORT:-6379} 2>/dev/null; do
+echo "Redis URL: ${REDIS_URL:-redis://redis:6379}"
+
+until node -e "
+const { createClient } = require('redis');
+const client = createClient({ url: process.env.REDIS_URL || 'redis://redis:6379' });
+client.on('error', () => process.exit(1));
+client.connect()
+  .then(() => client.ping())
+  .then(() => { console.log('Redis PONG'); client.quit(); process.exit(0); })
+  .catch(() => process.exit(1));
+" 2>/dev/null; do
     echo "Redis is unavailable - sleeping"
     sleep 2
 done
