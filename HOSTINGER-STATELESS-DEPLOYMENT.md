@@ -37,13 +37,15 @@
 │                                                                             │
 └─────────────────────────────────────┬───────────────────────────────────────┘
                                       │
-                                      ▼
-                          ┌───────────────────────┐
-                          │   DIGITALOCEAN        │
-                          │   Managed PostgreSQL  │
-                          │                       │
-                          │   Port 25060 (SSL)    │
-                          └───────────────────────┘
+                    ┌─────────────────┴─────────────────┐
+                    │                                   │
+                    ▼                                   ▼
+        ┌───────────────────────┐         ┌───────────────────────┐
+        │   DIGITALOCEAN        │         │   DIGITALOCEAN        │
+        │   Managed PostgreSQL  │         │   Spaces (S3)         │
+        │                       │         │                       │
+        │   Port 25060 (SSL)    │         │   File Storage        │
+        └───────────────────────┘         └───────────────────────┘
 ```
 
 ## Why This Architecture?
@@ -55,6 +57,7 @@
 | **Worker Server** | Background jobs run once (not duplicated) |
 | **Redis** | Shared session state across app servers |
 | **Managed DB** | Automatic backups, no maintenance overhead |
+| **S3 Storage (Spaces)** | Stateless file storage - no local files on app servers |
 
 ---
 
@@ -90,6 +93,71 @@
 4. Click **Save**
 
 > Without this, your app cannot connect to the database!
+
+---
+
+## PART 1B: DIGITALOCEAN SPACES SETUP (S3 Storage)
+
+DigitalOcean Spaces provides S3-compatible object storage for file uploads. This ensures your app servers remain truly stateless.
+
+### Step 1B.1: Create a Space
+
+1. Go to [DigitalOcean](https://cloud.digitalocean.com)
+2. Click **Create** → **Spaces Object Storage**
+3. Configure:
+   - **Datacenter**: Choose same region as your database (e.g., `fra1` for Frankfurt)
+   - **CDN**: Enable (recommended for faster file delivery)
+   - **Allow file listing**: Disable (security)
+   - **Name**: `crm-files` (or your preferred name)
+4. Click **Create a Space**
+
+### Step 1B.2: Create API Keys
+
+1. Go to **API** → **Spaces Keys**
+2. Click **Generate New Key**
+3. Enter a name: `crm-spaces-key`
+4. **SAVE BOTH VALUES** - they will only be shown once:
+   - **Access Key**: (looks like: `DO00XXXXXXXXXXXX`)
+   - **Secret Key**: (looks like: `XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX`)
+
+### Step 1B.3: Note Your Space Details
+
+Your Space URL will be:
+```
+https://crm-files.fra1.digitaloceanspaces.com
+```
+
+The S3 endpoint for your region:
+```
+https://fra1.digitaloceanspaces.com
+```
+
+Common regions:
+| Region | Endpoint |
+|--------|----------|
+| Frankfurt | `fra1.digitaloceanspaces.com` |
+| New York | `nyc3.digitaloceanspaces.com` |
+| San Francisco | `sfo3.digitaloceanspaces.com` |
+| Singapore | `sgp1.digitaloceanspaces.com` |
+| Amsterdam | `ams3.digitaloceanspaces.com` |
+
+### Step 1B.4: Test Access (Optional)
+
+You can test with AWS CLI:
+```bash
+# Install AWS CLI
+apt install -y awscli
+
+# Configure (use Spaces keys, not AWS keys)
+aws configure
+# AWS Access Key ID: your-spaces-access-key
+# AWS Secret Access Key: your-spaces-secret-key
+# Default region: fra1 (your region)
+# Default output format: json
+
+# Test listing
+aws --endpoint-url https://fra1.digitaloceanspaces.com s3 ls s3://crm-files/
+```
 
 ---
 
@@ -218,6 +286,15 @@ GOOGLE_AUTH_REDIRECT_URI=https://yourdomain.com/api/auth/google/callback
 GMAIL_USER=your-email@gmail.com
 GMAIL_REFRESH_TOKEN=your-refresh-token
 GMAIL_REDIRECT_URI=https://developers.google.com/oauthplayground
+
+# ===========================================
+# DIGITALOCEAN SPACES (S3 Storage) - From Part 1B
+# ===========================================
+S3_ENDPOINT=https://fra1.digitaloceanspaces.com
+S3_ACCESS_KEY=your-spaces-access-key
+S3_SECRET_KEY=your-spaces-secret-key
+S3_BUCKET=crm-files
+S3_REGION=fra1
 
 # ===========================================
 # COMPANY
@@ -439,8 +516,9 @@ Docker handles log rotation automatically with the configured limits:
 ### Backup Strategy
 
 1. **Database**: DigitalOcean provides automatic daily backups
-2. **Redis**: Data persists in `redis_data` volume
-3. **Qdrant**: Data persists in `qdrant_data` volume
+2. **File Storage**: DigitalOcean Spaces has built-in redundancy (3x replication)
+3. **Redis**: Data persists in `redis_data` volume
+4. **Qdrant**: Data persists in `qdrant_data` volume
 
 Manual backup:
 ```bash
@@ -532,6 +610,46 @@ docker stats --no-stream
 docker system prune -a
 ```
 
+### Problem: File uploads failing (S3/Spaces)
+
+**Solution**: Check S3 configuration
+
+```bash
+# Check if S3 env vars are set
+docker exec crm-app-1 env | grep S3
+
+# Test S3 connection from container
+docker exec crm-app-1 node -e "
+const { S3Client, ListBucketsCommand } = require('@aws-sdk/client-s3');
+const client = new S3Client({
+  endpoint: process.env.S3_ENDPOINT,
+  region: process.env.S3_REGION,
+  credentials: {
+    accessKeyId: process.env.S3_ACCESS_KEY,
+    secretAccessKey: process.env.S3_SECRET_KEY
+  },
+  forcePathStyle: false
+});
+client.send(new ListBucketsCommand({})).then(r => console.log('Connected!', r.Buckets)).catch(e => console.error('Error:', e.message));
+"
+```
+
+Common issues:
+- **Invalid credentials**: Double-check Spaces API keys
+- **Wrong endpoint**: Ensure endpoint matches your Space's region
+- **CORS errors**: Configure CORS in Spaces settings
+
+### Problem: Files not accessible (signed URLs)
+
+**Solution**: Check URL generation
+
+```bash
+# Check backend logs for URL errors
+docker-compose -f docker-compose.stateless.yml logs app-1 | grep -i "signed\|s3\|storage"
+```
+
+Signed URLs expire after 1 hour by default. If users report expired links, they need to refresh the page.
+
 ---
 
 ## PART 10: SCALING (Future)
@@ -566,6 +684,7 @@ docker-compose -f docker-compose.stateless.yml up -d --build
 |------|-------|
 | **Hostinger VPS IP** | DNS A records |
 | **DigitalOcean DB Host** | `.env` → `DATABASE_URL` |
+| **DigitalOcean Spaces** | `.env` → `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET` |
 | **Your Domain** | `.env` → `DOMAIN`, `FRONTEND_URL`, `VITE_API_URL` |
 | **Google OAuth Callbacks** | Google Cloud Console + `.env` |
 | **WhatsApp Webhook** | Meta Business Suite → `https://yourdomain.com/api/webhooks/whatsapp` |
@@ -578,4 +697,7 @@ docker-compose -f docker-compose.stateless.yml up -d --build
 |---------|--------------|------|
 | Hostinger VPS KVM 4 | 8GB RAM, 4 vCPUs | ~$15-20/month |
 | DigitalOcean PostgreSQL | Basic, 1GB RAM | $15/month |
-| **Total** | | **~$30-35/month** |
+| DigitalOcean Spaces | 250GB storage + 1TB transfer | $5/month |
+| **Total** | | **~$35-40/month** |
+
+> **Note**: Spaces includes 250GB storage and 1TB outbound transfer. Additional usage is $0.02/GB storage and $0.01/GB transfer.
