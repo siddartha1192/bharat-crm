@@ -789,7 +789,7 @@ version: '3.8'
 services:
   frontend:
     build:
-      context: ./frontend
+      context: .
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=${VITE_API_URL}
