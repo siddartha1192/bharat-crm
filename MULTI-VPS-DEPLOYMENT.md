@@ -795,6 +795,8 @@ services:
         - VITE_API_URL=${VITE_API_URL}
     container_name: crm-frontend
     restart: always
+    volumes:
+      - ./nginx.frontend.conf:/etc/nginx/conf.d/default.conf:ro
     expose:
       - "80"
 
