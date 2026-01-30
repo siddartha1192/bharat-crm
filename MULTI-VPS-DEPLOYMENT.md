@@ -194,7 +194,7 @@ echo "Your Redis Password: $REDIS_PASSWORD"
 echo "SAVE THIS PASSWORD!"
 
 # Update the docker-compose file with the password
-sed -i "s/YOUR_REDIS_PASSWORD/$REDIS_PASSWORD/g" docker-compose.yml
+sed -i "s|YOUR_REDIS_PASSWORD|$REDIS_PASSWORD|g" docker-compose.yml
 ```
 
 ### 3.6: Start Redis
