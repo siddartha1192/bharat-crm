@@ -1,0 +1,87 @@
+# =============================================================================
+# BHARAT CRM - STATELESS APP SERVER DOCKERFILE
+# =============================================================================
+#
+# This Dockerfile builds a stateless API server that:
+#   - Does NOT run any cron jobs (delegated to worker)
+#   - Uses Redis for Socket.IO adapter
+#   - Uses Redis for OAuth state storage
+#   - Stores files in S3/Spaces (not local filesystem)
+#
+# Build:
+#   docker build -f Dockerfile.stateless -t bharat-crm-app .
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Dependencies
+# -----------------------------------------------------------------------------
+FROM node:20-slim AS dependencies
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    openssl \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install all dependencies (including devDependencies for build)
+RUN npm ci
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# -----------------------------------------------------------------------------
+# Stage 2: Production Build
+# -----------------------------------------------------------------------------
+FROM node:20-slim AS production
+
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    openssl \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy node_modules from dependencies stage
+COPY --from=dependencies /app/node_modules ./node_modules
+
+# Copy Prisma generated client
+COPY --from=dependencies /app/node_modules/.prisma ./node_modules/.prisma
+
+# Copy application code
+COPY . .
+
+# Copy stateless entrypoint
+COPY docker-entrypoint.stateless.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+# Create non-root user for security
+RUN groupadd -r nodejs && useradd -r -g nodejs nodejs
+RUN chown -R nodejs:nodejs /app
+USER nodejs
+
+# Environment
+ENV NODE_ENV=production
+ENV PORT=3001
+ENV IS_WORKER=false
+
+# Expose port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=15s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
+
+# Start application
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["node", "server.js"]
