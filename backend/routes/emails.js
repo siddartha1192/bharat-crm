@@ -5,9 +5,8 @@ const { authenticate, authorize } = require('../middleware/auth');
 const emailService = require('../services/email');
 const authService = require('../services/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
-const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Configure multer for file uploads (in-memory storage)
 const upload = multer({

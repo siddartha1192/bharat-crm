@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const tenantService = require('../services/tenant');
 const authService = require('../services/auth');
 const { authenticate } = require('../middleware/auth');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 /**
  * Middleware to check if user is super admin

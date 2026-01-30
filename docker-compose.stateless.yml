@@ -1,0 +1,372 @@
+# =============================================================================
+# BHARAT CRM - STATELESS ENTERPRISE ARCHITECTURE (Hostinger VPS)
+# =============================================================================
+#
+# Architecture:
+#   - 1x Load Balancer (Nginx)
+#   - 2x App Servers (Stateless Express.js)
+#   - 1x Worker Server (Background Jobs + Qdrant Vector DB)
+#   - 1x Redis (Session, Socket.IO, Distributed Locks)
+#   - 1x Frontend (React)
+#   - External: DigitalOcean Managed PostgreSQL
+#
+# Usage:
+#   docker-compose -f docker-compose.stateless.yml up -d --build
+#
+# Scaling (add more app servers):
+#   docker-compose -f docker-compose.stateless.yml up -d --scale app-1=1 --scale app-2=1
+#
+# =============================================================================
+
+version: '3.8'
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  crm-network:
+    driver: bridge
+    name: crm-network
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  redis_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  certbot_data:
+    driver: local
+  certbot_conf:
+    driver: local
+
+# =============================================================================
+# SERVICES
+# =============================================================================
+services:
+
+  # ===========================================================================
+  # REDIS - SESSION STORE, SOCKET.IO ADAPTER, DISTRIBUTED LOCKS
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: crm-redis
+    restart: always
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+      --timeout 0
+    volumes:
+      - redis_data:/data
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ===========================================================================
+  # APP SERVER 1 - STATELESS API
+  # ===========================================================================
+  app-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.stateless
+    container_name: crm-app-1
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - APP_INSTANCE_ID=app-1
+      - PORT=3001
+      - IS_WORKER=false
+      # Database (DigitalOcean Managed PostgreSQL)
+      - DATABASE_URL=${DATABASE_URL}
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      # Qdrant (connects to worker)
+      - QDRANT_URL=http://worker:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - VECTOR_COLLECTION_NAME=${VECTOR_COLLECTION_NAME:-bharat_crm_knowledge}
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - ENABLE_AI_FEATURE=${ENABLE_AI_FEATURE:-true}
+      # WhatsApp
+      - WHATSAPP_API_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID}
+      - WHATSAPP_WEBHOOK_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN}
+      - WHATSAPP_AI_MODEL=${WHATSAPP_AI_MODEL:-gpt-4o-mini}
+      - WHATSAPP_AI_TEMPERATURE=${WHATSAPP_AI_TEMPERATURE:-0.3}
+      # Google OAuth
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      - GOOGLE_AUTH_REDIRECT_URI=${GOOGLE_AUTH_REDIRECT_URI}
+      # Gmail
+      - GMAIL_USER=${GMAIL_USER}
+      - GMAIL_REFRESH_TOKEN=${GMAIL_REFRESH_TOKEN}
+      - GMAIL_REDIRECT_URI=${GMAIL_REDIRECT_URI}
+      # Twilio
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
+      # S3/DigitalOcean Spaces (Stateless File Storage)
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_REGION=${S3_REGION:-nyc3}
+      - S3_CDN_URL=${S3_CDN_URL:-}
+      # Application
+      - FRONTEND_URL=${FRONTEND_URL}
+      - COMPANY_NAME=${COMPANY_NAME:-Bharat CRM}
+      - OWNER_EMAIL=${OWNER_EMAIL}
+    networks:
+      - crm-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ===========================================================================
+  # APP SERVER 2 - STATELESS API (REPLICA)
+  # ===========================================================================
+  app-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.stateless
+    container_name: crm-app-2
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - APP_INSTANCE_ID=app-2
+      - PORT=3001
+      - IS_WORKER=false
+      # Database (DigitalOcean Managed PostgreSQL)
+      - DATABASE_URL=${DATABASE_URL}
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      # Qdrant (connects to worker)
+      - QDRANT_URL=http://worker:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - VECTOR_COLLECTION_NAME=${VECTOR_COLLECTION_NAME:-bharat_crm_knowledge}
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - ENABLE_AI_FEATURE=${ENABLE_AI_FEATURE:-true}
+      # WhatsApp
+      - WHATSAPP_API_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID}
+      - WHATSAPP_WEBHOOK_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN}
+      - WHATSAPP_AI_MODEL=${WHATSAPP_AI_MODEL:-gpt-4o-mini}
+      - WHATSAPP_AI_TEMPERATURE=${WHATSAPP_AI_TEMPERATURE:-0.3}
+      # Google OAuth
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      - GOOGLE_AUTH_REDIRECT_URI=${GOOGLE_AUTH_REDIRECT_URI}
+      # Gmail
+      - GMAIL_USER=${GMAIL_USER}
+      - GMAIL_REFRESH_TOKEN=${GMAIL_REFRESH_TOKEN}
+      - GMAIL_REDIRECT_URI=${GMAIL_REDIRECT_URI}
+      # Twilio
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
+      # S3/DigitalOcean Spaces (Stateless File Storage)
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_REGION=${S3_REGION:-nyc3}
+      - S3_CDN_URL=${S3_CDN_URL:-}
+      # Application
+      - FRONTEND_URL=${FRONTEND_URL}
+      - COMPANY_NAME=${COMPANY_NAME:-Bharat CRM}
+      - OWNER_EMAIL=${OWNER_EMAIL}
+    networks:
+      - crm-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ===========================================================================
+  # WORKER SERVER - BACKGROUND JOBS + QDRANT VECTOR DB
+  # ===========================================================================
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: crm-worker
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - APP_INSTANCE_ID=worker
+      - PORT=3002
+      - IS_WORKER=true
+      # Database
+      - DATABASE_URL=${DATABASE_URL}
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      # Qdrant (local in worker container)
+      - QDRANT_URL=http://localhost:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - VECTOR_COLLECTION_NAME=${VECTOR_COLLECTION_NAME:-bharat_crm_knowledge}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      # WhatsApp
+      - WHATSAPP_API_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID}
+      # Gmail
+      - GMAIL_USER=${GMAIL_USER}
+      - GMAIL_REFRESH_TOKEN=${GMAIL_REFRESH_TOKEN}
+      - GMAIL_REDIRECT_URI=${GMAIL_REDIRECT_URI}
+      # Application
+      - FRONTEND_URL=${FRONTEND_URL}
+      - COMPANY_NAME=${COMPANY_NAME:-Bharat CRM}
+      - OWNER_EMAIL=${OWNER_EMAIL}
+      # Worker-specific
+      - CAMPAIGN_BATCH_SIZE=${CAMPAIGN_BATCH_SIZE:-100}
+      - CAMPAIGN_BATCH_DELAY=${CAMPAIGN_BATCH_DELAY:-5000}
+      - CALL_SCHEDULER_INTERVAL=${CALL_SCHEDULER_INTERVAL:-30}
+      - LEAD_REMINDER_INTERVAL=${LEAD_REMINDER_INTERVAL:-60}
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - crm-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # ===========================================================================
+  # FRONTEND - REACT APPLICATION
+  # ===========================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    container_name: crm-frontend
+    restart: always
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ===========================================================================
+  # NGINX - LOAD BALANCER + SSL TERMINATION
+  # ===========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: crm-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.stateless.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot_data:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
+    networks:
+      - crm-network
+    depends_on:
+      - frontend
+      - app-1
+      - app-2
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ===========================================================================
+  # CERTBOT - SSL CERTIFICATE AUTO-RENEWAL
+  # ===========================================================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: crm-certbot
+    volumes:
+      - certbot_data:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - crm-network

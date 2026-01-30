@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const { authenticate, authorize, authorizeOwnerOrAdmin } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Apply authentication to all routes
 router.use(authenticate);

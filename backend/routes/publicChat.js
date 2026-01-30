@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const OpenAI = require('openai');
-const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // System prompt for the AI assistant
 const SYSTEM_PROMPT = `You are an AI assistant for Neuragg CRM, an advanced customer relationship management platform. Your role is to help potential customers learn about the product, answer questions, and guide them through the features.

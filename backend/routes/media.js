@@ -6,11 +6,10 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const cloudinary = require('cloudinary').v2;
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Configure multer for memory storage (files will be uploaded directly to Cloudinary)
 const upload = multer({

@@ -5,9 +5,8 @@ const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middl
 const portalAIService = require('../services/ai/portalAI.service');
 const whatsappAIService = require('../services/ai/whatsappAI.service');
 const vectorDBService = require('../services/ai/vectorDB.service');
-const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Apply authentication to all AI routes
 router.use(authenticate);

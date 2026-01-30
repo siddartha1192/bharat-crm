@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const { tenantAdminAuth } = require('../middleware/tenantAdmin');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Apply tenant admin authentication to all routes
 router.use(tenantAdminAuth);

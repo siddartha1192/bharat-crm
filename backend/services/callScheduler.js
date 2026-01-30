@@ -5,11 +5,10 @@
  */
 
 const cron = require('node-cron');
-const { PrismaClient } = require('@prisma/client');
 const callQueueService = require('./callQueueService');
 const moment = require('moment-timezone');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 let io = null; // Socket.io instance for real-time updates
 

@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 const automationService = require('../services/automation');
 const roundRobinService = require('../services/roundRobin');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Apply authentication and tenant context to authenticated routes
 router.use((req, res, next) => {

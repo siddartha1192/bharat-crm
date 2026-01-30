@@ -10,11 +10,10 @@
 
 const { ChatOpenAI } = require('@langchain/openai');
 const { HumanMessage, SystemMessage, AIMessage } = require('@langchain/core/messages');
-const { PrismaClient } = require('@prisma/client');
 const aiConfig = require('../../config/ai.config');
 const vectorDBService = require('./vectorDB.service');
 
-const prisma = new PrismaClient();
+const prisma = require('../../lib/prisma');
 
 // Configuration for WhatsApp conversation memory
 const WHATSAPP_MEMORY_CONFIG = {

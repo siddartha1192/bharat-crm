@@ -1,8 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
 const { google } = require('googleapis');
 const { decrypt } = require('../utils/encryption');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Gmail OAuth scopes (service-specific, NOT for login)
 const GMAIL_SCOPES = [

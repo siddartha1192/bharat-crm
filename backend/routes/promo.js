@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 const roundRobinService = require('../services/roundRobin');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // POST promotional lead (public - no auth required)
 router.post('/lead', async (req, res) => {

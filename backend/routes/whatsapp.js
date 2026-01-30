@@ -7,8 +7,7 @@ const actionHandlerService = require('../services/ai/actionHandler.service');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { getVisibilityFilter } = require('../middleware/assignment');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 const openaiService = require('../services/openai');
 const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 

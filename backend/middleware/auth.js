@@ -1,7 +1,7 @@
 const authService = require('../services/auth');
-const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+// Use Prisma singleton
+const prisma = require('../lib/prisma');
 
 /**
  * Authentication middleware - verifies JWT token

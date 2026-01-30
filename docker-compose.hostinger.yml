@@ -1,0 +1,162 @@
+# Docker Compose for Hostinger VPS + DigitalOcean Database
+# This setup runs all services on Hostinger VPS except PostgreSQL (on DigitalOcean)
+
+version: '3.8'
+
+services:
+  # Qdrant Vector Database (runs locally on Hostinger)
+  # Alternative: Use Qdrant Cloud (https://cloud.qdrant.io) and remove this service
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: crm-qdrant
+    restart: always
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - crm-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Not exposed externally - only accessible within Docker network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: crm-backend
+    restart: always
+    depends_on:
+      - qdrant
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # DigitalOcean Managed PostgreSQL
+      DATABASE_URL: ${DATABASE_URL}
+      # JWT Authentication
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      # Encryption
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # Qdrant (local Docker or cloud)
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      VECTOR_COLLECTION_NAME: ${VECTOR_COLLECTION_NAME:-bharat_crm_knowledge}
+      # OpenAI
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      ENABLE_AI_FEATURE: ${ENABLE_AI_FEATURE:-true}
+      # WhatsApp
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN}
+      WHATSAPP_TOKEN: ${WHATSAPP_API_TOKEN}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN}
+      WHATSAPP_BUSINESS_ACCOUNT_ID: ${WHATSAPP_BUSINESS_ACCOUNT_ID}
+      WHATSAPP_AI_MODEL: ${WHATSAPP_AI_MODEL:-gpt-4o-mini}
+      WHATSAPP_AI_TEMPERATURE: ${WHATSAPP_AI_TEMPERATURE:-0.3}
+      # Google OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+      GOOGLE_AUTH_REDIRECT_URI: ${GOOGLE_AUTH_REDIRECT_URI}
+      # Gmail
+      GMAIL_USER: ${GMAIL_USER}
+      GMAIL_REFRESH_TOKEN: ${GMAIL_REFRESH_TOKEN}
+      GMAIL_REDIRECT_URI: ${GMAIL_REDIRECT_URI}
+      # Twilio (optional)
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      # URLs
+      FRONTEND_URL: ${FRONTEND_URL}
+      APP_URL: ${FRONTEND_URL}
+      # Company
+      COMPANY_NAME: ${COMPANY_NAME:-Neuragg CRM}
+      OWNER_EMAIL: ${OWNER_EMAIL}
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_knowledge:/app/knowledge_base
+      - backend_conversations:/app/conversations
+    networks:
+      - crm-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Frontend (React + Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_API_WEBHOOK_URL: ${VITE_API_WEBHOOK_URL:-}
+    container_name: crm-frontend
+    restart: always
+    depends_on:
+      - backend
+    networks:
+      - crm-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Nginx Reverse Proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: crm-nginx
+    restart: always
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf.hostinger:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot_data:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
+    networks:
+      - crm-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Certbot for SSL certificates
+  certbot:
+    image: certbot/certbot:latest
+    container_name: crm-certbot
+    volumes:
+      - certbot_data:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - crm-network
+
+volumes:
+  qdrant_data:
+    driver: local
+  backend_uploads:
+    driver: local
+  backend_knowledge:
+    driver: local
+  backend_conversations:
+    driver: local
+  certbot_data:
+    driver: local
+  certbot_conf:
+    driver: local
+
+networks:
+  crm-network:
+    driver: bridge

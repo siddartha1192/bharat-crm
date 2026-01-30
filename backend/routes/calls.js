@@ -5,7 +5,6 @@
 
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
@@ -17,7 +16,7 @@ const callService = require('../services/callService');
 const twilioService = require('../services/twilio');
 const demoSchedulingAutomation = require('../services/demoSchedulingAutomation.service');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Configure multer for document uploads
 const storage = multer.diskStorage({

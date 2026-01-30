@@ -1,0 +1,441 @@
+# =============================================================================
+# BHARAT CRM - STATELESS ENTERPRISE ARCHITECTURE
+# =============================================================================
+#
+# Architecture:
+#   - 1x Load Balancer (Nginx)
+#   - 2x App Servers (Stateless Express.js)
+#   - 1x Worker Server (Background Jobs, Qdrant)
+#   - 1x Redis (Session, Socket.IO, Locks)
+#   - External: DigitalOcean Managed PostgreSQL
+#   - External: DigitalOcean Spaces (S3)
+#
+# Usage:
+#   docker-compose -f docker-compose.stateless.yml up -d
+#
+# Scaling:
+#   docker-compose -f docker-compose.stateless.yml up -d --scale app=4
+#
+# =============================================================================
+
+version: '3.8'
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  crm-frontend:
+    driver: bridge
+    name: crm-frontend
+  crm-backend:
+    driver: bridge
+    name: crm-backend
+    internal: true
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  redis_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  nginx_certs:
+    driver: local
+  nginx_logs:
+    driver: local
+
+# =============================================================================
+# SERVICES
+# =============================================================================
+services:
+
+  # ===========================================================================
+  # LOAD BALANCER - NGINX
+  # ===========================================================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: crm-loadbalancer
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.stateless.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_certs:/etc/letsencrypt
+      - nginx_logs:/var/log/nginx
+    networks:
+      - crm-frontend
+      - crm-backend
+    depends_on:
+      app-1:
+        condition: service_healthy
+      app-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    labels:
+      - "com.bharat-crm.service=loadbalancer"
+      - "com.bharat-crm.tier=frontend"
+
+  # ===========================================================================
+  # CERTBOT - SSL CERTIFICATE MANAGEMENT
+  # ===========================================================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: crm-certbot
+    volumes:
+      - nginx_certs:/etc/letsencrypt
+      - ./nginx/certbot-webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - crm-frontend
+    labels:
+      - "com.bharat-crm.service=certbot"
+
+  # ===========================================================================
+  # APP SERVER 1 - STATELESS API
+  # ===========================================================================
+  app-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.stateless
+      args:
+        - NODE_ENV=production
+    container_name: crm-app-1
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - APP_INSTANCE_ID=app-1
+      - PORT=3001
+      # Database (DigitalOcean Managed)
+      - DATABASE_URL=${DATABASE_URL}
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - JWT_EXPIRES_IN=7d
+      # External Services
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_URL=http://worker:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      # S3/Spaces Storage
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_REGION=${S3_REGION:-nyc3}
+      # WhatsApp
+      - WHATSAPP_API_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID}
+      - WHATSAPP_WEBHOOK_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN}
+      # Google OAuth
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      # Email
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - EMAIL_FROM=${EMAIL_FROM}
+      # Application
+      - FRONTEND_URL=${FRONTEND_URL}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - IS_WORKER=false
+    networks:
+      - crm-backend
+    expose:
+      - "3001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    labels:
+      - "com.bharat-crm.service=app"
+      - "com.bharat-crm.tier=backend"
+      - "com.bharat-crm.instance=1"
+
+  # ===========================================================================
+  # APP SERVER 2 - STATELESS API
+  # ===========================================================================
+  app-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.stateless
+      args:
+        - NODE_ENV=production
+    container_name: crm-app-2
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - APP_INSTANCE_ID=app-2
+      - PORT=3001
+      # Database (DigitalOcean Managed)
+      - DATABASE_URL=${DATABASE_URL}
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - JWT_EXPIRES_IN=7d
+      # External Services
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_URL=http://worker:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      # S3/Spaces Storage
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_REGION=${S3_REGION:-nyc3}
+      # WhatsApp
+      - WHATSAPP_API_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID}
+      - WHATSAPP_WEBHOOK_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN}
+      # Google OAuth
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      # Email
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - EMAIL_FROM=${EMAIL_FROM}
+      # Application
+      - FRONTEND_URL=${FRONTEND_URL}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - IS_WORKER=false
+    networks:
+      - crm-backend
+    expose:
+      - "3001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    labels:
+      - "com.bharat-crm.service=app"
+      - "com.bharat-crm.tier=backend"
+      - "com.bharat-crm.instance=2"
+
+  # ===========================================================================
+  # WORKER SERVER - BACKGROUND JOBS + VECTOR DB
+  # ===========================================================================
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+      args:
+        - NODE_ENV=production
+    container_name: crm-worker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - APP_INSTANCE_ID=worker
+      - PORT=3002
+      # Database (DigitalOcean Managed)
+      - DATABASE_URL=${DATABASE_URL}
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # JWT (for socket authentication)
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      # External Services
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_URL=http://localhost:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - VECTOR_COLLECTION_NAME=${VECTOR_COLLECTION_NAME:-bharat_crm_knowledge}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      # S3/Spaces Storage
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_REGION=${S3_REGION:-nyc3}
+      # WhatsApp
+      - WHATSAPP_API_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID}
+      # Email
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - EMAIL_FROM=${EMAIL_FROM}
+      # Application
+      - FRONTEND_URL=${FRONTEND_URL}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - IS_WORKER=true
+      # Worker-specific
+      - CAMPAIGN_BATCH_SIZE=100
+      - CAMPAIGN_BATCH_DELAY=5000
+      - CALL_SCHEDULER_INTERVAL=30
+      - LEAD_REMINDER_INTERVAL=60
+    networks:
+      - crm-backend
+    expose:
+      - "3002"
+      - "6333"
+      - "6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4096M
+        reservations:
+          cpus: '1.0'
+          memory: 2048M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "10"
+    labels:
+      - "com.bharat-crm.service=worker"
+      - "com.bharat-crm.tier=backend"
+
+  # ===========================================================================
+  # REDIS - SESSION STORE & MESSAGE BROKER
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: crm-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+      --timeout 0
+      --tcp-backlog 511
+      --databases 16
+    volumes:
+      - redis_data:/data
+    networks:
+      - crm-backend
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    labels:
+      - "com.bharat-crm.service=redis"
+      - "com.bharat-crm.tier=cache"
+
+  # ===========================================================================
+  # FRONTEND - STATIC FILES (Optional, can be served via CDN)
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=/api
+    container_name: crm-frontend
+    restart: unless-stopped
+    networks:
+      - crm-frontend
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    labels:
+      - "com.bharat-crm.service=frontend"
+      - "com.bharat-crm.tier=frontend"

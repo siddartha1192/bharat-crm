@@ -3,9 +3,8 @@ const router = express.Router();
 const { authenticate } = require('../../middleware/auth');
 const { tenantContext } = require('../../middleware/tenant');
 const gmailIntegrationService = require('../../services/gmailIntegration');
-const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+const prisma = require('../../lib/prisma');
 
 /**
  * Get Gmail OAuth authorization URL

@@ -3,7 +3,6 @@ const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
 const { uploadVectorData, deleteFile, formatFileSize } = require('../middleware/upload');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
-const { PrismaClient } = require('@prisma/client');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -11,7 +10,7 @@ const { PDFParse } = require('pdf-parse');
 const xlsx = require('xlsx'); // For Excel files
 const mammoth = require('mammoth'); // For Word .docx files
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Apply authentication and tenant context to all routes
 router.use(authenticate);

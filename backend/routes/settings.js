@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const whatsappService = require('../services/whatsapp');
 const openaiService = require('../services/openai');
 const { encrypt, decrypt, isEncrypted } = require('../utils/encryption');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 /**
  * Get tenant API settings (WhatsApp, OpenAI)

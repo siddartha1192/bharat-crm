@@ -1,64 +1,118 @@
-const fs = require('fs').promises;
-const path = require('path');
+/**
+ * =============================================================================
+ * CONVERSATION STORAGE SERVICE - Database-based (Stateless Architecture)
+ * =============================================================================
+ *
+ * This service stores WhatsApp conversation messages in the database instead of
+ * the local filesystem, enabling stateless horizontal scaling.
+ *
+ * Migration from file-based to database storage:
+ * - Old: JSON files in ./conversations/{userId}/{phone}.json
+ * - New: ConversationHistory table in PostgreSQL
+ *
+ * =============================================================================
+ */
+
+const prisma = require('../lib/prisma');
 
 class ConversationStorageService {
   constructor() {
-    this.baseDir = path.join(__dirname, '..', 'conversations');
+    // Virtual base directory for backwards compatibility
+    this.baseDir = 'conversations';
   }
 
   /**
-   * Ensure the conversations directory and user subdirectory exist
-   */
-  async ensureDirectory(userId) {
-    const userDir = path.join(this.baseDir, userId);
-    await fs.mkdir(userDir, { recursive: true });
-    return userDir;
-  }
-
-  /**
-   * Get the file path for a conversation
+   * Get the virtual file path for a conversation (backwards compatibility)
+   * Note: No actual files are created - this is for the WhatsAppConversation.filePath field
    */
   getFilePath(userId, contactPhone) {
-    // Clean phone number for filename (remove special chars except +)
-    const cleanPhone = contactPhone.replace(/[^\d+]/g, '');
-    return path.join(this.baseDir, userId, `${cleanPhone}.json`);
+    const cleanPhone = this.normalizePhone(contactPhone);
+    return `${this.baseDir}/${userId}/${cleanPhone}.json`;
   }
 
   /**
-   * Load conversation messages from file
+   * Normalize phone number for consistent storage
    */
-  async loadConversation(userId, contactPhone) {
+  normalizePhone(phone) {
+    return phone.replace(/[^\d+]/g, '');
+  }
+
+  /**
+   * Load conversation messages from database
+   */
+  async loadConversation(userId, contactPhone, tenantId = null) {
     try {
-      const filePath = this.getFilePath(userId, contactPhone);
-      const data = await fs.readFile(filePath, 'utf8');
-      return JSON.parse(data);
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        // File doesn't exist, return empty conversation
+      const cleanPhone = this.normalizePhone(contactPhone);
+
+      // Try to get tenantId from user if not provided
+      if (!tenantId) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { tenantId: true }
+        });
+        tenantId = user?.tenantId;
+      }
+
+      const record = await prisma.conversationHistory.findUnique({
+        where: {
+          userId_contactPhone: { userId, contactPhone: cleanPhone }
+        }
+      });
+
+      if (record) {
         return {
-          contactPhone,
-          messages: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          contactPhone: cleanPhone,
+          messages: record.messages || [],
+          messageCount: record.messageCount,
+          createdAt: record.createdAt.toISOString(),
+          updatedAt: record.updatedAt.toISOString()
         };
       }
-      throw error;
+
+      // Return empty conversation if not found
+      return {
+        contactPhone: cleanPhone,
+        messages: [],
+        messageCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('[ConversationStorage] Error loading conversation:', error);
+      // Return empty conversation on error
+      return {
+        contactPhone: this.normalizePhone(contactPhone),
+        messages: [],
+        messageCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
     }
   }
 
   /**
-   * Save a message to the conversation file
+   * Save a message to the conversation in database
    */
-  async saveMessage(userId, contactPhone, message) {
+  async saveMessage(userId, contactPhone, message, tenantId = null) {
     try {
-      // Ensure directory exists
-      await this.ensureDirectory(userId);
+      const cleanPhone = this.normalizePhone(contactPhone);
 
-      // Load existing conversation
-      const conversation = await this.loadConversation(userId, contactPhone);
+      // Get tenantId from user if not provided
+      if (!tenantId) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { tenantId: true }
+        });
+        tenantId = user?.tenantId;
 
-      // Add new message
-      conversation.messages.push({
+        if (!tenantId) {
+          console.error('[ConversationStorage] Could not find tenantId for user:', userId);
+          return null;
+        }
+      }
+
+      // Format message for storage
+      const formattedMessage = {
         id: message.id,
         message: message.message,
         sender: message.sender,
@@ -67,19 +121,33 @@ class ConversationStorageService {
         messageType: message.messageType || 'text',
         metadata: message.metadata || {},
         timestamp: message.createdAt || new Date().toISOString()
+      };
+
+      // Upsert conversation with new message
+      const result = await prisma.conversationHistory.upsert({
+        where: {
+          userId_contactPhone: { userId, contactPhone: cleanPhone }
+        },
+        create: {
+          userId,
+          contactPhone: cleanPhone,
+          tenantId,
+          messages: [formattedMessage],
+          messageCount: 1
+        },
+        update: {
+          messages: {
+            push: formattedMessage
+          },
+          messageCount: {
+            increment: 1
+          }
+        }
       });
 
-      // Update conversation metadata
-      conversation.updatedAt = new Date().toISOString();
-      conversation.messageCount = conversation.messages.length;
-
-      // Save to file
-      const filePath = this.getFilePath(userId, contactPhone);
-      await fs.writeFile(filePath, JSON.stringify(conversation, null, 2), 'utf8');
-
-      return filePath;
+      return this.getFilePath(userId, contactPhone);
     } catch (error) {
-      console.error('Error saving message to file:', error);
+      console.error('[ConversationStorage] Error saving message:', error);
       throw error;
     }
   }
@@ -100,25 +168,30 @@ class ConversationStorageService {
       // Apply pagination
       return sorted.slice(offset, offset + limit);
     } catch (error) {
-      console.error('Error getting messages:', error);
-      throw error;
+      console.error('[ConversationStorage] Error getting messages:', error);
+      return [];
     }
   }
 
   /**
-   * Delete a conversation file
+   * Delete a conversation from database
    */
   async deleteConversation(userId, contactPhone) {
     try {
-      const filePath = this.getFilePath(userId, contactPhone);
-      await fs.unlink(filePath);
+      const cleanPhone = this.normalizePhone(contactPhone);
+
+      await prisma.conversationHistory.delete({
+        where: {
+          userId_contactPhone: { userId, contactPhone: cleanPhone }
+        }
+      }).catch(() => {
+        // Ignore if doesn't exist
+      });
+
       return true;
     } catch (error) {
-      if (error.code === 'ENOENT') {
-        // File doesn't exist, consider it deleted
-        return true;
-      }
-      throw error;
+      console.error('[ConversationStorage] Error deleting conversation:', error);
+      return true; // Return true even on error to maintain compatibility
     }
   }
 
@@ -138,7 +211,7 @@ class ConversationStorageService {
         lastMessageAt: messages[messages.length - 1]?.timestamp
       };
     } catch (error) {
-      console.error('Error getting conversation stats:', error);
+      console.error('[ConversationStorage] Error getting conversation stats:', error);
       return {
         totalMessages: 0,
         userMessages: 0,
@@ -157,12 +230,38 @@ class ConversationStorageService {
 
       const lowerSearch = searchTerm.toLowerCase();
       return messages.filter(m =>
-        m.message.toLowerCase().includes(lowerSearch) ||
-        m.senderName.toLowerCase().includes(lowerSearch)
+        m.message?.toLowerCase().includes(lowerSearch) ||
+        m.senderName?.toLowerCase().includes(lowerSearch)
       );
     } catch (error) {
-      console.error('Error searching messages:', error);
+      console.error('[ConversationStorage] Error searching messages:', error);
       return [];
+    }
+  }
+
+  /**
+   * Clear all messages in a conversation (keep the record)
+   */
+  async clearConversation(userId, contactPhone) {
+    try {
+      const cleanPhone = this.normalizePhone(contactPhone);
+
+      await prisma.conversationHistory.update({
+        where: {
+          userId_contactPhone: { userId, contactPhone: cleanPhone }
+        },
+        data: {
+          messages: [],
+          messageCount: 0
+        }
+      }).catch(() => {
+        // Ignore if doesn't exist
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[ConversationStorage] Error clearing conversation:', error);
+      return false;
     }
   }
 }

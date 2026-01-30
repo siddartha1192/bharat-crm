@@ -3,12 +3,11 @@
  * Handles campaign creation, scheduling, execution, and tracking
  */
 
-const { PrismaClient } = require('@prisma/client');
 const emailService = require('./email');
 const whatsappService = require('./whatsapp');
 const utmService = require('./utm');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Configuration
 const CAMPAIGN_CONFIG = {

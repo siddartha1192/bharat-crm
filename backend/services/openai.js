@@ -1,7 +1,6 @@
 const OpenAI = require('openai');
-const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Default model and temperature for tenants who don't specify
 const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
