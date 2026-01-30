@@ -6,6 +6,7 @@ const { OAuth2Client } = require('google-auth-library');
 const emailService = require('./email');
 
 const prisma = new PrismaClient();
+const { createClient } = require('redis');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRES_IN = '7d';
@@ -17,15 +18,84 @@ const googleClient = new OAuth2Client(
   process.env.GOOGLE_AUTH_REDIRECT_URI || 'http://localhost:8080/auth/google/callback'
 );
 
-// In-memory store for pending Google authentications (with expiry)
-const pendingGoogleAuths = new Map();
+// =============================================================================
+// OAUTH STATE STORAGE (Redis for stateless multi-server support)
+// =============================================================================
+// In production with Redis: Uses Redis with TTL for distributed state
+// In development without Redis: Falls back to in-memory Map
+// =============================================================================
 
-// Clean up expired pending auths every 10 minutes
+let redisClient = null;
+let redisConnected = false;
+const pendingGoogleAuths = new Map(); // Fallback for development
+
+// Initialize Redis connection (called lazily)
+async function initRedis() {
+  if (redisClient && redisConnected) return true;
+
+  if (!process.env.REDIS_URL) {
+    return false;
+  }
+
+  try {
+    redisClient = createClient({ url: process.env.REDIS_URL });
+    redisClient.on('error', (err) => {
+      console.error('[Auth] Redis error:', err.message);
+      redisConnected = false;
+    });
+    await redisClient.connect();
+    redisConnected = true;
+    console.log('[Auth] Redis connected for OAuth state storage');
+    return true;
+  } catch (error) {
+    console.log('[Auth] Redis not available, using in-memory OAuth state');
+    return false;
+  }
+}
+
+// Store OAuth state (Redis with TTL or in-memory fallback)
+async function storeOAuthState(authId, data) {
+  const hasRedis = await initRedis();
+
+  if (hasRedis && redisConnected) {
+    const key = `oauth:state:${authId}`;
+    await redisClient.set(key, JSON.stringify(data), { EX: 300 }); // 5 min TTL
+  } else {
+    // Fallback to in-memory
+    pendingGoogleAuths.set(authId, data);
+  }
+}
+
+// Get OAuth state (and delete after retrieval - one-time use)
+async function getOAuthState(authId) {
+  const hasRedis = await initRedis();
+
+  if (hasRedis && redisConnected) {
+    const key = `oauth:state:${authId}`;
+    const data = await redisClient.get(key);
+    if (data) {
+      await redisClient.del(key); // One-time use
+      return JSON.parse(data);
+    }
+    return null;
+  } else {
+    // Fallback to in-memory
+    const data = pendingGoogleAuths.get(authId);
+    if (data) {
+      pendingGoogleAuths.delete(authId);
+    }
+    return data || null;
+  }
+}
+
+// Clean up expired pending auths every 10 minutes (only for in-memory fallback)
 setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of pendingGoogleAuths.entries()) {
-    if (value.expiresAt < now) {
-      pendingGoogleAuths.delete(key);
+  if (!redisConnected) {
+    const now = Date.now();
+    for (const [key, value] of pendingGoogleAuths.entries()) {
+      if (value.expiresAt < now) {
+        pendingGoogleAuths.delete(key);
+      }
     }
   }
 }, 10 * 60 * 1000);
@@ -325,18 +395,15 @@ class AuthService {
     try {
       let googleId, email, name, picture, users;
 
-      // If pendingAuthId is provided, retrieve stored auth data
+      // If pendingAuthId is provided, retrieve stored auth data from Redis/memory
       if (pendingAuthId) {
-        const pendingAuth = pendingGoogleAuths.get(pendingAuthId);
+        const pendingAuth = await getOAuthState(pendingAuthId);
         if (!pendingAuth || pendingAuth.expiresAt < Date.now()) {
           throw new Error('Authentication session expired. Please login again.');
         }
 
-        // Retrieve stored data
+        // Retrieve stored data (getOAuthState already deletes it - one-time use)
         ({ googleId, email, name, picture, users } = pendingAuth);
-
-        // Clean up the pending auth
-        pendingGoogleAuths.delete(pendingAuthId);
       } else {
         // Exchange code for tokens (first time only)
         const { tokens } = await googleClient.getToken(code);
@@ -384,9 +451,9 @@ class AuthService {
             throw new Error('Account not found in the selected organization');
           }
         } else if (users.length > 1) {
-          // Multiple accounts - store pending auth and return tenant list
+          // Multiple accounts - store pending auth in Redis/memory and return tenant list
           const authId = crypto.randomBytes(32).toString('hex');
-          pendingGoogleAuths.set(authId, {
+          await storeOAuthState(authId, {
             googleId,
             email,
             name,

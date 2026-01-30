@@ -5,8 +5,14 @@ const { PrismaClient } = require('@prisma/client');
 const http = require('http');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
+const { createClient } = require('redis');
+const { createAdapter } = require('@socket.io/redis-adapter');
 
 dotenv.config();
+
+// Instance identification for logging
+const INSTANCE_ID = process.env.APP_INSTANCE_ID || 'default';
+const IS_WORKER = process.env.IS_WORKER === 'true';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -38,6 +44,37 @@ const io = new Server(httpServer, {
   allowEIO3: true // Support older clients
 });
 
+// =============================================================================
+// REDIS ADAPTER FOR SOCKET.IO (Multi-server support)
+// =============================================================================
+// In production with Redis: Events broadcast across all app servers
+// Without Redis: Events only reach clients on same server (development OK)
+// =============================================================================
+async function setupRedisAdapter() {
+  if (!process.env.REDIS_URL) {
+    console.log(`[${INSTANCE_ID}] No REDIS_URL - Socket.IO running in single-server mode`);
+    return;
+  }
+
+  try {
+    const pubClient = createClient({ url: process.env.REDIS_URL });
+    const subClient = pubClient.duplicate();
+
+    pubClient.on('error', (err) => console.error(`[${INSTANCE_ID}] Redis pub error:`, err.message));
+    subClient.on('error', (err) => console.error(`[${INSTANCE_ID}] Redis sub error:`, err.message));
+
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log(`[${INSTANCE_ID}] ✅ Socket.IO Redis adapter connected - multi-server mode enabled`);
+  } catch (error) {
+    console.error(`[${INSTANCE_ID}] ⚠️ Redis adapter failed, running in single-server mode:`, error.message);
+  }
+}
+
+// Initialize Redis adapter (non-blocking)
+setupRedisAdapter();
+
 // Export io and prisma IMMEDIATELY so routes can import them
 // This must happen BEFORE requiring the routes
 module.exports = { prisma, io };
@@ -51,9 +88,15 @@ app.set('trust proxy', true);
 // Serve static files from public directory
 app.use(express.static('public'));
 
-// Health check
+// Health check (includes instance ID for load balancer verification)
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Bharat CRM API is running' });
+  res.json({
+    status: 'ok',
+    message: 'Bharat CRM API is running',
+    instance: INSTANCE_ID,
+    isWorker: IS_WORKER,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Import routes
@@ -206,44 +249,62 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-// Initialize campaign scheduler
-const campaignScheduler = require('./services/campaignScheduler');
-campaignScheduler.initialize(io);
-campaignScheduler.start();
+// =============================================================================
+// SCHEDULED JOBS (Only run on worker server in stateless mode)
+// =============================================================================
+// IS_WORKER=true: Run all schedulers (dedicated worker server)
+// IS_WORKER=false or not set: Skip schedulers (app servers are stateless)
+// In single-server mode (no IS_WORKER set), schedulers run normally
+// =============================================================================
 
-// Initialize lead reminder scheduler
-const leadReminderScheduler = require('./services/leadReminderScheduler');
-leadReminderScheduler.start();
-
-// Initialize call scheduler
-const callScheduler = require('./services/callScheduler');
-callScheduler.initialize(io);
-callScheduler.start();
-callScheduler.startCleanup();
-
-// Initialize trial expiration checker
 const cron = require('node-cron');
 const { checkExpiredTrials } = require('./services/trialExpiration');
 
-// Run trial expiration check every hour
-cron.schedule('0 * * * *', async () => {
-  console.log('[Cron] Running trial expiration check...');
-  try {
-    const result = await checkExpiredTrials();
-    console.log('[Cron] Trial expiration check completed:', result);
-  } catch (error) {
-    console.error('[Cron] Trial expiration check failed:', error);
-  }
-});
+// Only start schedulers if this is the worker OR if we're in single-server mode
+const shouldRunSchedulers = IS_WORKER || !process.env.REDIS_URL;
 
-// Run trial expiration check on server startup
-checkExpiredTrials()
-  .then(result => {
-    console.log('✅ Initial trial expiration check completed:', result);
-  })
-  .catch(error => {
-    console.error('❌ Initial trial expiration check failed:', error);
+if (shouldRunSchedulers) {
+  console.log(`[${INSTANCE_ID}] 🔄 Starting background schedulers...`);
+
+  // Initialize campaign scheduler
+  const campaignScheduler = require('./services/campaignScheduler');
+  campaignScheduler.initialize(io);
+  campaignScheduler.start();
+
+  // Initialize lead reminder scheduler
+  const leadReminderScheduler = require('./services/leadReminderScheduler');
+  leadReminderScheduler.start();
+
+  // Initialize call scheduler
+  const callScheduler = require('./services/callScheduler');
+  callScheduler.initialize(io);
+  callScheduler.start();
+  callScheduler.startCleanup();
+
+  // Run trial expiration check every hour
+  cron.schedule('0 * * * *', async () => {
+    console.log('[Cron] Running trial expiration check...');
+    try {
+      const result = await checkExpiredTrials();
+      console.log('[Cron] Trial expiration check completed:', result);
+    } catch (error) {
+      console.error('[Cron] Trial expiration check failed:', error);
+    }
   });
+
+  // Run trial expiration check on server startup
+  checkExpiredTrials()
+    .then(result => {
+      console.log('✅ Initial trial expiration check completed:', result);
+    })
+    .catch(error => {
+      console.error('❌ Initial trial expiration check failed:', error);
+    });
+
+  console.log(`[${INSTANCE_ID}] ✅ Background schedulers started`);
+} else {
+  console.log(`[${INSTANCE_ID}] ⏭️ Skipping schedulers (running as stateless app server)`);
+}
 
 // Start server (HTTP + WebSocket on same port)
 httpServer.listen(PORT, () => {
