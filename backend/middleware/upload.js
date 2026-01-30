@@ -2,36 +2,49 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const storageService = require('../services/storage');
 
 /**
- * File Upload Middleware
- * Handles document uploads with size limits and organization
+ * =============================================================================
+ * FILE UPLOAD MIDDLEWARE
+ * =============================================================================
+ *
+ * Supports two storage backends:
+ *   - S3/DigitalOcean Spaces (production - stateless)
+ *   - Local filesystem (development - with Docker volumes)
+ *
+ * S3 is used when S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY are configured.
+ *
+ * =============================================================================
  */
 
-// Ensure upload directories exist
+// Check if S3 storage is enabled
+const USE_S3 = storageService.isEnabled();
+console.log(`[Upload] Storage mode: ${USE_S3 ? 'S3/Spaces (stateless)' : 'Local filesystem'}`);
+
+// Ensure upload directories exist (for local storage fallback)
 const UPLOAD_BASE_DIR = path.join(__dirname, '../uploads');
 const DOCUMENTS_DIR = path.join(UPLOAD_BASE_DIR, 'documents');
 const KNOWLEDGE_BASE_DIR = path.join(__dirname, '../knowledge_base');
 
-// Create directories if they don't exist
-[UPLOAD_BASE_DIR, DOCUMENTS_DIR, KNOWLEDGE_BASE_DIR].forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-});
+// Create directories if they don't exist (only needed for local storage)
+if (!USE_S3) {
+  [UPLOAD_BASE_DIR, DOCUMENTS_DIR, KNOWLEDGE_BASE_DIR].forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  });
+}
 
 /**
- * Storage configuration for lead/contact/deal documents
+ * Storage configuration for lead/contact/deal documents (LOCAL)
  */
-const documentStorage = multer.diskStorage({
+const documentStorageLocal = multer.diskStorage({
   destination: function (req, file, cb) {
-    // Create unique subfolder for each entity
     const entityType = req.body.entityType || 'lead';
     const entityId = req.body.entityId || 'unknown';
-
     const uploadPath = path.join(DOCUMENTS_DIR, entityType, entityId);
 
-    // Create directory if it doesn't exist
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
@@ -39,7 +52,6 @@ const documentStorage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    // Generate unique filename with UUID to prevent collisions
     const uniqueId = uuidv4();
     const ext = path.extname(file.originalname);
     const baseName = path.basename(file.originalname, ext);
@@ -50,14 +62,18 @@ const documentStorage = multer.diskStorage({
 });
 
 /**
- * Storage configuration for vector database data
+ * Storage configuration for S3/Spaces (memory buffer for S3 upload)
  */
-const vectorDataStorage = multer.diskStorage({
+const memoryStorage = multer.memoryStorage();
+
+/**
+ * Storage configuration for vector database data (LOCAL)
+ */
+const vectorDataStorageLocal = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, KNOWLEDGE_BASE_DIR);
   },
   filename: function (req, file, cb) {
-    // Keep original filename for knowledge base (ingestDocuments.js expects it)
     const ext = path.extname(file.originalname);
     const baseName = path.basename(file.originalname, ext);
     const sanitizedBaseName = baseName.replace(/[^a-zA-Z0-9-_]/g, '_');
@@ -67,21 +83,16 @@ const vectorDataStorage = multer.diskStorage({
 });
 
 /**
- * File filter for documents
- * Updated to allow ALL file types for maximum flexibility
+ * File filter for documents - Allow ALL file types
  */
 const documentFileFilter = (req, file, cb) => {
-  // Allow all file types - no restrictions
-  // Security note: File content validation should be done at the application level
   cb(null, true);
 };
 
 /**
  * File filter for vector data
- * IMPROVED: Checks both MIME type AND file extension for better compatibility
  */
 const vectorDataFileFilter = (req, file, cb) => {
-  // Allowed MIME types for vector data
   const allowedMimeTypes = [
     'text/plain',
     'text/markdown',
@@ -89,59 +100,170 @@ const vectorDataFileFilter = (req, file, cb) => {
     'text/csv',
     'application/json',
     'application/pdf',
-    // Excel files
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-    'application/vnd.ms-excel', // .xls
-    // Word files
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-    'application/msword', // .doc
-    // Fallback MIME types (some browsers send these for Office files)
-    'application/zip', // .docx/.xlsx are actually ZIP files
-    'application/octet-stream' // Generic binary
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword',
+    'application/zip',
+    'application/octet-stream'
   ];
 
-  // Allowed file extensions (as fallback check)
   const allowedExtensions = ['.txt', '.md', '.csv', '.json', '.pdf', '.xlsx', '.xls', '.docx', '.doc'];
-
-  // Get file extension
   const ext = path.extname(file.originalname).toLowerCase();
 
-  // Check MIME type first, then fall back to extension check
   if (allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else if (allowedExtensions.includes(ext)) {
-    // Allow if extension matches, even if MIME type is wrong
     console.log(`⚠️ Accepting file by extension: ${file.originalname} (MIME: ${file.mimetype})`);
     cb(null, true);
   } else {
-    cb(new Error(`File type "${ext}" (MIME: ${file.mimetype}) is not allowed for vector data. Supported types: TXT, MD, CSV, JSON, PDF, XLSX, XLS, DOCX, DOC`), false);
+    cb(new Error(`File type "${ext}" (MIME: ${file.mimetype}) is not allowed for vector data.`), false);
   }
 };
 
 /**
  * Document upload middleware (max 50MB)
+ * Uses S3 in production, local storage in development
  */
 const uploadDocument = multer({
-  storage: documentStorage,
+  storage: USE_S3 ? memoryStorage : documentStorageLocal,
   fileFilter: documentFileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB in bytes
+    fileSize: 50 * 1024 * 1024 // 50MB
   }
 });
 
 /**
  * Vector data upload middleware (max 50MB)
+ * Always uses local storage (vector DB needs local file access)
  */
 const uploadVectorData = multer({
-  storage: vectorDataStorage,
+  storage: vectorDataStorageLocal,
   fileFilter: vectorDataFileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB in bytes
+    fileSize: 50 * 1024 * 1024 // 50MB
   }
 });
 
 /**
- * Delete file helper
+ * Middleware to upload file to S3 after multer processes it
+ * Use this AFTER uploadDocument middleware
+ */
+async function uploadToS3(req, res, next) {
+  if (!USE_S3 || !req.file) {
+    return next();
+  }
+
+  try {
+    const entityType = req.body.entityType || 'documents';
+    const entityId = req.body.entityId || 'general';
+    const tenantId = req.user?.tenantId || 'default';
+
+    // Generate S3 key
+    const key = storageService.generateKey(
+      `${tenantId}/${entityType}/${entityId}`,
+      req.file.originalname
+    );
+
+    // Upload to S3
+    const result = await storageService.uploadFile(
+      key,
+      req.file.buffer,
+      req.file.mimetype,
+      {
+        originalName: req.file.originalname,
+        uploadedBy: req.user?.userId || 'anonymous',
+        entityType,
+        entityId,
+      }
+    );
+
+    // Replace file info with S3 info
+    req.file.s3Key = key;
+    req.file.s3Url = result.url;
+    req.file.storageType = 's3';
+    req.file.path = key; // For compatibility with existing code
+
+    console.log(`[Upload] File uploaded to S3: ${key}`);
+    next();
+  } catch (error) {
+    console.error('[Upload] S3 upload failed:', error);
+    next(error);
+  }
+}
+
+/**
+ * Middleware to upload multiple files to S3
+ */
+async function uploadMultipleToS3(req, res, next) {
+  if (!USE_S3 || !req.files || req.files.length === 0) {
+    return next();
+  }
+
+  try {
+    const entityType = req.body.entityType || 'documents';
+    const entityId = req.body.entityId || 'general';
+    const tenantId = req.user?.tenantId || 'default';
+
+    for (const file of req.files) {
+      const key = storageService.generateKey(
+        `${tenantId}/${entityType}/${entityId}`,
+        file.originalname
+      );
+
+      const result = await storageService.uploadFile(
+        key,
+        file.buffer,
+        file.mimetype,
+        {
+          originalName: file.originalname,
+          uploadedBy: req.user?.userId || 'anonymous',
+        }
+      );
+
+      file.s3Key = key;
+      file.s3Url = result.url;
+      file.storageType = 's3';
+      file.path = key;
+    }
+
+    console.log(`[Upload] ${req.files.length} files uploaded to S3`);
+    next();
+  } catch (error) {
+    console.error('[Upload] S3 multi-upload failed:', error);
+    next(error);
+  }
+}
+
+/**
+ * Get a signed download URL for a file
+ * @param {string} keyOrPath - S3 key or local path
+ * @returns {Promise<string>} - Signed URL or local path
+ */
+async function getDownloadUrl(keyOrPath) {
+  if (USE_S3 && !keyOrPath.startsWith('/')) {
+    // It's an S3 key
+    return storageService.getSignedDownloadUrl(keyOrPath, 3600); // 1 hour
+  }
+  // It's a local path
+  return keyOrPath;
+}
+
+/**
+ * Delete file from S3 or local storage
+ * @param {string} keyOrPath - S3 key or local path
+ */
+async function deleteFileFromStorage(keyOrPath) {
+  if (USE_S3 && !keyOrPath.startsWith('/')) {
+    // It's an S3 key
+    return storageService.deleteFile(keyOrPath);
+  }
+  // It's a local path
+  return deleteFile(keyOrPath);
+}
+
+/**
+ * Delete file helper (local storage)
  */
 function deleteFile(filePath) {
   try {
@@ -186,9 +308,15 @@ function formatFileSize(bytes) {
 module.exports = {
   uploadDocument,
   uploadVectorData,
+  uploadToS3,
+  uploadMultipleToS3,
+  getDownloadUrl,
+  deleteFileFromStorage,
   deleteFile,
   getFileSize,
   formatFileSize,
   DOCUMENTS_DIR,
-  KNOWLEDGE_BASE_DIR
+  KNOWLEDGE_BASE_DIR,
+  USE_S3,
+  storageService,
 };

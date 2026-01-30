@@ -18,6 +18,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.500.0",
+    "@aws-sdk/s3-request-presigner": "^3.500.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "@langchain/community": "^1.0.6",
     "@langchain/core": "^1.1.2",
