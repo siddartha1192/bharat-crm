@@ -56,6 +56,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     supervisor \
+    libunwind8 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Qdrant binary and libs from qdrant image
