@@ -176,6 +176,7 @@ model User {
   callLogs                CallLog[]
   callScripts             CallScript[]
   callQueue               CallQueue[]
+  conversationHistories   ConversationHistory[]
 
   @@unique([email, tenantId])
   @@index([email])
@@ -1944,4 +1945,32 @@ model BlogPost {
   @@index([publishedAt])
   @@index([category])
   @@index([relatedFeature])
+}
+
+// ==========================================
+// CONVERSATION HISTORY (Stateless Architecture)
+// ==========================================
+
+// ConversationHistory - Database storage for WhatsApp conversations (replaces file-based storage)
+model ConversationHistory {
+  id           String   @id @default(uuid())
+  userId       String
+  contactPhone String   // Normalized phone number (E.164 format)
+  messages     Json     @default("[]") // Array of message objects
+  metadata     Json?    // Additional conversation metadata
+  messageCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Multi-tenant relationship
+  tenantId String
+
+  // User relation
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contactPhone])
+  @@index([userId])
+  @@index([contactPhone])
+  @@index([tenantId])
+  @@index([updatedAt])
 }

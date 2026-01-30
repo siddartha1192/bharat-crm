@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const automationService = require('../services/automation');
 const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Helper function: Map deal stage to lead status
 function mapDealStageToLeadStatus(dealStage) {

@@ -3,9 +3,8 @@
  * Provides structured functions for AI to query the database
  */
 
-const { PrismaClient } = require('@prisma/client');
 const webSearchService = require('./webSearch.service');
-const prisma = new PrismaClient();
+const prisma = require('../../lib/prisma');
 
 class DatabaseToolsService {
   /**

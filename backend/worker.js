@@ -340,10 +340,8 @@ async function checkQdrantHealth() {
 
 async function checkDatabaseHealth() {
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
+    const prisma = require('./lib/prisma');
     await prisma.$queryRaw`SELECT 1`;
-    await prisma.$disconnect();
     return 'connected';
   } catch {
     return 'disconnected';

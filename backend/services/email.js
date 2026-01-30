@@ -1,11 +1,10 @@
 const nodemailer = require('nodemailer');
-const { PrismaClient } = require('@prisma/client');
 const { google } = require('googleapis');
 const gmailIntegrationService = require('./gmailIntegration');
 const { decrypt } = require('../utils/encryption');
 const EmailTemplateService = require('./emailTemplate');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 
 class EmailService {

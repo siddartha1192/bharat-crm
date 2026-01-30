@@ -1,7 +1,6 @@
 const OpenAI = require('openai');
 // Using console for logging
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../../lib/prisma');
 
 /**
  * IST Timezone Constants (Server-Independent)

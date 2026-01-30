@@ -3,12 +3,11 @@
  * Sends WhatsApp and email reminders to defined users when leads are not contacted within 24 hours
  */
 
-const { PrismaClient } = require('@prisma/client');
 const whatsappService = require('./whatsapp');
 const emailService = require('./email');
 const EmailTemplateService = require('./emailTemplate');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Default reminder configuration
 const DEFAULT_CONFIG = {

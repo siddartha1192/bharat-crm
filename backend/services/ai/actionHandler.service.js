@@ -3,13 +3,12 @@
  * Processes structured actions from AI responses
  */
 
-const { PrismaClient } = require('@prisma/client');
 const aiConfig = require('../../config/ai.config');
 const googleCalendarService = require('../googleCalendar.js');
 const automationService = require('../automation');
 const roundRobinService = require('../roundRobin');
 
-const prisma = new PrismaClient();
+const prisma = require('../../lib/prisma');
 
 class ActionHandlerService {
   /**

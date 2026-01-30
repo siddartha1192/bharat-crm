@@ -1,8 +1,7 @@
 const { google } = require('googleapis');
 const { decrypt } = require('../utils/encryption');
-const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Calendar OAuth scopes (service-specific, NOT for login)
 const CALENDAR_SCOPES = [

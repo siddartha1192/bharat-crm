@@ -1,13 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const automationService = require('../services/automation');
 const roundRobinService = require('../services/roundRobin');
 const { getVisibilityFilter, validateAssignment } = require('../middleware/assignment');
 const { normalizePhoneNumber } = require('../utils/phoneNormalization');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Helper function: Map lead status to deal stage
 function mapLeadStatusToDealStage(leadStatus) {

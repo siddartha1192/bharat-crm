@@ -3,10 +3,9 @@ const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const { tenantContext } = require('../middleware/tenant');
 const gmailIntegrationService = require('../services/gmailIntegration');
-const { PrismaClient } = require('@prisma/client');
 const { decrypt } = require('../utils/encryption');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 /**
  * Diagnostic endpoint to check Gmail OAuth configuration

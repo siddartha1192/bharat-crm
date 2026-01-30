@@ -1,9 +1,8 @@
-const { PrismaClient } = require('@prisma/client');
 const emailService = require('./email');
 const whatsappService = require('./whatsapp');
 const EmailTemplateService = require('./emailTemplate');
 const callQueueService = require('./callQueueService');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 /**
  * Automation Service

@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const { PrismaClient } = require('@prisma/client');
 const http = require('http');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
@@ -10,12 +9,14 @@ const { createAdapter } = require('@socket.io/redis-adapter');
 
 dotenv.config();
 
+// Use Prisma singleton to prevent connection pool exhaustion
+const prisma = require('./lib/prisma');
+
 // Instance identification for logging
 const INSTANCE_ID = process.env.APP_INSTANCE_ID || 'default';
 const IS_WORKER = process.env.IS_WORKER === 'true';
 
 const app = express();
-const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
@@ -89,14 +90,49 @@ app.set('trust proxy', true);
 app.use(express.static('public'));
 
 // Health check (includes instance ID for load balancer verification)
-app.get('/api/health', (req, res) => {
-  res.json({
+// Includes database and Redis connectivity checks for production monitoring
+app.get('/api/health', async (req, res) => {
+  const health = {
     status: 'ok',
     message: 'Bharat CRM API is running',
     instance: INSTANCE_ID,
     isWorker: IS_WORKER,
-    timestamp: new Date().toISOString()
-  });
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    checks: {}
+  };
+
+  // Database connectivity check
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    health.checks.database = 'ok';
+  } catch (error) {
+    health.checks.database = 'error';
+    health.checks.databaseError = error.message;
+    health.status = 'degraded';
+  }
+
+  // Redis connectivity check (if configured)
+  if (process.env.REDIS_URL) {
+    try {
+      const testClient = createClient({ url: process.env.REDIS_URL });
+      testClient.on('error', () => {}); // Suppress error events
+      await testClient.connect();
+      await testClient.ping();
+      await testClient.quit();
+      health.checks.redis = 'ok';
+    } catch (error) {
+      health.checks.redis = 'error';
+      health.checks.redisError = error.message;
+      health.status = 'degraded';
+    }
+  } else {
+    health.checks.redis = 'not_configured';
+  }
+
+  // Return appropriate status code
+  const statusCode = health.status === 'ok' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 // Import routes

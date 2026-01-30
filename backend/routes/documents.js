@@ -3,11 +3,10 @@ const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const { uploadDocument, deleteFile, formatFileSize } = require('../middleware/upload');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
-const { PrismaClient } = require('@prisma/client');
 const path = require('path');
 const fs = require('fs');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Apply authentication and tenant context to all routes
 router.use(authenticate);

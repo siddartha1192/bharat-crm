@@ -1,11 +1,11 @@
-const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const emailService = require('./email');
 
-const prisma = new PrismaClient();
+// Use Prisma singleton
+const prisma = require('../lib/prisma');
 const { createClient } = require('redis');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';

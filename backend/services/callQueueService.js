@@ -4,10 +4,9 @@
  * Ensures calls don't block the main application flow
  */
 
-const { PrismaClient } = require('@prisma/client');
 const callService = require('./callService');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 class CallQueueService {
   /**

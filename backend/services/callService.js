@@ -4,11 +4,10 @@
  * Integrates with Twilio, Prisma, and Call Queue
  */
 
-const { PrismaClient } = require('@prisma/client');
 const twilioService = require('./twilio');
 const { normalizePhoneNumber } = require('../utils/phoneNormalization');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 class CallService {
   /**

@@ -7,8 +7,7 @@ const router = express.Router();
 const campaignService = require('../services/campaign');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // All routes require authentication
 router.use(authenticate);

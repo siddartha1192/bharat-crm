@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use Prisma singleton
+const prisma = require('../lib/prisma');
 
 /**
  * Get visibility filter for entities based on user role

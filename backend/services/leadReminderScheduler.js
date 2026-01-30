@@ -6,9 +6,8 @@
 
 const cron = require('node-cron');
 const leadReminderService = require('./leadReminderService');
-const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 let reminderTask = null;
 let currentInterval = null;

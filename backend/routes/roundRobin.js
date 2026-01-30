@@ -3,8 +3,7 @@ const router = express.Router();
 const roundRobinService = require('../services/roundRobin');
 const { authenticate } = require('../middleware/auth');
 const { tenantContext } = require('../middleware/tenant');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Apply authentication and tenant context to all routes
 router.use(authenticate);
