@@ -9,14 +9,38 @@
 # Usage:
 #   docker-compose -f docker-compose.appserver.yml up -d --build
 #
-# Required environment variables in .env:
-#   - DATABASE_URL (DigitalOcean Managed PostgreSQL)
-#   - REDIS_URL=redis://64.227.140.115:6379
-#   - JWT_SECRET, JWT_REFRESH_SECRET, ENCRYPTION_KEY
-#   - OPENAI_API_KEY
-#   - WHATSAPP_* credentials
-#   - GOOGLE_* credentials
-#   - FRONTEND_URL
+# =============================================================================
+# REQUIRED .env FILE CONFIGURATION
+# =============================================================================
+#
+# Create a .env file with these variables:
+#
+# # PostgreSQL Connection (use ONE of these options):
+# # Option 1: DigitalOcean Managed PostgreSQL
+# DATABASE_URL=postgresql://USER:PASSWORD@your-db-cluster.db.ondigitalocean.com:25060/bharat_crm?sslmode=require
+#
+# # Option 2: Self-hosted PostgreSQL on separate VPS
+# DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@YOUR_POSTGRES_VPS_IP:5432/bharat_crm
+#
+# # Redis Connection
+# REDIS_URL=redis://64.227.140.115:6379
+#
+# # Qdrant Connection (Worker VPS)
+# QDRANT_URL=http://143.110.240.152:6333
+#
+# # App Instance ID (set differently on each app server)
+# APP_INSTANCE_ID=app-1  # Use app-2 on second server
+#
+# # JWT Secrets
+# JWT_SECRET=your-jwt-secret
+# JWT_REFRESH_SECRET=your-refresh-secret
+# ENCRYPTION_KEY=your-encryption-key
+#
+# # OpenAI
+# OPENAI_API_KEY=sk-xxx
+#
+# # Frontend URL
+# FRONTEND_URL=https://your-domain.com
 #
 # =============================================================================
 

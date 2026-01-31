@@ -9,9 +9,36 @@
 # Usage:
 #   docker-compose -f docker-compose.worker.yml up -d --build
 #
-# IMPORTANT: Configure firewall to allow Qdrant access from:
+# IMPORTANT: Configure firewall to allow Qdrant access (port 6333) from:
 #   - App Server 1: 64.227.150.92
 #   - App Server 2: 143.110.242.240
+#
+# =============================================================================
+# REQUIRED .env FILE CONFIGURATION
+# =============================================================================
+#
+# Create a .env file with these variables:
+#
+# # PostgreSQL Connection (use ONE of these options):
+# # Option 1: DigitalOcean Managed PostgreSQL
+# DATABASE_URL=postgresql://USER:PASSWORD@your-db-cluster.db.ondigitalocean.com:25060/bharat_crm?sslmode=require
+#
+# # Option 2: Self-hosted PostgreSQL on separate VPS
+# DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@YOUR_POSTGRES_VPS_IP:5432/bharat_crm
+#
+# # Redis Connection
+# REDIS_URL=redis://64.227.140.115:6379
+#
+# # JWT Secrets
+# JWT_SECRET=your-jwt-secret
+# JWT_REFRESH_SECRET=your-refresh-secret
+# ENCRYPTION_KEY=your-encryption-key
+#
+# # OpenAI
+# OPENAI_API_KEY=sk-xxx
+#
+# # Frontend URL
+# FRONTEND_URL=https://your-domain.com
 #
 # =============================================================================
 
