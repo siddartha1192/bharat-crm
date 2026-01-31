@@ -1,7 +1,10 @@
 /**
  * Enterprise AI Configuration
  * All AI-related configuration loaded from environment variables
- * NOTE: openaiApiKey is NOT included here - must be configured per-tenant in Settings
+ *
+ * IMPORTANT: All OpenAI API keys must be configured per-tenant in Settings.
+ * There is NO environment variable for OpenAI API key.
+ * Each tenant configures their own API key in Settings > AI Configuration.
  */
 
 module.exports = {
