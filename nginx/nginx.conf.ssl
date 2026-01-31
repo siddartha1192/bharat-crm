@@ -35,6 +35,10 @@ http {
                application/x-javascript application/xml+rss application/json
                application/javascript image/svg+xml;
 
+    # Docker internal DNS resolver - enables runtime DNS resolution for containers
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    resolver_timeout 5s;
+
     # Backend upstream
     upstream backend_servers {
         server backend:3001;

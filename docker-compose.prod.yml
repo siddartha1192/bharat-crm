@@ -84,6 +84,12 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -145,9 +151,13 @@ services:
     image: nginx:alpine
     container_name: bharat-crm-nginx
     restart: always
+    # CRITICAL: Wait for backend services to be healthy before starting nginx
+    # This prevents "host not found in upstream" errors at nginx startup
     depends_on:
-      - frontend
-      - backend
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
@@ -158,6 +168,11 @@ services:
       - certbot_conf:/etc/letsencrypt:ro
     networks:
       - crm-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     logging:
       driver: "json-file"
       options:
