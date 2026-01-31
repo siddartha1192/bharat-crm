@@ -1,5 +1,5 @@
 # =============================================================================
-# BHARAT CRM - APP SERVER VPS
+# BHARAT CRM - APP SERVER VPS (Stateless)
 # =============================================================================
 #
 # Deploy this on each app server:
@@ -15,12 +15,8 @@
 #
 # Create a .env file with these variables:
 #
-# # PostgreSQL Connection (use ONE of these options):
-# # Option 1: DigitalOcean Managed PostgreSQL
+# # PostgreSQL Connection (DigitalOcean Managed)
 # DATABASE_URL=postgresql://USER:PASSWORD@your-db-cluster.db.ondigitalocean.com:25060/bharat_crm?sslmode=require
-#
-# # Option 2: Self-hosted PostgreSQL on separate VPS
-# DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@YOUR_POSTGRES_VPS_IP:5432/bharat_crm
 #
 # # Redis Connection
 # REDIS_URL=redis://64.227.140.115:6379
@@ -31,13 +27,23 @@
 # # App Instance ID (set differently on each app server)
 # APP_INSTANCE_ID=app-1  # Use app-2 on second server
 #
-# # JWT Secrets
+# # JWT Secrets (same across all servers)
 # JWT_SECRET=your-jwt-secret
 # JWT_REFRESH_SECRET=your-refresh-secret
 # ENCRYPTION_KEY=your-encryption-key
 #
 # # OpenAI
 # OPENAI_API_KEY=sk-xxx
+#
+# # S3/AWS Storage (REQUIRED for stateless architecture)
+# # Files are stored in S3 instead of local disk for horizontal scaling
+# S3_ENDPOINT=https://s3.amazonaws.com          # AWS S3
+# # S3_ENDPOINT=https://blr1.digitaloceanspaces.com  # DigitalOcean Spaces
+# S3_BUCKET=your-bucket-name
+# S3_ACCESS_KEY=your-access-key
+# S3_SECRET_KEY=your-secret-key
+# S3_REGION=us-east-1                           # or blr1 for DigitalOcean
+# S3_CDN_URL=https://your-cdn-url.com           # optional CDN URL
 #
 # # Frontend URL
 # FRONTEND_URL=https://your-domain.com
