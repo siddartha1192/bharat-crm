@@ -7,18 +7,17 @@
                                         │
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        VPS 3: NGINX + FRONTEND                               │
-│                          (Load Balancer)                                     │
-│                        IP: nginx.example.com                                 │
-│                          Ports: 80, 443                                      │
+│                    LOAD BALANCER: 139.59.11.54                              │
+│                      (Nginx + Frontend)                                     │
+│                        Ports: 80, 443                                       │
 └─────────────────────────────────┬───────────────────────────────────────────┘
                                   │
                     ┌─────────────┴─────────────┐
                     │                           │
                     ▼                           ▼
 ┌───────────────────────────────┐ ┌───────────────────────────────┐
-│      VPS 1: APP SERVER 1      │ │      VPS 2: APP SERVER 2      │
-│      IP: app1.example.com     │ │      IP: app2.example.com     │
+│      APP SERVER 1             │ │      APP SERVER 2             │
+│      IP: 64.227.150.92        │ │      IP: 143.110.242.240      │
 │         Port: 3001            │ │         Port: 3001            │
 │      (Stateless Backend)      │ │      (Stateless Backend)      │
 └───────────────┬───────────────┘ └───────────────┬───────────────┘
@@ -29,11 +28,11 @@
         │                     │                     │
         ▼                     ▼                     ▼
 ┌───────────────┐   ┌─────────────────┐   ┌─────────────────────────┐
-│  VPS 5: REDIS │   │  VPS 4: WORKER  │   │  DIGITALOCEAN           │
-│  Port: 6379   │   │  Port: 3002     │   │  Managed PostgreSQL     │
-│  Sessions,    │   │  Cron Jobs,     │   │  Port: 25060            │
-│  Socket.IO    │   │  Campaigns,     │   │                         │
-│               │   │  Qdrant (6333)  │   │  DIGITALOCEAN Spaces    │
+│     REDIS     │   │     WORKER      │   │  DIGITALOCEAN           │
+│ 64.227.140.115│   │ 143.110.240.152 │   │  Managed PostgreSQL     │
+│  Port: 6379   │   │  Port: 3002     │   │  Port: 25060            │
+│  Sessions,    │   │  Cron Jobs,     │   │                         │
+│  Socket.IO    │   │  Qdrant (6333)  │   │  DIGITALOCEAN Spaces    │
 └───────────────┘   └─────────────────┘   │  (S3 File Storage)      │
                                           └─────────────────────────┘
 ```
@@ -42,39 +41,35 @@
 
 ## Server Summary
 
-| VPS | Role | What Runs | Ports to Open |
-|-----|------|-----------|---------------|
-| **VPS 1** | App Server 1 | Node.js Backend | 3001 (internal) |
-| **VPS 2** | App Server 2 | Node.js Backend | 3001 (internal) |
-| **VPS 3** | Nginx + Frontend | Nginx, React App | 80, 443 (public) |
-| **VPS 4** | Worker | Background Jobs, Qdrant | 3002 (internal) |
-| **VPS 5** | Redis | Redis Server | 6379 (internal) |
+| VPS | Role | IP Address | Ports | Docker Compose File |
+|-----|------|------------|-------|---------------------|
+| **Load Balancer** | Nginx + Frontend | 139.59.11.54 | 80, 443 (public) | `docker-compose.loadbalancer.yml` |
+| **App Server 1** | Node.js Backend | 64.227.150.92 | 3001 (internal) | `docker-compose.appserver.yml` |
+| **App Server 2** | Node.js Backend | 143.110.242.240 | 3001 (internal) | `docker-compose.appserver.yml` |
+| **Worker** | Background Jobs + Qdrant | 143.110.240.152 | 3002, 6333 (internal) | `docker-compose.worker.yml` |
+| **Redis** | Session Store | 64.227.140.115 | 6379 (internal) | `docker-compose.redis.yml` |
 
 ---
 
-## IP Address Planning
-
-Before starting, note down the **private IPs** (if available) or **public IPs** of each VPS:
+## IP Address Reference
 
 ```
-VPS 1 (App 1):    ___.___.___.___
-VPS 2 (App 2):    ___.___.___.___
-VPS 3 (Nginx):    ___.___.___.___  ← This is your main domain IP
-VPS 4 (Worker):   ___.___.___.___
-VPS 5 (Redis):    ___.___.___.___
+Load Balancer (Nginx):  139.59.11.54    ← Main domain points here
+App Server 1:           64.227.150.92
+App Server 2:           143.110.242.240
+Worker + Qdrant:        143.110.240.152
+Redis:                  64.227.140.115
 ```
-
-> **Tip**: If your VPSes are in the same datacenter, use private IPs for internal communication (more secure, no bandwidth charges).
 
 ---
 
 ## Prerequisites
 
-- [ ] 5 Hostinger VPS accounts (Ubuntu 22.04 LTS recommended)
-- [ ] DigitalOcean account (for database and file storage)
-- [ ] Domain name
-- [ ] All VPS IPs noted down
+- [ ] 5 VPS accounts (Ubuntu 22.04 LTS recommended)
+- [ ] DigitalOcean account (for managed PostgreSQL and Spaces)
+- [ ] Domain name pointing to Load Balancer IP (139.59.11.54)
 - [ ] SSH access to all 5 VPSes
+- [ ] Clone this repository on each VPS
 
 ---
 
@@ -88,23 +83,23 @@ VPS 5 (Redis):    ___.___.___.___
 2. Configure:
    - **Engine**: PostgreSQL 15
    - **Plan**: Basic ($15/month)
-   - **Region**: Closest to your VPSes
+   - **Region**: Closest to your VPSes (e.g., BLR for India)
    - **Name**: `crm-database`
 3. Click **Create Database Cluster**
 4. Save the **Connection String**
 
-### 1.2: Add ALL VPS IPs to Trusted Sources
+### 1.2: Add VPS IPs to Trusted Sources
 
-**IMPORTANT**: Add all 5 VPS IPs to trusted sources:
+**IMPORTANT**: Add these IPs to trusted sources:
 
 1. Go to **Databases** → **crm-database** → **Settings**
 2. Under **Trusted Sources**, add:
-   - VPS 1 IP (App 1)
-   - VPS 2 IP (App 2)
-   - VPS 4 IP (Worker)
+   - `64.227.150.92` (App Server 1)
+   - `143.110.242.240` (App Server 2)
+   - `143.110.240.152` (Worker)
 3. Click **Save**
 
-### 1.3: Create DigitalOcean Space
+### 1.3: Create DigitalOcean Space (Optional - for file storage)
 
 1. Go to **Create** → **Spaces Object Storage**
 2. Configure:
@@ -119,91 +114,53 @@ VPS 5 (Redis):    ___.___.___.___
 
 > **[DOMAIN]** - At your domain registrar
 
-Point your domain to **VPS 3 (Nginx)**:
+Point your domain to the **Load Balancer (139.59.11.54)**:
 
 ```
-Type: A    Name: @      Value: <VPS 3 IP>
-Type: A    Name: www    Value: <VPS 3 IP>
+Type: A    Name: @      Value: 139.59.11.54
+Type: A    Name: www    Value: 139.59.11.54
 ```
 
 ---
 
-# PART 3: VPS 5 - REDIS SERVER
+# PART 3: REDIS SERVER (64.227.140.115)
 
-> **[VPS 5]** - SSH into your Redis VPS
+> **[REDIS VPS]** - SSH into 64.227.140.115
 
-### 3.1: Connect to VPS 5
+### 3.1: Connect to Redis VPS
 
 ```bash
-ssh root@<VPS_5_IP>
+ssh root@64.227.140.115
 ```
 
 ### 3.2: Install Docker
 
 ```bash
 apt update && apt upgrade -y
-apt install -y apt-transport-https ca-certificates curl software-properties-common
+apt install -y apt-transport-https ca-certificates curl software-properties-common git
 
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 apt update
-apt install -y docker-ce docker-ce-cli containerd.io
+apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 ```
 
-### 3.3: Create Redis Directory
+### 3.3: Clone Repository
 
 ```bash
-mkdir -p /root/redis
-cd /root/redis
+cd /root
+git clone https://github.com/siddartha1192/bharat-crm.git
+cd bharat-crm
 ```
 
-### 3.4: Create Docker Compose File
+### 3.4: Start Redis
 
 ```bash
-cat > docker-compose.yml << 'EOF'
-version: '3.8'
-
-services:
-  redis:
-    image: redis:7-alpine
-    container_name: crm-redis
-    restart: always
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes --requirepass YOUR_REDIS_PASSWORD
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "YOUR_REDIS_PASSWORD", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  redis_data:
-EOF
+docker compose -f docker-compose.redis.yml up -d
 ```
 
-### 3.5: Set Redis Password
-
-```bash
-# Generate a secure password
-REDIS_PASSWORD=$(openssl rand -base64 32)
-echo "Your Redis Password: $REDIS_PASSWORD"
-echo "SAVE THIS PASSWORD!"
-
-# Update the docker-compose file with the password
-sed -i "s|YOUR_REDIS_PASSWORD|$REDIS_PASSWORD|g" docker-compose.yml
-```
-
-### 3.6: Start Redis
-
-```bash
-docker-compose up -d
-```
-
-### 3.7: Configure Firewall
+### 3.5: Configure Firewall
 
 ```bash
 apt install -y ufw
@@ -211,38 +168,38 @@ apt install -y ufw
 # Allow SSH
 ufw allow 22
 
-# Allow Redis ONLY from your other VPSes (replace with actual IPs)
-ufw allow from <VPS_1_IP> to any port 6379
-ufw allow from <VPS_2_IP> to any port 6379
-ufw allow from <VPS_4_IP> to any port 6379
+# Allow Redis ONLY from app servers and worker
+ufw allow from 64.227.150.92 to any port 6379    # App 1
+ufw allow from 143.110.242.240 to any port 6379  # App 2
+ufw allow from 143.110.240.152 to any port 6379  # Worker
 
 # Enable firewall
-ufw enable
+ufw --force enable
 ```
 
-### 3.8: Verify Redis
+### 3.6: Verify Redis
 
 ```bash
-docker exec crm-redis redis-cli -a YOUR_REDIS_PASSWORD ping
+docker exec crm-redis redis-cli ping
 # Should return: PONG
 ```
 
-### 3.9: Note Your Redis URL
+### 3.7: Note Your Redis URL
 
 ```
-REDIS_URL=redis://:YOUR_REDIS_PASSWORD@<VPS_5_IP>:6379
+REDIS_URL=redis://64.227.140.115:6379
 ```
 
 ---
 
-# PART 4: VPS 4 - WORKER SERVER
+# PART 4: WORKER SERVER (143.110.240.152)
 
-> **[VPS 4]** - SSH into your Worker VPS
+> **[WORKER VPS]** - SSH into 143.110.240.152
 
-### 4.1: Connect to VPS 4
+### 4.1: Connect to Worker VPS
 
 ```bash
-ssh root@<VPS_4_IP>
+ssh root@143.110.240.152
 ```
 
 ### 4.2: Install Docker
@@ -255,17 +212,14 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 apt update
-apt install -y docker-ce docker-ce-cli containerd.io
-
-curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
+apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 ```
 
 ### 4.3: Clone Repository
 
 ```bash
 cd /root
-git clone https://github.com/YOUR_USERNAME/bharat-crm.git
+git clone https://github.com/siddartha1192/bharat-crm.git
 cd bharat-crm
 ```
 
@@ -273,43 +227,44 @@ cd bharat-crm
 
 ```bash
 cat > .env << 'EOF'
-# Worker Server Environment
-NODE_ENV=production
-PORT=3002
-IS_WORKER=true
-APP_INSTANCE_ID=worker
+# =============================================================================
+# WORKER SERVER ENVIRONMENT (143.110.240.152)
+# =============================================================================
 
-# Database (from DigitalOcean)
-DATABASE_URL=postgresql://doadmin:PASSWORD@HOST:25060/defaultdb?sslmode=require
+# PostgreSQL Connection (DigitalOcean Managed)
+# Get this from DigitalOcean Dashboard → Databases → Connection Details
+DATABASE_URL=postgresql://doadmin:YOUR_PASSWORD@your-db-cluster.db.ondigitalocean.com:25060/defaultdb?sslmode=require
 
-# Redis (from VPS 5)
-REDIS_URL=redis://:YOUR_REDIS_PASSWORD@<VPS_5_IP>:6379
+# Redis Connection
+REDIS_URL=redis://64.227.140.115:6379
 
-# S3/Spaces Storage
-S3_ENDPOINT=https://fra1.digitaloceanspaces.com
-S3_ACCESS_KEY=your-access-key
-S3_SECRET_KEY=your-secret-key
-S3_BUCKET=crm-files
-S3_REGION=fra1
+# JWT Secrets (use same values across all servers)
+JWT_SECRET=your-jwt-secret-here
+JWT_REFRESH_SECRET=your-jwt-refresh-secret-here
+ENCRYPTION_KEY=your-32-character-encryption-key
 
 # OpenAI
-OPENAI_API_KEY=sk-your-key
+OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_MODEL=gpt-4o-mini
+EMBEDDING_MODEL=text-embedding-3-small
 
-# WhatsApp
-WHATSAPP_API_TOKEN=your-token
+# WhatsApp (optional)
+WHATSAPP_API_TOKEN=your-whatsapp-token
 WHATSAPP_PHONE_ID=your-phone-id
 WHATSAPP_BUSINESS_ACCOUNT_ID=your-account-id
 
-# Domain
-FRONTEND_URL=https://yourdomain.com
+# Gmail (optional)
+GMAIL_USER=your-email@gmail.com
+GMAIL_REFRESH_TOKEN=your-gmail-refresh-token
 
-# Security Keys
-JWT_SECRET=your-jwt-secret
-ENCRYPTION_KEY=your-encryption-key
+# Application
+FRONTEND_URL=https://your-domain.com
+COMPANY_NAME=Your Company Name
+OWNER_EMAIL=admin@your-domain.com
 
-# Company
-COMPANY_NAME=Your Company
-OWNER_EMAIL=admin@yourdomain.com
+# Worker Settings
+CAMPAIGN_BATCH_SIZE=100
+CAMPAIGN_BATCH_DELAY=5000
 EOF
 ```
 
@@ -317,80 +272,47 @@ EOF
 
 ```bash
 nano .env
-# Fill in all the values from your DigitalOcean setup and VPS 5 Redis
+# Fill in all the values from your DigitalOcean setup
 # Save with Ctrl+X, Y, Enter
 ```
 
-### 4.6: Create Worker Docker Compose
+### 4.6: Start Worker + Qdrant
 
 ```bash
-cat > docker-compose.worker.yml << 'EOF'
-version: '3.8'
-
-services:
-  worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.worker
-    container_name: crm-worker
-    restart: always
-    ports:
-      - "3002:3002"
-    env_file:
-      - .env
-    volumes:
-      - qdrant_data:/app/qdrant_data
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "20m"
-        max-file: "5"
-
-volumes:
-  qdrant_data:
-EOF
+docker compose -f docker-compose.worker.yml up -d --build
 ```
 
-### 4.7: Start Worker
-
-```bash
-docker-compose -f docker-compose.worker.yml up -d --build
-```
-
-### 4.8: Configure Firewall
+### 4.7: Configure Firewall
 
 ```bash
 apt install -y ufw
 ufw allow 22
 
-# Allow health checks from Nginx
-ufw allow from <VPS_3_IP> to any port 3002
+# Allow Qdrant access from App servers
+ufw allow from 64.227.150.92 to any port 6333    # App 1
+ufw allow from 143.110.242.240 to any port 6333  # App 2
 
-ufw enable
+ufw --force enable
 ```
 
-### 4.9: Verify Worker
+### 4.8: Verify Worker
 
 ```bash
 docker logs crm-worker
 curl http://localhost:3002/health
+curl http://localhost:6333/health   # Qdrant health
 ```
 
 ---
 
-# PART 5: VPS 1 - APP SERVER 1
+# PART 5: APP SERVER 1 (64.227.150.92)
 
-> **[VPS 1]** - SSH into your first App Server
+> **[APP 1 VPS]** - SSH into 64.227.150.92
 
-### 5.1: Connect to VPS 1
+### 5.1: Connect to App Server 1
 
 ```bash
-ssh root@<VPS_1_IP>
+ssh root@64.227.150.92
 ```
 
 ### 5.2: Install Docker
@@ -403,17 +325,14 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 apt update
-apt install -y docker-ce docker-ce-cli containerd.io
-
-curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
+apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 ```
 
 ### 5.3: Clone Repository
 
 ```bash
 cd /root
-git clone https://github.com/YOUR_USERNAME/bharat-crm.git
+git clone https://github.com/siddartha1192/bharat-crm.git
 cd bharat-crm
 ```
 
@@ -421,58 +340,61 @@ cd bharat-crm
 
 ```bash
 cat > .env << 'EOF'
-# App Server 1 Environment
-NODE_ENV=production
-PORT=3001
-IS_WORKER=false
+# =============================================================================
+# APP SERVER 1 ENVIRONMENT (64.227.150.92)
+# =============================================================================
+
+# Instance ID (IMPORTANT: use app-1 for this server)
 APP_INSTANCE_ID=app-1
 
-# Database (from DigitalOcean)
-DATABASE_URL=postgresql://doadmin:PASSWORD@HOST:25060/defaultdb?sslmode=require
+# PostgreSQL Connection (DigitalOcean Managed)
+DATABASE_URL=postgresql://doadmin:YOUR_PASSWORD@your-db-cluster.db.ondigitalocean.com:25060/defaultdb?sslmode=require
 
-# Redis (from VPS 5)
-REDIS_URL=redis://:YOUR_REDIS_PASSWORD@<VPS_5_IP>:6379
+# Redis Connection
+REDIS_URL=redis://64.227.140.115:6379
 
-# S3/Spaces Storage
-S3_ENDPOINT=https://fra1.digitaloceanspaces.com
-S3_ACCESS_KEY=your-access-key
-S3_SECRET_KEY=your-secret-key
-S3_BUCKET=crm-files
-S3_REGION=fra1
+# Qdrant Connection (Worker VPS)
+QDRANT_URL=http://143.110.240.152:6333
+
+# JWT Secrets (use same values across all servers)
+JWT_SECRET=your-jwt-secret-here
+JWT_REFRESH_SECRET=your-jwt-refresh-secret-here
+ENCRYPTION_KEY=your-32-character-encryption-key
 
 # OpenAI
-OPENAI_API_KEY=sk-your-key
+OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_MODEL=gpt-4o-mini
+EMBEDDING_MODEL=text-embedding-3-small
+ENABLE_AI_FEATURE=true
 
 # WhatsApp
-WHATSAPP_API_TOKEN=your-token
+WHATSAPP_API_TOKEN=your-whatsapp-token
 WHATSAPP_PHONE_ID=your-phone-id
 WHATSAPP_BUSINESS_ACCOUNT_ID=your-account-id
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=your-verify-token
 
 # Google OAuth
-GOOGLE_CLIENT_ID=your-client-id
-GOOGLE_CLIENT_SECRET=your-secret
-GOOGLE_REDIRECT_URI=https://yourdomain.com/api/calendar/google/callback
-GOOGLE_AUTH_REDIRECT_URI=https://yourdomain.com/api/auth/google/callback
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=https://your-domain.com/api/calendar/google/callback
+GOOGLE_AUTH_REDIRECT_URI=https://your-domain.com/api/auth/google/callback
 
 # Gmail
 GMAIL_USER=your-email@gmail.com
-GMAIL_REFRESH_TOKEN=your-token
+GMAIL_REFRESH_TOKEN=your-gmail-refresh-token
 GMAIL_REDIRECT_URI=https://developers.google.com/oauthplayground
 
-# Domain
-DOMAIN=yourdomain.com
-FRONTEND_URL=https://yourdomain.com
-VITE_API_URL=https://yourdomain.com
+# S3/DigitalOcean Spaces (optional)
+S3_ENDPOINT=https://blr1.digitaloceanspaces.com
+S3_ACCESS_KEY=your-access-key
+S3_SECRET_KEY=your-secret-key
+S3_BUCKET=crm-files
+S3_REGION=blr1
 
-# Security Keys
-JWT_SECRET=your-jwt-secret
-JWT_REFRESH_SECRET=your-jwt-refresh-secret
-ENCRYPTION_KEY=your-encryption-key
-
-# Company
-COMPANY_NAME=Your Company
-OWNER_EMAIL=admin@yourdomain.com
+# Application
+FRONTEND_URL=https://your-domain.com
+COMPANY_NAME=Your Company Name
+OWNER_EMAIL=admin@your-domain.com
 EOF
 ```
 
@@ -480,59 +402,29 @@ EOF
 
 ```bash
 nano .env
-# Fill in all values
+# Fill in all values - use SAME secrets as Worker
 # Save with Ctrl+X, Y, Enter
 ```
 
-### 5.6: Create App Docker Compose
+### 5.6: Start App Server
 
 ```bash
-cat > docker-compose.app.yml << 'EOF'
-version: '3.8'
-
-services:
-  app:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.stateless
-    container_name: crm-app
-    restart: always
-    ports:
-      - "3001:3001"
-    env_file:
-      - .env
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-EOF
+docker compose -f docker-compose.appserver.yml up -d --build
 ```
 
-### 5.7: Start App Server
-
-```bash
-docker-compose -f docker-compose.app.yml up -d --build
-```
-
-### 5.8: Configure Firewall
+### 5.7: Configure Firewall
 
 ```bash
 apt install -y ufw
 ufw allow 22
 
-# Allow traffic from Nginx only
-ufw allow from <VPS_3_IP> to any port 3001
+# Allow traffic from Load Balancer only
+ufw allow from 139.59.11.54 to any port 3001
 
-ufw enable
+ufw --force enable
 ```
 
-### 5.9: Verify App Server
+### 5.8: Verify App Server
 
 ```bash
 docker logs crm-app
@@ -541,28 +433,25 @@ curl http://localhost:3001/api/health
 
 ---
 
-# PART 6: VPS 2 - APP SERVER 2
+# PART 6: APP SERVER 2 (143.110.242.240)
 
-> **[VPS 2]** - SSH into your second App Server
+> **[APP 2 VPS]** - SSH into 143.110.242.240
 
-### 6.1: Connect to VPS 2
+### 6.1: Connect to App Server 2
 
 ```bash
-ssh root@<VPS_2_IP>
+ssh root@143.110.242.240
 ```
 
-### 6.2: Repeat ALL Steps from Part 5
+### 6.2: Repeat Steps from Part 5
 
-Do exactly the same as VPS 1, **EXCEPT**:
+Do exactly the same as App Server 1, **EXCEPT** change this in `.env`:
 
-In the `.env` file, change:
 ```bash
 APP_INSTANCE_ID=app-2
 ```
 
-Everything else stays the same.
-
-### Quick Commands for VPS 2:
+### Quick Commands for App Server 2:
 
 ```bash
 # Install Docker
@@ -571,65 +460,36 @@ apt install -y apt-transport-https ca-certificates curl software-properties-comm
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 apt update
-apt install -y docker-ce docker-ce-cli containerd.io
-curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
+apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
 # Clone and setup
 cd /root
-git clone https://github.com/YOUR_USERNAME/bharat-crm.git
+git clone https://github.com/siddartha1192/bharat-crm.git
 cd bharat-crm
 
-# Copy .env from VPS 1 or create new (change APP_INSTANCE_ID=app-2)
+# Create .env (copy from App 1, change APP_INSTANCE_ID=app-2)
 nano .env
 
-# Create docker-compose.app.yml (same as VPS 1)
-cat > docker-compose.app.yml << 'EOF'
-version: '3.8'
-
-services:
-  app:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.stateless
-    container_name: crm-app
-    restart: always
-    ports:
-      - "3001:3001"
-    env_file:
-      - .env
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-EOF
-
 # Start
-docker-compose -f docker-compose.app.yml up -d --build
+docker compose -f docker-compose.appserver.yml up -d --build
 
 # Firewall
 apt install -y ufw
 ufw allow 22
-ufw allow from <VPS_3_IP> to any port 3001
-ufw enable
+ufw allow from 139.59.11.54 to any port 3001
+ufw --force enable
 ```
 
 ---
 
-# PART 7: VPS 3 - NGINX + FRONTEND
+# PART 7: LOAD BALANCER (139.59.11.54)
 
-> **[VPS 3]** - SSH into your Nginx/Frontend VPS
+> **[LOAD BALANCER VPS]** - SSH into 139.59.11.54
 
-### 7.1: Connect to VPS 3
+### 7.1: Connect to Load Balancer
 
 ```bash
-ssh root@<VPS_3_IP>
+ssh root@139.59.11.54
 ```
 
 ### 7.2: Install Docker
@@ -642,134 +502,18 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 apt update
-apt install -y docker-ce docker-ce-cli containerd.io
-
-curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
+apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 ```
 
 ### 7.3: Clone Repository
 
 ```bash
 cd /root
-git clone https://github.com/YOUR_USERNAME/bharat-crm.git
+git clone https://github.com/siddartha1192/bharat-crm.git
 cd bharat-crm
 ```
 
-### 7.4: Create Nginx Configuration
-
-**IMPORTANT**: Replace `<VPS_1_IP>` and `<VPS_2_IP>` with actual IPs!
-
-```bash
-mkdir -p nginx
-cat > nginx/nginx.multi-vps.conf << 'EOF'
-# Upstream app servers (REPLACE WITH YOUR ACTUAL IPs!)
-upstream app_servers {
-    least_conn;
-    server <VPS_1_IP>:3001 max_fails=3 fail_timeout=30s;
-    server <VPS_2_IP>:3001 max_fails=3 fail_timeout=30s;
-}
-
-# Rate limiting
-limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
-limit_req_zone $binary_remote_addr zone=general_limit:10m rate=30r/s;
-
-server {
-    listen 80;
-    server_name yourdomain.com www.yourdomain.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name yourdomain.com www.yourdomain.com;
-
-    # SSL certificates
-    ssl_certificate /etc/nginx/ssl/cert.pem;
-    ssl_certificate_key /etc/nginx/ssl/key.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
-    ssl_prefer_server_ciphers off;
-
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-
-    # Gzip
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
-
-    # Frontend (React)
-    location / {
-        proxy_pass http://frontend:80;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    # API routes
-    location /api/ {
-        limit_req zone=api_limit burst=20 nodelay;
-
-        proxy_pass http://app_servers;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-
-    # WebSocket
-    location /socket.io/ {
-        proxy_pass http://app_servers;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-
-        proxy_connect_timeout 7d;
-        proxy_send_timeout 7d;
-        proxy_read_timeout 7d;
-    }
-
-    # Health check
-    location /nginx-health {
-        access_log off;
-        return 200 "healthy\n";
-        add_header Content-Type text/plain;
-    }
-}
-EOF
-```
-
-### 7.5: Update Nginx Config with Your IPs
-
-```bash
-# Replace placeholders with actual IPs
-nano nginx/nginx.multi-vps.conf
-
-# Change these lines:
-#   server <VPS_1_IP>:3001  → server 185.1.2.3:3001
-#   server <VPS_2_IP>:3001  → server 185.4.5.6:3001
-#   server_name yourdomain.com → server_name your-actual-domain.com
-```
-
-### 7.6: Create Environment File for Frontend
-
-```bash
-cat > .env << 'EOF'
-VITE_API_URL=https://yourdomain.com
-EOF
-```
-
-### 7.7: Create SSL Directory and Self-Signed Certificate
+### 7.4: Create SSL Directory and Self-Signed Certificate
 
 ```bash
 mkdir -p nginx/ssl
@@ -777,98 +521,66 @@ mkdir -p nginx/ssl
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout nginx/ssl/key.pem \
   -out nginx/ssl/cert.pem \
-  -subj "/C=US/ST=State/L=City/O=Organization/CN=yourdomain.com"
+  -subj "/C=IN/ST=State/L=City/O=Organization/CN=your-domain.com"
 ```
 
-### 7.8: Create Docker Compose for Nginx + Frontend
+### 7.5: Create Environment File for Frontend
 
 ```bash
-cat > docker-compose.nginx.yml << 'EOF'
-version: '3.8'
-
-services:
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=${VITE_API_URL}
-    container_name: crm-frontend
-    restart: always
-    volumes:
-      - ./nginx.frontend.conf:/etc/nginx/conf.d/default.conf:ro
-    expose:
-      - "80"
-
-  nginx:
-    image: nginx:alpine
-    container_name: crm-nginx
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.multi-vps.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - frontend
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+cat > .env << 'EOF'
+VITE_API_URL=https://your-domain.com
 EOF
 ```
 
-### 7.9: Start Nginx + Frontend
+### 7.6: Start Nginx + Frontend
 
 ```bash
-docker-compose -f docker-compose.nginx.yml up -d --build
+docker compose -f docker-compose.loadbalancer.yml up -d --build
 ```
 
-### 7.10: Configure Firewall
+### 7.7: Configure Firewall
 
 ```bash
 apt install -y ufw
 ufw allow 22
 ufw allow 80
 ufw allow 443
-ufw enable
+ufw --force enable
 ```
 
-### 7.11: Get Real SSL Certificate
+### 7.8: Get Real SSL Certificate (Let's Encrypt)
 
 ```bash
-# Stop nginx
-docker-compose -f docker-compose.nginx.yml stop nginx
+# Stop nginx temporarily
+docker compose -f docker-compose.loadbalancer.yml stop nginx
 
 # Get Let's Encrypt certificate
 docker run -it --rm \
   -v $(pwd)/certbot_conf:/etc/letsencrypt \
   -p 80:80 \
   certbot/certbot certonly --standalone \
-  -d yourdomain.com -d www.yourdomain.com \
+  -d your-domain.com -d www.your-domain.com \
   --email your-email@example.com \
   --agree-tos --no-eff-email
 
 # Copy certificates
-cp certbot_conf/live/yourdomain.com/fullchain.pem nginx/ssl/cert.pem
-cp certbot_conf/live/yourdomain.com/privkey.pem nginx/ssl/key.pem
+cp certbot_conf/live/your-domain.com/fullchain.pem nginx/ssl/cert.pem
+cp certbot_conf/live/your-domain.com/privkey.pem nginx/ssl/key.pem
 
-# Start nginx
-docker-compose -f docker-compose.nginx.yml up -d nginx
+# Restart nginx
+docker compose -f docker-compose.loadbalancer.yml up -d
 ```
 
 ---
 
 # PART 8: DATABASE MIGRATION
 
-> **[VPS 1]** - Run migrations from App Server 1
+> **[APP 1 VPS]** - Run migrations from App Server 1 (64.227.150.92)
 
-### 8.1: SSH into VPS 1
+### 8.1: SSH into App Server 1
 
 ```bash
-ssh root@<VPS_1_IP>
+ssh root@64.227.150.92
 ```
 
 ### 8.2: Run Prisma Migrations
@@ -882,80 +594,83 @@ docker exec -it crm-app npx prisma migrate deploy
 
 # PART 9: VERIFICATION
 
-### 9.1: Check Each VPS
+### 9.1: Check Each Server
 
-**[VPS 5 - Redis]**:
+**Redis (64.227.140.115)**:
 ```bash
-docker exec crm-redis redis-cli -a YOUR_PASSWORD ping
+docker exec crm-redis redis-cli ping
 # Expected: PONG
 ```
 
-**[VPS 4 - Worker]**:
+**Worker (143.110.240.152)**:
 ```bash
 curl http://localhost:3002/health
 # Expected: {"status":"ok",...}
+
+curl http://localhost:6333/health
+# Expected: Qdrant health response
 ```
 
-**[VPS 1 - App 1]**:
+**App 1 (64.227.150.92)**:
 ```bash
 curl http://localhost:3001/api/health
 # Expected: {"status":"ok","instance":"app-1",...}
 ```
 
-**[VPS 2 - App 2]**:
+**App 2 (143.110.242.240)**:
 ```bash
 curl http://localhost:3001/api/health
 # Expected: {"status":"ok","instance":"app-2",...}
 ```
 
-**[VPS 3 - Nginx]**:
+**Load Balancer (139.59.11.54)**:
 ```bash
 curl -k https://localhost/api/health
-# Should alternate between app-1 and app-2
+# Should return response from app-1 or app-2 (load balanced)
 ```
 
 ### 9.2: Test from Browser
 
-Open `https://yourdomain.com` - you should see the CRM login page.
+Open `https://your-domain.com` - you should see the CRM login page.
 
 ---
 
 # PART 10: COMMON COMMANDS
 
-## VPS 5 (Redis)
-
-```bash
-cd /root/redis
-docker-compose logs -f                    # View logs
-docker-compose restart                    # Restart Redis
-docker exec crm-redis redis-cli -a PASS INFO  # Redis info
-```
-
-## VPS 4 (Worker)
+## Redis (64.227.140.115)
 
 ```bash
 cd /root/bharat-crm
-docker-compose -f docker-compose.worker.yml logs -f     # View logs
-docker-compose -f docker-compose.worker.yml restart     # Restart
-docker-compose -f docker-compose.worker.yml up -d --build  # Rebuild
+docker compose -f docker-compose.redis.yml logs -f           # View logs
+docker compose -f docker-compose.redis.yml restart           # Restart
+docker exec crm-redis redis-cli INFO                         # Redis info
 ```
 
-## VPS 1 & 2 (App Servers)
+## Worker (143.110.240.152)
 
 ```bash
 cd /root/bharat-crm
-docker-compose -f docker-compose.app.yml logs -f        # View logs
-docker-compose -f docker-compose.app.yml restart        # Restart
-docker-compose -f docker-compose.app.yml up -d --build  # Rebuild
+docker compose -f docker-compose.worker.yml logs -f          # View logs
+docker compose -f docker-compose.worker.yml restart          # Restart
+docker compose -f docker-compose.worker.yml up -d --build    # Rebuild
 ```
 
-## VPS 3 (Nginx + Frontend)
+## App Servers (64.227.150.92 & 143.110.242.240)
 
 ```bash
 cd /root/bharat-crm
-docker-compose -f docker-compose.nginx.yml logs -f      # View logs
-docker-compose -f docker-compose.nginx.yml restart      # Restart
-docker-compose -f docker-compose.nginx.yml up -d --build  # Rebuild
+docker compose -f docker-compose.appserver.yml logs -f       # View logs
+docker compose -f docker-compose.appserver.yml restart       # Restart
+docker compose -f docker-compose.appserver.yml up -d --build # Rebuild
+```
+
+## Load Balancer (139.59.11.54)
+
+```bash
+cd /root/bharat-crm
+docker compose -f docker-compose.loadbalancer.yml logs -f        # View logs
+docker compose -f docker-compose.loadbalancer.yml restart        # Restart
+docker compose -f docker-compose.loadbalancer.yml up -d --build  # Rebuild
 ```
 
 ---
@@ -964,23 +679,54 @@ docker-compose -f docker-compose.nginx.yml up -d --build  # Rebuild
 
 When you need to update the code:
 
-### On VPS 1, 2, and 4 (App Servers + Worker):
+### On App Servers (64.227.150.92 & 143.110.242.240):
 
 ```bash
 cd /root/bharat-crm
 git pull origin main
-docker-compose -f docker-compose.app.yml up -d --build   # For VPS 1 & 2
-# OR
-docker-compose -f docker-compose.worker.yml up -d --build  # For VPS 4
+docker compose -f docker-compose.appserver.yml up -d --build
 ```
 
-### On VPS 3 (Frontend):
+### On Worker (143.110.240.152):
 
 ```bash
 cd /root/bharat-crm
 git pull origin main
-docker-compose -f docker-compose.nginx.yml up -d --build
+docker compose -f docker-compose.worker.yml up -d --build
 ```
+
+### On Load Balancer (139.59.11.54):
+
+```bash
+cd /root/bharat-crm
+git pull origin main
+docker compose -f docker-compose.loadbalancer.yml up -d --build
+```
+
+---
+
+# Firewall Rules Summary
+
+| Server | IP | Open Ports | Allow From |
+|--------|-----|------------|------------|
+| **Load Balancer** | 139.59.11.54 | 22, 80, 443 | Public (internet) |
+| **App 1** | 64.227.150.92 | 22, 3001 | 139.59.11.54 (Load Balancer) |
+| **App 2** | 143.110.242.240 | 22, 3001 | 139.59.11.54 (Load Balancer) |
+| **Worker** | 143.110.240.152 | 22, 6333 | 64.227.150.92, 143.110.242.240 |
+| **Redis** | 64.227.140.115 | 22, 6379 | 64.227.150.92, 143.110.242.240, 143.110.240.152 |
+
+---
+
+# Docker Compose Files Reference
+
+| File | Server | Description |
+|------|--------|-------------|
+| `docker-compose.loadbalancer.yml` | 139.59.11.54 | Nginx + Frontend + Certbot |
+| `docker-compose.appserver.yml` | 64.227.150.92, 143.110.242.240 | Backend API (stateless) |
+| `docker-compose.worker.yml` | 143.110.240.152 | Background jobs + Qdrant |
+| `docker-compose.redis.yml` | 64.227.140.115 | Redis server |
+| `docker-compose.postgres.yml` | (optional) | Self-hosted PostgreSQL |
+| `nginx/nginx.multi-vps.conf` | 139.59.11.54 | Nginx config with server IPs |
 
 ---
 
@@ -991,17 +737,17 @@ Internet
     │
     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ VPS 3 (Nginx)          yourdomain.com:443                       │
-│ - Receives all traffic                                          │
+│ LOAD BALANCER (139.59.11.54)       your-domain.com:443          │
+│ - Receives all public traffic                                   │
 │ - SSL termination                                               │
-│ - Load balances to VPS 1 & 2                                    │
-│ - Serves frontend                                               │
+│ - Load balances to App 1 & App 2                                │
+│ - Serves React frontend                                         │
 └─────────────────────────────────────────────────────────────────┘
          │                              │
          ▼                              ▼
 ┌─────────────────────┐     ┌─────────────────────┐
-│ VPS 1 (App 1)       │     │ VPS 2 (App 2)       │
-│ :3001               │     │ :3001               │
+│ APP 1               │     │ APP 2               │
+│ 64.227.150.92:3001  │     │ 143.110.242.240:3001│
 │ - API requests      │     │ - API requests      │
 │ - WebSocket         │     │ - WebSocket         │
 └─────────┬───────────┘     └─────────┬───────────┘
@@ -1010,24 +756,25 @@ Internet
                     │
     ┌───────────────┼───────────────┐
     ▼               ▼               ▼
-┌────────┐   ┌───────────┐   ┌─────────────────┐
-│ VPS 5  │   │   VPS 4   │   │  DigitalOcean   │
-│ Redis  │   │  Worker   │   │  PostgreSQL +   │
-│ :6379  │   │   :3002   │   │  Spaces (S3)    │
-└────────┘   └───────────┘   └─────────────────┘
+┌────────────┐ ┌─────────────┐ ┌─────────────────┐
+│   REDIS    │ │   WORKER    │ │  DigitalOcean   │
+│ 64.227.    │ │ 143.110.    │ │  PostgreSQL +   │
+│ 140.115    │ │ 240.152     │ │  Spaces (S3)    │
+│ :6379      │ │ :3002,:6333 │ │                 │
+└────────────┘ └─────────────┘ └─────────────────┘
 ```
 
 ---
 
 # Estimated Monthly Costs
 
-| VPS | Specification | Cost |
-|-----|--------------|------|
-| VPS 1 (App 1) | 2GB RAM | ~$5-8/month |
-| VPS 2 (App 2) | 2GB RAM | ~$5-8/month |
-| VPS 3 (Nginx) | 2GB RAM | ~$5-8/month |
-| VPS 4 (Worker) | 4GB RAM | ~$10-15/month |
-| VPS 5 (Redis) | 1GB RAM | ~$4-6/month |
+| Server | Specification | Cost |
+|--------|--------------|------|
+| Load Balancer (139.59.11.54) | 2GB RAM | ~$5-8/month |
+| App 1 (64.227.150.92) | 2GB RAM | ~$5-8/month |
+| App 2 (143.110.242.240) | 2GB RAM | ~$5-8/month |
+| Worker (143.110.240.152) | 4GB RAM | ~$10-15/month |
+| Redis (64.227.140.115) | 1GB RAM | ~$4-6/month |
 | DigitalOcean PostgreSQL | Basic | $15/month |
 | DigitalOcean Spaces | 250GB | $5/month |
 | **Total** | | **~$50-65/month** |
@@ -1037,15 +784,54 @@ Internet
 # Deployment Checklist
 
 - [ ] **Part 1**: DigitalOcean database created
-- [ ] **Part 1**: All 5 VPS IPs added to trusted sources
-- [ ] **Part 1**: DigitalOcean Space created
-- [ ] **Part 2**: DNS pointing to VPS 3
-- [ ] **Part 3**: VPS 5 - Redis running
-- [ ] **Part 4**: VPS 4 - Worker running
-- [ ] **Part 5**: VPS 1 - App Server 1 running
-- [ ] **Part 6**: VPS 2 - App Server 2 running
-- [ ] **Part 7**: VPS 3 - Nginx + Frontend running
+- [ ] **Part 1**: VPS IPs (64.227.150.92, 143.110.242.240, 143.110.240.152) added to trusted sources
+- [ ] **Part 1**: DigitalOcean Space created (optional)
+- [ ] **Part 2**: DNS pointing to 139.59.11.54
+- [ ] **Part 3**: Redis running on 64.227.140.115
+- [ ] **Part 4**: Worker running on 143.110.240.152
+- [ ] **Part 5**: App Server 1 running on 64.227.150.92
+- [ ] **Part 6**: App Server 2 running on 143.110.242.240
+- [ ] **Part 7**: Load Balancer running on 139.59.11.54
 - [ ] **Part 7**: SSL certificate installed
 - [ ] **Part 8**: Database migrations completed
 - [ ] **Part 9**: All health checks passing
 - [ ] **Part 9**: Website accessible in browser
+
+---
+
+# Troubleshooting
+
+### Nginx "host not found in upstream" error
+
+This error occurs when nginx starts before backend containers are ready. The `nginx.multi-vps.conf` uses static IPs, so this shouldn't happen. Check:
+
+```bash
+# On Load Balancer
+curl http://64.227.150.92:3001/api/health   # Can reach App 1?
+curl http://143.110.242.240:3001/api/health  # Can reach App 2?
+```
+
+### Cannot connect to Redis
+
+Check firewall rules on Redis server:
+```bash
+# On Redis server (64.227.140.115)
+ufw status
+# Should show port 6379 allowed from app server IPs
+```
+
+### Cannot connect to PostgreSQL
+
+1. Check if your VPS IPs are in DigitalOcean trusted sources
+2. Test connection from app server:
+```bash
+docker exec -it crm-app npx prisma db pull
+```
+
+### WebSocket not working
+
+Ensure your domain has proper SSL and nginx is configured for WebSocket upgrade:
+```bash
+# Test WebSocket endpoint
+curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" https://your-domain.com/socket.io/
+```
