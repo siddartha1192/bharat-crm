@@ -35,6 +35,7 @@ const vectorDBService = require('./services/ai/vectorDB.service');
 // Configuration
 const PORT = process.env.PORT || 3002;
 const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
+const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
 
 // =============================================================================
 // EXPRESS SETUP
@@ -331,7 +332,9 @@ function startTrialExpirationChecker() {
 
 async function checkQdrantHealth() {
   try {
-    const response = await fetch('http://localhost:6333/health');
+    // Use configured QDRANT_URL for multi-VPS compatibility
+    const healthUrl = QDRANT_URL.replace(/\/$/, '') + '/health';
+    const response = await fetch(healthUrl);
     return response.ok ? 'healthy' : 'unhealthy';
   } catch {
     return 'unavailable';

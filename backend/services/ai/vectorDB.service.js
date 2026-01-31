@@ -53,6 +53,11 @@ class VectorDBService {
       console.log('🔧 Initializing Vector Database...');
       console.log(`📡 Connecting to Qdrant at ${aiConfig.vectorDB.url}`);
 
+      // Check for required OpenAI API key
+      if (!aiConfig.openaiApiKey) {
+        throw new Error('OPENAI_API_KEY environment variable is not set. This is required for vector embeddings.');
+      }
+
       // Initialize embeddings
       this.embeddings = new OpenAIEmbeddings({
         openAIApiKey: aiConfig.openaiApiKey,
