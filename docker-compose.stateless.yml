@@ -343,10 +343,15 @@ services:
       - certbot_conf:/etc/letsencrypt:ro
     networks:
       - crm-network
+    # CRITICAL: Wait for backend services to be healthy before starting nginx
+    # This prevents "host not found in upstream" errors at nginx startup
     depends_on:
-      - frontend
-      - app-1
-      - app-2
+      frontend:
+        condition: service_healthy
+      app-1:
+        condition: service_healthy
+      app-2:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "nginx", "-t"]
       interval: 30s
