@@ -135,10 +135,10 @@ const uploadDocument = multer({
 
 /**
  * Vector data upload middleware (max 50MB)
- * Always uses local storage (vector DB needs local file access)
+ * Uses S3 in production, local storage in development
  */
 const uploadVectorData = multer({
-  storage: vectorDataStorageLocal,
+  storage: USE_S3 ? memoryStorage : vectorDataStorageLocal,
   fileFilter: vectorDataFileFilter,
   limits: {
     fileSize: 50 * 1024 * 1024 // 50MB
@@ -236,6 +236,50 @@ async function uploadMultipleToS3(req, res, next) {
 }
 
 /**
+ * Middleware to upload vector data file to S3 after multer processes it
+ * Use this AFTER uploadVectorData middleware
+ */
+async function uploadVectorDataToS3(req, res, next) {
+  if (!USE_S3 || !req.file) {
+    return next();
+  }
+
+  try {
+    const tenantId = req.user?.tenantId || req.tenant?.id || 'default';
+
+    // Generate S3 key for vector data (knowledge_base folder)
+    const key = storageService.generateKey(
+      `${tenantId}/knowledge_base`,
+      req.file.originalname
+    );
+
+    // Upload to S3
+    const result = await storageService.uploadFile(
+      key,
+      req.file.buffer,
+      req.file.mimetype,
+      {
+        originalName: req.file.originalname,
+        uploadedBy: req.user?.userId || 'anonymous',
+        type: 'vector_data',
+      }
+    );
+
+    // Replace file info with S3 info
+    req.file.s3Key = key;
+    req.file.s3Url = result.url;
+    req.file.storageType = 's3';
+    req.file.path = key; // For compatibility with existing code
+
+    console.log(`[Upload] Vector data uploaded to S3: ${key}`);
+    next();
+  } catch (error) {
+    console.error('[Upload] S3 vector data upload failed:', error);
+    next(error);
+  }
+}
+
+/**
  * Get a signed download URL for a file
  * @param {string} keyOrPath - S3 key or local path
  * @returns {Promise<string>} - Signed URL or local path
@@ -310,6 +354,7 @@ module.exports = {
   uploadVectorData,
   uploadToS3,
   uploadMultipleToS3,
+  uploadVectorDataToS3,
   getDownloadUrl,
   deleteFileFromStorage,
   deleteFile,

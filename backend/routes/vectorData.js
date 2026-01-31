@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
-const { uploadVectorData, deleteFile, formatFileSize } = require('../middleware/upload');
+const { uploadVectorData, uploadVectorDataToS3, deleteFile, deleteFileFromStorage, formatFileSize, USE_S3, storageService } = require('../middleware/upload');
 const { tenantContext, getTenantFilter, autoInjectTenantId } = require('../middleware/tenant');
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -38,18 +38,31 @@ function addIngestLog(message) {
 
 /**
  * Process and upload data to vector database
- * @param {string} filePath - Path to the uploaded file
+ * @param {string} filePath - Path to the uploaded file (local path or S3 key)
  * @param {string} fileName - Original filename
  * @param {string} tenantId - Tenant ID for multi-tenant isolation
+ * @param {boolean} isS3Key - Whether filePath is an S3 key
  */
-async function processVectorData(filePath, fileName, tenantId) {
+async function processVectorData(filePath, fileName, tenantId, isS3Key = false) {
   console.log(`\n🚀 Starting vector data processing for: ${fileName}`);
   console.log(`   File path: ${filePath}`);
   console.log(`   Tenant ID: ${tenantId}`);
+  console.log(`   Storage: ${isS3Key ? 'S3' : 'Local'}`);
+
+  let localFilePath = filePath;
+  let tempFileCreated = false;
 
   try {
     if (!tenantId) {
       throw new Error('tenantId is required for vector data processing');
+    }
+
+    // If file is in S3, download to temp directory first
+    if (isS3Key) {
+      console.log(`   📥 Downloading file from S3...`);
+      localFilePath = await storageService.downloadToTemp(filePath, '/tmp');
+      tempFileCreated = true;
+      console.log(`   📥 Downloaded to temp: ${localFilePath}`);
     }
 
     // Determine file type and process accordingly
@@ -60,7 +73,7 @@ async function processVectorData(filePath, fileName, tenantId) {
 
     if (ext === '.pdf') {
       // Read PDF file as buffer
-      const dataBuffer = fs.readFileSync(filePath);
+      const dataBuffer = fs.readFileSync(localFilePath);
 
       // Create PDF parser instance with the buffer
       const parser = new PDFParse({ data: dataBuffer });
@@ -77,7 +90,7 @@ async function processVectorData(filePath, fileName, tenantId) {
       documents = chunks.map(chunk => ({ content: chunk, metadata: { fileName } }));
     } else if (ext === '.xlsx' || ext === '.xls') {
       // Process Excel files
-      const workbook = xlsx.readFile(filePath);
+      const workbook = xlsx.readFile(localFilePath);
 
       // Process each sheet
       workbook.SheetNames.forEach(sheetName => {
@@ -138,7 +151,7 @@ async function processVectorData(filePath, fileName, tenantId) {
       // Process Word .docx files
       console.log(`📄 Processing Word .docx file: ${fileName}`);
       try {
-        const result = await mammoth.extractRawText({ path: filePath });
+        const result = await mammoth.extractRawText({ path: localFilePath });
         const content = result.value;
 
         if (!content || content.trim().length === 0) {
@@ -178,7 +191,7 @@ async function processVectorData(filePath, fileName, tenantId) {
       // Note: Full .doc parsing requires more complex libraries
       // This is a fallback that may not work perfectly
       try {
-        const content = fs.readFileSync(filePath, 'utf-8');
+        const content = fs.readFileSync(localFilePath, 'utf-8');
         const chunks = content.split('\n\n').filter(chunk => chunk.trim());
         documents = chunks.map((chunk, index) => ({
           content: chunk,
@@ -194,7 +207,7 @@ async function processVectorData(filePath, fileName, tenantId) {
       }
     } else {
       // Read file content as text for other formats
-      const content = fs.readFileSync(filePath, 'utf-8');
+      const content = fs.readFileSync(localFilePath, 'utf-8');
 
       if (ext === '.txt' || ext === '.md') {
         // Split text into chunks
@@ -202,7 +215,7 @@ async function processVectorData(filePath, fileName, tenantId) {
         documents = chunks.map(chunk => ({ content: chunk, metadata: { fileName } }));
       } else if (ext === '.csv') {
         // Parse CSV using xlsx for better handling
-        const workbook = xlsx.readFile(filePath);
+        const workbook = xlsx.readFile(localFilePath);
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = xlsx.utils.sheet_to_json(worksheet, { defval: '' });
@@ -278,6 +291,13 @@ async function processVectorData(filePath, fileName, tenantId) {
       await vectorDBService.addDocuments(documents, tenantId);
 
       console.log(`✅ Successfully uploaded ${documents.length} documents to vector database for tenant ${tenantId}`);
+
+      // Clean up temp file if created from S3 download
+      if (tempFileCreated && fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+        console.log(`   🧹 Cleaned up temp file: ${localFilePath}`);
+      }
+
       return documents.length;
     } catch (error) {
       console.error('❌ VectorDB service error:', error);
@@ -285,6 +305,17 @@ async function processVectorData(filePath, fileName, tenantId) {
     }
   } catch (error) {
     console.error(`❌ Error processing vector data for ${fileName}:`, error);
+
+    // Clean up temp file on error too
+    if (tempFileCreated && fs.existsSync(localFilePath)) {
+      try {
+        fs.unlinkSync(localFilePath);
+        console.log(`   🧹 Cleaned up temp file after error: ${localFilePath}`);
+      } catch (cleanupError) {
+        console.error(`   ⚠️ Failed to clean up temp file: ${cleanupError.message}`);
+      }
+    }
+
     throw error;
   }
 }
@@ -318,17 +349,36 @@ router.post('/upload', authorize('ADMIN', 'MANAGER'), (req, res) => {
       });
     }
 
+    // If S3 is enabled, upload file to S3
+    if (USE_S3 && req.file) {
+      try {
+        await new Promise((resolve, reject) => {
+          uploadVectorDataToS3(req, res, (error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        });
+      } catch (s3Error) {
+        console.error('S3 upload error:', s3Error);
+        return res.status(500).json({ error: 'Failed to upload file to storage' });
+      }
+    }
+
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
       }
+
+      // Determine if file is in S3 or local storage
+      const isS3Storage = req.file.storageType === 's3';
+      const filePath = isS3Storage ? req.file.s3Key : req.file.path;
 
       // Create upload record
       const upload = await prisma.vectorDataUpload.create({
         data: {
           fileName: req.file.originalname,
           fileSize: req.file.size,
-          filePath: req.file.path,
+          filePath: filePath,
           status: 'pending',
           uploadedBy: req.user.id,
           userId: req.user.id,
@@ -345,8 +395,8 @@ router.post('/upload', authorize('ADMIN', 'MANAGER'), (req, res) => {
             data: { status: 'processing' }
           });
 
-          // Process the file with tenant isolation
-          const recordsProcessed = await processVectorData(req.file.path, req.file.originalname, req.tenant.id);
+          // Process the file with tenant isolation (pass isS3Key flag)
+          const recordsProcessed = await processVectorData(filePath, req.file.originalname, req.tenant.id, isS3Storage);
 
           // Update status to completed
           await prisma.vectorDataUpload.update({
@@ -385,7 +435,11 @@ router.post('/upload', authorize('ADMIN', 'MANAGER'), (req, res) => {
 
       // Delete uploaded file if database operation failed
       if (req.file) {
-        deleteFile(req.file.path);
+        if (req.file.storageType === 's3') {
+          deleteFileFromStorage(req.file.s3Key);
+        } else {
+          deleteFile(req.file.path);
+        }
       }
 
       res.status(500).json({ error: 'Failed to upload vector data' });
@@ -475,8 +529,20 @@ router.delete('/uploads/:id', authorize('ADMIN'), async (req, res) => {
       return res.status(404).json({ error: 'Upload not found' });
     }
 
-    // Delete file from filesystem
-    deleteFile(upload.filePath);
+    // Delete file from storage (S3 or local)
+    // S3 keys don't start with '/', local paths do
+    if (upload.filePath && !upload.filePath.startsWith('/')) {
+      // It's an S3 key
+      try {
+        await deleteFileFromStorage(upload.filePath);
+      } catch (s3Error) {
+        console.error('Error deleting file from S3:', s3Error);
+        // Continue with record deletion even if S3 delete fails
+      }
+    } else {
+      // It's a local path
+      deleteFile(upload.filePath);
+    }
 
     // Delete upload record
     await prisma.vectorDataUpload.delete({

@@ -208,6 +208,45 @@ class StorageService {
       metadata: response.Metadata,
     };
   }
+
+  /**
+   * Download file content from S3 as a Buffer
+   * @param {string} key - The storage key
+   * @returns {Promise<Buffer>}
+   */
+  async downloadFile(key) {
+    if (!this.isS3Enabled) {
+      throw new Error('S3 storage is not configured');
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+
+    const response = await this.client.send(command);
+
+    // Convert readable stream to buffer
+    const chunks = [];
+    for await (const chunk of response.Body) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  /**
+   * Download file from S3 to a local temporary path
+   * @param {string} key - The storage key
+   * @param {string} tempDir - Directory to save temp file
+   * @returns {Promise<string>} - Local file path
+   */
+  async downloadToTemp(key, tempDir = '/tmp') {
+    const buffer = await this.downloadFile(key);
+    const fileName = path.basename(key);
+    const tempPath = path.join(tempDir, `${uuidv4()}_${fileName}`);
+    fs.writeFileSync(tempPath, buffer);
+    return tempPath;
+  }
 }
 
 // Export singleton instance
