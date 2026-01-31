@@ -1,0 +1,133 @@
+# =============================================================================
+# BHARAT CRM - APP SERVER VPS
+# =============================================================================
+#
+# Deploy this on each app server:
+#   - App Server 1: 64.227.150.92
+#   - App Server 2: 143.110.242.240
+#
+# Usage:
+#   docker-compose -f docker-compose.appserver.yml up -d --build
+#
+# =============================================================================
+# REQUIRED .env FILE CONFIGURATION
+# =============================================================================
+#
+# Create a .env file with these variables:
+#
+# # PostgreSQL Connection (use ONE of these options):
+# # Option 1: DigitalOcean Managed PostgreSQL
+# DATABASE_URL=postgresql://USER:PASSWORD@your-db-cluster.db.ondigitalocean.com:25060/bharat_crm?sslmode=require
+#
+# # Option 2: Self-hosted PostgreSQL on separate VPS
+# DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@YOUR_POSTGRES_VPS_IP:5432/bharat_crm
+#
+# # Redis Connection
+# REDIS_URL=redis://64.227.140.115:6379
+#
+# # Qdrant Connection (Worker VPS)
+# QDRANT_URL=http://143.110.240.152:6333
+#
+# # App Instance ID (set differently on each app server)
+# APP_INSTANCE_ID=app-1  # Use app-2 on second server
+#
+# # JWT Secrets
+# JWT_SECRET=your-jwt-secret
+# JWT_REFRESH_SECRET=your-refresh-secret
+# ENCRYPTION_KEY=your-encryption-key
+#
+# # OpenAI
+# OPENAI_API_KEY=sk-xxx
+#
+# # Frontend URL
+# FRONTEND_URL=https://your-domain.com
+#
+# =============================================================================
+
+version: '3.8'
+
+networks:
+  crm-network:
+    driver: bridge
+    name: crm-network
+
+services:
+
+  # ===========================================================================
+  # APP SERVER - STATELESS API
+  # ===========================================================================
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.stateless
+    container_name: crm-app
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - APP_INSTANCE_ID=${APP_INSTANCE_ID:-app-1}
+      - PORT=3001
+      - IS_WORKER=false
+      # Database (DigitalOcean Managed PostgreSQL)
+      - DATABASE_URL=${DATABASE_URL}
+      # Redis (External VPS: 64.227.140.115)
+      - REDIS_URL=${REDIS_URL:-redis://64.227.140.115:6379}
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      # Qdrant (connects to worker VPS: 143.110.240.152)
+      - QDRANT_URL=${QDRANT_URL:-http://143.110.240.152:6333}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - VECTOR_COLLECTION_NAME=${VECTOR_COLLECTION_NAME:-bharat_crm_knowledge}
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - ENABLE_AI_FEATURE=${ENABLE_AI_FEATURE:-true}
+      # WhatsApp
+      - WHATSAPP_API_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID}
+      - WHATSAPP_WEBHOOK_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN}
+      - WHATSAPP_AI_MODEL=${WHATSAPP_AI_MODEL:-gpt-4o-mini}
+      - WHATSAPP_AI_TEMPERATURE=${WHATSAPP_AI_TEMPERATURE:-0.3}
+      # Google OAuth
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      - GOOGLE_AUTH_REDIRECT_URI=${GOOGLE_AUTH_REDIRECT_URI}
+      # Gmail
+      - GMAIL_USER=${GMAIL_USER}
+      - GMAIL_REFRESH_TOKEN=${GMAIL_REFRESH_TOKEN}
+      - GMAIL_REDIRECT_URI=${GMAIL_REDIRECT_URI}
+      # Twilio
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
+      # S3/DigitalOcean Spaces
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_REGION=${S3_REGION:-nyc3}
+      - S3_CDN_URL=${S3_CDN_URL:-}
+      # Application
+      - FRONTEND_URL=${FRONTEND_URL}
+      - COMPANY_NAME=${COMPANY_NAME:-Bharat CRM}
+      - OWNER_EMAIL=${OWNER_EMAIL}
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"

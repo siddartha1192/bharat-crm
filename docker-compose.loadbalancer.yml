@@ -1,0 +1,98 @@
+# =============================================================================
+# BHARAT CRM - LOAD BALANCER VPS (139.59.11.54)
+# =============================================================================
+#
+# This runs on the load balancer server:
+#   - Nginx (reverse proxy + SSL termination)
+#   - Frontend (React static files)
+#   - Certbot (SSL certificate renewal)
+#
+# Usage:
+#   docker-compose -f docker-compose.loadbalancer.yml up -d --build
+#
+# =============================================================================
+
+version: '3.8'
+
+networks:
+  crm-network:
+    driver: bridge
+    name: crm-network
+
+volumes:
+  certbot_data:
+    driver: local
+  certbot_conf:
+    driver: local
+
+services:
+
+  # ===========================================================================
+  # FRONTEND - REACT APPLICATION
+  # ===========================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    container_name: crm-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ===========================================================================
+  # NGINX - LOAD BALANCER + SSL TERMINATION
+  # ===========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: crm-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.multi-vps.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot_data:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
+    networks:
+      - crm-network
+    depends_on:
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ===========================================================================
+  # CERTBOT - SSL CERTIFICATE AUTO-RENEWAL
+  # ===========================================================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: crm-certbot
+    volumes:
+      - certbot_data:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - crm-network

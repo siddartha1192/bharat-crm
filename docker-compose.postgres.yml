@@ -1,0 +1,114 @@
+# =============================================================================
+# BHARAT CRM - POSTGRESQL VPS (Optional - if not using managed database)
+# =============================================================================
+#
+# Use this if you want to run PostgreSQL on your own VPS.
+# Skip this if using DigitalOcean Managed PostgreSQL or other managed DB.
+#
+# Usage:
+#   docker-compose -f docker-compose.postgres.yml up -d
+#
+# IMPORTANT: Configure firewall to only allow connections from:
+#   - App Server 1: 64.227.150.92
+#   - App Server 2: 143.110.242.240
+#   - Worker: 143.110.240.152
+#
+# After deployment, your DATABASE_URL will be:
+#   postgresql://postgres:YOUR_PASSWORD@YOUR_POSTGRES_VPS_IP:5432/bharat_crm
+#
+# =============================================================================
+
+version: '3.8'
+
+networks:
+  crm-network:
+    driver: bridge
+    name: crm-network
+
+volumes:
+  postgres_data:
+    driver: local
+  postgres_backups:
+    driver: local
+
+services:
+
+  # ===========================================================================
+  # POSTGRESQL - PRIMARY DATABASE
+  # ===========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: crm-postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bharat_crm}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Performance tuning
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - postgres_backups:/backups
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.7
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=1310kB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+      -c max_worker_processes=4
+      -c max_parallel_workers_per_gather=2
+      -c max_parallel_workers=4
+      -c max_parallel_maintenance_workers=2
+      -c listen_addresses='*'
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ===========================================================================
+  # PGADMIN - DATABASE MANAGEMENT UI (Optional)
+  # ===========================================================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: crm-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@bharatcrm.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: 'True'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - crm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  pgadmin_data:
+    driver: local
