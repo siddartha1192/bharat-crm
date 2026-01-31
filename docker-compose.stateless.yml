@@ -136,6 +136,7 @@ services:
       - S3_CDN_URL=${S3_CDN_URL:-}
       # Application
       - FRONTEND_URL=${FRONTEND_URL}
+      - APP_URL=${FRONTEND_URL}
       - COMPANY_NAME=${COMPANY_NAME:-Bharat CRM}
       - OWNER_EMAIL=${OWNER_EMAIL}
     networks:
@@ -216,6 +217,7 @@ services:
       - S3_CDN_URL=${S3_CDN_URL:-}
       # Application
       - FRONTEND_URL=${FRONTEND_URL}
+      - APP_URL=${FRONTEND_URL}
       - COMPANY_NAME=${COMPANY_NAME:-Bharat CRM}
       - OWNER_EMAIL=${OWNER_EMAIL}
     networks:
@@ -276,6 +278,7 @@ services:
       - GMAIL_REDIRECT_URI=${GMAIL_REDIRECT_URI}
       # Application
       - FRONTEND_URL=${FRONTEND_URL}
+      - APP_URL=${FRONTEND_URL}
       - COMPANY_NAME=${COMPANY_NAME:-Bharat CRM}
       - OWNER_EMAIL=${OWNER_EMAIL}
       # Worker-specific
