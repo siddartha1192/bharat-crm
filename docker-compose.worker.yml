@@ -1,0 +1,119 @@
+# =============================================================================
+# BHARAT CRM - WORKER VPS (143.110.240.152)
+# =============================================================================
+#
+# This runs on the worker server:
+#   - Worker (background jobs processor)
+#   - Qdrant (vector database for AI)
+#
+# Usage:
+#   docker-compose -f docker-compose.worker.yml up -d --build
+#
+# IMPORTANT: Configure firewall to allow Qdrant access from:
+#   - App Server 1: 64.227.150.92
+#   - App Server 2: 143.110.242.240
+#
+# =============================================================================
+
+version: '3.8'
+
+networks:
+  crm-network:
+    driver: bridge
+    name: crm-network
+
+volumes:
+  qdrant_data:
+    driver: local
+
+services:
+
+  # ===========================================================================
+  # QDRANT - VECTOR DATABASE FOR AI
+  # ===========================================================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: crm-qdrant
+    restart: always
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ===========================================================================
+  # WORKER - BACKGROUND JOBS PROCESSOR
+  # ===========================================================================
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: crm-worker
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - APP_INSTANCE_ID=worker
+      - PORT=3002
+      - IS_WORKER=true
+      # Database (DigitalOcean Managed PostgreSQL)
+      - DATABASE_URL=${DATABASE_URL}
+      # Redis (External VPS: 64.227.140.115)
+      - REDIS_URL=${REDIS_URL:-redis://64.227.140.115:6379}
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      # Qdrant (local in this container)
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - VECTOR_COLLECTION_NAME=${VECTOR_COLLECTION_NAME:-bharat_crm_knowledge}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      # WhatsApp
+      - WHATSAPP_API_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID}
+      # Gmail
+      - GMAIL_USER=${GMAIL_USER}
+      - GMAIL_REFRESH_TOKEN=${GMAIL_REFRESH_TOKEN}
+      - GMAIL_REDIRECT_URI=${GMAIL_REDIRECT_URI}
+      # Application
+      - FRONTEND_URL=${FRONTEND_URL}
+      - COMPANY_NAME=${COMPANY_NAME:-Bharat CRM}
+      - OWNER_EMAIL=${OWNER_EMAIL}
+      # Worker-specific
+      - CAMPAIGN_BATCH_SIZE=${CAMPAIGN_BATCH_SIZE:-100}
+      - CAMPAIGN_BATCH_DELAY=${CAMPAIGN_BATCH_DELAY:-5000}
+      - CALL_SCHEDULER_INTERVAL=${CALL_SCHEDULER_INTERVAL:-30}
+      - LEAD_REMINDER_INTERVAL=${LEAD_REMINDER_INTERVAL:-60}
+    networks:
+      - crm-network
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"

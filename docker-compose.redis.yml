@@ -1,0 +1,62 @@
+# =============================================================================
+# BHARAT CRM - REDIS VPS (64.227.140.115)
+# =============================================================================
+#
+# This runs on the Redis server:
+#   - Redis (session store, Socket.IO adapter, distributed locks)
+#
+# Usage:
+#   docker-compose -f docker-compose.redis.yml up -d
+#
+# IMPORTANT: Configure firewall to only allow connections from:
+#   - App Server 1: 64.227.150.92
+#   - App Server 2: 143.110.242.240
+#   - Worker: 143.110.240.152
+#
+# =============================================================================
+
+version: '3.8'
+
+networks:
+  crm-network:
+    driver: bridge
+    name: crm-network
+
+volumes:
+  redis_data:
+    driver: local
+
+services:
+
+  # ===========================================================================
+  # REDIS - SESSION STORE, SOCKET.IO ADAPTER, DISTRIBUTED LOCKS
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: crm-redis
+    restart: always
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+      --timeout 0
+      --bind 0.0.0.0
+      --protected-mode no
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
