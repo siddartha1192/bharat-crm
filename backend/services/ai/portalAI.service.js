@@ -575,8 +575,8 @@ Summary:`;
         // Adaptive parameters based on query type
         // Data queries: Higher k (30), lower minScore (0.45) for better recall on tabular data
         // General queries: Moderate k (10), higher minScore (0.60) for better precision
-        const k = isDataQuery ? 30 : 10;
-        const minScore = isDataQuery ? 0.45 : 0.60;
+        const k = 35 //isDataQuery ? 30 : 10;
+        const minScore = 0.4//isDataQuery ? 0.45 : 0.60;
 
         console.log(`🔍 Vector search: k=${k}, minScore=${minScore}, isDataQuery=${isDataQuery}`);
 
