@@ -1,15 +1,13 @@
 /**
  * Enterprise AI Configuration
  * All AI-related configuration loaded from environment variables
- * NOTE: Per-tenant OpenAI API keys should be configured in Settings for chat/completions
- * The OPENAI_API_KEY env var is used for system operations like embeddings
+ *
+ * IMPORTANT: All OpenAI API keys must be configured per-tenant in Settings.
+ * There is NO environment variable for OpenAI API key.
+ * Each tenant configures their own API key in Settings > AI Configuration.
  */
 
 module.exports = {
-  // System-level OpenAI API key (used for embeddings in vector DB)
-  // This is separate from per-tenant API keys used for chat completions
-  openaiApiKey: process.env.OPENAI_API_KEY,
-
   // Company/Product Information
   company: {
     name: process.env.COMPANY_NAME || 'Bharat CRM',

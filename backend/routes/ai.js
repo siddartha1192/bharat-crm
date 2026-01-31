@@ -172,12 +172,28 @@ router.post('/search', async (req, res) => {
       return res.status(400).json({ error: 'Query is required' });
     }
 
+    // Get tenant's OpenAI configuration from settings
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: req.user.tenantId },
+      select: { settings: true }
+    });
+    const openaiConfig = tenant?.settings?.openai || null;
+
+    if (!openaiConfig || !openaiConfig.apiKey) {
+      return res.status(400).json({
+        error: 'AI_NOT_CONFIGURED',
+        message: 'OpenAI API is not configured. Please configure it in Settings > AI Configuration.'
+      });
+    }
+
     console.log(`\n🔍 Vector search: "${query}"`);
 
     const results = await vectorDBService.searchWithScore(
       query,
       limit || 5,
-      minScore || 0.7
+      minScore || 0.7,
+      req.user.tenantId,
+      openaiConfig
     );
 
     res.json({
@@ -201,10 +217,25 @@ router.post('/search', async (req, res) => {
 router.post('/ingest', async (req, res) => {
   try {
     const userId = req.user.id;
+    const tenantId = req.user.tenantId;
     const { documents } = req.body;
 
     if (!documents || !Array.isArray(documents) || documents.length === 0) {
       return res.status(400).json({ error: 'Documents array is required' });
+    }
+
+    // Get tenant's OpenAI configuration from settings
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { settings: true }
+    });
+    const openaiConfig = tenant?.settings?.openai || null;
+
+    if (!openaiConfig || !openaiConfig.apiKey) {
+      return res.status(400).json({
+        error: 'AI_NOT_CONFIGURED',
+        message: 'OpenAI API is not configured. Please configure it in Settings > AI Configuration.'
+      });
     }
 
     console.log(`\n📚 Ingesting ${documents.length} documents...`);
@@ -216,7 +247,7 @@ router.post('/ingest', async (req, res) => {
       }
     }
 
-    const result = await vectorDBService.addDocuments(documents);
+    const result = await vectorDBService.addDocuments(documents, tenantId, openaiConfig);
 
     res.json({
       success: true,

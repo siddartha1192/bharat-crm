@@ -1,6 +1,9 @@
 /**
  * Vector Database Service
  * Uses Qdrant Cloud for vector storage and OpenAI for embeddings
+ *
+ * IMPORTANT: All OpenAI API keys come from tenant settings (Settings tab),
+ * NOT from environment variables. Each operation requires tenant config.
  */
 
 const { QdrantClient } = require('@qdrant/js-client-rest');
@@ -19,30 +22,83 @@ const EMBEDDING_DIM_MAP = {
 class VectorDBService {
   constructor() {
     this.client = null;
-    this.vectorStore = null;
-    this.embeddings = null;
     this.initialized = false;
+    // Cache for embeddings instances per API key (to avoid re-creating)
+    this.embeddingsCache = new Map();
+    // Cache for vector stores per API key
+    this.vectorStoreCache = new Map();
   }
 
   /**
    * Get vector dimension for configured embedding model
+   * @param {string} modelName - Optional model name override
    * @returns {number} Vector dimension
    */
-  getVectorDimension() {
-    const modelName = aiConfig.vectorDB.embeddingModel;
-    const dimension = EMBEDDING_DIM_MAP[modelName];
+  getVectorDimension(modelName = null) {
+    const model = modelName || aiConfig.vectorDB.embeddingModel;
+    const dimension = EMBEDDING_DIM_MAP[model];
 
     if (!dimension) {
-      console.warn(`⚠️ Unknown embedding model: ${modelName}, defaulting to 1536 dimensions`);
+      console.warn(`⚠️ Unknown embedding model: ${model}, defaulting to 1536 dimensions`);
       return 1536;
     }
 
-    console.log(`📐 Using ${dimension} dimensions for model: ${modelName}`);
     return dimension;
   }
 
   /**
-   * Initialize vector database connection to Qdrant Cloud
+   * Get or create embeddings instance for a specific API key
+   * @param {string} apiKey - OpenAI API key from tenant settings
+   * @param {string} modelName - Optional embedding model override
+   * @returns {OpenAIEmbeddings}
+   */
+  getEmbeddings(apiKey, modelName = null) {
+    if (!apiKey) {
+      throw new Error('OpenAI API key is required. Please configure it in Settings > AI Configuration.');
+    }
+
+    const cacheKey = `${apiKey.substring(0, 8)}_${modelName || aiConfig.vectorDB.embeddingModel}`;
+
+    if (!this.embeddingsCache.has(cacheKey)) {
+      const embeddings = new OpenAIEmbeddings({
+        openAIApiKey: apiKey,
+        modelName: modelName || aiConfig.vectorDB.embeddingModel,
+      });
+      this.embeddingsCache.set(cacheKey, embeddings);
+    }
+
+    return this.embeddingsCache.get(cacheKey);
+  }
+
+  /**
+   * Get or create vector store for a specific API key
+   * @param {string} apiKey - OpenAI API key from tenant settings
+   * @returns {Promise<QdrantVectorStore>}
+   */
+  async getVectorStore(apiKey) {
+    if (!apiKey) {
+      throw new Error('OpenAI API key is required. Please configure it in Settings > AI Configuration.');
+    }
+
+    const cacheKey = apiKey.substring(0, 8);
+
+    if (!this.vectorStoreCache.has(cacheKey)) {
+      const embeddings = this.getEmbeddings(apiKey);
+      const vectorStore = await QdrantVectorStore.fromExistingCollection(
+        embeddings,
+        {
+          client: this.client,
+          collectionName: aiConfig.vectorDB.collectionName,
+        }
+      );
+      this.vectorStoreCache.set(cacheKey, vectorStore);
+    }
+
+    return this.vectorStoreCache.get(cacheKey);
+  }
+
+  /**
+   * Initialize Qdrant client connection (no OpenAI key needed)
    */
   async initialize() {
     if (this.initialized) {
@@ -50,21 +106,10 @@ class VectorDBService {
     }
 
     try {
-      console.log('🔧 Initializing Vector Database...');
+      console.log('🔧 Initializing Vector Database (Qdrant client only)...');
       console.log(`📡 Connecting to Qdrant at ${aiConfig.vectorDB.url}`);
 
-      // Check for required OpenAI API key
-      if (!aiConfig.openaiApiKey) {
-        throw new Error('OPENAI_API_KEY environment variable is not set. This is required for vector embeddings.');
-      }
-
-      // Initialize embeddings
-      this.embeddings = new OpenAIEmbeddings({
-        openAIApiKey: aiConfig.openaiApiKey,
-        modelName: aiConfig.vectorDB.embeddingModel,
-      });
-
-      // Initialize Qdrant client
+      // Initialize Qdrant client (no OpenAI key needed here)
       this.client = new QdrantClient({
         url: aiConfig.vectorDB.url,
         apiKey: aiConfig.vectorDB.apiKey,
@@ -81,33 +126,23 @@ class VectorDBService {
           const vectorSize = this.getVectorDimension();
           await this.client.createCollection(aiConfig.vectorDB.collectionName, {
             vectors: {
-              size: vectorSize, // Dynamic dimension based on embedding model
+              size: vectorSize,
               distance: 'Cosine',
             },
           });
           console.log(`✅ Collection created with ${vectorSize} dimensions`);
         } catch (createError) {
-          // If collection already exists (409 Conflict), that's fine - just continue
           if (createError.status === 409) {
             console.log(`✅ Collection '${aiConfig.vectorDB.collectionName}' already exists (conflict resolved)`);
           } else {
-            // Re-throw other errors
             throw createError;
           }
         }
       }
 
-      // Initialize vector store
-      this.vectorStore = await QdrantVectorStore.fromExistingCollection(
-        this.embeddings,
-        {
-          client: this.client,
-          collectionName: aiConfig.vectorDB.collectionName,
-        }
-      );
-
       this.initialized = true;
-      console.log('✅ Vector Database initialized successfully');
+      console.log('✅ Vector Database (Qdrant) initialized successfully');
+      console.log('ℹ️  Note: OpenAI API key will be loaded from tenant settings for each operation');
     } catch (error) {
       console.error('❌ Error initializing Vector Database:', error);
       throw error;
@@ -118,21 +153,28 @@ class VectorDBService {
    * Add documents to vector database
    * @param {Array} documents - Array of { content, metadata } objects
    * @param {string} tenantId - Tenant ID for multi-tenant isolation
+   * @param {Object} tenantConfig - Tenant config with apiKey (REQUIRED)
    */
-  async addDocuments(documents, tenantId) {
+  async addDocuments(documents, tenantId, tenantConfig = null) {
     await this.initialize();
 
     if (!tenantId) {
       throw new Error('tenantId is required for document upload');
     }
 
+    // Get API key from tenant config
+    const apiKey = tenantConfig?.apiKey;
+    if (!apiKey) {
+      throw new Error('OpenAI API key is required. Please configure it in Settings > AI Configuration.');
+    }
+
     try {
       console.log(`📚 Adding ${documents.length} documents to vector database for tenant ${tenantId}...`);
 
+      // Get vector store with tenant's API key
+      const vectorStore = await this.getVectorStore(apiKey);
+
       // Split documents into chunks for better retrieval
-      // BUT: Respect doNotChunk flag for CSV/Excel rows to preserve data integrity
-      // Optimized chunk size: 600 chars (better for semantic search than 1000)
-      // Increased overlap: 100 chars (preserves context at boundaries)
       const textSplitter = new RecursiveCharacterTextSplitter({
         chunkSize: 600,
         chunkOverlap: 100,
@@ -143,27 +185,21 @@ class VectorDBService {
       let preservedCount = 0;
 
       for (const doc of documents) {
-        // Ensure tenantId is included in metadata for all chunks
         const metadata = { ...(doc.metadata || {}), tenantId };
 
-        // Check if this document should NOT be chunked (e.g., CSV/Excel rows)
         if (metadata.doNotChunk) {
-          // Add contextual information to improve semantic search
-          // This helps the LLM understand the source and structure without breaking row integrity
           const contextPrefix = metadata.fileType && metadata.fileName
             ? `[${metadata.fileType.toUpperCase()} Data from ${metadata.fileName}${metadata.sheetName ? ` - Sheet: ${metadata.sheetName}` : ''}]\n`
             : '';
 
           const enhancedContent = `${contextPrefix}${doc.content}`;
 
-          // Add document without chunking to preserve row integrity
           splitDocs.push({
             pageContent: enhancedContent,
             metadata: metadata
           });
           preservedCount++;
         } else {
-          // Normal chunking for text documents (PDF, DOCX, TXT, etc.)
           const chunks = await textSplitter.createDocuments([doc.content], [metadata]);
           splitDocs.push(...chunks);
           chunkedCount += chunks.length;
@@ -173,7 +209,7 @@ class VectorDBService {
       console.log(`📄 Processing complete: ${preservedCount} documents preserved (CSV/Excel rows), ${chunkedCount} chunks created from text docs`);
 
       // Add to vector store
-      await this.vectorStore.addDocuments(splitDocs);
+      await vectorStore.addDocuments(splitDocs);
 
       console.log('✅ Documents added successfully with tenant isolation');
       return { success: true, chunksAdded: splitDocs.length };
@@ -184,23 +220,29 @@ class VectorDBService {
   }
 
   /**
-   * Search for relevant documents with tenant isolation and advanced filtering
+   * Search for relevant documents with tenant isolation
    * @param {string} query - Search query
-   * @param {number} k - Number of results to return (default: 10 for better recall)
+   * @param {number} k - Number of results to return
    * @param {string} tenantId - Tenant ID for filtering results
-   * @param {Object} additionalFilters - Optional additional filters (fileType, fileName, etc.)
+   * @param {Object} tenantConfig - Tenant config with apiKey (REQUIRED)
+   * @param {Object} additionalFilters - Optional additional filters
    * @returns {Array} - Array of relevant documents
    */
-  async search(query, k = 10, tenantId = null, additionalFilters = {}) {
+  async search(query, k = 10, tenantId = null, tenantConfig = null, additionalFilters = {}) {
     await this.initialize();
 
     if (!tenantId) {
       throw new Error('tenantId is required for vector search to enforce tenant isolation');
     }
 
+    const apiKey = tenantConfig?.apiKey;
+    if (!apiKey) {
+      throw new Error('OpenAI API key is required. Please configure it in Settings > AI Configuration.');
+    }
+
     try {
-      // Build Qdrant filter with tenant isolation
-      // CRITICAL: LangChain stores metadata directly in payload, not nested under 'metadata.'
+      const vectorStore = await this.getVectorStore(apiKey);
+
       const filter = {
         must: [
           {
@@ -210,7 +252,6 @@ class VectorDBService {
         ]
       };
 
-      // Add optional filters for fileType, fileName, etc.
       if (additionalFilters.fileType) {
         filter.must.push({
           key: 'fileType',
@@ -232,7 +273,6 @@ class VectorDBService {
         });
       }
 
-      // Exclude full file summaries if specified (get only actual rows)
       if (additionalFilters.excludeFullFile) {
         filter.must_not = filter.must_not || [];
         filter.must_not.push({
@@ -241,7 +281,7 @@ class VectorDBService {
         });
       }
 
-      const results = await this.vectorStore.similaritySearch(query, k, filter);
+      const results = await vectorStore.similaritySearch(query, k, filter);
 
       return results.map(doc => ({
         content: doc.pageContent,
@@ -256,63 +296,51 @@ class VectorDBService {
   /**
    * Search with relevance scores, tenant isolation, and advanced filtering
    * @param {string} query - Search query
-   * @param {number} k - Number of results (default: 15 for better recall)
-   * @param {number} minScore - Minimum relevance score (0-1, default: 0.5 for better recall on tabular data)
+   * @param {number} k - Number of results
+   * @param {number} minScore - Minimum relevance score (0-1)
    * @param {string} tenantId - Tenant ID for filtering results
-   * @param {Object} additionalFilters - Optional additional filters (fileType, fileName, etc.)
+   * @param {Object} tenantConfig - Tenant config with apiKey (REQUIRED)
+   * @param {Object} additionalFilters - Optional additional filters
    */
-  async searchWithScore(query, k = 15, minScore = 0.5, tenantId = null, additionalFilters = {}) {
+  async searchWithScore(query, k = 15, minScore = 0.5, tenantId = null, tenantConfig = null, additionalFilters = {}) {
     await this.initialize();
 
     if (!tenantId) {
       throw new Error('tenantId is required for vector search to enforce tenant isolation');
     }
 
-    try {
-      // ADAPTIVE APPROACH: Try multiple filter strategies
-      // Strategy 1: Try without 'metadata.' prefix (current approach)
-      let results = await this._searchWithFilter(query, k, tenantId, additionalFilters, false);
+    const apiKey = tenantConfig?.apiKey;
+    if (!apiKey) {
+      throw new Error('OpenAI API key is required. Please configure it in Settings > AI Configuration.');
+    }
 
-      // Strategy 2: If no results, try WITH 'metadata.' prefix
+    try {
+      const vectorStore = await this.getVectorStore(apiKey);
+
+      // ADAPTIVE APPROACH: Try multiple filter strategies
+      let results = await this._searchWithFilter(vectorStore, query, k, tenantId, additionalFilters, false);
+
       if (results.length === 0) {
         console.log('⚠️ No results with flat keys, trying with "metadata." prefix...');
-        results = await this._searchWithFilter(query, k, tenantId, additionalFilters, true);
+        results = await this._searchWithFilter(vectorStore, query, k, tenantId, additionalFilters, true);
       }
 
-      // Strategy 3: If still no results, search without filters and filter manually
       if (results.length === 0) {
         console.log('⚠️ No results with filters, searching without filters and filtering manually...');
-        const unfilteredResults = await this.vectorStore.similaritySearchWithScore(query, k * 2); // Get more results
+        const unfilteredResults = await vectorStore.similaritySearchWithScore(query, k * 2);
 
         console.log(`🔍 DEBUG: Got ${unfilteredResults.length} results without filters`);
 
-        // Manually filter by tenantId
         results = unfilteredResults.filter(([doc, _score]) => {
-          // Check both flat and nested metadata
           const docTenantId = doc.metadata?.tenantId || doc.metadata?.metadata?.tenantId;
-          const matches = docTenantId === tenantId;
-
-          if (!matches && unfilteredResults.indexOf([doc, _score]) === 0) {
-            console.log('🔍 DEBUG: First doc metadata:', doc.metadata);
-            console.log(`🔍 DEBUG: Looking for tenantId: ${tenantId}, found: ${docTenantId}`);
-          }
-
-          return matches;
+          return docTenantId === tenantId;
         });
 
         console.log(`🔍 DEBUG: After manual tenant filtering: ${results.length} results`);
       }
 
       console.log(`🔍 DEBUG: Qdrant returned ${results.length} results before score filtering`);
-      if (results.length > 0) {
-        console.log('🔍 DEBUG: First result sample:', {
-          score: results[0][1],
-          metadata: results[0][0].metadata,
-          contentPreview: results[0][0].pageContent.substring(0, 100)
-        });
-      }
 
-      // Filter by minimum score
       const filtered = results
         .filter(([_, score]) => score >= minScore)
         .map(([doc, score]) => ({
@@ -332,14 +360,8 @@ class VectorDBService {
 
   /**
    * INTERNAL: Try searching with a specific filter strategy
-   * @param {string} query
-   * @param {number} k
-   * @param {string} tenantId
-   * @param {Object} additionalFilters
-   * @param {boolean} useMetadataPrefix - Whether to use 'metadata.' prefix for keys
-   * @returns {Array} Results as [doc, score] tuples
    */
-  async _searchWithFilter(query, k, tenantId, additionalFilters, useMetadataPrefix) {
+  async _searchWithFilter(vectorStore, query, k, tenantId, additionalFilters, useMetadataPrefix) {
     const prefix = useMetadataPrefix ? 'metadata.' : '';
 
     const filter = {
@@ -351,7 +373,6 @@ class VectorDBService {
       ]
     };
 
-    // Add optional filters
     if (additionalFilters.fileType) {
       filter.must.push({
         key: `${prefix}fileType`,
@@ -381,37 +402,39 @@ class VectorDBService {
       });
     }
 
-    console.log(`🔍 DEBUG: Qdrant filter (${useMetadataPrefix ? 'WITH' : 'WITHOUT'} metadata prefix):`, JSON.stringify(filter, null, 2));
-    console.log(`🔍 DEBUG: Query: "${query}", k=${k}, tenantId=${tenantId}`);
-
-    const results = await this.vectorStore.similaritySearchWithScore(query, k, filter);
-
-    console.log(`🔍 DEBUG: Got ${results.length} results with ${useMetadataPrefix ? 'metadata.' : 'flat'} keys`);
-
+    const results = await vectorStore.similaritySearchWithScore(query, k, filter);
     return results;
   }
 
   /**
    * Get retriever for LangChain integration
+   * @param {Object} tenantConfig - Tenant config with apiKey (REQUIRED)
+   * @param {number} k - Number of results
    */
-  async getRetriever(k = 5) {
+  async getRetriever(tenantConfig, k = 5) {
     await this.initialize();
-    return this.vectorStore.asRetriever(k);
+
+    const apiKey = tenantConfig?.apiKey;
+    if (!apiKey) {
+      throw new Error('OpenAI API key is required. Please configure it in Settings > AI Configuration.');
+    }
+
+    const vectorStore = await this.getVectorStore(apiKey);
+    return vectorStore.asRetriever(k);
   }
 
   /**
    * Clear all documents from collection
+   * @param {Object} tenantConfig - Tenant config with apiKey (REQUIRED for reinitializing vector store)
    */
-  async clearCollection() {
+  async clearCollection(tenantConfig = null) {
     await this.initialize();
 
     try {
       console.log('🗑️ Clearing vector database collection...');
 
-      // Delete and recreate collection
       await this.client.deleteCollection(aiConfig.vectorDB.collectionName);
 
-      // Recreate collection with correct dimensions
       const vectorSize = this.getVectorDimension();
       await this.client.createCollection(aiConfig.vectorDB.collectionName, {
         vectors: {
@@ -420,14 +443,9 @@ class VectorDBService {
         },
       });
 
-      // Reinitialize vector store
-      this.vectorStore = await QdrantVectorStore.fromExistingCollection(
-        this.embeddings,
-        {
-          client: this.client,
-          collectionName: aiConfig.vectorDB.collectionName,
-        }
-      );
+      // Clear caches since collection was recreated
+      this.vectorStoreCache.clear();
+      this.embeddingsCache.clear();
 
       console.log('✅ Collection cleared and recreated');
       return { success: true };
@@ -438,7 +456,7 @@ class VectorDBService {
   }
 
   /**
-   * Get collection stats from Qdrant Cloud
+   * Get collection stats from Qdrant Cloud (no API key needed)
    */
   async getStats() {
     await this.initialize();
@@ -458,8 +476,7 @@ class VectorDBService {
   }
 
   /**
-   * DEBUG: Get sample points from collection to inspect metadata structure
-   * @param {number} limit - Number of points to retrieve
+   * DEBUG: Get sample points from collection (no API key needed)
    */
   async getSamplePoints(limit = 5) {
     await this.initialize();
@@ -471,14 +488,6 @@ class VectorDBService {
         with_vector: false
       });
 
-      console.log('📊 DEBUG: Sample points from collection:');
-      response.points.forEach((point, index) => {
-        console.log(`\nPoint ${index + 1}:`, {
-          id: point.id,
-          payload: point.payload
-        });
-      });
-
       return response.points;
     } catch (error) {
       console.error('❌ Error getting sample points:', error);
@@ -487,27 +496,19 @@ class VectorDBService {
   }
 
   /**
-   * DEBUG: Search without any filters to test if documents exist
-   * @param {string} query - Search query
-   * @param {number} k - Number of results
+   * DEBUG: Search without any filters (requires API key for embeddings)
    */
-  async searchWithoutFilters(query, k = 10) {
+  async searchWithoutFilters(query, k = 10, tenantConfig = null) {
     await this.initialize();
 
+    const apiKey = tenantConfig?.apiKey;
+    if (!apiKey) {
+      throw new Error('OpenAI API key is required. Please configure it in Settings > AI Configuration.');
+    }
+
     try {
-      console.log(`🔍 DEBUG: Searching WITHOUT filters for: "${query}"`);
-
-      // Search without any filters
-      const results = await this.vectorStore.similaritySearchWithScore(query, k);
-
-      console.log(`🔍 DEBUG: Found ${results.length} results without filters`);
-      if (results.length > 0) {
-        console.log('🔍 DEBUG: Top result:', {
-          score: results[0][1],
-          metadata: results[0][0].metadata,
-          contentPreview: results[0][0].pageContent.substring(0, 150)
-        });
-      }
+      const vectorStore = await this.getVectorStore(apiKey);
+      const results = await vectorStore.similaritySearchWithScore(query, k);
 
       return results.map(([doc, score]) => ({
         content: doc.pageContent,

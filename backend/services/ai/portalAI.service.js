@@ -580,11 +580,13 @@ Summary:`;
 
         console.log(`🔍 Vector search: k=${k}, minScore=${minScore}, isDataQuery=${isDataQuery}`);
 
+        // Pass tenant config (with API key) to vectorDB service
         relevantDocs = await vectorDBService.searchWithScore(
           userMessage,
           k,
           minScore,
           tenantId,
+          tenantConfig, // Pass tenant config with API key
           // Optional: Add filters if query mentions specific file types
           isDataQuery ? { excludeFullFile: false } : {}
         );

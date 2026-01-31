@@ -42,12 +42,14 @@ function addIngestLog(message) {
  * @param {string} fileName - Original filename
  * @param {string} tenantId - Tenant ID for multi-tenant isolation
  * @param {boolean} isS3Key - Whether filePath is an S3 key
+ * @param {Object} tenantConfig - Tenant config with apiKey (REQUIRED for embeddings)
  */
-async function processVectorData(filePath, fileName, tenantId, isS3Key = false) {
+async function processVectorData(filePath, fileName, tenantId, isS3Key = false, tenantConfig = null) {
   console.log(`\n🚀 Starting vector data processing for: ${fileName}`);
   console.log(`   File path: ${filePath}`);
   console.log(`   Tenant ID: ${tenantId}`);
   console.log(`   Storage: ${isS3Key ? 'S3' : 'Local'}`);
+  console.log(`   Has API Key: ${!!tenantConfig?.apiKey}`);
 
   let localFilePath = filePath;
   let tempFileCreated = false;
@@ -287,8 +289,13 @@ async function processVectorData(filePath, fileName, tenantId, isS3Key = false) 
 
       console.log(`📤 Uploading to vector database for tenant ${tenantId}...`);
 
-      // addDocuments now requires tenantId for isolation
-      await vectorDBService.addDocuments(documents, tenantId);
+      // Validate tenant config has API key
+      if (!tenantConfig?.apiKey) {
+        throw new Error('OpenAI API key is required. Please configure it in Settings > AI Configuration.');
+      }
+
+      // addDocuments requires tenantId and tenantConfig (with apiKey) for embeddings
+      await vectorDBService.addDocuments(documents, tenantId, tenantConfig);
 
       console.log(`✅ Successfully uploaded ${documents.length} documents to vector database for tenant ${tenantId}`);
 
@@ -369,6 +376,27 @@ router.post('/upload', authorize('ADMIN', 'MANAGER'), (req, res) => {
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
+      // Get tenant's OpenAI configuration from settings
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: req.tenant.id },
+        select: { settings: true }
+      });
+      const openaiConfig = tenant?.settings?.openai || null;
+
+      // Check if OpenAI is configured for this tenant
+      if (!openaiConfig || !openaiConfig.apiKey) {
+        // Delete uploaded file since we can't process it
+        if (req.file.storageType === 's3') {
+          deleteFileFromStorage(req.file.s3Key);
+        } else if (req.file.path) {
+          deleteFile(req.file.path);
+        }
+        return res.status(400).json({
+          error: 'AI_NOT_CONFIGURED',
+          message: 'OpenAI API is not configured for your account. Please configure OpenAI API settings in Settings > AI Configuration before uploading vector data.'
+        });
+      }
+
       // Determine if file is in S3 or local storage
       const isS3Storage = req.file.storageType === 's3';
       const filePath = isS3Storage ? req.file.s3Key : req.file.path;
@@ -395,8 +423,8 @@ router.post('/upload', authorize('ADMIN', 'MANAGER'), (req, res) => {
             data: { status: 'processing' }
           });
 
-          // Process the file with tenant isolation (pass isS3Key flag)
-          const recordsProcessed = await processVectorData(filePath, req.file.originalname, req.tenant.id, isS3Storage);
+          // Process the file with tenant isolation (pass isS3Key flag and tenant config with API key)
+          const recordsProcessed = await processVectorData(filePath, req.file.originalname, req.tenant.id, isS3Storage, openaiConfig);
 
           // Update status to completed
           await prisma.vectorDataUpload.update({
