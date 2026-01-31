@@ -257,6 +257,14 @@ WHATSAPP_BUSINESS_ACCOUNT_ID=your-account-id
 GMAIL_USER=your-email@gmail.com
 GMAIL_REFRESH_TOKEN=your-gmail-refresh-token
 
+# S3/AWS Storage (REQUIRED for stateless architecture)
+S3_ENDPOINT=https://s3.amazonaws.com
+S3_BUCKET=your-bucket-name
+S3_ACCESS_KEY=your-access-key
+S3_SECRET_KEY=your-secret-key
+S3_REGION=us-east-1
+S3_CDN_URL=https://your-cdn-url.com
+
 # Application
 FRONTEND_URL=https://your-domain.com
 COMPANY_NAME=Your Company Name
@@ -384,12 +392,15 @@ GMAIL_USER=your-email@gmail.com
 GMAIL_REFRESH_TOKEN=your-gmail-refresh-token
 GMAIL_REDIRECT_URI=https://developers.google.com/oauthplayground
 
-# S3/DigitalOcean Spaces (optional)
-S3_ENDPOINT=https://blr1.digitaloceanspaces.com
+# S3/AWS Storage (REQUIRED for stateless architecture)
+# Use AWS S3 or DigitalOcean Spaces
+S3_ENDPOINT=https://s3.amazonaws.com           # AWS S3
+# S3_ENDPOINT=https://blr1.digitaloceanspaces.com  # DigitalOcean Spaces
+S3_BUCKET=your-bucket-name
 S3_ACCESS_KEY=your-access-key
 S3_SECRET_KEY=your-secret-key
-S3_BUCKET=crm-files
-S3_REGION=blr1
+S3_REGION=us-east-1                            # or blr1 for DigitalOcean
+S3_CDN_URL=https://your-cdn-url.com            # optional CDN URL
 
 # Application
 FRONTEND_URL=https://your-domain.com
